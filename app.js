@@ -45,6 +45,8 @@ const noFields = document.getElementById("noFields");
 const noNote = document.getElementById("noNote");
 const thingsToggle = document.getElementById("thingsToggle");
 const thingsExtraCards = Array.from(document.querySelectorAll(".thing-extra"));
+const makanSpecialsTrack = document.getElementById("makanSpecialsTrack");
+const makanCategoryGrid = document.getElementById("makanCategoryGrid");
 const hotelMatrixShell = document.getElementById("hotelMatrixShell");
 const hotelMatrixSvg = document.getElementById("hotelMatrixSvg");
 const hotelMatrixDetails = document.getElementById("hotelMatrixDetails");
@@ -121,6 +123,7 @@ const jumpMenuPanel = document.getElementById("jumpMenuPanel");
 const jumpMenuLinks = jumpMenuPanel ? Array.from(jumpMenuPanel.querySelectorAll("a[href^='#']")) : [];
 
 const HOTELS_DATA = Array.isArray(window.HOTELS_DATA) ? window.HOTELS_DATA : [];
+const BEIJING_FOOD_PLACES = Array.isArray(window.BEIJING_FOOD_PLACES) ? window.BEIJING_FOOD_PLACES : [];
 
 const STORY_COPY = {
   1995: {
@@ -190,14 +193,32 @@ const STORY_COPY = {
   },
 };
 
-const MAKAN_CATEGORIES = [
-  { title: "Breakfast & street snacks", items: [] },
-  { title: "Dumplings & noodles", items: [] },
-  { title: "Duck & roasts", items: [] },
-  { title: "Hotpot & late-night", items: [] },
-  { title: "Desserts & tea", items: [] },
-  { title: "Coffee (jet-lag recovery)", items: [] },
+const MAKAN_CATEGORY_ORDER = [
+  "Duck & roasts",
+  "Cantonese & seafood",
+  "Jiangnan (Shanghai / Huaiyang)",
+  "Breakfast & street snacks",
+  "Hotpot & late-night",
+  "Desserts, tea & coffee",
 ];
+
+const MAKAN_PLACEHOLDER_COPY = {
+  "Breakfast & street snacks": [
+    "We’re still arguing about the best jianbing.",
+    "If you see a breakfast queue… that’s usually the sign.",
+    "Have a must-eat? Send it to us and we’ll add it.",
+  ],
+  "Hotpot & late-night": [
+    "Jet lag + late-night noodles is a Beijing tradition.",
+    "Post-wedding hotpot squad, anyone?",
+    "We’ll drop the best late-night spots soon.",
+  ],
+  "Desserts, tea & coffee": [
+    "Tea breaks are mandatory.",
+    "Café list incoming (we take this seriously).",
+    "Send us your favorite spot and we’ll add it.",
+  ],
+};
 const STORY_ASSET_VERSION = "20260215-1310";
 const STORY_OVERRIDES = {
   // Lock problematic files so orientation and year placement stay stable.
@@ -434,47 +455,242 @@ function initThingsDisclosure() {
   initCardDisclosure(thingsToggle, thingsExtraCards);
 }
 
-function initMakanSection() {
-  const makanGrid = document.getElementById("makanGrid");
-  if (!makanGrid) return;
+async function copyTextToClipboard(value) {
+  const text = String(value || "").trim();
+  if (!text) return false;
 
-  makanGrid.innerHTML = "";
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (_error) {
+      // Fall back to the textarea approach below.
+    }
+  }
 
-  MAKAN_CATEGORIES.forEach((category) => {
+  const helper = document.createElement("textarea");
+  helper.value = text;
+  helper.setAttribute("readonly", "true");
+  helper.style.position = "fixed";
+  helper.style.opacity = "0";
+  helper.style.pointerEvents = "none";
+  document.body.appendChild(helper);
+  helper.select();
+
+  let copied = false;
+  try {
+    copied = document.execCommand("copy");
+  } catch (_error) {
+    copied = false;
+  }
+
+  document.body.removeChild(helper);
+  return copied;
+}
+
+function createFoodCopyButton(nameCn) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "makan-copy-btn";
+  button.setAttribute("aria-label", `Copy Chinese name ${nameCn}`);
+  button.textContent = "Copy 中文名";
+  button.dataset.defaultText = button.textContent;
+
+  button.addEventListener("click", async () => {
+    const copied = await copyTextToClipboard(nameCn);
+    button.textContent = copied ? "Copied" : "Copy failed";
+    button.classList.toggle("is-copied", copied);
+
+    window.setTimeout(() => {
+      button.textContent = button.dataset.defaultText || "Copy 中文名";
+      button.classList.remove("is-copied");
+    }, 1300);
+  });
+
+  return button;
+}
+
+function FoodMenuRow(place) {
+  const row = document.createElement("article");
+  row.className = "makan-menu-row";
+
+  const top = document.createElement("div");
+  top.className = "makan-menu-row-top";
+
+  const main = document.createElement("div");
+  main.className = "makan-menu-main";
+
+  const en = document.createElement("p");
+  en.className = "makan-name-en";
+  en.textContent = place.name_en;
+
+  const cn = document.createElement("p");
+  cn.className = "makan-name-cn";
+  cn.textContent = place.name_cn;
+
+  const blurb = document.createElement("p");
+  blurb.className = "makan-row-blurb";
+  blurb.textContent = place.blurb_en;
+
+  main.appendChild(en);
+  main.appendChild(cn);
+  main.appendChild(blurb);
+
+  const leader = document.createElement("span");
+  leader.className = "makan-row-leader";
+  leader.setAttribute("aria-hidden", "true");
+
+  const chips = document.createElement("div");
+  chips.className = "makan-chip-group";
+  (place.vibe_tags || []).slice(0, 3).forEach((tag) => {
+    const chip = document.createElement("span");
+    chip.className = "makan-chip";
+    chip.textContent = tag;
+    chips.appendChild(chip);
+  });
+
+  top.appendChild(main);
+  top.appendChild(leader);
+  top.appendChild(chips);
+
+  const foot = document.createElement("div");
+  foot.className = "makan-menu-row-foot";
+
+  const address = document.createElement("p");
+  address.className = "makan-address";
+  address.textContent = place.address_cn ? `📍 ${place.address_cn}` : "📍 Beijing";
+  foot.appendChild(address);
+
+  const actions = document.createElement("div");
+  actions.className = "makan-row-actions";
+  actions.appendChild(createFoodCopyButton(place.name_cn));
+
+  if (place.dianping_url) {
+    const link = document.createElement("a");
+    link.className = "makan-link";
+    link.href = place.dianping_url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = "Open in 大众点评";
+    actions.appendChild(link);
+  }
+
+  foot.appendChild(actions);
+  row.appendChild(top);
+  row.appendChild(foot);
+  return row;
+}
+
+function FoodSpecialsStrip(places) {
+  if (!makanSpecialsTrack) return;
+
+  const fallbackImages = [
+    "/public/images/makan-placeholder-gongyan.svg",
+    "/public/images/makan-placeholder-duck.svg",
+    "/public/images/makan-placeholder-cantonese.svg",
+    "/public/images/makan-placeholder-jiangnan.svg",
+  ];
+
+  const specials = places.filter((place) => place.is_house_special).slice(0, 6);
+  makanSpecialsTrack.innerHTML = "";
+
+  specials.forEach((place, index) => {
     const card = document.createElement("article");
-    card.className = "makan-category";
+    card.className = "makan-special-card";
+
+    const media = document.createElement("figure");
+    media.className = "makan-special-media";
+
+    const image = document.createElement("img");
+    image.loading = "lazy";
+    image.decoding = "async";
+    image.alt = `${place.name_en}`;
+    image.src = toPhotoSrc(place.image || fallbackImages[index % fallbackImages.length]);
+    media.appendChild(image);
+
+    const body = document.createElement("div");
+    body.className = "makan-special-body";
+
+    const name = document.createElement("h4");
+    name.className = "makan-special-name";
+    name.textContent = place.name_en;
+
+    const nameCn = document.createElement("p");
+    nameCn.className = "makan-special-name-cn";
+    nameCn.textContent = place.name_cn;
+
+    const why = document.createElement("p");
+    why.className = "makan-special-why";
+    why.textContent = place.blurb_en;
+
+    const actions = document.createElement("div");
+    actions.className = "makan-special-actions";
+    actions.appendChild(createFoodCopyButton(place.name_cn));
+
+    if (place.dianping_url) {
+      const link = document.createElement("a");
+      link.className = "makan-link";
+      link.href = place.dianping_url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = "Open in 大众点评";
+      actions.appendChild(link);
+    }
+
+    body.appendChild(name);
+    body.appendChild(nameCn);
+    body.appendChild(why);
+    body.appendChild(actions);
+
+    card.appendChild(media);
+    card.appendChild(body);
+    makanSpecialsTrack.appendChild(card);
+  });
+}
+
+function FoodCategoryGrid(places) {
+  if (!makanCategoryGrid) return;
+  makanCategoryGrid.innerHTML = "";
+
+  MAKAN_CATEGORY_ORDER.forEach((categoryTitle) => {
+    const card = document.createElement("article");
+    card.className = "makan-category-card";
 
     const title = document.createElement("h4");
     title.className = "makan-category-title";
-    title.textContent = category.title;
+    title.textContent = categoryTitle;
     card.appendChild(title);
 
-    const list = document.createElement("ul");
-    list.className = "makan-lines";
+    const items = places.filter((place) => place.category === categoryTitle);
+    if (items.length > 0) {
+      const rowsWrap = document.createElement("div");
+      rowsWrap.className = "makan-rows";
+      items.forEach((place) => rowsWrap.appendChild(FoodMenuRow(place)));
+      card.appendChild(rowsWrap);
+    } else {
+      const placeholderList = document.createElement("ul");
+      placeholderList.className = "makan-placeholder-list";
+      (MAKAN_PLACEHOLDER_COPY[categoryTitle] || []).forEach((line) => {
+        const item = document.createElement("li");
+        item.textContent = line;
+        placeholderList.appendChild(item);
+      });
+      card.appendChild(placeholderList);
+    }
 
-    const hasItems = Array.isArray(category.items) && category.items.length > 0;
-    const lines = hasItems ? category.items.slice(0, 4) : ["TBD", "TBD", "TBD", "TBD"];
-
-    lines.forEach((line) => {
-      const item = document.createElement("li");
-      item.className = hasItems ? "makan-line" : "makan-line is-placeholder";
-
-      const name = document.createElement("span");
-      name.className = "makan-line-name";
-      name.textContent = String(line);
-
-      const dots = document.createElement("span");
-      dots.className = "makan-line-dots";
-      dots.setAttribute("aria-hidden", "true");
-
-      item.appendChild(name);
-      item.appendChild(dots);
-      list.appendChild(item);
-    });
-
-    card.appendChild(list);
-    makanGrid.appendChild(card);
+    makanCategoryGrid.appendChild(card);
   });
+}
+
+function BeijingMakanMenuSection() {
+  if (!makanSpecialsTrack || !makanCategoryGrid) return;
+
+  FoodSpecialsStrip(BEIJING_FOOD_PLACES);
+  FoodCategoryGrid(BEIJING_FOOD_PLACES);
+}
+
+function initMakanSection() {
+  BeijingMakanMenuSection();
 }
 
 function createSvgNode(tagName, attributes = {}) {

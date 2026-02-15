@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900" fill="none">
+  <rect width="1200" height="900" fill="#2F1016"/>
+  <rect x="60" y="58" width="1080" height="784" rx="36" stroke="#C9AE74" stroke-opacity="0.45" stroke-width="2"/>
+  <path d="M112 732C282 590 430 642 603 558C776 474 934 530 1088 418" stroke="#F7F1E6" stroke-opacity="0.22" stroke-width="5" stroke-linecap="round"/>
+  <path d="M116 632C291 512 445 548 608 470C771 392 931 434 1086 332" stroke="#F7F1E6" stroke-opacity="0.2" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="296" cy="372" r="156" fill="#5F1E2B"/>
+  <circle cx="866" cy="306" r="126" fill="#4B0F17"/>
+  <circle cx="866" cy="306" r="112" stroke="#C9AE74" stroke-opacity="0.6" stroke-width="2"/>
+  <text x="120" y="176" fill="#F7F1E6" fill-opacity="0.82" font-family="Cormorant Garamond, serif" font-size="72">House Special</text>
+  <text x="120" y="242" fill="#C9AE74" fill-opacity="0.84" font-family="Inter, sans-serif" font-size="30" letter-spacing="4">宫宴 / IMPERIAL SHOW DINNER</text>
+</svg>

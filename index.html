@@ -15,7 +15,7 @@
     />
     <link rel="icon" type="image/svg+xml" href="public/favicon.svg" />
     <link rel="icon" type="image/png" href="public/favicon-32.png" />
-    <link rel="stylesheet" href="./styles.css?v=20260215-v9-rebuild" />
+    <link rel="stylesheet" href="./styles.css?v=20260216-makan" />
   </head>
   <body>
     <header id="floatingHeader" class="floating-header" aria-label="Site navigation">
@@ -391,6 +391,59 @@
             </details>
             <details>
               <summary class="faq-summary">
+                <span class="faq-q">How do we get around in Beijing?</span>
+                <span class="faq-chevron" aria-hidden="true"></span>
+              </summary>
+              <div class="faq-answer">
+                <ul>
+                  <li><strong>Didi (滴滴) = Uber.</strong> It’s our go-to. It works for taxis and ride-shares, and it’s very reliable in Beijing.</li>
+                  <li><strong>The subway is great.</strong> It’s clean, cheap, and gets you almost everywhere.</li>
+                  <li><strong>One catch:</strong> to enter the metro, most people use a <strong>Transit QR code</strong> inside <strong>Alipay (支付宝)</strong> (or WeChat). Once it’s set up, you just scan at the gates.</li>
+                </ul>
+              </div>
+            </details>
+            <details>
+              <summary class="faq-summary">
+                <span class="faq-q">What’s the easiest way to get from the airport to the hotel?</span>
+                <span class="faq-chevron" aria-hidden="true"></span>
+              </summary>
+              <div class="faq-answer">
+                <ul>
+                  <li>The simplest option is usually a <strong>taxi from the official taxi queue</strong> at the airport.</li>
+                  <li><strong>Very important:</strong> have your hotel <strong>name + address in Chinese characters</strong> ready to show the driver. English often won’t work.</li>
+                  <li>If you’d like, send us your arrival details (flight number + landing time). We’re happy to help arrange pickup service as well.</li>
+                </ul>
+              </div>
+            </details>
+            <details>
+              <summary class="faq-summary">
+                <span class="faq-q">How do we pay in China?</span>
+                <span class="faq-chevron" aria-hidden="true"></span>
+              </summary>
+              <div class="faq-answer">
+                <p>China is mostly cashless. The two apps you’ll want are:</p>
+                <ul>
+                  <li><strong>WeChat Pay (微信支付)</strong> and <strong>Alipay (支付宝)</strong> — used everywhere (restaurants, cafés, taxis, and small shops).</li>
+                  <li><strong>Good news:</strong> you can usually link a foreign credit card after verification. If you can, use a card with no foreign transaction fees.</li>
+                  <li>If either app gives you trouble (verification, linking cards, QR codes, etc.), Miki can help you get set up.</li>
+                </ul>
+              </div>
+            </details>
+            <details>
+              <summary class="faq-summary">
+                <span class="faq-q">Will I need a VPN in Beijing?</span>
+                <span class="faq-chevron" aria-hidden="true"></span>
+              </summary>
+              <div class="faq-answer">
+                <p>To use Google Maps, Google Search, Instagram, and many other non-China apps, you’ll usually need a <strong>VPN</strong> while you’re in Beijing.</p>
+                <ul>
+                  <li>Install it, sign in, and <strong>test it before you fly</strong> (it’s much easier to set up outside China).</li>
+                  <li>NordVPN is one common option (any VPN you trust is fine).</li>
+                </ul>
+              </div>
+            </details>
+            <details>
+              <summary class="faq-summary">
                 <span class="faq-q">Weather?</span>
                 <span class="faq-chevron" aria-hidden="true"></span>
               </summary>
@@ -640,17 +693,37 @@
             <img class="motif-layer__item motif-layer__item--topRight" src="public/motifs/bamboo-branch.svg" alt="" />
             <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/peony-bud.svg" alt="" />
           </div>
-          <h2 class="section-title reveal reveal-left">What to eat (makan)</h2>
-          <p class="makan-subhead reveal">
-            Beijing is basically a 3,000-year-old food court. We’re building a short list of places we’d actually take friends. Coming soon.
-          </p>
-
           <div class="makan-menu-card reveal reveal-scale">
-            <div class="makan-menu-head">
-              <h3>Beijing Makan Menu</h3>
-              <span class="makan-badge">COMING SOON</span>
+            <h2 class="section-title reveal reveal-left">Beijing Makan Menu</h2>
+            <p class="makan-intro">
+              Beijing food is loud, proud, and extremely good. Here are a few favorites—mix of ‘only in Beijing’ experiences and reliable
+              classics.
+            </p>
+
+            <div class="makan-tip-banner" role="note" aria-label="Beijing food app tip">
+              <span class="makan-tip-icon" aria-hidden="true">✦</span>
+              <p>
+                One Beijing tip: download 大众点评 (Dàzhòng Diǎnpíng). Most restaurants here don’t show their full vibe on Google Maps. For photos,
+                menus, and real reviews, locals use 大众点评—think Yelp + Google Reviews in one. If you want to see what a place actually looks like
+                (and what to order), it’s the best app for it.
+              </p>
             </div>
-            <div class="makan-grid" id="makanGrid" aria-label="Makan categories"></div>
+
+            <div class="makan-specials" aria-labelledby="makanSpecialsTitle">
+              <div class="makan-menu-head">
+                <h3 id="makanSpecialsTitle">House Specials</h3>
+                <span class="makan-badge">CURATED</span>
+              </div>
+              <div id="makanSpecialsTrack" class="makan-specials-track" aria-label="House Specials"></div>
+            </div>
+
+            <div class="makan-categories">
+              <div class="makan-menu-head">
+                <h3>Menu Categories</h3>
+                <span class="makan-badge">IN PROGRESS</span>
+              </div>
+              <div class="makan-category-grid" id="makanCategoryGrid" aria-label="Beijing Makan categories"></div>
+            </div>
           </div>
 
           <p class="makan-microcopy reveal">Have a must-eat spot? Send it to us and we’ll add it.</p>
@@ -783,6 +856,7 @@
     </footer>
 
     <script src="./data/hotels.js?v=20260216-matrix"></script>
-    <script src="./app.js?v=20260215-v9-rebuild"></script>
+    <script src="./data/beijing-food.js?v=20260216-makan"></script>
+    <script src="./app.js?v=20260216-makan"></script>
   </body>
 </html>

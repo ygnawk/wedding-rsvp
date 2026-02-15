@@ -1932,6 +1932,16 @@ details[open] .faq-answer {
   max-width: 70ch;
 }
 
+.faq-answer ul {
+  margin: 10px 0 4px;
+  padding-left: 1.15rem;
+  max-width: 70ch;
+}
+
+.faq-answer li {
+  margin: 6px 0;
+}
+
 @keyframes faqFade {
   from {
     opacity: 0;
@@ -2494,23 +2504,65 @@ details[open] .faq-answer {
 }
 
 .makan-wrap {
-  max-width: 1040px;
-}
-
-.makan-subhead {
-  margin: 10px 0 20px;
-  max-width: 72ch;
-  line-height: 1.62;
-  opacity: 0.92;
+  max-width: 1140px;
 }
 
 .makan-menu-card {
   border-radius: 24px;
   background: var(--paper);
   border: 1px solid rgba(201, 174, 116, 0.3);
-  padding: clamp(18px, 2.6vw, 30px);
-  box-shadow: 0 12px 26px rgba(50, 10, 16, 0.08);
+  padding: clamp(18px, 2.4vw, 30px);
+  box-shadow: 0 16px 28px rgba(25, 13, 17, 0.14);
   color: var(--ink);
+}
+
+.makan-menu-card .section-title {
+  margin-bottom: 8px;
+  color: var(--maroon);
+}
+
+.makan-intro {
+  margin: 0;
+  max-width: 74ch;
+  line-height: 1.62;
+  opacity: 0.92;
+}
+
+.makan-tip-banner {
+  margin-top: 16px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  border-radius: 16px;
+  border: 1px solid rgba(201, 174, 116, 0.3);
+  background: rgba(75, 15, 23, 0.06);
+  padding: 12px 14px;
+}
+
+.makan-tip-icon {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(201, 174, 116, 0.34);
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--maroon);
+  font-size: 0.76rem;
+  margin-top: 2px;
+}
+
+.makan-tip-banner p {
+  margin: 0;
+  line-height: 1.62;
+  max-width: 80ch;
+}
+
+.makan-specials,
+.makan-categories {
+  margin-top: 18px;
 }
 
 .makan-menu-head {
@@ -2518,12 +2570,13 @@ details[open] .faq-answer {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding-bottom: 14px;
-  border-bottom: 1px dashed rgba(75, 15, 23, 0.24);
+  padding-bottom: 10px;
+  border-bottom: 1px dashed rgba(75, 15, 23, 0.2);
 }
 
 .makan-menu-head h3 {
-  font-size: clamp(1.55rem, 3.3vw, 2.1rem);
+  margin: 0;
+  font-size: clamp(1.28rem, 2.3vw, 1.74rem);
   font-family: var(--displayFont);
   color: var(--maroon);
 }
@@ -2541,79 +2594,315 @@ details[open] .faq-answer {
   padding: 6px 10px;
 }
 
-.makan-grid {
+.makan-specials-track {
+  margin-top: 14px;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(270px, 34%);
+  gap: 14px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(75, 15, 23, 0.3) transparent;
+}
+
+.makan-specials-track::-webkit-scrollbar {
+  height: 8px;
+}
+
+.makan-specials-track::-webkit-scrollbar-thumb {
+  background: rgba(75, 15, 23, 0.28);
+  border-radius: 999px;
+}
+
+.makan-special-card {
+  scroll-snap-align: start;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid rgba(75, 15, 23, 0.14);
+  background: rgba(75, 15, 23, 0.03);
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.makan-special-media {
+  margin: 0;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: rgba(75, 15, 23, 0.1);
+}
+
+.makan-special-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+
+.makan-special-body {
+  padding: 12px 12px 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.makan-special-name {
+  margin: 0;
+  font-family: var(--displayFont);
+  font-size: 1.2rem;
+  color: var(--maroonDeep);
+  line-height: 1.2;
+}
+
+.makan-special-name-cn {
+  margin: 0;
+  font-size: 0.86rem;
+  letter-spacing: 0.02em;
+  color: rgba(21, 21, 21, 0.74);
+}
+
+.makan-special-why {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: rgba(21, 21, 21, 0.87);
+}
+
+.makan-special-actions,
+.makan-row-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.makan-copy-btn,
+.makan-link {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(201, 174, 116, 0.46);
+  padding: 6px 11px;
+  font-size: 0.76rem;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.makan-copy-btn {
+  appearance: none;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--maroon);
+}
+
+.makan-copy-btn::before {
+  content: "⧉";
+  margin-right: 6px;
+  font-size: 0.9rem;
+}
+
+.makan-copy-btn.is-copied {
+  background: rgba(201, 174, 116, 0.28);
+  border-color: rgba(201, 174, 116, 0.7);
+}
+
+.makan-link {
+  text-decoration: none;
+  background: rgba(75, 15, 23, 0.08);
+  color: var(--maroon);
+}
+
+.makan-link:hover,
+.makan-link:focus-visible,
+.makan-copy-btn:hover,
+.makan-copy-btn:focus-visible {
+  border-color: rgba(201, 174, 116, 0.75);
+  background: rgba(201, 174, 116, 0.16);
+}
+
+.makan-link:focus-visible,
+.makan-copy-btn:focus-visible {
+  outline: 2px solid rgba(201, 174, 116, 0.7);
+  outline-offset: 2px;
+}
+
+.makan-category-grid {
   margin-top: 16px;
   display: grid;
   grid-template-columns: 1fr;
   gap: 14px;
 }
 
-.makan-category {
+.makan-category-card {
   border-radius: 18px;
   border: 1px solid rgba(75, 15, 23, 0.14);
   background: rgba(75, 15, 23, 0.03);
-  padding: 14px 14px 12px;
+  padding: 14px;
 }
 
 .makan-category-title {
-  margin: 0 0 10px;
+  margin: 0 0 12px;
   font-family: var(--displayFont);
-  font-size: 1.28rem;
+  font-size: 1.22rem;
   color: var(--maroonDeep);
 }
 
-.makan-lines {
+.makan-rows {
+  display: grid;
+  gap: 10px;
+}
+
+.makan-menu-row {
+  border-top: 1px solid rgba(75, 15, 23, 0.12);
+  padding-top: 10px;
+}
+
+.makan-menu-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.makan-menu-row-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.makan-menu-main {
+  max-width: 44ch;
+}
+
+.makan-name-en {
   margin: 0;
-  padding: 0;
-  list-style: none;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.makan-name-cn {
+  margin: 1px 0 2px;
+  font-size: 0.88rem;
+  color: rgba(21, 21, 21, 0.72);
+}
+
+.makan-row-blurb {
+  margin: 0;
+  font-size: 0.86rem;
+  font-style: italic;
+  line-height: 1.5;
+  color: rgba(21, 21, 21, 0.78);
+}
+
+.makan-row-leader {
+  flex: 1 1 auto;
+  border-bottom: 1px dotted rgba(75, 15, 23, 0.34);
+  transform: translateY(18px);
+}
+
+.makan-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  max-width: 45%;
+}
+
+.makan-chip {
+  border-radius: 999px;
+  border: 1px solid rgba(75, 15, 23, 0.16);
+  padding: 4px 8px;
+  font-size: 0.69rem;
+  letter-spacing: 0.04em;
+  color: rgba(21, 21, 21, 0.78);
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.makan-menu-row-foot {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.makan-address {
+  margin: 0;
+  font-size: 0.82rem;
+  color: rgba(21, 21, 21, 0.68);
+}
+
+.makan-placeholder-list {
+  margin: 0;
+  padding-left: 1.05rem;
+  list-style: disc;
   display: grid;
   gap: 8px;
 }
 
-.makan-line {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  min-height: 22px;
-  color: rgba(21, 21, 21, 0.88);
-}
-
-.makan-line-name {
-  white-space: nowrap;
-  font-size: 0.95rem;
-}
-
-.makan-line-dots {
-  flex: 1 1 auto;
-  border-bottom: 1px dotted rgba(75, 15, 23, 0.34);
-  transform: translateY(-2px);
-}
-
-.makan-line.is-placeholder .makan-line-name {
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  opacity: 0.55;
-}
-
-.makan-line.is-placeholder .makan-line-dots {
-  border-bottom-color: rgba(75, 15, 23, 0.2);
+.makan-placeholder-list li {
+  line-height: 1.55;
+  color: rgba(21, 21, 21, 0.84);
 }
 
 .makan-microcopy {
   margin: 12px 2px 0;
-  font-size: 0.86rem;
+  font-size: 0.87rem;
   color: rgba(21, 21, 21, 0.68);
 }
 
 @media (min-width: 760px) {
-  .makan-grid {
+  .makan-category-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (min-width: 1120px) {
-  .makan-grid {
+  .makan-category-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  .makan-specials-track {
+    grid-auto-columns: minmax(280px, 58%);
+  }
+
+  .makan-row-leader {
+    display: none;
+  }
+
+  .makan-menu-row-top {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .makan-chip-group {
+    max-width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 600px) {
+  .makan-specials-track {
+    grid-auto-columns: 82%;
+    scroll-snap-type: x mandatory;
+  }
+
+  .makan-menu-card {
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .makan-tip-banner {
+    padding: 10px 11px;
+    gap: 10px;
+  }
+
+  .makan-menu-row-foot {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 

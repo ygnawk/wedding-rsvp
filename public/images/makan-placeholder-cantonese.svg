@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900" fill="none">
+  <rect width="1200" height="900" fill="#341117"/>
+  <rect x="66" y="62" width="1068" height="776" rx="34" stroke="#C9AE74" stroke-opacity="0.42" stroke-width="2"/>
+  <rect x="226" y="248" width="746" height="390" rx="196" fill="#56212C"/>
+  <rect x="248" y="270" width="702" height="346" rx="173" stroke="#C9AE74" stroke-opacity="0.46" stroke-width="2"/>
+  <circle cx="446" cy="448" r="62" fill="#F7F1E6" fill-opacity="0.24"/>
+  <circle cx="594" cy="466" r="54" fill="#F7F1E6" fill-opacity="0.2"/>
+  <circle cx="742" cy="440" r="58" fill="#F7F1E6" fill-opacity="0.22"/>
+  <text x="122" y="174" fill="#F7F1E6" fill-opacity="0.84" font-family="Cormorant Garamond, serif" font-size="72">House Special</text>
+  <text x="122" y="242" fill="#C9AE74" fill-opacity="0.86" font-family="Inter, sans-serif" font-size="30" letter-spacing="4">粤菜 / CANTONESE CLASSICS</text>
+</svg>

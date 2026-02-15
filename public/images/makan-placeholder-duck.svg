@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900" fill="none">
+  <rect width="1200" height="900" fill="#3E1019"/>
+  <rect x="70" y="70" width="1060" height="760" rx="34" stroke="#C9AE74" stroke-opacity="0.4" stroke-width="2"/>
+  <ellipse cx="600" cy="570" rx="382" ry="164" fill="#6E2532"/>
+  <ellipse cx="600" cy="570" rx="354" ry="138" stroke="#C9AE74" stroke-opacity="0.42" stroke-width="2"/>
+  <path d="M254 378C332 308 430 268 606 272C786 276 872 326 944 404" stroke="#F7F1E6" stroke-opacity="0.24" stroke-width="20" stroke-linecap="round"/>
+  <path d="M268 392C354 330 446 300 606 304C754 308 850 338 930 392" stroke="#C9AE74" stroke-opacity="0.5" stroke-width="6" stroke-linecap="round"/>
+  <text x="124" y="168" fill="#F7F1E6" fill-opacity="0.84" font-family="Cormorant Garamond, serif" font-size="72">House Special</text>
+  <text x="124" y="236" fill="#C9AE74" fill-opacity="0.86" font-family="Inter, sans-serif" font-size="30" letter-spacing="4">北京烤鸭 / PEKING DUCK</text>
+</svg>
