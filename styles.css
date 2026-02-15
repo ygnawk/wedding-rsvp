@@ -1194,25 +1194,103 @@ a:focus-visible,
 .faq-list details {
   border: 1px solid var(--hairline);
   border-radius: 12px;
-  background: rgba(255, 249, 240, 0.72);
-  padding: 10px 12px;
-}
-
-.faq-list summary {
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  list-style: none;
-  font-weight: 500;
+  background: rgba(255, 249, 240, 0.82);
+  overflow: hidden;
 }
 
 .faq-list summary::-webkit-details-marker {
   display: none;
 }
 
-.faq-list p {
+.faq-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  cursor: pointer;
+  user-select: none;
+  padding: 18px 18px;
+  border-radius: 14px;
+  background: rgba(247, 241, 230, 0.92);
+  border: 1px solid rgba(201, 174, 116, 0.16);
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+  list-style: none;
+}
+
+.faq-summary:hover {
+  background: rgba(247, 241, 230, 0.98);
+  border-color: rgba(201, 174, 116, 0.3);
+  transform: translateY(-1px);
+}
+
+details[open] > .faq-summary {
+  border-color: rgba(201, 174, 116, 0.45);
+  background: rgba(247, 241, 230, 1);
+}
+
+.faq-summary:focus-visible {
+  outline: 2px solid rgba(201, 174, 116, 0.65);
+  outline-offset: 3px;
+}
+
+.faq-q {
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.faq-chevron {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(201, 174, 116, 0.35);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  background: rgba(0, 0, 0, 0.06);
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+  position: relative;
+}
+
+.faq-chevron::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid rgba(75, 15, 23, 0.75);
+  border-bottom: 2px solid rgba(75, 15, 23, 0.75);
+  transform: rotate(45deg);
+  margin-top: -2px;
+}
+
+details[open] .faq-chevron {
+  transform: rotate(180deg);
+  border-color: rgba(201, 174, 116, 0.55);
+  background: rgba(201, 174, 116, 0.1);
+}
+
+.faq-answer {
+  padding: 14px 18px 18px;
+  color: rgba(21, 21, 21, 0.92);
+  line-height: 1.6;
+}
+
+details[open] .faq-answer {
+  animation: faqFade 160ms ease-out;
+}
+
+.faq-answer p {
   margin: 8px 0 2px;
+}
+
+@keyframes faqFade {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .faq-wear-media {
@@ -1242,8 +1320,8 @@ a:focus-visible,
   color: var(--ink);
 }
 
-#faq.section-maroon .faq-list summary,
-#faq.section-maroon .faq-list p {
+#faq.section-maroon .faq-summary,
+#faq.section-maroon .faq-answer p {
   color: var(--ink);
 }
 
@@ -1542,6 +1620,134 @@ a:focus-visible,
   color: var(--ivory);
   font-size: 1.5rem;
   line-height: 1;
+}
+
+.lightbox.hidden {
+  display: none;
+}
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+}
+
+.lightbox-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.lightbox-frame {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+  width: min(920px, 92vw);
+  height: min(80vh, 860px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 22px;
+  background: rgba(247, 241, 230, 0.94);
+  border: 1px solid rgba(201, 174, 116, 0.25);
+  overflow: hidden;
+}
+
+.lightbox-img {
+  max-width: 86%;
+  max-height: 86%;
+  object-fit: contain;
+  border-radius: 18px;
+}
+
+.lightbox-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(201, 174, 116, 0.55);
+  background: rgba(75, 15, 23, 0.12);
+  color: rgba(75, 15, 23, 0.95);
+  font-size: 28px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 160ms ease, transform 160ms ease, border-color 160ms ease;
+}
+
+.lightbox-btn:hover {
+  background: rgba(201, 174, 116, 0.2);
+  border-color: rgba(201, 174, 116, 0.75);
+}
+
+.lightbox-btn--prev {
+  left: 12px;
+}
+
+.lightbox-btn--next {
+  right: 12px;
+}
+
+.lightbox-counter {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--bodyFont);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  opacity: 0.85;
+  background: rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(201, 174, 116, 0.25);
+  border-radius: 999px;
+  padding: 6px 10px;
+}
+
+.lightbox-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid rgba(201, 174, 116, 0.4);
+  background: rgba(0, 0, 0, 0.06);
+  color: rgba(75, 15, 23, 0.95);
+  font-size: 26px;
+  cursor: pointer;
+}
+
+body.modal-open {
+  overflow: hidden;
+}
+
+@media (max-width: 600px) {
+  .lightbox-frame {
+    height: min(78vh, 720px);
+  }
+
+  .lightbox-img {
+    max-width: 92%;
+    max-height: 84%;
+  }
+
+  .lightbox-btn {
+    width: 40px;
+    height: 40px;
+    font-size: 26px;
+  }
+
+  .lightbox-btn--prev {
+    left: 8px;
+  }
+
+  .lightbox-btn--next {
+    right: 8px;
+  }
 }
 
 .travel-wrap {
