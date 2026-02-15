@@ -1078,9 +1078,44 @@ a:focus-visible,
 @media (max-width: 600px) {
   .things-grid {
     grid-template-columns: 1fr;
+    gap: 24px;
   }
   .stay-grid {
     grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  #stay.section,
+  #things-to-do.section {
+    min-height: auto;
+  }
+
+  .content-card {
+    border-radius: 22px;
+    padding: 18px;
+    gap: 12px;
+  }
+
+  .content-media,
+  .thing-img {
+    border-radius: 18px;
+    aspect-ratio: 4 / 3;
+    max-height: 220px;
+  }
+
+  .content-card h3 {
+    font-size: 22px;
+    line-height: 1.2;
+  }
+
+  .content-card p {
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+
+  .thing-links,
+  .hotel-links {
+    gap: 14px;
   }
 }
 
@@ -1099,6 +1134,9 @@ a:focus-visible,
 
 .content-media,
 .thing-img {
+  margin: 0;
+  width: 100%;
+  max-width: 100%;
   border-radius: 999px 999px 22px 22px;
   overflow: hidden;
   aspect-ratio: 4 / 3;
