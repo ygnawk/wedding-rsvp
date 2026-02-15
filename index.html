@@ -594,7 +594,7 @@
           </div>
           <h2 class="reveal reveal-left">Things to do in Beijing</h2>
 
-          <div class="things-grid">
+          <div class="things-grid" id="thingsGridTop">
             <article class="content-card thing-card reveal">
               <figure class="content-media thing-img">
                 <img data-photo-key="thingForbiddenCity" src="photos/things/forbidden-city.jpg" alt="Forbidden City" loading="lazy" />
@@ -630,45 +630,58 @@
                 <a href="https://whc.unesco.org/en/list/880/" target="_blank" rel="noopener noreferrer">Website</a>
               </p>
             </article>
-
-            <article class="content-card thing-card reveal thing-extra" hidden>
-              <figure class="content-media thing-img">
-                <img data-photo-key="thingMutianyu" src="photos/things/great-wall-mutianyu.jpg" alt="Great Wall at Mutianyu" loading="lazy" />
-              </figure>
-              <h3>Great Wall (Mutianyu)</h3>
-              <p>A scenic section of the Wall with mountain panoramas and restored watchtowers.</p>
-              <p class="thing-links">
-                <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Mutianyu+Great+Wall&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
-                <a href="https://www.mutianyugreatwall.com/" target="_blank" rel="noopener noreferrer">Website</a>
-              </p>
-            </article>
-
-            <article class="content-card thing-card reveal thing-extra" hidden>
-              <figure class="content-media thing-img">
-                <img data-photo-key="thingJingshan" src="photos/things/jingshan-park.jpg" alt="Jingshan Park" loading="lazy" />
-              </figure>
-              <h3>Jingshan Park</h3>
-              <p>A short climb with one of the best panoramic views over old Beijing.</p>
-              <p class="thing-links">
-                <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Jingshan+Park+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
-                <a href="https://en.wikipedia.org/wiki/Jingshan_Park" target="_blank" rel="noopener noreferrer">Website</a>
-              </p>
-            </article>
-
-            <article class="content-card thing-card reveal thing-extra" hidden>
-              <figure class="content-media thing-img">
-                <img data-photo-key="thingSanlitun" src="photos/things/sanlitun-taikooli.jpg" alt="Sanlitun Taikoo Li" loading="lazy" />
-              </figure>
-              <h3>Sanlitun (Taikoo Li)</h3>
-              <p>Modern shopping, cafes, and nightlife—one of Beijing’s most energetic neighborhoods.</p>
-              <p class="thing-links">
-                <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Taikoo+Li+Sanlitun+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
-                <a href="https://taikoolisanlitun.com" target="_blank" rel="noopener noreferrer">Website</a>
-              </p>
-            </article>
           </div>
+
+          <div id="things-to-do-more" class="things-more" hidden>
+            <div class="things-grid things-grid--more">
+              <article class="content-card thing-card reveal">
+                <figure class="content-media thing-img">
+                  <img data-photo-key="thingMutianyu" src="photos/things/great-wall-mutianyu.jpg" alt="Great Wall at Mutianyu" loading="lazy" />
+                </figure>
+                <h3>Great Wall (Mutianyu)</h3>
+                <p>A scenic section of the Wall with mountain panoramas and restored watchtowers.</p>
+                <p class="thing-links">
+                  <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Mutianyu+Great+Wall&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                  <a href="https://www.mutianyugreatwall.com/" target="_blank" rel="noopener noreferrer">Website</a>
+                </p>
+              </article>
+
+              <article class="content-card thing-card reveal">
+                <figure class="content-media thing-img">
+                  <img data-photo-key="thingJingshan" src="photos/things/jingshan-park.jpg" alt="Jingshan Park" loading="lazy" />
+                </figure>
+                <h3>Jingshan Park</h3>
+                <p>A short climb with one of the best panoramic views over old Beijing.</p>
+                <p class="thing-links">
+                  <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Jingshan+Park+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                  <a href="https://en.wikipedia.org/wiki/Jingshan_Park" target="_blank" rel="noopener noreferrer">Website</a>
+                </p>
+              </article>
+
+              <article class="content-card thing-card reveal">
+                <figure class="content-media thing-img">
+                  <img data-photo-key="thingSanlitun" src="photos/things/sanlitun-taikooli.jpg" alt="Sanlitun Taikoo Li" loading="lazy" />
+                </figure>
+                <h3>Sanlitun (Taikoo Li)</h3>
+                <p>Modern shopping, cafes, and nightlife—one of Beijing’s most energetic neighborhoods.</p>
+                <p class="thing-links">
+                  <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Taikoo+Li+Sanlitun+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                  <a href="https://taikoolisanlitun.com" target="_blank" rel="noopener noreferrer">Website</a>
+                </p>
+              </article>
+            </div>
+          </div>
+
           <div class="things-disclosure-wrap reveal">
-            <button id="thingsToggle" class="btn things-disclosure-btn" type="button" aria-expanded="false">Show 3 more</button>
+            <button
+              id="thingsToggle"
+              class="btn things-disclosure-btn"
+              type="button"
+              aria-expanded="false"
+              aria-controls="things-to-do-more"
+            >
+              Show 3 more
+            </button>
           </div>
         </div>
       </section>

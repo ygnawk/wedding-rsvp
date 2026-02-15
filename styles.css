@@ -2691,6 +2691,14 @@ details[open] .faq-answer {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.things-grid--more {
+  margin-top: 24px;
+}
+
+.things-more[hidden] {
+  display: none !important;
+}
+
 @media (max-width: 980px) {
   .things-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -2701,6 +2709,10 @@ details[open] .faq-answer {
   .things-grid {
     grid-template-columns: 1fr;
     gap: 24px;
+  }
+
+  .things-grid--more {
+    margin-top: 20px;
   }
 
   #stay.section,

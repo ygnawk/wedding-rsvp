@@ -44,7 +44,7 @@ const workingConfirm = document.getElementById("workingConfirm");
 const noFields = document.getElementById("noFields");
 const noNote = document.getElementById("noNote");
 const thingsToggle = document.getElementById("thingsToggle");
-const thingsExtraCards = Array.from(document.querySelectorAll(".thing-extra"));
+const thingsMore = document.getElementById("things-to-do-more");
 const makanSpecialsTrack = document.getElementById("makanSpecialsTrack");
 const makanCategoryGrid = document.getElementById("makanCategoryGrid");
 const hotelMatrixShell = document.getElementById("hotelMatrixShell");
@@ -490,26 +490,31 @@ function initJumpMenu() {
   jumpMenuWrap.dataset.bound = "true";
 }
 
-function initCardDisclosure(toggleButton, extraCards) {
-  if (!toggleButton || !extraCards.length) return;
+function initThingsDisclosure() {
+  if (!thingsToggle || !thingsMore) return;
+  if (thingsToggle.dataset.bound === "true") return;
+
+  const moreCards = Array.from(thingsMore.querySelectorAll(".thing-card"));
+  if (!moreCards.length) {
+    thingsToggle.hidden = true;
+    thingsMore.hidden = true;
+    return;
+  }
 
   const setExpanded = (expanded) => {
-    toggleButton.setAttribute("aria-expanded", String(expanded));
-    toggleButton.textContent = expanded ? "Show less" : "Show 3 more";
-    extraCards.forEach((card) => {
-      card.hidden = !expanded;
-    });
+    thingsToggle.setAttribute("aria-expanded", String(expanded));
+    thingsToggle.textContent = expanded ? "Show less" : "Show 3 more";
+    thingsMore.hidden = !expanded;
   };
 
   setExpanded(false);
-  toggleButton.addEventListener("click", () => {
-    const currentlyExpanded = toggleButton.getAttribute("aria-expanded") === "true";
-    setExpanded(!currentlyExpanded);
-  });
-}
 
-function initThingsDisclosure() {
-  initCardDisclosure(thingsToggle, thingsExtraCards);
+  thingsToggle.addEventListener("click", () => {
+    const expanded = thingsToggle.getAttribute("aria-expanded") === "true";
+    setExpanded(!expanded);
+  });
+
+  thingsToggle.dataset.bound = "true";
 }
 
 function renderTravelPassportResult(key) {
