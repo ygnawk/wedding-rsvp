@@ -1,6 +1,6 @@
 const SHEETS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwpfLq3hB_mRiKKgiwMv1bvZUUtcoUZP7ifjKpnLpcK0HgaOKHwm_LRsPPCahWWQ67U/exec";
 const RSVP_LOCAL_FALLBACK_KEY = "wedding_rsvp_fallback";
-const PROJECT_PATH_PREFIX = "/wedding-rsvp";
+const BASE_PATH = window.location.hostname === "ygnawk.github.io" ? "/wedding-rsvp" : "";
 
 const SECTION_IDS = ["top", "our-story", "venue", "schedule", "rsvp", "faq", "stay", "things-to-do", "travel-visa", "gallery"];
 
@@ -100,15 +100,13 @@ function withBasePath(pathValue) {
   if (!pathValue) return "";
   if (/^https?:\/\//i.test(pathValue)) return pathValue;
 
-  const rawPath = String(pathValue);
-  const onProjectPages =
-    window.location.hostname.endsWith(".github.io") && window.location.pathname.startsWith(`${PROJECT_PATH_PREFIX}/`);
+  const rawPath = String(pathValue).trim();
+  if (!rawPath) return "";
 
-  const base = onProjectPages ? PROJECT_PATH_PREFIX : "";
-  if (!base) return rawPath;
-  if (rawPath.startsWith(base)) return rawPath;
-  if (rawPath.startsWith("/")) return `${base}${rawPath}`;
-  return `${base}/${rawPath.replace(/^\.?\//, "")}`;
+  if (!BASE_PATH) return rawPath;
+  if (rawPath === BASE_PATH || rawPath.startsWith(`${BASE_PATH}/`)) return rawPath;
+  if (rawPath.startsWith("/")) return `${BASE_PATH}${rawPath}`;
+  return `${BASE_PATH}/${rawPath.replace(/^\.?\//, "")}`;
 }
 
 function clampPartySize(value) {
@@ -415,28 +413,14 @@ async function submitToSheets(payload) {
   }
 }
 
-async function submitToLocal(payload) {
-  const response = await fetch(withBasePath("/api/rsvp"), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) throw new Error("Local RSVP endpoint unavailable");
-  return await response.json();
-}
-
 async function submitRSVP(payload) {
-  try {
-    if (isSheetsConfigured()) {
-      const data = await submitToSheets(payload);
-      if (!data || data.ok !== true) throw new Error(data && data.error ? String(data.error) : "Sheets submit failed");
-      return { ok: true };
-    }
+  if (!isSheetsConfigured()) {
+    return { ok: false, error: "RSVP submission is not configured yet. Please contact Yi Jie." };
+  }
 
-    await submitToLocal(payload);
+  try {
+    const data = await submitToSheets(payload);
+    if (!data || data.ok !== true) throw new Error(data && data.error ? String(data.error) : "Sheets submit failed");
     return { ok: true };
   } catch (error) {
     // Keep a local backup copy, but report failure to the UI.
@@ -488,7 +472,7 @@ function initRsvpForm() {
     const payload = buildPayload();
     const result = await submitRSVP(payload);
     if (!result || result.ok !== true) {
-      rsvpConfirmation.textContent = "We couldn’t submit your RSVP right now. Please try again in a moment.";
+      rsvpConfirmation.textContent = result && result.error ? result.error : "We couldn’t submit your RSVP right now. Please try again in a moment.";
       rsvpConfirmation.classList.remove("hidden");
       return;
     }
@@ -946,91 +930,28 @@ function sortTimelineEntries(entries) {
     });
 }
 
-async function loadTimelinePhotosFromApi() {
+async function loadTimelinePhotosFromManifest() {
   try {
-    const response = await fetch(withBasePath("/api/timeline-photos"), { cache: "no-store" });
+    const response = await fetch(withBasePath("/photos/timeline-photos/manifest.json"), { cache: "no-store" });
     if (!response.ok) return [];
     const payload = await response.json();
-    if (!payload || payload.ok !== true || !Array.isArray(payload.files)) return [];
-    return payload.files;
-  } catch (_error) {
-    return [];
-  }
-}
 
-async function loadTimelinePhotosFromManifest() {
-  const pathsToTry = [withBasePath("/photos/timeline-photos/manifest.json"), withBasePath("/photos/manifest.json")];
-
-  for (const manifestPath of pathsToTry) {
-    try {
-      const response = await fetch(manifestPath, { cache: "no-store" });
-      if (!response.ok) continue;
-      const payload = await response.json();
-
-      if (Array.isArray(payload)) {
-        return payload
-          .map((entry) => normalizeTimelineEntry(entry))
-          .filter((entry) => entry.file)
-          .map((entry) => ({
-            ...entry,
-            file: entry.file.startsWith("/")
-              ? withBasePath(entry.file)
-              : withBasePath(`/photos/timeline-photos/${encodeURIComponent(entry.file)}`),
-          }));
-      }
-
-      if (payload && Array.isArray(payload.timeline)) {
-        return payload.timeline
-          .map((entry) => normalizeTimelineEntry(entry))
-          .filter((entry) => entry.file)
-          .map((entry) => ({
-            ...entry,
-            file: entry.file.startsWith("/")
-              ? withBasePath(entry.file)
-              : withBasePath(`/photos/timeline-photos/${encodeURIComponent(entry.file)}`),
-          }));
-      }
-
-      if (payload && Array.isArray(payload.files)) {
-        return payload.files
-          .map((entry) => normalizeTimelineEntry(entry))
-          .filter((entry) => entry.file)
-          .map((entry) => ({
-            ...entry,
-            file: entry.file.startsWith("/")
-              ? withBasePath(entry.file)
-              : withBasePath(`/photos/timeline-photos/${encodeURIComponent(entry.file)}`),
-          }));
-      }
-    } catch (_error) {
-      // Try next manifest path.
-    }
-  }
-
-  return [];
-}
-
-async function loadTimelinePhotosFromDirectoryListing(listingPath) {
-  try {
-    const response = await fetch(listingPath, { cache: "no-store" });
-    if (!response.ok) return [];
-
-    const contentType = response.headers.get("content-type") || "";
-    if (!contentType.includes("text/html")) return [];
-
-    const html = await response.text();
-    const hrefs = [...html.matchAll(/href="([^"]+)"/gi)].map((match) => match[1]);
-
-    const imageLinks = hrefs
-      .filter((href) => href && !href.startsWith("?") && href !== "../")
-      .map((href) => decodeURIComponent(href))
-      .filter((href) => /\.(jpe?g|png)$/i.test(href))
-      .map((href) => {
-        const base = new URL(listingPath, window.location.origin);
-        return new URL(href, base).pathname;
-      });
-
-    return imageLinks;
+    const rows = Array.isArray(payload)
+      ? payload
+      : payload && Array.isArray(payload.timeline)
+        ? payload.timeline
+        : payload && Array.isArray(payload.files)
+          ? payload.files
+          : [];
+    return rows
+      .map((entry) => normalizeTimelineEntry(entry))
+      .filter((entry) => entry.file)
+      .map((entry) => ({
+        ...entry,
+        file: entry.file.startsWith("/")
+          ? withBasePath(entry.file)
+          : withBasePath(`/photos/timeline-photos/${encodeURIComponent(entry.file)}`),
+      }));
   } catch (_error) {
     return [];
   }
@@ -1039,10 +960,6 @@ async function loadTimelinePhotosFromDirectoryListing(listingPath) {
 async function loadTimelinePhotos() {
   const manifestFiles = await loadTimelinePhotosFromManifest();
   if (manifestFiles.length) return sortTimelineEntries(manifestFiles);
-
-  const apiFiles = await loadTimelinePhotosFromApi();
-  if (apiFiles.length) return sortTimelineEntries(apiFiles);
-
   return [];
 }
 
