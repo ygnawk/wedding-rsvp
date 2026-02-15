@@ -460,6 +460,14 @@ a {
   transform: translateY(-50%) rotate(4deg);
 }
 
+.motif--hero-main {
+  opacity: 0.16;
+}
+
+.motif--hero-secondary {
+  opacity: 0.1;
+}
+
 @media (max-width: 768px) {
   :root {
     --motifOpacity: 0.16;
@@ -535,34 +543,45 @@ a {
 
 .hero-lockup {
   max-width: 640px;
+  display: grid;
+  gap: clamp(20px, 2.4vw, 24px);
+}
+
+.hero-group {
+  display: grid;
+  gap: 10px;
+}
+
+.hero-group--details {
+  gap: 8px;
 }
 
 .hero-kicker {
-  margin: 0 0 10px;
+  margin: 0;
   font-family: var(--bodyFont);
   font-weight: 500;
-  font-size: clamp(0.75rem, 0.9vw, 0.82rem);
-  line-height: 1.35;
+  font-size: 12px;
+  line-height: 16px;
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: rgba(247, 241, 230, 0.86);
 }
 
 .hero-names {
-  margin: 0 0 10px;
+  margin: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
   align-items: baseline;
-  font-size: clamp(2.4rem, 5.4vw, 5rem);
-  line-height: 0.96;
-  letter-spacing: -0.012em;
+  font-size: clamp(42px, 11vw, 72px);
+  line-height: 0.92;
+  letter-spacing: -0.008em;
 }
 
 .hero-script {
   font-family: var(--scriptFont);
   color: var(--gold);
-  font-size: clamp(3.5rem, 7.2vw, 6.1rem);
+  font-size: clamp(50px, 13vw, 88px);
   line-height: 0.55;
   transform: translateY(5px);
 }
@@ -570,17 +589,20 @@ a {
 .hero-subhead,
 .hero-venue-line {
   margin: 0;
-  max-width: 36ch;
-  font-size: clamp(0.96rem, 1.25vw, 1.05rem);
+  max-width: 34ch;
   line-height: 1.42;
   letter-spacing: 0.01em;
 }
 
+.hero-subhead {
+  font-size: 18px;
+}
+
 .hero-countdown {
-  margin: 9px 0 8px;
+  margin: 2px 0;
   display: inline-flex;
   align-items: center;
-  max-width: 100%;
+  max-width: 34ch;
   padding: 4px 11px;
   border: 1px solid rgba(247, 241, 230, 0.28);
   border-radius: 999px;
@@ -595,17 +617,18 @@ a {
 }
 
 .hero-venue-line {
-  margin-top: 8px;
+  margin-top: 2px;
+  font-size: 15px;
   opacity: 0.88;
 }
 
 .hero-greeting {
-  margin: 10px 0 0;
+  margin: 2px 0 0;
   color: var(--gold);
 }
 
 .hero-actions {
-  margin-top: 18px;
+  margin-top: 0;
   display: inline-flex;
   align-items: center;
   gap: 12px;
@@ -655,7 +678,7 @@ a {
 
 /* Interlude */
 .interlude-section {
-  padding: clamp(24px, 4.2vh, 42px) 24px;
+  padding: clamp(16px, 3vh, 24px) 24px;
   min-height: auto;
   display: flex;
   align-items: center;
@@ -673,8 +696,9 @@ a {
 }
 
 .interlude-band {
+  position: relative;
   width: 100%;
-  height: clamp(520px, 62vh, 620px);
+  height: 560px;
   display: grid;
   grid-template-columns: minmax(0, 2.15fr) minmax(0, 1fr);
   border-radius: 26px;
@@ -713,6 +737,19 @@ a {
 .interlude-color-half {
   background: var(--maroonDeep);
   position: relative;
+}
+
+.interlude-label {
+  position: absolute;
+  right: 8%;
+  bottom: 24px;
+  margin: 0;
+  font-family: var(--bodyFont);
+  font-size: 14px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: rgba(247, 241, 230, 0.8);
+  z-index: 2;
 }
 
 .interlude-motif {
@@ -797,6 +834,13 @@ a:focus-visible,
   margin: 8px 0 18px;
 }
 
+.timeline-hint {
+  margin: 0 0 4px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  opacity: 0.72;
+}
+
 #our-story.section-maroon .ourstory-lede {
   color: rgba(247, 241, 230, 0.92);
 }
@@ -847,6 +891,18 @@ a:focus-visible,
   overflow: visible;
 }
 
+.timeline-image::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 44%;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.44) 0%, rgba(0, 0, 0, 0) 100%);
+  pointer-events: none;
+  z-index: 2;
+}
+
 .timeline-media {
   position: relative;
   z-index: 1;
@@ -888,7 +944,7 @@ a:focus-visible,
 .timeline-year {
   position: absolute;
   left: 26px;
-  top: var(--yearTop, 68px);
+  top: var(--yearTop, 72px);
   font-family: var(--displayFont);
   font-size: clamp(52px, 7vw, 96px);
   line-height: 1;
@@ -918,9 +974,10 @@ a:focus-visible,
 .timeline-caption {
   padding: 14px 18px 16px;
   font-family: var(--bodyFont);
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.5;
   color: var(--ink);
+  max-width: 42ch;
 }
 
 .timeline-slide--placeholder {
@@ -941,8 +998,8 @@ a:focus-visible,
   width: 44px;
   height: 44px;
   border-radius: 999px;
-  border: 1px solid rgba(201, 174, 116, 0.28);
-  background: rgba(75, 15, 23, 0.08);
+  border: 1px solid rgba(201, 174, 116, 0.48);
+  background: rgba(75, 15, 23, 0.14);
   color: var(--maroon);
   font-size: 22px;
   cursor: pointer;
@@ -950,12 +1007,14 @@ a:focus-visible,
 }
 
 .timeline-btn:hover {
-  background: rgba(75, 15, 23, 0.14);
+  background: rgba(75, 15, 23, 0.22);
 }
 
 @media (max-width: 600px) {
   .timeline-btn {
-    display: none;
+    width: 44px;
+    height: 44px;
+    font-size: 24px;
   }
 }
 
@@ -1209,7 +1268,8 @@ a:focus-visible,
   gap: 14px;
   cursor: pointer;
   user-select: none;
-  padding: 18px 18px;
+  min-height: 48px;
+  padding: 12px 18px;
   border-radius: 14px;
   background: rgba(247, 241, 230, 0.92);
   border: 1px solid rgba(201, 174, 116, 0.16);
@@ -1236,6 +1296,7 @@ details[open] > .faq-summary {
 .faq-q {
   font-weight: 500;
   line-height: 1.4;
+  font-size: 16px;
 }
 
 .faq-chevron {
@@ -1272,6 +1333,7 @@ details[open] .faq-chevron {
   padding: 14px 18px 18px;
   color: rgba(21, 21, 21, 0.92);
   line-height: 1.6;
+  font-size: 15px;
 }
 
 details[open] .faq-answer {
@@ -1280,6 +1342,18 @@ details[open] .faq-answer {
 
 .faq-answer p {
   margin: 8px 0 2px;
+  max-width: 70ch;
+}
+
+.faq-subqa + .faq-subqa {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(75, 15, 23, 0.16);
+}
+
+.faq-subq {
+  margin: 0 0 4px;
+  font-weight: 600;
 }
 
 @keyframes faqFade {
@@ -1380,7 +1454,8 @@ details[open] .faq-answer {
   font-family: var(--bodyFont);
   opacity: 0.92;
   margin: 0;
-  line-height: 1.5;
+  font-size: 15.5px;
+  line-height: 1.55;
 }
 
 .distance {
@@ -1391,9 +1466,31 @@ details[open] .faq-answer {
 .thing-links,
 .hotel-links {
   display: flex;
-  gap: 14px;
+  gap: 12px;
   margin-top: 4px;
   flex-wrap: wrap;
+}
+
+.stay-disclosure-wrap {
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.stay-disclosure-btn {
+  border: 1px solid rgba(201, 174, 116, 0.5);
+  background: rgba(75, 15, 23, 0.1);
+  color: var(--maroon);
+  padding: 10px 16px;
+  font-size: 0.88rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+#stay.section-maroon .stay-disclosure-btn,
+#stay.section--maroon .stay-disclosure-btn {
+  background: rgba(247, 241, 230, 0.08);
+  color: var(--ivory);
 }
 
 .things-grid {
@@ -1764,14 +1861,14 @@ body.modal-open {
 .travel-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 11px;
   margin-top: 6px;
 }
 
 .travel-item,
 .travel-callout {
-  border-radius: 18px;
-  padding: 14px 16px;
+  border-radius: 22px;
+  padding: 18px;
   border: 1px solid rgba(75, 15, 23, 0.16);
   background: rgba(75, 15, 23, 0.05);
 }
@@ -1782,7 +1879,7 @@ body.modal-open {
 
 .travel-item-title {
   font-family: var(--displayFont);
-  font-size: 20px;
+  font-size: 22px;
   margin: 0 0 6px;
   color: var(--maroon);
 }
@@ -1792,7 +1889,9 @@ body.modal-open {
   margin: 0;
   color: var(--ink);
   opacity: 0.92;
+  font-size: 15.5px;
   line-height: 1.55;
+  max-width: 78ch;
 }
 
 .travel-note {
@@ -2010,22 +2109,33 @@ body.modal-open {
     padding-right: 18px;
   }
 
+  #venue.section,
+  #schedule.section,
+  #rsvp.section,
+  #faq.section,
+  #stay.section,
+  #things-to-do.section,
+  #travel-visa.section {
+    padding-top: 56px;
+    padding-bottom: 56px;
+  }
+
   .section-inner,
   .section-inner.narrow {
     width: min(1140px, 100%);
   }
 
   .hero-kicker {
-    font-size: 0.74rem;
-    letter-spacing: 0.19em;
+    font-size: 12px;
+    letter-spacing: 0.2em;
   }
 
   .hero-names {
-    font-size: clamp(2.1rem, 11.3vw, 3.5rem);
+    font-size: clamp(42px, 11vw, 60px);
   }
 
   .hero-script {
-    font-size: clamp(3.2rem, 12.2vw, 4.6rem);
+    font-size: clamp(50px, 15vw, 72px);
   }
 
   .hero-countdown {
@@ -2047,6 +2157,14 @@ body.modal-open {
     width: min(360px, 88vw);
     opacity: 0.2;
     transform: none;
+  }
+
+  .hero-subhead {
+    font-size: 18px;
+  }
+
+  .hero-venue-line {
+    font-size: 15px;
   }
 
   .hero-actions::before {
@@ -2077,6 +2195,19 @@ body.modal-open {
     width: min(280px, 72%);
     right: -18px;
     opacity: 0.2;
+  }
+
+  .interlude-label {
+    right: 14px;
+    bottom: 14px;
+  }
+
+  .timeline-slide {
+    flex-basis: 92vw;
+  }
+
+  .timeline-year {
+    top: var(--yearTop, 72px);
   }
 }
 

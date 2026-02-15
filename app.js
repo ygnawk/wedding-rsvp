@@ -43,6 +43,8 @@ const workingConfirm = document.getElementById("workingConfirm");
 
 const noFields = document.getElementById("noFields");
 const noNote = document.getElementById("noNote");
+const stayToggle = document.getElementById("stayToggle");
+const stayExtraCards = Array.from(document.querySelectorAll(".stay-extra"));
 
 const galleryGrid = document.getElementById("galleryGrid");
 const galleryEmpty = document.getElementById("galleryEmpty");
@@ -90,20 +92,20 @@ const TIMELINE_CAPTIONS = {
 const TIMELINE_ASSET_VERSION = "20260215-1310";
 const TIMELINE_OVERRIDES = {
   // Lock problematic files so orientation and year placement stay stable.
-  "2008-miki-moves-beijing-upright.jpg": { rotate: -90, yearTop: 68, objPos: "50% 36%" },
-  "2020-covid-upright.jpg": { rotate: 180, yearTop: 68, objPos: "50% 36%" },
-  "2024-proposal-upright.jpg": { rotate: -90, yearTop: 68, objPos: "50% 40%" },
+  "2008-miki-moves-beijing-upright.jpg": { rotate: -90, yearTop: 72, objPos: "50% 36%" },
+  "2020-covid-upright.jpg": { rotate: 180, yearTop: 72, objPos: "50% 36%" },
+  "2024-proposal-upright.jpg": { rotate: -90, yearTop: 72, objPos: "50% 40%" },
   // Legacy names (kept in case old files are reintroduced).
-  "2008-miki-moves-beijing.jpg": { rotate: -90, yearTop: 68, objPos: "50% 36%" },
-  "2008-miki-moves-beijing-v2.jpg": { rotate: -90, yearTop: 68, objPos: "50% 36%" },
-  "2008 - Miki moves to China.JPG": { rotate: -90, yearTop: 68, objPos: "50% 36%" },
-  "2020-covid.jpg": { rotate: 180, yearTop: 68, objPos: "50% 36%" },
-  "2020-covid-v2.jpg": { rotate: 180, yearTop: 68, objPos: "50% 36%" },
-  "2020-covid-from-heic.jpg": { rotate: 180, yearTop: 68, objPos: "50% 36%" },
-  "2020 - COVID.HEIC": { rotate: 180, yearTop: 68, objPos: "50% 36%" },
-  "2024-proposal.jpg": { rotate: -90, yearTop: 68, objPos: "50% 40%" },
-  "2024-proposal-v2.jpg": { rotate: -90, yearTop: 68, objPos: "50% 40%" },
-  "2024 - She said yes.JPG": { rotate: -90, yearTop: 68, objPos: "50% 40%" },
+  "2008-miki-moves-beijing.jpg": { rotate: -90, yearTop: 72, objPos: "50% 36%" },
+  "2008-miki-moves-beijing-v2.jpg": { rotate: -90, yearTop: 72, objPos: "50% 36%" },
+  "2008 - Miki moves to China.JPG": { rotate: -90, yearTop: 72, objPos: "50% 36%" },
+  "2020-covid.jpg": { rotate: 180, yearTop: 72, objPos: "50% 36%" },
+  "2020-covid-v2.jpg": { rotate: 180, yearTop: 72, objPos: "50% 36%" },
+  "2020-covid-from-heic.jpg": { rotate: 180, yearTop: 72, objPos: "50% 36%" },
+  "2020 - COVID.HEIC": { rotate: 180, yearTop: 72, objPos: "50% 36%" },
+  "2024-proposal.jpg": { rotate: -90, yearTop: 72, objPos: "50% 40%" },
+  "2024-proposal-v2.jpg": { rotate: -90, yearTop: 72, objPos: "50% 40%" },
+  "2024 - She said yes.JPG": { rotate: -90, yearTop: 72, objPos: "50% 40%" },
 };
 const WEDDING_DATE_SHANGHAI = { year: 2026, month: 9, day: 19 };
 const SHANGHAI_TIMEZONE = "Asia/Shanghai";
@@ -228,6 +230,24 @@ function initHeader() {
 
   document.querySelectorAll(".desktop-nav a, .mobile-nav a, .header-rsvp, .brand").forEach((link) => {
     link.addEventListener("click", closeMobileMenu);
+  });
+}
+
+function initStayDisclosure() {
+  if (!stayToggle || !stayExtraCards.length) return;
+
+  const setExpanded = (expanded) => {
+    stayToggle.setAttribute("aria-expanded", String(expanded));
+    stayToggle.textContent = expanded ? "Show less" : "Show 3 more";
+    stayExtraCards.forEach((card) => {
+      card.hidden = !expanded;
+    });
+  };
+
+  setExpanded(false);
+  stayToggle.addEventListener("click", () => {
+    const currentlyExpanded = stayToggle.getAttribute("aria-expanded") === "true";
+    setExpanded(!currentlyExpanded);
   });
 }
 
@@ -1132,7 +1152,7 @@ function buildTimelineSlide(item) {
     ? Number(override.yearTop)
     : Number.isFinite(Number(item.yearTop))
       ? Number(item.yearTop)
-      : 68;
+      : 72;
   const objectPosition = override.objPos || item.objectPosition || "50% 50%";
 
   slide.setAttribute("data-rotate", String(rotateValue));
@@ -1301,6 +1321,7 @@ async function init() {
   initHeader();
   initHeroCountdown();
   initSectionObserver();
+  initStayDisclosure();
   initReveals();
   await initStoryTimeline();
   initRsvpCards();

@@ -59,21 +59,27 @@
     <main>
       <section id="top" class="section section-maroon motif-host" data-title="You’re invited">
         <div class="section-inner content hero-inner">
-          <img class="motif motif--tr motif--lg motif--ivory" src="public/motifs/peony-branch.svg" alt="" aria-hidden="true" />
-          <img class="motif motif--bl motif--md motif--ivory" src="public/motifs/bamboo-branch.svg" alt="" aria-hidden="true" />
+          <img class="motif motif--tr motif--lg motif--ivory motif--hero-main" src="public/motifs/peony-branch.svg" alt="" aria-hidden="true" />
+          <img class="motif motif--bl motif--md motif--ivory motif--hero-secondary" src="public/motifs/bamboo-branch.svg" alt="" aria-hidden="true" />
           <div class="hero-lockup">
-            <p class="hero-kicker reveal">You’re invited to the wedding of</p>
-            <h1 class="hero-names reveal reveal-left" data-delay="80">
-              <span>Miki Yang</span>
-              <span class="hero-script">&amp;</span>
-              <span>Yi Jie Kwang</span>
-            </h1>
-            <p class="hero-subhead reveal" data-delay="130">Beijing • September 19, 2026</p>
-            <p id="heroCountdown" class="hero-countdown reveal" data-delay="150" aria-live="polite"></p>
-            <p class="hero-venue-line reveal" data-delay="170">Zhengyang Mansion, Mandarin Oriental Qianmen</p>
-            <p id="heroGreeting" class="hero-greeting reveal hidden" data-delay="210"></p>
-            <div class="hero-actions reveal" data-delay="240">
-              <a class="btn hero-rsvp" href="#rsvp">RSVP</a>
+            <div class="hero-group hero-group--identity">
+              <p class="hero-kicker reveal">You’re invited to the wedding of</p>
+              <h1 class="hero-names reveal reveal-left" data-delay="80">
+                <span>Miki Yang</span>
+                <span class="hero-script">&amp;</span>
+                <span>Yi Jie Kwang</span>
+              </h1>
+            </div>
+            <div class="hero-group hero-group--details">
+              <p class="hero-subhead reveal" data-delay="130">Beijing • September 19, 2026</p>
+              <p id="heroCountdown" class="hero-countdown reveal" data-delay="150" aria-live="polite"></p>
+              <p class="hero-venue-line reveal" data-delay="170">Zhengyang Mansion, Mandarin Oriental Qianmen</p>
+              <p id="heroGreeting" class="hero-greeting reveal hidden" data-delay="210"></p>
+            </div>
+            <div class="hero-group hero-group--cta">
+              <div class="hero-actions reveal" data-delay="240">
+                <a class="btn hero-rsvp" href="#rsvp">RSVP</a>
+              </div>
             </div>
           </div>
           <div class="hero-art reveal reveal-right" data-delay="120" aria-hidden="true">
@@ -91,6 +97,7 @@
             <div class="interlude-color-half" aria-hidden="true">
               <img class="motif interlude-motif motif--ivory" src="public/motifs/peony-branch.svg" alt="" aria-hidden="true" />
             </div>
+            <p class="interlude-label reveal">Our story</p>
           </div>
         </div>
       </section>
@@ -104,6 +111,7 @@
             We met on orientation day at Wesleyan University in 2016. Since then, life has taken us across cities and continents—and many of
             you have been part of that journey. We’d love to celebrate this milestone together with you in Beijing.
           </p>
+          <p class="timeline-hint reveal" data-delay="105">Swipe timeline →</p>
 
           <div class="timeline reveal" data-delay="120" aria-label="Our story timeline">
             <button class="timeline-btn timeline-btn--prev" id="timelinePrev" type="button" aria-label="Previous">‹</button>
@@ -120,7 +128,7 @@
           <template id="timelineSlideTemplate">
             <div class="timeline-slide" data-year="" data-rotate="0">
               <div class="timeline-image">
-                <div class="timeline-year" style="--yearTop: 68px;"></div>
+                <div class="timeline-year" style="--yearTop: 72px;"></div>
                 <div class="timeline-media img-moon">
                   <img src="" alt="" loading="lazy" decoding="async" />
                 </div>
@@ -336,6 +344,19 @@
             </details>
             <details>
               <summary class="faq-summary">
+                <span class="faq-q">Do I need a visa, and which airport should I fly into?</span>
+                <span class="faq-chevron" aria-hidden="true"></span>
+              </summary>
+              <div class="faq-answer">
+                <p>
+                  Visa rules depend on passport and can change—please check official sources before booking. For flights, both Beijing Capital
+                  (PEK) and Beijing Daxing (PKX) are fine—choose whichever works best for your route.
+                </p>
+                <p><a class="faq-cta" href="#travel-visa">Travel &amp; visa →</a></p>
+              </div>
+            </details>
+            <details>
+              <summary class="faq-summary">
                 <span class="faq-q">Where should I stay?</span>
                 <span class="faq-chevron" aria-hidden="true"></span>
               </summary>
@@ -356,46 +377,26 @@
             </details>
             <details>
               <summary class="faq-summary">
-                <span class="faq-q">Do I need a visa, and which airport should I fly into?</span>
+                <span class="faq-q">For the engineers</span>
                 <span class="faq-chevron" aria-hidden="true"></span>
               </summary>
               <div class="faq-answer">
-                <p>
-                  Visa rules depend on passport and can change—please check official sources before booking. For flights, both Beijing Capital
-                  (PEK) and Beijing Daxing (PKX) are fine—choose whichever works best for your route.
-                </p>
-                <p><a class="faq-cta" href="#travel-visa">Travel &amp; visa →</a></p>
-              </div>
-            </details>
-            <details>
-              <summary class="faq-summary">
-                <span class="faq-q">Found a bug on this site?</span>
-                <span class="faq-chevron" aria-hidden="true"></span>
-              </summary>
-              <div class="faq-answer">
-                <p>
-                  Please report it to Yi Jie. He built this with Codex + ChatGPT using pure vibes and zero knowledge of what the code actually
-                  does. He claims it worked once, briefly, on his laptop.
-                </p>
-              </div>
-            </details>
-            <details>
-              <summary class="faq-summary">
-                <span class="faq-q">Why is the website doing that?</span>
-                <span class="faq-chevron" aria-hidden="true"></span>
-              </summary>
-              <div class="faq-answer">
-                <p>Great question. Again, please direct your questions to Yi Jie — he built it with a healthy amount of hope in his AI assistant and a brave disregard for error messages.</p>
-              </div>
-            </details>
-            <details>
-              <summary class="faq-summary">
-                <span class="faq-q">Are these hotel recommendations vetted?</span>
-                <span class="faq-chevron" aria-hidden="true"></span>
-              </summary>
-              <div class="faq-answer">
-                <p>Absolutely*</p>
-                <p>Vetted by ChatGPT at 1:00am. We have not personally stayed at any of them.</p>
+                <div class="faq-subqa">
+                  <p class="faq-subq">Found a bug on this site?</p>
+                  <p>
+                    Please report it to Yi Jie. He built this with Codex + ChatGPT using pure vibes and zero knowledge of what the code actually
+                    does. He claims it worked once, briefly, on his laptop.
+                  </p>
+                </div>
+                <div class="faq-subqa">
+                  <p class="faq-subq">Why is the website doing that?</p>
+                  <p>Great question. Again, please direct your questions to Yi Jie — he built it with a healthy amount of hope in his AI assistant and a brave disregard for error messages.</p>
+                </div>
+                <div class="faq-subqa">
+                  <p class="faq-subq">Are these hotel recommendations vetted?</p>
+                  <p>Absolutely*</p>
+                  <p>Vetted by ChatGPT at 1:00am. We have not personally stayed at any of them.</p>
+                </div>
               </div>
             </details>
           </div>
@@ -448,7 +449,7 @@
               </p>
             </article>
 
-            <article class="content-card hotel-card reveal">
+            <article class="content-card hotel-card reveal stay-extra" hidden>
               <figure class="content-media thing-img img-arch">
                 <img data-photo-key="hotelPuXuan" src="photos/hotels/puxuan-hotel-and-spa-beijing.jpg" alt="The PuXuan Hotel and Spa" loading="lazy" />
               </figure>
@@ -461,7 +462,7 @@
               </p>
             </article>
 
-            <article class="content-card hotel-card reveal">
+            <article class="content-card hotel-card reveal stay-extra" hidden>
               <figure class="content-media thing-img img-arch">
                 <img data-photo-key="hotelGrandHyatt" src="photos/hotels/grand-hyatt-beijing.jpg" alt="Grand Hyatt Beijing" loading="lazy" />
               </figure>
@@ -474,7 +475,7 @@
               </p>
             </article>
 
-            <article class="content-card hotel-card reveal">
+            <article class="content-card hotel-card reveal stay-extra" hidden>
               <figure class="content-media thing-img img-arch">
                 <img data-photo-key="hotelJWMarriottCentral" src="photos/hotels/jw-marriott-beijing-central.jpg" alt="JW Marriott Hotel Beijing Central" loading="lazy" />
               </figure>
@@ -486,6 +487,9 @@
                 <a href="https://www.google.com/maps/dir/?api=1&origin=JW+Marriott+Hotel+Beijing+Central&destination=Mandarin+Oriental+Qianmen%2C+Beijing%2C+No.1+Caochang+Alley+10%2C+Dongcheng+District%2C+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">Directions</a>
               </p>
             </article>
+          </div>
+          <div class="stay-disclosure-wrap reveal">
+            <button id="stayToggle" class="btn stay-disclosure-btn" type="button" aria-expanded="false">Show 3 more</button>
           </div>
         </div>
       </section>
