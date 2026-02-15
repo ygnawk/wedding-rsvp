@@ -751,7 +751,8 @@ function openGalleryLightbox(entry) {
 
   galleryLightboxImage.src = toPhotoSrc(entry.file);
   galleryLightboxImage.alt = entry.alt || "Gallery photo";
-  galleryLightboxCaption.textContent = entry.alt || "";
+  galleryLightboxCaption.textContent = "";
+  galleryLightboxCaption.classList.add("hidden");
   galleryLightbox.classList.add("open");
   galleryLightbox.setAttribute("aria-hidden", "false");
   document.body.style.overflow = "hidden";
@@ -763,6 +764,7 @@ function closeGalleryLightbox() {
   galleryLightbox.setAttribute("aria-hidden", "true");
   galleryLightboxImage.removeAttribute("src");
   galleryLightboxCaption.textContent = "";
+  galleryLightboxCaption.classList.remove("hidden");
   document.body.style.overflow = "";
 }
 
