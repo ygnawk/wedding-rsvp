@@ -134,35 +134,21 @@
         <div class="section-inner content">
           <img class="motif motif--tc motif--sm motif--maroon" src="public/motifs/peony-bud.svg" alt="" aria-hidden="true" />
           <img class="motif motif--bl motif--sm motif--maroon" src="public/motifs/orchid-bud.svg" alt="" aria-hidden="true" />
-          <h2 class="section-title reveal reveal-left">Our story</h2>
-          <p class="ourstory-lede reveal" data-delay="90">
+          <h2 class="section-title reveal reveal-left settle">Our story</h2>
+          <p class="ourstory-lede reveal settle" data-delay="70">
             We met on orientation day at Wesleyan University in 2016. Since then, life has taken us across cities and continents—and many of
             you have been part of that journey. We’d love to celebrate this milestone together with you in Beijing.
           </p>
-          <p class="timeline-hint reveal" data-delay="105">Swipe timeline →</p>
-
-          <div class="timeline reveal" data-delay="120" aria-label="Our story timeline">
-            <button class="timeline-btn timeline-btn--prev" id="timelinePrev" type="button" aria-label="Previous">‹</button>
-
-            <div class="timeline-viewport" id="timelineViewport">
-              <div class="timeline-track" id="timelineTrack">
-                <!-- slides injected by app.js -->
-              </div>
-            </div>
-
-            <button class="timeline-btn timeline-btn--next" id="timelineNext" type="button" aria-label="Next">›</button>
-          </div>
-          <div class="timeline-dots" id="timelineDots" aria-hidden="true"></div>
-          <template id="timelineSlideTemplate">
-            <div class="timeline-slide" data-year="" data-rotate="0">
-              <div class="timeline-image">
-                <div class="timeline-year" style="--yearTop: 72px;"></div>
-                <div class="timeline-media img-moon">
-                  <img src="" alt="" loading="lazy" decoding="async" />
-                </div>
-              </div>
-              <div class="timeline-caption"></div>
-            </div>
+          <p class="story-tiles-hint">Tap a tile to reveal the moment →</p>
+          <div id="storyTilesGrid" class="story-tiles" aria-label="Our story timeline"></div>
+          <template id="storyTileTemplate">
+            <button type="button" class="story-tile">
+              <img src="" alt="" loading="lazy" decoding="async" />
+              <span class="story-tile-overlay">
+                <span class="story-tile-year"></span>
+                <span class="story-tile-caption"></span>
+              </span>
+            </button>
           </template>
         </div>
       </section>
@@ -171,12 +157,23 @@
         <div class="section-inner content split split-3-2 reverse">
           <img class="motif motif--tr motif--md motif--maroon" src="public/motifs/peony-branch.svg" alt="" aria-hidden="true" />
           <img class="motif motif--bc motif--sm motif--maroon" src="public/motifs/peony-bud.svg" alt="" aria-hidden="true" />
-          <figure class="photo-frame img-arch reveal reveal-scale">
-            <img data-photo-key="venueMain" src="photos/Location-main.jpg" alt="Zhengyang Mansion, Mandarin Oriental Qianmen" loading="lazy" />
-          </figure>
+          <div class="venue-cutout-stack">
+            <figure class="cutout-parallax cutout-parallax--large reveal reveal-scale" data-parallax-speed="0.14">
+              <div class="cutout-parallax__paper" aria-hidden="true"></div>
+              <div class="cutout-parallax__media">
+                <img data-photo-key="venueMain" src="photos/Location-main.jpg" alt="Zhengyang Mansion, Mandarin Oriental Qianmen" loading="lazy" />
+              </div>
+            </figure>
+            <figure class="cutout-parallax cutout-parallax--small reveal reveal-scale" data-parallax-speed="0.1">
+              <div class="cutout-parallax__paper" aria-hidden="true"></div>
+              <div class="cutout-parallax__media">
+                <img src="photos/hotels/mandarin-oriental-qianmen-venue.jpg" alt="Mandarin Oriental Qianmen courtyard detail" loading="lazy" />
+              </div>
+            </figure>
+          </div>
 
           <article class="split-text">
-            <h2 class="reveal reveal-left">Venue</h2>
+            <h2 class="reveal reveal-left settle">Venue</h2>
             <p class="reveal">
               We picked Mandarin Oriental Qianmen for its classic siheyuan-style courtyard homes and hutong neighborhood — a setting Miki spent
               time around growing up. It’s in central Beijing, a short drive from the Forbidden City.
@@ -193,7 +190,7 @@
           <img class="motif motif--tl motif--md motif--ivory" src="public/motifs/chrysanthemum-branch.svg" alt="" aria-hidden="true" />
           <img class="motif motif--br motif--sm motif--ivory" src="public/motifs/chrysanthemum-bud.svg" alt="" aria-hidden="true" />
           <div>
-            <h2 class="reveal reveal-left">Schedule of events</h2>
+            <h2 class="reveal reveal-left settle">Schedule of events</h2>
           </div>
           <div class="schedule-list">
             <article class="reveal reveal-right"><time>3:00 PM</time><p>Early check-in at venue</p></article>
@@ -210,7 +207,7 @@
           <img class="motif motif--rsvp-main motif--lift motif--md motif--maroon" src="public/motifs/orchid-branch.svg" alt="" aria-hidden="true" />
           <img class="motif motif--rsvp-accent motif--lift motif--sm motif--maroon" src="public/motifs/orchid-bud.svg" alt="" aria-hidden="true" />
           <div class="rsvp-panel">
-            <h2 class="reveal reveal-left">RSVP</h2>
+            <h2 class="reveal reveal-left settle">RSVP</h2>
             <p class="reveal">
               We’re hosting the celebration in an intimate setting so we can share the evening closely with our guests.
               <br />
@@ -711,6 +708,24 @@
         <button class="lightbox-btn lightbox-btn--next" type="button" aria-label="Next image">›</button>
         <div id="lightboxCounter" class="lightbox-counter">1 / 9</div>
         <button class="lightbox-close" type="button" aria-label="Close" data-close>×</button>
+      </div>
+    </div>
+
+    <div id="storyLightbox" class="story-lightbox hidden" aria-hidden="true">
+      <div class="story-lightbox-backdrop" data-story-close></div>
+      <div class="story-lightbox-frame" role="dialog" aria-modal="true" aria-labelledby="storyLightboxTitle">
+        <button class="story-lightbox-btn story-lightbox-btn--prev" type="button" aria-label="Previous story">‹</button>
+        <figure class="story-lightbox-figure">
+          <img id="storyLightboxImg" class="story-lightbox-img" alt="" />
+          <figcaption class="story-lightbox-caption">
+            <p id="storyLightboxTitle" class="story-lightbox-title"></p>
+            <p id="storyLightboxBlurb" class="story-lightbox-blurb"></p>
+            <p id="storyLightboxLong" class="story-lightbox-long"></p>
+          </figcaption>
+        </figure>
+        <button class="story-lightbox-btn story-lightbox-btn--next" type="button" aria-label="Next story">›</button>
+        <div id="storyLightboxCounter" class="story-lightbox-counter">1 / 1</div>
+        <button class="story-lightbox-close" type="button" aria-label="Close story" data-story-close>×</button>
       </div>
     </div>
 

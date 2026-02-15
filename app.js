@@ -66,20 +66,89 @@ let galleryImages = [];
 let currentGalleryIndex = 0;
 let galleryTouchStartX = null;
 
-const TIMELINE_CAPTIONS = {
-  1995: "Yi Jie — Born in Singapore. Born tired. Still tired.",
-  1998: "Miki — Born in Japan. Already cooler than us.",
-  2001: "Yi Jie — Grew up with siblings. Character building.",
-  2008: "Miki — Moved to Beijing to learn music. Discipline arc begins.",
-  2013: "Yi Jie — Went to the military… to fish?!?",
-  2016: "We met at Wesleyan in Connecticut. Plot twist: it was not for the classes.",
-  2020: "Moved to NYC in the middle of COVID. Oops.",
-  2021: "SF for the outdoors. But we couldn't afford a car.",
-  2023: "Asia year, mostly in Tokyo — Miki quit her job, YJ found projects in JP",
-  2024: "Proposal in Singapore. She said yes. We are still shocked.",
-  2025: "Adopted Leo & Luna — two fluffy Siberians. Zero personal space.",
-  2026: "Wedding in Beijing. Finally.",
-  2027: "What’s next…? We will pretend we have a plan.",
+const storyTilesGrid = document.getElementById("storyTilesGrid");
+const storyTileTemplate = document.getElementById("storyTileTemplate");
+const storyLightbox = document.getElementById("storyLightbox");
+const storyLightboxImg = document.getElementById("storyLightboxImg");
+const storyLightboxTitle = document.getElementById("storyLightboxTitle");
+const storyLightboxBlurb = document.getElementById("storyLightboxBlurb");
+const storyLightboxLong = document.getElementById("storyLightboxLong");
+const storyLightboxCounter = document.getElementById("storyLightboxCounter");
+const storyLightboxPrev = storyLightbox ? storyLightbox.querySelector(".story-lightbox-btn--prev") : null;
+const storyLightboxNext = storyLightbox ? storyLightbox.querySelector(".story-lightbox-btn--next") : null;
+const storyLightboxFrame = storyLightbox ? storyLightbox.querySelector(".story-lightbox-frame") : null;
+const storyLightboxCloseButtons = storyLightbox ? Array.from(storyLightbox.querySelectorAll("[data-story-close], .story-lightbox-close")) : [];
+
+let storyItems = [];
+let currentStoryIndex = 0;
+let storyTouchStartX = null;
+
+const STORY_COPY = {
+  1995: {
+    title: "1995 — Born in Singapore",
+    blurb: "Born tired. Still tired.",
+    longCaption: "Yi Jie arrives in Singapore and immediately builds a lifelong relationship with naps.",
+  },
+  1998: {
+    title: "1998 — Born in Japan",
+    blurb: "Already cooler than us.",
+    longCaption: "Miki starts her chapter in Japan with more style than anyone else in this timeline.",
+  },
+  2001: {
+    title: "2001 — Tiny stools era",
+    blurb: "Character building with siblings.",
+    longCaption: "The three-siblings-on-stools phase. Peak childhood logistics, peak sibling energy.",
+  },
+  2008: {
+    title: "2008 — Move to Beijing",
+    blurb: "Discipline arc begins.",
+    longCaption: "Miki moves to Beijing to pursue music training and starts the long discipline arc.",
+  },
+  2013: {
+    title: "2013 — Military life",
+    blurb: "Went to the military… to fish?!?",
+    longCaption: "Yi Jie does military service and still somehow finds fishing stories that sound made up.",
+  },
+  2016: {
+    title: "2016 — Wesleyan",
+    blurb: "Plot twist: not for classes.",
+    longCaption: "We meet at Wesleyan in Connecticut. Academics were present. Romance was louder.",
+  },
+  2020: {
+    title: "2020 — NYC",
+    blurb: "Moved during COVID. Oops.",
+    longCaption: "We moved to New York in the middle of COVID and learned flexibility very quickly.",
+  },
+  2021: {
+    title: "2021 — SF",
+    blurb: "SF for the outdoors. But we couldn't afford a car.",
+    longCaption: "California sun, lots of optimism, and absolutely no car budget. We still made it fun.",
+  },
+  2023: {
+    title: "2023 — Asia year",
+    blurb: "Mostly in Tokyo.",
+    longCaption: "Asia year, mostly in Tokyo — Miki quit her job, YJ found projects in JP.",
+  },
+  2024: {
+    title: "2024 — Proposal in Singapore",
+    blurb: "She said yes. We are still shocked.",
+    longCaption: "A quiet, happy proposal in Singapore. Still one of our favorite evenings.",
+  },
+  2025: {
+    title: "2025 — Leo & Luna",
+    blurb: "Two fluffy Siberians. Zero personal space.",
+    longCaption: "We adopted Leo and Luna and immediately gave up all claims to couch ownership.",
+  },
+  2026: {
+    title: "2026 — Wedding in Beijing",
+    blurb: "Finally.",
+    longCaption: "The chapter we get to celebrate with everyone we love in one place.",
+  },
+  2027: {
+    title: "Future...",
+    blurb: "We will pretend we have a plan.",
+    longCaption: "Future chapter loading. Hopefully with fewer bugs and more dumplings.",
+  },
 };
 
 const MAKAN_CATEGORIES = [
@@ -90,8 +159,8 @@ const MAKAN_CATEGORIES = [
   { title: "Desserts & tea", items: [] },
   { title: "Coffee (jet-lag recovery)", items: [] },
 ];
-const TIMELINE_ASSET_VERSION = "20260215-1310";
-const TIMELINE_OVERRIDES = {
+const STORY_ASSET_VERSION = "20260215-1310";
+const STORY_OVERRIDES = {
   // Lock problematic files so orientation and year placement stay stable.
   "2008-miki-moves-beijing-upright.jpg": { rotate: -90, yearTop: 72, objPos: "50% 36%" },
   "2020-covid-upright.jpg": { rotate: 180, yearTop: 72, objPos: "50% 36%" },
@@ -383,7 +452,8 @@ function setupRevealNode(node) {
   const delay = node.getAttribute("data-delay");
   node.style.setProperty("--reveal-delay", `${Number(delay || 0)}ms`);
 
-  if (reducedMotion) {
+  const shouldAnimate = node.classList.contains("settle");
+  if (reducedMotion || !shouldAnimate) {
     node.classList.add("in-view");
     return;
   }
@@ -996,29 +1066,13 @@ async function initGallery() {
   });
 }
 
-function extractTimelineYear(value) {
+function extractStoryYear(value) {
   const basename = String(value || "").split("/").pop() || "";
   const match = basename.match(/(?:^|[^0-9])((?:19|20)\d{2})(?!\d)/);
   return match ? Number(match[1]) : NaN;
 }
 
-function timelineCaptionForYear(year) {
-  return TIMELINE_CAPTIONS[year] || `A moment from ${year}.`;
-}
-
-function timelineCaptionForItem(item) {
-  const file = String(item?.file || "").toLowerCase();
-  if (Number(item?.year) === 2001 && file.includes("stool")) {
-    return "Yi Jie — The three of us, on tiny stools. Peak childhood.";
-  }
-  return timelineCaptionForYear(item?.year);
-}
-
-function timelineYearLabel(item) {
-  return Number(item?.year) === 2027 ? "Future..." : String(item?.year);
-}
-
-function normalizeTimelineEntry(entry) {
+function normalizeStoryEntry(entry) {
   if (typeof entry === "string") {
     return { file: entry.trim(), objectPosition: "", alt: "" };
   }
@@ -1032,38 +1086,35 @@ function normalizeTimelineEntry(entry) {
     objectPosition: String(entry.objectPosition || "").trim(),
     fit: String(entry.fit || "").trim(),
     rotation: Number.isFinite(Number(entry.rotation)) ? Number(entry.rotation) : 0,
-    yearTop: Number.isFinite(Number(entry.yearTop)) ? Number(entry.yearTop) : NaN,
     alt: String(entry.alt || "").trim(),
   };
 }
 
-function sortTimelineEntries(entries) {
-  const normalized = (entries || []).map(normalizeTimelineEntry).filter((entry) => entry.file);
+function sortStoryEntries(entries) {
+  const normalized = (entries || []).map(normalizeStoryEntry).filter((entry) => entry.file);
   const byFile = new Map();
+
   normalized.forEach((entry) => {
     byFile.set(entry.file, entry);
   });
 
-  const unique = Array.from(byFile.values());
-  return unique
+  return Array.from(byFile.values())
     .map((entry) => ({
       file: entry.file,
       objectPosition: entry.objectPosition,
       fit: entry.fit,
       rotation: entry.rotation,
-      yearTop: entry.yearTop,
       alt: entry.alt,
-      year: extractTimelineYear(entry.file),
+      year: extractStoryYear(entry.file),
     }))
+    .filter((entry) => Number.isFinite(entry.year))
     .sort((a, b) => {
-      const yearA = Number.isFinite(a.year) ? a.year : Number.POSITIVE_INFINITY;
-      const yearB = Number.isFinite(b.year) ? b.year : Number.POSITIVE_INFINITY;
-      if (yearA !== yearB) return yearA - yearB;
+      if (a.year !== b.year) return a.year - b.year;
       return a.file.localeCompare(b.file, undefined, { numeric: true, sensitivity: "base" });
     });
 }
 
-async function loadTimelinePhotosFromManifest() {
+async function loadStoryEntriesFromManifest() {
   try {
     const response = await fetch(withBasePath("/photos/timeline-photos/manifest.json"), { cache: "no-store" });
     if (!response.ok) return [];
@@ -1076,8 +1127,9 @@ async function loadTimelinePhotosFromManifest() {
         : payload && Array.isArray(payload.files)
           ? payload.files
           : [];
+
     return rows
-      .map((entry) => normalizeTimelineEntry(entry))
+      .map((entry) => normalizeStoryEntry(entry))
       .filter((entry) => entry.file)
       .map((entry) => ({
         ...entry,
@@ -1090,202 +1142,330 @@ async function loadTimelinePhotosFromManifest() {
   }
 }
 
-async function loadTimelinePhotos() {
-  const manifestFiles = await loadTimelinePhotosFromManifest();
-  if (manifestFiles.length) return sortTimelineEntries(manifestFiles);
-  return [];
+function storyCopyForYear(year) {
+  const copy = STORY_COPY[year];
+  if (copy) return copy;
+  return {
+    title: `${year}`,
+    blurb: `A moment from ${year}.`,
+    longCaption: `A moment from ${year}.`,
+  };
 }
 
-function buildTimelineSlide(item) {
-  const template = document.getElementById("timelineSlideTemplate");
-  const templateNode = template && template.content ? template.content.firstElementChild : null;
-  const slide = templateNode ? templateNode.cloneNode(true) : document.createElement("div");
-  slide.classList.add("timeline-slide");
-  slide.setAttribute("data-year", String(item.year));
-
-  const imageWrap = slide.querySelector(".timeline-image") || document.createElement("div");
-  imageWrap.classList.add("timeline-image");
-
-  const media = slide.querySelector(".timeline-media") || document.createElement("div");
-  media.classList.add("timeline-media", "img-moon");
-
-  const img = slide.querySelector(".timeline-media img") || document.createElement("img");
-  const yearTag = slide.querySelector(".timeline-year") || document.createElement("div");
-  const caption = slide.querySelector(".timeline-caption") || document.createElement("div");
-
-  const filename = decodeURIComponent((String(item.file || "").split("?")[0].split("/").pop() || "").trim());
-  const override = TIMELINE_OVERRIDES[filename] || {};
-  const rotateValue = Number.isFinite(Number(override.rotate))
-    ? Number(override.rotate)
-    : Number.isFinite(Number(item.rotation))
-      ? Number(item.rotation)
-      : 0;
-  const yearTopValue = Number.isFinite(Number(override.yearTop))
-    ? Number(override.yearTop)
-    : Number.isFinite(Number(item.yearTop))
-      ? Number(item.yearTop)
-      : 72;
-  const objectPosition = override.objPos || item.objectPosition || "50% 50%";
-
-  slide.setAttribute("data-rotate", String(rotateValue));
-
-  img.src = `${item.file}${item.file.includes("?") ? "&" : "?"}v=${TIMELINE_ASSET_VERSION}`;
-  img.alt = item.alt || `${item.year} timeline photo`;
-  img.loading = "lazy";
-  img.decoding = "async";
-  img.style.objectFit = item.fit || "cover";
-  img.style.setProperty("--objPos", objectPosition);
-  img.style.objectPosition = objectPosition;
-
-  yearTag.classList.add("timeline-year");
-  yearTag.textContent = timelineYearLabel(item);
-  yearTag.style.setProperty("--yearTop", `${yearTopValue}px`);
-
-  caption.classList.add("timeline-caption");
-  caption.textContent = timelineCaptionForItem(item);
-
-  if (!img.parentElement) media.appendChild(img);
-  if (!yearTag.parentElement) imageWrap.appendChild(yearTag);
-  if (!media.parentElement) imageWrap.appendChild(media);
-  if (yearTag.parentElement === imageWrap && media.parentElement === imageWrap && yearTag.nextElementSibling !== media) {
-    imageWrap.insertBefore(yearTag, media);
-  }
-  if (!imageWrap.parentElement) slide.appendChild(imageWrap);
-  if (!caption.parentElement) slide.appendChild(caption);
-  return slide;
+function storyYearLabel(year) {
+  return Number(year) === 2027 ? "Future..." : String(year);
 }
 
-function buildTimelinePlaceholder() {
-  const slide = document.createElement("div");
-  slide.className = "timeline-slide timeline-slide--placeholder";
-  slide.setAttribute("data-year", "timeline");
-
-  const imageWrap = document.createElement("div");
-  imageWrap.className = "timeline-image";
-
-  const media = document.createElement("div");
-  media.className = "timeline-media img-moon";
-
-  const placeholder = document.createElement("div");
-  placeholder.className = "timeline-placeholder";
-  placeholder.textContent = "Timeline";
-
-  media.appendChild(placeholder);
-  imageWrap.appendChild(media);
-
-  const caption = document.createElement("div");
-  caption.className = "timeline-caption";
-  caption.textContent = "Photos coming soon.";
-
-  slide.appendChild(imageWrap);
-  slide.appendChild(caption);
-  return slide;
+function isCoarsePointer() {
+  return window.matchMedia("(hover: none), (pointer: coarse)").matches || window.innerWidth <= 760;
 }
 
-async function initStoryTimeline() {
-  const viewport = document.getElementById("timelineViewport");
-  const track = document.getElementById("timelineTrack");
-  const dots = document.getElementById("timelineDots");
-  const prevButton = document.getElementById("timelinePrev");
-  const nextButton = document.getElementById("timelineNext");
-  if (!viewport || !track || !dots || !prevButton || !nextButton) return;
+function clearStoryTileReveal(keepIndex = -1) {
+  if (!storyTilesGrid) return;
+  storyTilesGrid.querySelectorAll(".story-tile.is-revealed").forEach((tile) => {
+    if (Number(tile.dataset.index) === keepIndex) return;
+    tile.classList.remove("is-revealed");
+  });
+}
 
-  const photos = await loadTimelinePhotos();
-  track.innerHTML = "";
-  dots.innerHTML = "";
+function isStoryLightboxOpen() {
+  if (!storyLightbox) return false;
+  return !storyLightbox.classList.contains("hidden") && storyLightbox.getAttribute("aria-hidden") !== "true";
+}
 
-  if (!photos.length) {
-    track.appendChild(buildTimelinePlaceholder());
-  } else {
-    photos.forEach((item) => {
-      if (!Number.isFinite(item.year)) return;
-      track.appendChild(buildTimelineSlide(item));
+function updateStoryLightboxView() {
+  if (!storyLightboxImg || !storyItems.length) return;
+  const item = storyItems[currentStoryIndex];
+  storyLightboxImg.src = `${toPhotoSrc(item.file)}${String(item.file).includes("?") ? "&" : "?"}v=${STORY_ASSET_VERSION}`;
+  storyLightboxImg.alt = item.alt || `Story photo ${item.year}`;
+  if (item.rotation === 90) storyLightboxImg.style.transform = "rotate(90deg) scale(0.95)";
+  else if (item.rotation === -90) storyLightboxImg.style.transform = "rotate(-90deg) scale(0.95)";
+  else if (item.rotation === 180) storyLightboxImg.style.transform = "rotate(180deg) scale(0.99)";
+  else storyLightboxImg.style.transform = "none";
+  if (storyLightboxTitle) storyLightboxTitle.textContent = item.title;
+  if (storyLightboxBlurb) storyLightboxBlurb.textContent = item.blurb;
+  if (storyLightboxLong) storyLightboxLong.textContent = item.longCaption;
+  if (storyLightboxCounter) storyLightboxCounter.textContent = `${currentStoryIndex + 1} / ${storyItems.length}`;
+}
+
+function openStoryLightbox(index) {
+  if (!storyLightbox || !storyItems.length) return;
+  currentStoryIndex = Number.isFinite(index) ? ((index % storyItems.length) + storyItems.length) % storyItems.length : 0;
+  updateStoryLightboxView();
+  storyLightbox.classList.remove("hidden");
+  storyLightbox.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+}
+
+function closeStoryLightbox() {
+  if (!storyLightbox) return;
+  storyLightbox.classList.add("hidden");
+  storyLightbox.setAttribute("aria-hidden", "true");
+  if (storyLightboxImg) storyLightboxImg.removeAttribute("src");
+  clearStoryTileReveal(-1);
+  document.body.classList.remove("modal-open");
+}
+
+function showPrevStory() {
+  if (!storyItems.length) return;
+  currentStoryIndex = (currentStoryIndex - 1 + storyItems.length) % storyItems.length;
+  updateStoryLightboxView();
+}
+
+function showNextStory() {
+  if (!storyItems.length) return;
+  currentStoryIndex = (currentStoryIndex + 1) % storyItems.length;
+  updateStoryLightboxView();
+}
+
+function bindStoryLightboxEvents() {
+  if (!storyLightbox || storyLightbox.dataset.bound === "true") return;
+
+  storyLightboxCloseButtons.forEach((button) => {
+    button.addEventListener("click", closeStoryLightbox);
+  });
+
+  if (storyLightboxPrev) {
+    storyLightboxPrev.addEventListener("click", (event) => {
+      event.preventDefault();
+      showPrevStory();
     });
   }
 
-  const slides = Array.from(track.querySelectorAll(".timeline-slide"));
-  if (!slides.length) {
-    track.appendChild(buildTimelinePlaceholder());
-    prevButton.disabled = true;
-    nextButton.disabled = true;
+  if (storyLightboxNext) {
+    storyLightboxNext.addEventListener("click", (event) => {
+      event.preventDefault();
+      showNextStory();
+    });
+  }
+
+  document.addEventListener("keydown", (event) => {
+    if (!isStoryLightboxOpen()) return;
+    if (event.key === "Escape") {
+      closeStoryLightbox();
+      return;
+    }
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      showPrevStory();
+      return;
+    }
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      showNextStory();
+    }
+  });
+
+  const swipeTarget = storyLightboxFrame || storyLightbox;
+  if (swipeTarget) {
+    swipeTarget.addEventListener(
+      "touchstart",
+      (event) => {
+        storyTouchStartX = event.changedTouches && event.changedTouches[0] ? event.changedTouches[0].clientX : null;
+      },
+      { passive: true },
+    );
+
+    swipeTarget.addEventListener(
+      "touchend",
+      (event) => {
+        const endX = event.changedTouches && event.changedTouches[0] ? event.changedTouches[0].clientX : null;
+        if (storyTouchStartX === null || endX === null) return;
+        const deltaX = endX - storyTouchStartX;
+        if (Math.abs(deltaX) > 50) {
+          if (deltaX > 0) showPrevStory();
+          else showNextStory();
+        }
+        storyTouchStartX = null;
+      },
+      { passive: true },
+    );
+  }
+
+  storyLightbox.dataset.bound = "true";
+}
+
+function buildStoryItem(entry) {
+  const filename = decodeURIComponent((String(entry.file || "").split("?")[0].split("/").pop() || "").trim());
+  const override = STORY_OVERRIDES[filename] || {};
+  const copy = storyCopyForYear(entry.year);
+  const rotation = Number.isFinite(Number(override.rotate))
+    ? Number(override.rotate)
+    : Number.isFinite(Number(entry.rotation))
+      ? Number(entry.rotation)
+      : 0;
+  const objectPosition = override.objPos || entry.objectPosition || "50% 50%";
+
+  return {
+    ...entry,
+    title: copy.title,
+    blurb: copy.blurb,
+    longCaption: copy.longCaption,
+    rotation,
+    objectPosition,
+    yearLabel: storyYearLabel(entry.year),
+  };
+}
+
+function buildStoryTile(item, index) {
+  const templateNode = storyTileTemplate && storyTileTemplate.content ? storyTileTemplate.content.firstElementChild : null;
+  const tile = templateNode ? templateNode.cloneNode(true) : document.createElement("button");
+  tile.type = "button";
+  tile.classList.add("story-tile");
+  tile.dataset.index = String(index);
+  tile.setAttribute("aria-label", `Open story from ${item.yearLabel}`);
+
+  const img = tile.querySelector("img") || document.createElement("img");
+  img.src = `${toPhotoSrc(item.file)}${String(item.file).includes("?") ? "&" : "?"}v=${STORY_ASSET_VERSION}`;
+  img.alt = item.alt || `Story photo ${item.yearLabel}`;
+  img.loading = "lazy";
+  img.decoding = "async";
+  img.style.objectPosition = item.objectPosition || "50% 50%";
+  img.dataset.rotate = String(item.rotation);
+  img.style.imageOrientation = "from-image";
+  if (item.rotation === 90) img.style.setProperty("--storyRotate", "90deg");
+  else if (item.rotation === -90) img.style.setProperty("--storyRotate", "-90deg");
+  else if (item.rotation === 180) img.style.setProperty("--storyRotate", "180deg");
+  else img.style.setProperty("--storyRotate", "0deg");
+
+  const year = tile.querySelector(".story-tile-year") || document.createElement("span");
+  year.classList.add("story-tile-year");
+  year.textContent = item.yearLabel;
+
+  const caption = tile.querySelector(".story-tile-caption") || document.createElement("span");
+  caption.classList.add("story-tile-caption");
+  caption.textContent = item.blurb;
+
+  if (!img.parentElement) tile.appendChild(img);
+  const overlay = tile.querySelector(".story-tile-overlay");
+  if (overlay) {
+    overlay.innerHTML = "";
+    overlay.appendChild(year);
+    overlay.appendChild(caption);
+  }
+
+  tile.addEventListener("click", () => {
+    const coarsePointer = isCoarsePointer();
+    if (coarsePointer && !tile.classList.contains("is-revealed")) {
+      clearStoryTileReveal(index);
+      tile.classList.add("is-revealed");
+      return;
+    }
+    openStoryLightbox(index);
+  });
+
+  return tile;
+}
+
+function buildStoryPlaceholder() {
+  const tile = document.createElement("div");
+  tile.className = "story-tile";
+  tile.style.display = "grid";
+  tile.style.placeItems = "center";
+  tile.style.padding = "16px";
+  tile.textContent = "Story photos coming soon.";
+  return tile;
+}
+
+async function initStoryTiles() {
+  if (!storyTilesGrid) return;
+
+  const entries = sortStoryEntries(await loadStoryEntriesFromManifest());
+  storyItems = entries.map((entry) => buildStoryItem(entry));
+  storyTilesGrid.innerHTML = "";
+
+  if (!storyItems.length) {
+    storyTilesGrid.appendChild(buildStoryPlaceholder());
     return;
   }
 
-  const dotNodes = slides.map((_slide, index) => {
-    const dot = document.createElement("button");
-    dot.type = "button";
-    dot.className = "timeline-dot";
-    dot.setAttribute("aria-label", `Go to slide ${index + 1}`);
-    dot.addEventListener("click", () => {
-      slides[index].scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
-    });
-    dots.appendChild(dot);
-    return dot;
+  storyItems.forEach((item, index) => {
+    storyTilesGrid.appendChild(buildStoryTile(item, index));
   });
 
-  const hasMultipleSlides = slides.length > 1;
-  prevButton.disabled = !hasMultipleSlides;
-  nextButton.disabled = !hasMultipleSlides;
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest(".story-tile")) return;
+    if (target.closest(".story-lightbox-frame")) return;
+    clearStoryTileReveal(-1);
+  });
 
-  const getActiveIndex = () => {
-    const viewportCenter = viewport.scrollLeft + viewport.clientWidth / 2;
-    let bestIndex = 0;
-    let minDistance = Number.POSITIVE_INFINITY;
+  bindStoryLightboxEvents();
+}
 
-    slides.forEach((slide, index) => {
-      const center = slide.offsetLeft + slide.offsetWidth / 2;
-      const distance = Math.abs(center - viewportCenter);
-      if (distance < minDistance) {
-        minDistance = distance;
-        bestIndex = index;
-      }
+function initCutoutParallax() {
+  const blocks = Array.from(document.querySelectorAll(".cutout-parallax"));
+  if (!blocks.length) return;
+
+  const entries = blocks
+    .map((block, index) => ({
+      block,
+      img: block.querySelector(".cutout-parallax__media img"),
+      speed: Number(block.getAttribute("data-parallax-speed") || 0.12),
+      index,
+    }))
+    .filter((entry) => entry.img);
+
+  if (!entries.length) return;
+
+  if (reducedMotion) {
+    entries.forEach((entry) => {
+      entry.img.style.transform = "translate3d(0, 0, 0) scale(1.02)";
     });
+    return;
+  }
 
-    return bestIndex;
-  };
-
-  const updateDots = () => {
-    const activeIndex = getActiveIndex();
-    dotNodes.forEach((dot, index) => dot.classList.toggle("is-active", index === activeIndex));
-  };
-
+  const active = new Set();
   let ticking = false;
-  viewport.addEventListener(
-    "scroll",
-    () => {
-      if (ticking) return;
-      ticking = true;
-      window.requestAnimationFrame(() => {
-        updateDots();
-        ticking = false;
+
+  const update = () => {
+    ticking = false;
+    const isMobile = window.innerWidth <= 760;
+
+    entries.forEach((entry) => {
+      if (!active.has(entry.block)) return;
+
+      if (isMobile && entry.index > 0) {
+        entry.img.style.transform = "translate3d(0, 0, 0) scale(1.02)";
+        return;
+      }
+
+      const rect = entry.block.getBoundingClientRect();
+      const viewportCenter = window.innerHeight / 2;
+      const blockCenter = rect.top + rect.height / 2;
+      const delta = viewportCenter - blockCenter;
+      const strength = isMobile ? entry.speed * 0.5 : entry.speed;
+      const maxShift = isMobile ? 20 : 34;
+      const translateY = Math.max(-maxShift, Math.min(maxShift, delta * strength));
+      entry.img.style.transform = `translate3d(0, ${translateY.toFixed(2)}px, 0) scale(1.06)`;
+    });
+  };
+
+  const requestTick = () => {
+    if (ticking) return;
+    ticking = true;
+    window.requestAnimationFrame(update);
+  };
+
+  const observer = new IntersectionObserver(
+    (observerEntries) => {
+      observerEntries.forEach((entry) => {
+        if (entry.isIntersecting) active.add(entry.target);
+        else active.delete(entry.target);
       });
+      requestTick();
     },
-    { passive: true },
+    {
+      threshold: [0, 0.15, 0.35, 0.6],
+      rootMargin: "120px 0px 120px 0px",
+    },
   );
 
-  viewport.addEventListener(
-    "wheel",
-    (event) => {
-      if (Math.abs(event.deltaY) < Math.abs(event.deltaX)) return;
-      event.preventDefault();
-      viewport.scrollLeft += event.deltaY;
-    },
-    { passive: false },
-  );
-
-  prevButton.addEventListener("click", () => {
-    const activeIndex = getActiveIndex();
-    const targetIndex = Math.max(0, activeIndex - 1);
-    slides[targetIndex].scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
-  });
-
-  nextButton.addEventListener("click", () => {
-    const activeIndex = getActiveIndex();
-    const targetIndex = Math.min(slides.length - 1, activeIndex + 1);
-    slides[targetIndex].scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
-  });
-
-  updateDots();
+  entries.forEach((entry) => observer.observe(entry.block));
+  window.addEventListener("scroll", requestTick, { passive: true });
+  window.addEventListener("resize", requestTick);
+  requestTick();
 }
 
 async function init() {
@@ -1297,7 +1477,8 @@ async function init() {
   initStayDisclosure();
   initMakanSection();
   initReveals();
-  await initStoryTimeline();
+  await initStoryTiles();
+  initCutoutParallax();
   initRsvpCards();
   initRsvpForm();
 
