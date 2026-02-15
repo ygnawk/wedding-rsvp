@@ -1081,6 +1081,79 @@ a:focus-visible,
   }
 }
 
+/* Mobile sizing pass: keep Stay/Things cards compact so sections don't feel oversized. */
+@media (max-width: 760px) {
+  .stay-grid {
+    gap: 10px;
+  }
+
+  .stay-card {
+    padding: 10px;
+    gap: 6px;
+    border-radius: 14px;
+  }
+
+  #stay .photo-frame.img-arch,
+  #stay .photo-frame.img-round,
+  #stay .photo-frame.img-moon {
+    aspect-ratio: 16 / 9;
+    max-height: 180px;
+  }
+
+  .stay-card h3 {
+    font-size: 1.08rem;
+    line-height: 1.2;
+  }
+
+  .stay-card p,
+  .distance {
+    font-size: 0.88rem;
+    line-height: 1.38;
+  }
+
+  .links {
+    gap: 8px;
+  }
+
+  .links a {
+    font-size: 0.84rem;
+  }
+
+  .things-grid {
+    gap: 12px;
+  }
+
+  .thing-card {
+    padding: 12px;
+    gap: 8px;
+    border-radius: 16px;
+  }
+
+  .thing-img {
+    aspect-ratio: 16 / 9;
+    max-height: 180px;
+    border-radius: 14px;
+  }
+
+  .thing-card h3 {
+    font-size: 1.1rem;
+    line-height: 1.2;
+  }
+
+  .thing-card p {
+    font-size: 0.9rem;
+    line-height: 1.4;
+  }
+
+  .thing-links {
+    gap: 8px;
+  }
+
+  .thing-links a {
+    font-size: 0.84rem;
+  }
+}
+
 .thing-card {
   margin: 0;
   background: var(--maroon);
