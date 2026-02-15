@@ -28,7 +28,7 @@
 
         <nav class="desktop-nav" aria-label="Primary">
           <a href="#top" data-link="top">Home</a>
-          <a href="#our-story" data-link="our-story">Our story</a>
+          <a href="#story" data-link="story">Our story</a>
           <a href="#venue" data-link="venue">Venue</a>
           <a href="#schedule" data-link="schedule">Schedule</a>
           <a href="#rsvp" data-link="rsvp">RSVP</a>
@@ -47,7 +47,7 @@
     <aside id="mobileNavSheet" class="mobile-sheet" aria-label="Mobile menu">
       <nav class="mobile-nav">
         <a href="#top" data-link="top">Home</a>
-        <a href="#our-story" data-link="our-story">Our story</a>
+        <a href="#story" data-link="story">Our story</a>
         <a href="#venue" data-link="venue">Venue</a>
         <a href="#schedule" data-link="schedule">Schedule</a>
         <a href="#rsvp" data-link="rsvp">RSVP</a>
@@ -130,26 +130,34 @@
         </div>
       </section>
 
-      <section id="our-story" class="section section--light motif-host" data-title="Our story">
-        <div class="section-inner content">
-          <img class="motif motif--tc motif--sm motif--maroon" src="public/motifs/peony-bud.svg" alt="" aria-hidden="true" />
-          <img class="motif motif--bl motif--sm motif--maroon" src="public/motifs/orchid-bud.svg" alt="" aria-hidden="true" />
-          <h2 class="section-title reveal reveal-left settle">Our story</h2>
-          <p class="ourstory-lede reveal settle" data-delay="70">
-            We met on orientation day at Wesleyan University in 2016. Since then, life has taken us across cities and continents—and many of
-            you have been part of that journey. We’d love to celebrate this milestone together with you in Beijing.
-          </p>
-          <p class="story-tiles-hint">Tap a tile to reveal the moment →</p>
-          <div id="storyTilesGrid" class="story-tiles" aria-label="Our story timeline"></div>
-          <template id="storyTileTemplate">
-            <button type="button" class="story-tile">
-              <img src="" alt="" loading="lazy" decoding="async" />
-              <span class="story-tile-overlay">
-                <span class="story-tile-year"></span>
-                <span class="story-tile-caption"></span>
-              </span>
-            </button>
-          </template>
+      <div id="our-story" class="anchor-target" aria-hidden="true"></div>
+      <section id="story" class="section section--light motif-host story-scrolly" data-title="Our story">
+        <div class="story-scrolly-track" id="storyScrollyTrack">
+          <div class="story-scrolly-sticky">
+            <img class="motif motif--tc motif--sm motif--maroon" src="public/motifs/peony-bud.svg" alt="" aria-hidden="true" />
+            <img class="motif motif--bl motif--sm motif--maroon" src="public/motifs/orchid-bud.svg" alt="" aria-hidden="true" />
+            <a class="story-skip" href="#venue">Skip story →</a>
+
+            <div class="story-scrolly-head">
+              <h2 class="section-title reveal reveal-left settle">Our story</h2>
+              <p class="ourstory-lede reveal settle" data-delay="70">
+                We met on orientation day at Wesleyan University in 2016. Since then, life has taken us across cities and continents—and many of
+                you have been part of that journey. We’d love to celebrate this milestone together with you in Beijing.
+              </p>
+            </div>
+
+            <div id="storyStage" class="story-stage" aria-label="Our story timeline">
+              <div id="storyMosaicGrid" class="story-mosaic-grid"></div>
+              <button id="storyFocusOverlay" class="story-focus-overlay hidden" type="button" aria-label="Open highlighted story moment">
+                <img id="storyFocusImage" src="" alt="" loading="lazy" decoding="async" />
+              </button>
+            </div>
+
+            <div id="storyCaption" class="story-focus-caption hidden" aria-live="polite">
+              <p id="storyCaptionTitle" class="story-focus-title"></p>
+              <p id="storyCaptionBlurb" class="story-focus-blurb"></p>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -237,50 +245,50 @@
 
               <input type="hidden" id="attendanceChoice" name="attendanceChoice" required />
 
-              <div id="rsvpFields" class="fields hidden">
-                <div class="field-grid two-col">
-                  <div class="field">
+              <div id="rsvpFields" class="fields form-grid hidden">
+                <div class="field-grid form-row two-col">
+                  <div class="field form-field">
                     <label for="fullName">Full name</label>
                     <input id="fullName" name="fullName" type="text" required />
                   </div>
-                  <div class="field">
+                  <div class="field form-field">
                     <label for="email">Email</label>
                     <input id="email" name="email" type="email" required />
                   </div>
                 </div>
 
-                <div class="field-grid two-col">
-                  <div class="field">
+                <div class="field-grid form-row two-col">
+                  <div class="field form-field">
                     <label for="phone">Phone, optional</label>
                     <input id="phone" name="phone" type="text" />
                   </div>
                 </div>
 
-                <div id="yesFields" class="conditional hidden" aria-live="polite">
-                  <div class="field-grid two-col">
-                    <div class="field">
+                <div id="yesFields" class="conditional form-row hidden" aria-live="polite">
+                  <div class="field-grid form-row two-col">
+                    <div class="field form-field">
                       <label for="yesCount">Party size</label>
                       <select id="yesCount" name="yesCount">
                         <option value="">Select</option>
                       </select>
                     </div>
                   </div>
-                  <div id="attendeeNamesWrap" class="field-grid two-col"></div>
-                  <div class="field">
+                  <div id="attendeeNamesWrap" class="field-grid form-row two-col"></div>
+                  <div class="field form-field">
                     <label for="dietary">Dietary restrictions, optional</label>
                     <textarea id="dietary" name="dietary"></textarea>
                   </div>
                 </div>
 
-                <div id="workingFields" class="conditional hidden" aria-live="polite">
-                  <div class="field-grid two-col">
-                    <div class="field">
+                <div id="workingFields" class="conditional form-row hidden" aria-live="polite">
+                  <div class="field-grid form-row two-col">
+                    <div class="field form-field">
                       <label for="workingCount">Potential party size</label>
                       <select id="workingCount" name="workingCount">
                         <option value="">Select</option>
                       </select>
                     </div>
-                    <div class="field">
+                    <div class="field form-field">
                       <label for="workingConfirm">When will you know?</label>
                       <select id="workingConfirm" name="workingConfirm">
                         <option value="">Select</option>
@@ -291,14 +299,16 @@
                   </div>
                 </div>
 
-                <div id="noFields" class="conditional hidden" aria-live="polite">
-                  <div class="field">
+                <div id="noFields" class="conditional form-row hidden" aria-live="polite">
+                  <div class="field form-field">
                     <label for="noNote">Optional note</label>
                     <textarea id="noNote" name="noNote"></textarea>
                   </div>
                 </div>
 
-                <button id="submitButton" type="submit" class="btn btn-maroon">Send reply</button>
+                <div class="form-actions">
+                  <button id="submitButton" type="submit" class="btn btn-maroon">Send reply</button>
+                </div>
               </div>
             </form>
 
@@ -441,6 +451,7 @@
 
       <section id="stay" class="section section--dark motif-host" data-title="Where to stay">
         <div class="section-inner content">
+          <div id="hotels" class="anchor-target" aria-hidden="true"></div>
           <img class="motif motif--stay-main motif--lift motif--md motif--maroon" src="public/motifs/chrysanthemum-branch.svg" alt="" aria-hidden="true" />
           <img class="motif motif--stay-accent motif--lift motif--sm motif--maroon" src="public/motifs/peony-bud.svg" alt="" aria-hidden="true" />
           <h2 class="reveal reveal-left">Where to stay</h2>
@@ -729,6 +740,16 @@
         </div>
       </section>
     </main>
+
+    <div id="jumpMenuWrap" class="jump-menu-wrap" aria-live="polite">
+      <button id="jumpMenuToggle" class="jump-menu-toggle" type="button" aria-expanded="false" aria-controls="jumpMenuPanel">Jump</button>
+      <div id="jumpMenuPanel" class="jump-menu-panel" role="menu" hidden>
+        <a href="#rsvp" role="menuitem">RSVP</a>
+        <a href="#hotels" role="menuitem">Where to stay</a>
+        <a href="#things-to-do" role="menuitem">Things to do</a>
+        <a href="#travel-visa" role="menuitem">Travel &amp; Visa</a>
+      </div>
+    </div>
 
     <div id="lightbox" class="lightbox hidden" aria-hidden="true">
       <div class="lightbox-backdrop" data-close></div>

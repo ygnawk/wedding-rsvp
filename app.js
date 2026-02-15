@@ -2,7 +2,7 @@ const SHEETS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwpfLq3hB_mRi
 const RSVP_LOCAL_FALLBACK_KEY = "wedding_rsvp_fallback";
 const BASE_PATH = window.location.hostname === "ygnawk.github.io" ? "/wedding-rsvp" : "";
 
-const SECTION_IDS = ["top", "interlude", "our-story", "venue", "schedule", "rsvp", "faq", "stay", "things-to-do", "makan", "travel-visa", "gallery"];
+const SECTION_IDS = ["top", "interlude", "story", "venue", "schedule", "rsvp", "faq", "stay", "things-to-do", "makan", "travel-visa", "gallery"];
 
 const inviteState = {
   token: "",
@@ -69,8 +69,16 @@ let galleryImages = [];
 let currentGalleryIndex = 0;
 let galleryTouchStartX = null;
 
-const storyTilesGrid = document.getElementById("storyTilesGrid");
-const storyTileTemplate = document.getElementById("storyTileTemplate");
+const storySection = document.getElementById("story");
+const storyScrollyTrack = document.getElementById("storyScrollyTrack");
+const storyStage = document.getElementById("storyStage");
+const storyMosaicGrid = document.getElementById("storyMosaicGrid");
+const storyFocusOverlay = document.getElementById("storyFocusOverlay");
+const storyFocusImage = document.getElementById("storyFocusImage");
+const storyCaption = document.getElementById("storyCaption");
+const storyCaptionTitle = document.getElementById("storyCaptionTitle");
+const storyCaptionBlurb = document.getElementById("storyCaptionBlurb");
+const storySkip = document.querySelector(".story-skip");
 const storyLightbox = document.getElementById("storyLightbox");
 const storyLightboxImg = document.getElementById("storyLightboxImg");
 const storyLightboxTitle = document.getElementById("storyLightboxTitle");
@@ -85,8 +93,17 @@ const storyLightboxCloseButtons = storyLightbox ? Array.from(storyLightbox.query
 let storyItems = [];
 let currentStoryIndex = 0;
 let storyTouchStartX = null;
+let storyActiveStep = -1;
+let storyScrollRaf = null;
+let storyTileElements = [];
+let storyResizeRaf = null;
 let hotelMatrixItems = [];
 let activeHotelMatrixId = "";
+
+const jumpMenuWrap = document.getElementById("jumpMenuWrap");
+const jumpMenuToggle = document.getElementById("jumpMenuToggle");
+const jumpMenuPanel = document.getElementById("jumpMenuPanel");
+const jumpMenuLinks = jumpMenuPanel ? Array.from(jumpMenuPanel.querySelectorAll("a[href^='#']")) : [];
 
 const HOTEL_MATRIX_DATA = [
   { id: "hotel-a", name: "Hotel A", note: "Great value, simple rooms, central access.", url: "https://example.com/hotel-a", price: 18, comfort: 28 },
@@ -399,6 +416,75 @@ function initHeader() {
   document.querySelectorAll(".desktop-nav a, .mobile-nav a, .header-rsvp, .brand").forEach((link) => {
     link.addEventListener("click", closeMobileMenu);
   });
+}
+
+function closeJumpMenu() {
+  if (!jumpMenuToggle || !jumpMenuPanel) return;
+  jumpMenuToggle.setAttribute("aria-expanded", "false");
+  jumpMenuPanel.hidden = true;
+}
+
+function openJumpMenu() {
+  if (!jumpMenuToggle || !jumpMenuPanel) return;
+  jumpMenuToggle.setAttribute("aria-expanded", "true");
+  jumpMenuPanel.hidden = false;
+}
+
+function toggleJumpMenu() {
+  if (!jumpMenuToggle || !jumpMenuPanel) return;
+  const expanded = jumpMenuToggle.getAttribute("aria-expanded") === "true";
+  if (expanded) closeJumpMenu();
+  else openJumpMenu();
+}
+
+function syncJumpMenuVisibility() {
+  if (!jumpMenuWrap) return;
+  const visible = window.scrollY > Math.max(240, window.innerHeight * 0.9);
+  jumpMenuWrap.classList.toggle("is-visible", visible);
+}
+
+function initJumpMenu() {
+  if (!jumpMenuWrap || !jumpMenuToggle || !jumpMenuPanel) return;
+  if (jumpMenuWrap.dataset.bound === "true") return;
+
+  closeJumpMenu();
+  syncJumpMenuVisibility();
+
+  jumpMenuToggle.addEventListener("click", (event) => {
+    event.preventDefault();
+    toggleJumpMenu();
+  });
+
+  jumpMenuLinks.forEach((link) => {
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      const href = link.getAttribute("href") || "";
+      const id = href.startsWith("#") ? href.slice(1) : href;
+      const target = id ? document.getElementById(id) : null;
+      if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+      closeJumpMenu();
+    });
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    closeJumpMenu();
+  });
+
+  document.addEventListener(
+    "pointerdown",
+    (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (jumpMenuWrap.contains(target)) return;
+      closeJumpMenu();
+    },
+    { passive: true },
+  );
+
+  window.addEventListener("scroll", syncJumpMenuVisibility, { passive: true });
+  window.addEventListener("resize", syncJumpMenuVisibility);
+  jumpMenuWrap.dataset.bound = "true";
 }
 
 function initStayDisclosure() {
@@ -837,7 +923,7 @@ function renderAttendeeFields(count) {
   const safeCount = Math.max(0, Math.min(clampPartySize(inviteState.maxPartySize), Number(count) || 0));
   for (let i = 1; i <= safeCount; i += 1) {
     const field = document.createElement("div");
-    field.className = "field";
+    field.className = "field form-field";
 
     const label = document.createElement("label");
     label.setAttribute("for", `attendeeName${i}`);
@@ -1450,8 +1536,8 @@ function isCoarsePointer() {
 }
 
 function clearStoryTileReveal(keepIndex = -1) {
-  if (!storyTilesGrid) return;
-  storyTilesGrid.querySelectorAll(".story-tile.is-revealed").forEach((tile) => {
+  if (!storyMosaicGrid) return;
+  storyMosaicGrid.querySelectorAll(".story-mosaic-tile.is-revealed").forEach((tile) => {
     if (Number(tile.dataset.index) === keepIndex) return;
     tile.classList.remove("is-revealed");
   });
@@ -1596,46 +1682,43 @@ function buildStoryItem(entry) {
   };
 }
 
-function buildStoryTile(item, index) {
-  const templateNode = storyTileTemplate && storyTileTemplate.content ? storyTileTemplate.content.firstElementChild : null;
-  const tile = templateNode ? templateNode.cloneNode(true) : document.createElement("button");
+function createStoryMosaicTile(item, index) {
+  const tile = document.createElement("button");
   tile.type = "button";
-  tile.classList.add("story-tile");
+  tile.className = "story-mosaic-tile";
   tile.dataset.index = String(index);
   tile.setAttribute("aria-label", `Open story from ${item.yearLabel}`);
 
-  const img = tile.querySelector("img") || document.createElement("img");
+  const img = document.createElement("img");
   img.src = `${toPhotoSrc(item.file)}${String(item.file).includes("?") ? "&" : "?"}v=${STORY_ASSET_VERSION}`;
   img.alt = item.alt || `Story photo ${item.yearLabel}`;
   img.loading = "lazy";
   img.decoding = "async";
   img.style.objectPosition = item.objectPosition || "50% 50%";
-  img.dataset.rotate = String(item.rotation);
   img.style.imageOrientation = "from-image";
   if (item.rotation === 90) img.style.setProperty("--storyRotate", "90deg");
   else if (item.rotation === -90) img.style.setProperty("--storyRotate", "-90deg");
   else if (item.rotation === 180) img.style.setProperty("--storyRotate", "180deg");
   else img.style.setProperty("--storyRotate", "0deg");
 
-  const year = tile.querySelector(".story-tile-year") || document.createElement("span");
-  year.classList.add("story-tile-year");
+  const overlay = document.createElement("span");
+  overlay.className = "story-mosaic-overlay";
+
+  const year = document.createElement("span");
+  year.className = "story-mosaic-year";
   year.textContent = item.yearLabel;
 
-  const caption = tile.querySelector(".story-tile-caption") || document.createElement("span");
-  caption.classList.add("story-tile-caption");
+  const caption = document.createElement("span");
+  caption.className = "story-mosaic-caption";
   caption.textContent = item.blurb;
 
-  if (!img.parentElement) tile.appendChild(img);
-  const overlay = tile.querySelector(".story-tile-overlay");
-  if (overlay) {
-    overlay.innerHTML = "";
-    overlay.appendChild(year);
-    overlay.appendChild(caption);
-  }
+  overlay.appendChild(year);
+  overlay.appendChild(caption);
+  tile.appendChild(img);
+  tile.appendChild(overlay);
 
   tile.addEventListener("click", () => {
-    const coarsePointer = isCoarsePointer();
-    if (coarsePointer && !tile.classList.contains("is-revealed")) {
+    if (isCoarsePointer() && !tile.classList.contains("is-revealed")) {
       clearStoryTileReveal(index);
       tile.classList.add("is-revealed");
       return;
@@ -1643,12 +1726,18 @@ function buildStoryTile(item, index) {
     openStoryLightbox(index);
   });
 
+  tile.addEventListener("focus", () => {
+    if (isCoarsePointer()) return;
+    clearStoryTileReveal(index);
+    tile.classList.add("is-revealed");
+  });
+
   return tile;
 }
 
 function buildStoryPlaceholder() {
   const tile = document.createElement("div");
-  tile.className = "story-tile";
+  tile.className = "story-mosaic-tile";
   tile.style.display = "grid";
   tile.style.placeItems = "center";
   tile.style.padding = "16px";
@@ -1656,31 +1745,223 @@ function buildStoryPlaceholder() {
   return tile;
 }
 
-async function initStoryTiles() {
-  if (!storyTilesGrid) return;
+function getStoryFocusRect(stageRect) {
+  const isMobile = window.innerWidth <= 760;
+  const maxWidth = isMobile ? stageRect.width * 0.92 : Math.min(860, stageRect.width * 0.82);
+  const targetHeight = isMobile ? Math.min(window.innerHeight * 0.52, stageRect.height * 0.88) : Math.min(window.innerHeight * 0.62, stageRect.height * 0.9);
+  const width = Math.max(220, Math.min(stageRect.width, maxWidth));
+  const height = Math.max(200, Math.min(stageRect.height, targetHeight));
+  const left = (stageRect.width - width) / 2;
+  const top = Math.max(8, (stageRect.height - height) / 2);
 
-  const entries = sortStoryEntries(await loadStoryEntriesFromManifest());
-  storyItems = entries.map((entry) => buildStoryItem(entry));
-  storyTilesGrid.innerHTML = "";
+  return { left, top, width, height };
+}
 
-  if (!storyItems.length) {
-    storyTilesGrid.appendChild(buildStoryPlaceholder());
+function setStoryOverlayRect(rect) {
+  if (!storyFocusOverlay) return;
+  storyFocusOverlay.style.left = `${rect.left}px`;
+  storyFocusOverlay.style.top = `${rect.top}px`;
+  storyFocusOverlay.style.width = `${rect.width}px`;
+  storyFocusOverlay.style.height = `${rect.height}px`;
+}
+
+function applyStoryOverlayImage(item) {
+  if (!storyFocusImage || !item) return;
+  storyFocusImage.src = `${toPhotoSrc(item.file)}${String(item.file).includes("?") ? "&" : "?"}v=${STORY_ASSET_VERSION}`;
+  storyFocusImage.alt = item.alt || `Story photo ${item.yearLabel}`;
+  storyFocusImage.style.objectPosition = item.objectPosition || "50% 50%";
+
+  if (item.rotation === 90) {
+    storyFocusImage.style.setProperty("--storyRotate", "90deg");
+    storyFocusImage.style.setProperty("--storyScaleFactor", "1.16");
+  } else if (item.rotation === -90) {
+    storyFocusImage.style.setProperty("--storyRotate", "-90deg");
+    storyFocusImage.style.setProperty("--storyScaleFactor", "1.16");
+  } else if (item.rotation === 180) {
+    storyFocusImage.style.setProperty("--storyRotate", "180deg");
+    storyFocusImage.style.setProperty("--storyScaleFactor", "1.04");
+  } else {
+    storyFocusImage.style.setProperty("--storyRotate", "0deg");
+    storyFocusImage.style.setProperty("--storyScaleFactor", "1.03");
+  }
+}
+
+function hideStoryFocus() {
+  if (!storyMosaicGrid || !storyFocusOverlay || !storyCaption) return;
+
+  storyMosaicGrid.classList.remove("is-focused");
+  storyTileElements.forEach((tile) => tile.classList.remove("is-active"));
+
+  if (reducedMotion) {
+    storyFocusOverlay.classList.remove("is-visible");
+    storyFocusOverlay.classList.add("hidden");
+    storyCaption.classList.remove("is-visible");
+    storyCaption.classList.add("hidden");
     return;
   }
 
-  storyItems.forEach((item, index) => {
-    storyTilesGrid.appendChild(buildStoryTile(item, index));
+  storyFocusOverlay.classList.remove("is-visible");
+  storyCaption.classList.remove("is-visible");
+  window.setTimeout(() => {
+    if (storyActiveStep >= 0) return;
+    storyFocusOverlay.classList.add("hidden");
+    storyCaption.classList.add("hidden");
+  }, 230);
+}
+
+function showStoryFocus(step, animate = true) {
+  if (!storyStage || !storyMosaicGrid || !storyFocusOverlay || !storyFocusImage || !storyCaption || !storyCaptionTitle || !storyCaptionBlurb) return;
+  if (!storyItems.length) return;
+  if (step < 0 || step >= storyItems.length) return;
+
+  const tile = storyTileElements[step];
+  if (!tile) return;
+
+  const tileRect = tile.getBoundingClientRect();
+  const stageRect = storyStage.getBoundingClientRect();
+  const startRect = {
+    left: tileRect.left - stageRect.left,
+    top: tileRect.top - stageRect.top,
+    width: tileRect.width,
+    height: tileRect.height,
+  };
+  const endRect = getStoryFocusRect(stageRect);
+  const item = storyItems[step];
+
+  applyStoryOverlayImage(item);
+  storyCaptionTitle.textContent = item.yearLabel;
+  storyCaptionBlurb.textContent = item.blurb;
+
+  storyMosaicGrid.classList.add("is-focused");
+  storyTileElements.forEach((node, index) => node.classList.toggle("is-active", index === step));
+
+  storyFocusOverlay.classList.remove("hidden");
+  storyCaption.classList.remove("hidden");
+  setStoryOverlayRect(startRect);
+
+  if (reducedMotion || !animate) {
+    setStoryOverlayRect(endRect);
+    storyFocusOverlay.classList.add("is-visible");
+    storyCaption.classList.add("is-visible");
+    return;
+  }
+
+  storyFocusOverlay.classList.add("is-visible");
+  window.requestAnimationFrame(() => {
+    setStoryOverlayRect(endRect);
+    storyCaption.classList.add("is-visible");
+  });
+}
+
+function applyStoryStep(step, animate = true) {
+  if (step === storyActiveStep) return;
+  storyActiveStep = step;
+
+  if (step < 0) {
+    hideStoryFocus();
+    return;
+  }
+
+  showStoryFocus(step, animate);
+}
+
+function computeStoryStep() {
+  if (!storySection || !storyItems.length) return -1;
+  const sectionRect = storySection.getBoundingClientRect();
+  const sectionTop = window.scrollY + sectionRect.top;
+  const sectionHeight = storySection.offsetHeight || sectionRect.height;
+  const viewportHeight = window.innerHeight || 1;
+  const rawProgress = (window.scrollY - sectionTop) / Math.max(1, sectionHeight - viewportHeight);
+  const progress = Math.max(0, Math.min(1, rawProgress));
+  const segment = 1 / (storyItems.length + 1);
+  const step = Math.floor(progress / segment) - 1;
+  return Math.max(-1, Math.min(storyItems.length - 1, step));
+}
+
+function requestStoryStepSync() {
+  if (storyScrollRaf) return;
+  storyScrollRaf = window.requestAnimationFrame(() => {
+    storyScrollRaf = null;
+    const step = computeStoryStep();
+    applyStoryStep(step, true);
+  });
+}
+
+function setStoryTrackSteps(count) {
+  if (!storyScrollyTrack) return;
+  const safeCount = Math.max(1, Number(count) || 1);
+  storyScrollyTrack.style.setProperty("--storySteps", String(safeCount));
+}
+
+function bindStoryScrollyEvents() {
+  if (!storySection || storySection.dataset.bound === "true") return;
+
+  if (storyFocusOverlay) {
+    storyFocusOverlay.addEventListener("click", () => {
+      if (storyActiveStep < 0) return;
+      openStoryLightbox(storyActiveStep);
+    });
+  }
+
+  if (storySkip) {
+    storySkip.addEventListener("click", (event) => {
+      event.preventDefault();
+      const target = document.getElementById("venue");
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  window.addEventListener("scroll", requestStoryStepSync, { passive: true });
+
+  window.addEventListener("resize", () => {
+    if (storyResizeRaf) window.cancelAnimationFrame(storyResizeRaf);
+    storyResizeRaf = window.requestAnimationFrame(() => {
+      storyResizeRaf = null;
+      if (storyActiveStep >= 0) {
+        showStoryFocus(storyActiveStep, false);
+      } else {
+        applyStoryStep(computeStoryStep(), false);
+      }
+    });
   });
 
   document.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof Element)) return;
-    if (target.closest(".story-tile")) return;
+    if (target.closest(".story-mosaic-tile")) return;
     if (target.closest(".story-lightbox-frame")) return;
     clearStoryTileReveal(-1);
   });
 
+  storySection.dataset.bound = "true";
+}
+
+async function initStoryScrolly() {
+  if (!storyMosaicGrid || !storySection) return;
+
+  const entries = sortStoryEntries(await loadStoryEntriesFromManifest());
+  storyItems = entries.map((entry) => buildStoryItem(entry));
+  storyMosaicGrid.innerHTML = "";
+  storyTileElements = [];
+  storyActiveStep = -1;
+
+  if (!storyItems.length) {
+    storyMosaicGrid.appendChild(buildStoryPlaceholder());
+    setStoryTrackSteps(1);
+    return;
+  }
+
+  storyItems.forEach((item, index) => {
+    const tile = createStoryMosaicTile(item, index);
+    storyTileElements.push(tile);
+    storyMosaicGrid.appendChild(tile);
+  });
+
+  setStoryTrackSteps(storyItems.length);
   bindStoryLightboxEvents();
+  bindStoryScrollyEvents();
+  applyStoryStep(computeStoryStep(), false);
 }
 
 function initCutoutParallax() {
@@ -1763,11 +2044,12 @@ async function init() {
   initHeroCountdown();
   initInterludeCountdown();
   initSectionObserver();
+  initJumpMenu();
   initStayDisclosure();
   initHotelMatrix();
   initMakanSection();
   initReveals();
-  await initStoryTiles();
+  await initStoryScrolly();
   initCutoutParallax();
   initRsvpCards();
   initRsvpForm();
