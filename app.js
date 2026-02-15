@@ -2,7 +2,7 @@ const SHEETS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwpfLq3hB_mRi
 const RSVP_LOCAL_FALLBACK_KEY = "wedding_rsvp_fallback";
 const BASE_PATH = window.location.hostname === "ygnawk.github.io" ? "/wedding-rsvp" : "";
 
-const SECTION_IDS = ["top", "our-story", "venue", "schedule", "rsvp", "faq", "stay", "things-to-do", "travel-visa", "gallery"];
+const SECTION_IDS = ["top", "interlude", "our-story", "venue", "schedule", "rsvp", "faq", "stay", "things-to-do", "travel-visa"];
 
 const inviteState = {
   token: "",
@@ -81,20 +81,20 @@ const TIMELINE_CAPTIONS = {
 const TIMELINE_ASSET_VERSION = "20260215-1310";
 const TIMELINE_OVERRIDES = {
   // Lock problematic files so orientation and year placement stay stable.
-  "2008-miki-moves-beijing-upright.jpg": { rotate: -90, yearTop: 56, objPos: "50% 36%" },
-  "2020-covid-upright.jpg": { rotate: 180, yearTop: 56, objPos: "50% 36%" },
-  "2024-proposal-upright.jpg": { rotate: -90, yearTop: 56, objPos: "50% 40%" },
+  "2008-miki-moves-beijing-upright.jpg": { rotate: -90, yearTop: 68, objPos: "50% 36%" },
+  "2020-covid-upright.jpg": { rotate: 180, yearTop: 68, objPos: "50% 36%" },
+  "2024-proposal-upright.jpg": { rotate: -90, yearTop: 68, objPos: "50% 40%" },
   // Legacy names (kept in case old files are reintroduced).
-  "2008-miki-moves-beijing.jpg": { rotate: -90, yearTop: 56, objPos: "50% 36%" },
-  "2008-miki-moves-beijing-v2.jpg": { rotate: -90, yearTop: 56, objPos: "50% 36%" },
-  "2008 - Miki moves to China.JPG": { rotate: -90, yearTop: 56, objPos: "50% 36%" },
-  "2020-covid.jpg": { rotate: 180, yearTop: 56, objPos: "50% 36%" },
-  "2020-covid-v2.jpg": { rotate: 180, yearTop: 56, objPos: "50% 36%" },
-  "2020-covid-from-heic.jpg": { rotate: 180, yearTop: 56, objPos: "50% 36%" },
-  "2020 - COVID.HEIC": { rotate: 180, yearTop: 56, objPos: "50% 36%" },
-  "2024-proposal.jpg": { rotate: -90, yearTop: 56, objPos: "50% 40%" },
-  "2024-proposal-v2.jpg": { rotate: -90, yearTop: 56, objPos: "50% 40%" },
-  "2024 - She said yes.JPG": { rotate: -90, yearTop: 56, objPos: "50% 40%" },
+  "2008-miki-moves-beijing.jpg": { rotate: -90, yearTop: 68, objPos: "50% 36%" },
+  "2008-miki-moves-beijing-v2.jpg": { rotate: -90, yearTop: 68, objPos: "50% 36%" },
+  "2008 - Miki moves to China.JPG": { rotate: -90, yearTop: 68, objPos: "50% 36%" },
+  "2020-covid.jpg": { rotate: 180, yearTop: 68, objPos: "50% 36%" },
+  "2020-covid-v2.jpg": { rotate: 180, yearTop: 68, objPos: "50% 36%" },
+  "2020-covid-from-heic.jpg": { rotate: 180, yearTop: 68, objPos: "50% 36%" },
+  "2020 - COVID.HEIC": { rotate: 180, yearTop: 68, objPos: "50% 36%" },
+  "2024-proposal.jpg": { rotate: -90, yearTop: 68, objPos: "50% 40%" },
+  "2024-proposal-v2.jpg": { rotate: -90, yearTop: 68, objPos: "50% 40%" },
+  "2024 - She said yes.JPG": { rotate: -90, yearTop: 68, objPos: "50% 40%" },
 };
 const WEDDING_DATE_SHANGHAI = { year: 2026, month: 9, day: 19 };
 const SHANGHAI_TIMEZONE = "Asia/Shanghai";
@@ -1043,7 +1043,7 @@ function buildTimelineSlide(item) {
     ? Number(override.yearTop)
     : Number.isFinite(Number(item.yearTop))
       ? Number(item.yearTop)
-      : 56;
+      : 68;
   const objectPosition = override.objPos || item.objectPosition || "50% 50%";
 
   slide.setAttribute("data-rotate", String(rotateValue));
@@ -1220,7 +1220,6 @@ async function init() {
   photoManifest = await loadManifest();
   applyInviteContext();
   applyStaticPhotoManifest();
-  await initGallery();
 
   inviteState.token = getTokenFromUrl();
   await lookupToken(inviteState.token);

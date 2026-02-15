@@ -145,7 +145,7 @@ function findHeaderIndex_(headerIndex, candidates) {
 }
 
 function normalizeHeader_(value) {
-  return safeString_(value).toLowerCase().replace(/[^a-z]/g, "");
+  return safeString_(value).toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 function normalizeValue_(value) {

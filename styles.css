@@ -654,47 +654,55 @@ a {
 }
 
 /* Interlude */
-.interlude {
-  display: grid;
-  grid-template-columns: 1.6fr 1fr;
-  gap: 22px;
-  align-items: stretch;
-}
-
-.interlude-photo {
-  margin: 0;
-  border-radius: 22px;
+.interlude-section {
+  padding: 0;
+  min-height: 0;
+  display: block;
   overflow: hidden;
+  background: var(--ivory);
 }
 
-.interlude-photo img {
+.interlude-section::before {
+  content: none;
+}
+
+.interlude-band {
+  width: 100%;
+  height: clamp(520px, 62vh, 600px);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.interlude-photo-half {
+  margin: 0;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+  isolation: isolate;
+}
+
+.interlude-photo-half img {
   width: 100%;
   height: 100%;
   display: block;
   object-fit: cover;
-  object-position: var(--objPos, 50% 55%);
+  object-position: 70% 60%;
   filter: var(--photoGradeFilter);
 }
 
-.interlude-panel {
-  background: var(--maroon);
-  border-radius: 22px;
-  position: relative;
-  overflow: hidden;
-  min-height: min(56vh, 540px);
-}
-
-.interlude-panel::after {
+.interlude-photo-half::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: rgba(247, 241, 230, 0.03);
+  background: var(--photoGradeOverlay);
+  mix-blend-mode: multiply;
   pointer-events: none;
+  z-index: 1;
 }
 
-.interlude-panel .motif {
-  opacity: 0.14;
-  z-index: 0;
+.interlude-color-half {
+  background: var(--maroonDeep);
 }
 
 /* Buttons + forms */
@@ -861,7 +869,7 @@ a:focus-visible,
 .timeline-year {
   position: absolute;
   left: 26px;
-  top: var(--yearTop, 56px);
+  top: var(--yearTop, 68px);
   font-family: var(--displayFont);
   font-size: clamp(52px, 7vw, 96px);
   line-height: 1;
@@ -1539,37 +1547,37 @@ a:focus-visible,
 .travel-callout {
   border-radius: 18px;
   padding: 14px 16px;
-  border: 1px solid rgba(201, 174, 116, 0.22);
-  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(75, 15, 23, 0.16);
+  background: rgba(75, 15, 23, 0.05);
 }
 
 .travel-callout {
-  background: rgba(201, 174, 116, 0.1);
+  background: rgba(201, 174, 116, 0.2);
 }
 
 .travel-item-title {
   font-family: var(--displayFont);
   font-size: 20px;
   margin: 0 0 6px;
-  color: var(--ivory);
+  color: var(--maroon);
 }
 
 .travel-item-body {
   font-family: var(--bodyFont);
   margin: 0;
-  color: var(--ivory);
+  color: var(--ink);
   opacity: 0.92;
   line-height: 1.55;
 }
 
 .travel-note {
   margin: 16px 0 10px;
-  opacity: 0.85;
+  color: rgba(21, 21, 21, 0.84);
 }
 
 .travel-links {
   padding-top: 14px;
-  border-top: 1px solid rgba(201, 174, 116, 0.18);
+  border-top: 1px solid rgba(75, 15, 23, 0.18);
 }
 
 .travel-links-label {
@@ -1591,13 +1599,59 @@ a:focus-visible,
   align-items: center;
   padding: 10px 12px;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(201, 174, 116, 0.28);
-  color: var(--gold);
+  background: rgba(75, 15, 23, 0.08);
+  border: 1px solid rgba(75, 15, 23, 0.24);
+  color: var(--maroon);
   text-decoration: none;
 }
 
 .travel-links-pills .link-pill:hover {
+  color: var(--maroonDeep);
+  border-color: rgba(75, 15, 23, 0.46);
+}
+
+#travel-visa.section-maroon .travel-item,
+#travel-visa.section--maroon .travel-item,
+#travel-visa.section-maroon .travel-callout,
+#travel-visa.section--maroon .travel-callout {
+  border-color: rgba(201, 174, 116, 0.22);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+#travel-visa.section-maroon .travel-callout,
+#travel-visa.section--maroon .travel-callout {
+  background: rgba(201, 174, 116, 0.1);
+}
+
+#travel-visa.section-maroon .travel-item-title,
+#travel-visa.section--maroon .travel-item-title {
+  color: var(--ivory);
+}
+
+#travel-visa.section-maroon .travel-item-body,
+#travel-visa.section--maroon .travel-item-body {
+  color: var(--ivory);
+}
+
+#travel-visa.section-maroon .travel-note,
+#travel-visa.section--maroon .travel-note {
+  color: rgba(247, 241, 230, 0.86);
+}
+
+#travel-visa.section-maroon .travel-links,
+#travel-visa.section--maroon .travel-links {
+  border-top-color: rgba(201, 174, 116, 0.2);
+}
+
+#travel-visa.section-maroon .travel-links-pills .link-pill,
+#travel-visa.section--maroon .travel-links-pills .link-pill {
+  background: rgba(0, 0, 0, 0.1);
+  border-color: rgba(201, 174, 116, 0.28);
+  color: var(--gold);
+}
+
+#travel-visa.section-maroon .travel-links-pills .link-pill:hover,
+#travel-visa.section--maroon .travel-links-pills .link-pill:hover {
   color: var(--ivory);
   border-color: rgba(201, 174, 116, 0.55);
 }
@@ -1774,18 +1828,12 @@ a:focus-visible,
     width: 32px;
   }
 
-  .interlude {
-    grid-template-columns: 1fr;
+  .interlude-band {
+    height: 400px;
   }
 
-  .interlude-panel {
-    min-height: 220px;
-  }
-
-  .interlude-panel .motif {
-    right: -20px;
-    width: min(420px, 85%);
-    opacity: 0.16;
+  .interlude-photo-half img {
+    object-position: 60% 55%;
   }
 }
 
