@@ -92,8 +92,8 @@
         </div>
       </section>
 
-      <section id="interlude" class="section section--dark interlude-section" data-title="">
-        <div class="interlude-shell">
+      <section id="interlude" class="section section--dark interlude-section interlude" data-title="">
+        <div class="interlude-shell interlude-bleed">
           <div class="interlude-band">
             <figure class="interlude-photo-half reveal reveal-scale">
               <img src="photos/LMN_2546.jpg" alt="Miki and Yi Jie" loading="lazy" decoding="async" />
@@ -326,6 +326,8 @@
                 <p>We know it’s kind of hard when someone describes it in words, so we got ChatGPT to generate what it might look like.</p>
                 <div class="faq-wear-media">
                   <img
+                    id="faqWearImg"
+                    data-src="/photos/faq-photo/what-to-wear.png"
                     src="photos/faq-photo/what-to-wear.png"
                     alt="Attire inspiration: Western formal and Chinese traditional"
                     loading="lazy"
@@ -349,23 +351,7 @@
                 <span class="faq-chevron" aria-hidden="true"></span>
               </summary>
               <div class="faq-answer">
-                <p>English and Chinese, if our emcee is willing — thanks Yukai.</p>
-              </div>
-            </details>
-            <details>
-              <summary class="faq-summary">
-                <span class="faq-q">How will seating work at the venue? (Yes, it’s a little different.)</span>
-                <span class="faq-chevron" aria-hidden="true"></span>
-              </summary>
-              <div class="faq-answer">
-                <p>
-                  We’re getting married at the Mandarin Oriental Qianmen Mansion. It’s beautiful, meaningful… and has two separate dining areas
-                  with a courtyard in the middle. (Miki chose meaning over convenience. I chose acceptance.)
-                </p>
-                <p>
-                  Here’s the flow: we’ll do the ceremony all together in the central courtyard. After that, dinner will be in two rooms—one
-                  more English-leaning (friends) and one more Chinese-leaning (family)
-                </p>
+                <p>English and Chinese (if our emcee is willing — thanks Yukai.)</p>
               </div>
             </details>
             <details>
@@ -374,7 +360,7 @@
                 <span class="faq-chevron" aria-hidden="true"></span>
               </summary>
               <div class="faq-answer">
-                <p>September is the nicest month in Beijing. It’s the perfect weather — the only two weeks that are especially enjoyable — typically mild: about 15–26°C, or 59–79°F. Bring a light layer for evenings.</p>
+                <p>September is the nicest month in Beijing. It’s the perfect weather — the only 2 weeks that’s enjoyable — typically mild: about 15–26°C, or 59–79°F. Bring a light layer for evenings.</p>
               </div>
             </details>
             <details>
@@ -388,25 +374,12 @@
             </details>
             <details>
               <summary class="faq-summary">
-                <span class="faq-q">Do I need a visa, and which airport should I fly into?</span>
-                <span class="faq-chevron" aria-hidden="true"></span>
-              </summary>
-              <div class="faq-answer">
-                <p>
-                  Visa rules depend on passport and can change—please check official sources before booking. For flights, both Beijing Capital
-                  (PEK) and Beijing Daxing (PKX) are fine—choose whichever works best for your route.
-                </p>
-                <p><a class="faq-cta" href="#travel-visa">Travel &amp; visa →</a></p>
-              </div>
-            </details>
-            <details>
-              <summary class="faq-summary">
                 <span class="faq-q">Where should I stay?</span>
                 <span class="faq-chevron" aria-hidden="true"></span>
               </summary>
               <div class="faq-answer">
                 <p>We listed a few hotels nearby, with booking links and directions.</p>
-                <p><a class="faq-cta" href="#stay">See hotels →</a></p>
+                <p><a class="faq-cta" href="#stay">See section →</a></p>
               </div>
             </details>
             <details>
@@ -416,31 +389,53 @@
               </summary>
               <div class="faq-answer">
                 <p>We picked a few favorites with photos and maps if you’re staying longer.</p>
-                <p><a class="faq-cta" href="#things-to-do">See things to do →</a></p>
+                <p><a class="faq-cta" href="#things-to-do">See section →</a></p>
               </div>
             </details>
             <details>
               <summary class="faq-summary">
-                <span class="faq-q">For the engineers</span>
+                <span class="faq-q">Do I need a visa, and which airport should I fly into?</span>
                 <span class="faq-chevron" aria-hidden="true"></span>
               </summary>
               <div class="faq-answer">
-                <div class="faq-subqa">
-                  <p class="faq-subq">Found a bug on this site?</p>
-                  <p>
-                    Please report it to Yi Jie. He built this with Codex + ChatGPT using pure vibes and zero knowledge of what the code actually
-                    does. He claims it worked once, briefly, on his laptop.
-                  </p>
-                </div>
-                <div class="faq-subqa">
-                  <p class="faq-subq">Why is the website doing that?</p>
-                  <p>Great question. Again, please direct your questions to Yi Jie — he built it with a healthy amount of hope in his AI assistant and a brave disregard for error messages.</p>
-                </div>
-                <div class="faq-subqa">
-                  <p class="faq-subq">Are these hotel recommendations vetted?</p>
-                  <p>Absolutely*</p>
-                  <p>Vetted by ChatGPT at 1:00am. We have not personally stayed at any of them.</p>
-                </div>
+                <p>
+                  Visa rules depend on passport and can change—please check official sources before booking. For flights, both Beijing Capital
+                  (PEK) and Beijing Daxing (PKX) are fine—choose whichever works best for your route.
+                </p>
+                <p><a class="faq-cta" href="#travel-visa">See section →</a></p>
+              </div>
+            </details>
+            <details>
+              <summary class="faq-summary">
+                <span class="faq-q">Found a bug on this site?</span>
+                <span class="faq-chevron" aria-hidden="true"></span>
+              </summary>
+              <div class="faq-answer">
+                <p>
+                  Please report it to Yi Jie. He built this with Codex + ChatGPT using pure vibes and zero knowledge of what the code actually
+                  does. He claims it worked once, briefly, on his laptop.
+                </p>
+              </div>
+            </details>
+            <details>
+              <summary class="faq-summary">
+                <span class="faq-q">Why is the website doing that?</span>
+                <span class="faq-chevron" aria-hidden="true"></span>
+              </summary>
+              <div class="faq-answer">
+                <p>
+                  Great question. Again, please direct your questions to Yi Jie — he built (and I’m using that word generously) this with
+                  Codex + ChatGPT and a healthy amount of hope… and a brave disregard for error messages.
+                </p>
+              </div>
+            </details>
+            <details>
+              <summary class="faq-summary">
+                <span class="faq-q">Are these hotel recommendations vetted?</span>
+                <span class="faq-chevron" aria-hidden="true"></span>
+              </summary>
+              <div class="faq-answer">
+                <p>Absolutely* (*vetted by ChatGPT at 1:00am. We have not personally stayed at any of them.)</p>
               </div>
             </details>
           </div>
@@ -648,48 +643,41 @@
             As of today, entry rules depend on passport and can change. Please check official sources before booking.
           </p>
 
-          <div class="travel-list" role="list">
-            <div class="travel-item" role="listitem">
-              <div class="travel-item-title">U.S. passport</div>
-              <div class="travel-item-body">Tourist visa is generally required for standard trips.</div>
+          <div class="travel-simple-list" role="list">
+            <div class="travel-simple-row" role="listitem">
+              <div class="travel-simple-country">U.S. passport</div>
+              <div class="travel-simple-text">Tourist visa is generally required for standard trips.</div>
             </div>
-
-            <div class="travel-item" role="listitem">
-              <div class="travel-item-title">Singapore passport</div>
-              <div class="travel-item-body">Visa-free entry for up to 30 days may apply; please confirm current rules.</div>
+            <div class="travel-simple-row" role="listitem">
+              <div class="travel-simple-country">Singapore passport</div>
+              <div class="travel-simple-text">Visa-free entry up to 30 days.</div>
             </div>
-
-            <div class="travel-item" role="listitem">
-              <div class="travel-item-title">Japan passport</div>
-              <div class="travel-item-body">Visa-free entry for short stays (up to 30 days) may apply through December 31, 2026; please confirm current rules.</div>
+            <div class="travel-simple-row" role="listitem">
+              <div class="travel-simple-country">Japan passport</div>
+              <div class="travel-simple-text">Visa-free entry up to 30 days through Dec 31, 2026.</div>
             </div>
-
-            <div class="travel-item" role="listitem">
-              <div class="travel-item-title">Thailand passport</div>
-              <div class="travel-item-body">Visa exemption may apply for up to 30 days per entry, with a 90-days-within-180-days cap; please confirm current rules.</div>
+            <div class="travel-simple-row" role="listitem">
+              <div class="travel-simple-country">Thailand passport</div>
+              <div class="travel-simple-text">Visa exemption up to 30 days per entry; 90 days within any 180 days.</div>
             </div>
-
-            <div class="travel-item" role="listitem">
-              <div class="travel-item-title">Malaysia passport</div>
-              <div class="travel-item-body">Visa exemption may apply for up to 30 days per entry, with a 90-days-within-180-days cap; please confirm current rules.</div>
+            <div class="travel-simple-row" role="listitem">
+              <div class="travel-simple-country">Malaysia passport</div>
+              <div class="travel-simple-text">Visa exemption up to 30 days per entry; 90 days within any 180 days.</div>
             </div>
-
-            <div class="travel-item" role="listitem">
-              <div class="travel-item-title">South Korean passport</div>
-              <div class="travel-item-body">Visa-free entry for short stays (up to 30 days) may apply through December 31, 2026; please confirm current rules.</div>
+            <div class="travel-simple-row" role="listitem">
+              <div class="travel-simple-country">South Korean passport</div>
+              <div class="travel-simple-text">Visa-free entry up to 30 days through Dec 31, 2026.</div>
             </div>
-
-            <div class="travel-callout" role="listitem">
-              <div class="travel-item-title">240-hour visa-free transit</div>
-              <div class="travel-item-body">
-                Some travelers may qualify only when transiting to a third country or region with a confirmed onward ticket; eligibility depends on passport and itinerary.
+            <div class="travel-simple-row travel-simple-row--callout" role="listitem">
+              <div class="travel-simple-country">240-hour visa-free transit</div>
+              <div class="travel-simple-text">
+                240-hour visa-free transit may apply only for eligible travelers transiting to a third country or region with a confirmed onward
+                ticket; eligibility depends on passport and itinerary.
               </div>
             </div>
           </div>
 
-          <p class="travel-note">
-            Rules change. Not legal advice (per Miki). Please rely on the official sources below.
-          </p>
+          <p class="travel-note">Rules change. Please rely on the official sources below.</p>
 
           <div class="travel-links">
             <div class="travel-links-label">Official sources</div>
@@ -697,7 +685,11 @@
               <a class="link-pill" href="https://consular.mfa.gov.cn/VISA/" target="_blank" rel="noopener">China visa portal</a>
               <a class="link-pill" href="https://travel.state.gov/content/travel/en/international-travel/International-Travel-Country-Information-Pages/China.html" target="_blank" rel="noopener">U.S. State Dept China page</a>
               <a class="link-pill" href="https://us.china-embassy.gov.cn/eng/lsfw/zj/qz2021/202412/t20241217_11495647.htm" target="_blank" rel="noopener">China embassy 240-hour transit note</a>
+              <a class="link-pill" href="https://en.nia.gov.cn/n147413/c178106/content.html" target="_blank" rel="noopener">China NIA transit update</a>
+              <a class="link-pill" href="https://www.mfa.gov.sg/travelling-overseas/travel-advisories-notices-and-visa-information/china/" target="_blank" rel="noopener">Singapore MFA China page</a>
               <a class="link-pill" href="https://www.mfa.go.th/en/content/thcn280124?cate=5d" target="_blank" rel="noopener">Thailand MFA visa exemption page</a>
+              <a class="link-pill" href="https://my.china-embassy.gov.cn/eng/fwzc/lsyw/qz/202508/t20250801_11681401.htm" target="_blank" rel="noopener">China Embassy Malaysia FAQ</a>
+              <a class="link-pill" href="https://www.visaforchina.cn/FRA3_EN/tongzhigonggao/276259502922272768.html" target="_blank" rel="noopener">VisaForChina policy page</a>
             </div>
           </div>
         </div>

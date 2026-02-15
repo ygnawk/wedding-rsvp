@@ -94,105 +94,57 @@
   "gallery": [
     {
       "file": "LMN_0527.jpg",
-      "alt": "",
+      "alt": "Miki and Yi Jie",
       "cropClass": "img-round",
-      "objectPosition": "50% 34%"
+      "objectPosition": "50% 36%"
     },
     {
       "file": "LMN_0953.jpg",
-      "alt": "",
+      "alt": "Miki and Yi Jie",
       "cropClass": "img-round",
-      "objectPosition": "50% 33%"
+      "objectPosition": "50% 35%"
     },
     {
       "file": "LMN_2093.jpg",
-      "alt": "",
+      "alt": "Miki and Yi Jie",
       "cropClass": "img-round",
-      "objectPosition": "50% 36%"
+      "objectPosition": "50% 38%"
     },
     {
       "file": "LMN_4200.jpg",
-      "alt": "",
-      "cropClass": "img-round",
-      "objectPosition": "50% 35%"
-    },
-    {
-      "file": "LMN_4326.jpg",
-      "alt": "",
-      "cropClass": "img-round",
-      "objectPosition": "50% 36%"
-    },
-    {
-      "file": "LMN_1503.jpg",
-      "alt": "",
-      "cropClass": "img-round",
-      "objectPosition": "50% 39%"
-    },
-    {
-      "file": "LMN_0812.jpg",
-      "alt": "",
-      "cropClass": "img-round",
-      "objectPosition": "50% 35%"
-    },
-    {
-      "file": "LMN_1409.jpg",
-      "alt": "",
+      "alt": "Miki and Yi Jie",
       "cropClass": "img-round",
       "objectPosition": "50% 37%"
     },
     {
-      "file": "LMN_2075.jpg",
-      "alt": "",
-      "cropClass": "img-round",
-      "objectPosition": "50% 35%"
-    },
-    {
-      "file": "LMN_2925.jpg",
-      "alt": "",
-      "cropClass": "img-round",
-      "objectPosition": "50% 46%"
-    },
-    {
-      "file": "LMN_3780.jpg",
-      "alt": "",
-      "cropClass": "img-round",
-      "objectPosition": "50% 44%"
-    },
-    {
-      "file": "LMN_1256.jpg",
-      "alt": "",
-      "cropClass": "img-round",
-      "objectPosition": "50% 43%"
-    },
-    {
-      "file": "LMN_2546.jpg",
-      "alt": "",
-      "cropClass": "img-round",
-      "objectPosition": "50% 43%"
-    },
-    {
-      "file": "LMN_0353.jpg",
-      "alt": "",
-      "cropClass": "img-round",
-      "objectPosition": "50% 40%"
-    },
-    {
-      "file": "LMN_0803.jpg",
-      "alt": "",
+      "file": "LMN_4326.jpg",
+      "alt": "Miki and Yi Jie",
       "cropClass": "img-round",
       "objectPosition": "50% 39%"
     },
     {
-      "file": "LMN_3428.jpg",
-      "alt": "",
+      "file": "LMN_1503.jpg",
+      "alt": "Miki and Yi Jie",
       "cropClass": "img-round",
-      "objectPosition": "50% 43%"
+      "objectPosition": "50% 40%"
     },
     {
-      "file": "LMN_3164.jpg",
-      "alt": "",
+      "file": "LMN_0812.jpg",
+      "alt": "Miki and Yi Jie",
       "cropClass": "img-round",
-      "objectPosition": "50% 42%"
+      "objectPosition": "50% 36%"
+    },
+    {
+      "file": "LMN_1409.jpg",
+      "alt": "Miki and Yi Jie",
+      "cropClass": "img-round",
+      "objectPosition": "50% 38%"
+    },
+    {
+      "file": "LMN_2075.jpg",
+      "alt": "Miki and Yi Jie",
+      "cropClass": "img-round",
+      "objectPosition": "50% 37%"
     }
   ]
 }

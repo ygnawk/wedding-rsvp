@@ -736,6 +736,38 @@ function applyStaticPhotoManifest() {
   });
 }
 
+function initFaqWearImageDebug() {
+  const img = document.getElementById("faqWearImg");
+  if (!img) return;
+
+  const preferredSrc = String(img.getAttribute("data-src") || img.getAttribute("src") || "").trim();
+  if (preferredSrc) {
+    if (/^https?:\/\//i.test(preferredSrc)) {
+      img.src = preferredSrc;
+    } else if (preferredSrc.startsWith("/")) {
+      img.src = withBasePath(preferredSrc);
+    } else {
+      img.src = withBasePath(`/${preferredSrc.replace(/^\.?\//, "")}`);
+    }
+  }
+
+  let attemptedEncodedFallback = false;
+  img.addEventListener("error", () => {
+    console.error("FAQ wear image failed to load:", img.currentSrc || img.src);
+
+    if (!attemptedEncodedFallback) {
+      attemptedEncodedFallback = true;
+      img.src = withBasePath("/photos/FAQ%20photo/what-to-wear.png");
+      return;
+    }
+
+    const wrap = img.closest(".faq-wear-media");
+    if (wrap) {
+      wrap.innerHTML = '<div class="faq-wear-missing">Image not found. Check /photos/faq-photo/what-to-wear.png</div>';
+    }
+  });
+}
+
 function normalizeGalleryEntry(entry) {
   if (typeof entry === "string") {
     return {
@@ -1272,6 +1304,7 @@ async function init() {
   photoManifest = await loadManifest();
   applyInviteContext();
   applyStaticPhotoManifest();
+  initFaqWearImageDebug();
   await initGallery();
 
   inviteState.token = getTokenFromUrl();
