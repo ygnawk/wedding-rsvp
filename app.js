@@ -640,7 +640,7 @@ function getFallbackGalleryEntries(manifest) {
 
   return GALLERY_FALLBACK_FILES.map((file) => ({
     file,
-    alt: "Couple photo",
+    alt: "",
     cropClass: "img-round",
     objectPosition: "50% 42%",
     tags: ["couple"],
@@ -750,7 +750,7 @@ function openGalleryLightbox(entry) {
   if (!galleryLightbox || !galleryLightboxImage || !galleryLightboxCaption) return;
 
   galleryLightboxImage.src = toPhotoSrc(entry.file);
-  galleryLightboxImage.alt = entry.alt || "Gallery photo";
+  galleryLightboxImage.alt = "";
   galleryLightboxCaption.textContent = "";
   galleryLightboxCaption.classList.add("hidden");
   galleryLightbox.classList.add("open");
@@ -790,7 +790,7 @@ function buildGalleryCard(entry) {
   card.className = "gallery-item";
   card.setAttribute("tabindex", "0");
   card.setAttribute("role", "button");
-  card.setAttribute("aria-label", entry.alt || "Open gallery photo");
+  card.setAttribute("aria-label", "Open photo");
 
   const frame = document.createElement("div");
   const cropClass = entry.cropClass === "img-arch" || entry.cropClass === "img-round" || entry.cropClass === "img-moon" ? entry.cropClass : "img-round";
@@ -798,7 +798,7 @@ function buildGalleryCard(entry) {
 
   const img = document.createElement("img");
   img.src = toPhotoSrc(entry.file);
-  img.alt = entry.alt || "Gallery photo";
+  img.alt = "";
   img.loading = "lazy";
   img.decoding = "async";
   img.style.objectFit = "cover";
