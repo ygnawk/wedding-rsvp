@@ -527,6 +527,36 @@
           <div class="stay-disclosure-wrap reveal">
             <button id="stayToggle" class="btn stay-disclosure-btn" type="button" aria-expanded="false">Show 3 more</button>
           </div>
+
+          <div class="hotel-matrix-block reveal" aria-labelledby="hotelMatrixHeading">
+            <h3 id="hotelMatrixHeading" class="hotel-matrix-heading">Hotels at a glance</h3>
+            <p class="hotel-matrix-helper">
+              <span class="hotel-matrix-helper-desktop">Hover a dot for details.</span>
+              <span class="hotel-matrix-helper-mobile">Tap a dot for details.</span>
+            </p>
+
+            <div id="hotelMatrixShell" class="hotel-matrix-shell">
+              <svg
+                id="hotelMatrixSvg"
+                class="hotel-matrix-svg"
+                viewBox="0 0 600 420"
+                role="img"
+                aria-labelledby="hotelMatrixTitle hotelMatrixDesc"
+              >
+                <title id="hotelMatrixTitle">Hotels matrix by price and comfort</title>
+                <desc id="hotelMatrixDesc">
+                  Price increases from left to right, comfort increases from bottom to top.
+                </desc>
+              </svg>
+              <div id="hotelMatrixTooltip" class="hotel-matrix-tooltip" hidden></div>
+            </div>
+
+            <p class="hotel-matrix-contact">
+              Questions? Email us at
+              <a href="mailto:Kwangyijie@gmail.com">Kwangyijie@gmail.com</a>
+            </p>
+            <p class="hotel-matrix-disclaimer">Friendly note: this page is not legal advice. (Our lawyer made us say this.)</p>
+          </div>
         </div>
       </section>
 

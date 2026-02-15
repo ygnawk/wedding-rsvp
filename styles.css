@@ -1684,6 +1684,174 @@ details[open] .faq-answer {
   color: var(--ivory);
 }
 
+.hotel-matrix-block {
+  margin-top: 26px;
+}
+
+.hotel-matrix-heading {
+  margin: 0;
+  font-family: var(--displayFont);
+  font-size: clamp(1.45rem, 3vw, 2rem);
+  line-height: 1.15;
+}
+
+.hotel-matrix-helper {
+  margin: 8px 0 12px;
+  font-size: 0.84rem;
+  letter-spacing: 0.06em;
+  opacity: 0.76;
+}
+
+.hotel-matrix-helper-mobile {
+  display: none;
+}
+
+.hotel-matrix-shell {
+  position: relative;
+  max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
+  border-radius: 20px;
+  background: rgba(247, 241, 230, 0.97);
+  border: 1px solid rgba(201, 174, 116, 0.28);
+  padding: 14px;
+  box-shadow: 0 12px 24px rgba(16, 10, 12, 0.14);
+}
+
+.hotel-matrix-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  aspect-ratio: 600 / 420;
+}
+
+.hotel-matrix-axis,
+.hotel-matrix-midline {
+  stroke: rgba(75, 15, 23, 0.28);
+  stroke-width: 1.2;
+  shape-rendering: geometricPrecision;
+}
+
+.hotel-matrix-midline {
+  stroke: rgba(75, 15, 23, 0.18);
+  stroke-dasharray: 2 8;
+}
+
+.hotel-matrix-label {
+  fill: rgba(75, 15, 23, 0.8);
+  font-family: var(--bodyFont);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+.hotel-matrix-dot {
+  fill: rgba(75, 15, 23, 0.75);
+  stroke: rgba(247, 241, 230, 0.9);
+  stroke-width: 1.4;
+  cursor: pointer;
+  transition: opacity 140ms ease;
+}
+
+.hotel-matrix-dot.is-active {
+  fill: rgba(75, 15, 23, 0.92);
+}
+
+.hotel-matrix-dot:focus-visible {
+  outline: none;
+  stroke: rgba(201, 174, 116, 0.92);
+  stroke-width: 2.2;
+}
+
+.hotel-matrix-tooltip {
+  position: absolute;
+  z-index: 6;
+  width: min(270px, calc(100% - 16px));
+  border-radius: 14px;
+  border: 1px solid rgba(201, 174, 116, 0.33);
+  background: rgba(255, 253, 248, 0.98);
+  color: var(--ink);
+  padding: 10px 12px;
+  box-shadow: 0 12px 26px rgba(18, 12, 14, 0.16);
+}
+
+.hotel-matrix-tooltip h4 {
+  margin: 0;
+  font-family: var(--displayFont);
+  font-size: 1.14rem;
+  color: var(--maroon);
+}
+
+.hotel-matrix-tooltip p {
+  margin: 4px 0 8px;
+  font-size: 0.87rem;
+  line-height: 1.42;
+  color: rgba(21, 21, 21, 0.86);
+}
+
+.hotel-matrix-tooltip a {
+  color: var(--maroon);
+  font-size: 0.83rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.hotel-matrix-tooltip a:hover {
+  color: var(--maroonDeep);
+}
+
+.hotel-matrix-contact {
+  margin: 14px 0 2px;
+  font-size: 0.95rem;
+}
+
+.hotel-matrix-contact a {
+  color: currentColor;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.hotel-matrix-disclaimer {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  opacity: 0.68;
+}
+
+#stay.section--dark .hotel-matrix-heading,
+#stay.section--dark .hotel-matrix-helper,
+#stay.section--dark .hotel-matrix-contact,
+#stay.section--dark .hotel-matrix-contact a,
+#stay.section--dark .hotel-matrix-disclaimer {
+  color: var(--ivory);
+}
+
+@media (max-width: 900px) {
+  .hotel-matrix-shell {
+    padding: 12px;
+  }
+}
+
+@media (max-width: 760px) {
+  .hotel-matrix-helper-desktop {
+    display: none;
+  }
+
+  .hotel-matrix-helper-mobile {
+    display: inline;
+  }
+
+  .hotel-matrix-tooltip {
+    width: min(230px, calc(100% - 16px));
+    padding: 9px 11px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hotel-matrix-dot {
+    transition: none !important;
+  }
+}
+
 .things-grid {
   margin-top: 16px;
   display: grid;
