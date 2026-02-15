@@ -35,7 +35,9 @@
           <a href="#faq" data-link="faq">FAQ</a>
           <a href="#stay" data-link="stay">Where to stay</a>
           <a href="#things-to-do" data-link="things-to-do">Things to do</a>
+          <a href="#makan" data-link="makan">What to eat</a>
           <a href="#travel-visa" data-link="travel-visa">Travel &amp; Visa</a>
+          <a href="#gallery" data-link="gallery">Recent moments</a>
         </nav>
 
         <a class="header-rsvp" href="#rsvp">RSVP</a>
@@ -52,12 +54,14 @@
         <a href="#faq" data-link="faq">FAQ</a>
         <a href="#stay" data-link="stay">Where to stay</a>
         <a href="#things-to-do" data-link="things-to-do">Things to do</a>
+        <a href="#makan" data-link="makan">What to eat</a>
         <a href="#travel-visa" data-link="travel-visa">Travel &amp; Visa</a>
+        <a href="#gallery" data-link="gallery">Recent moments</a>
       </nav>
     </aside>
 
     <main>
-      <section id="top" class="section section-maroon motif-host" data-title="You’re invited">
+      <section id="top" class="section section--dark motif-host" data-title="You’re invited">
         <div class="section-inner content hero-inner">
           <img class="motif motif--tr motif--lg motif--ivory motif--hero-main" src="public/motifs/peony-branch.svg" alt="" aria-hidden="true" />
           <img class="motif motif--bl motif--md motif--ivory motif--hero-secondary" src="public/motifs/bamboo-branch.svg" alt="" aria-hidden="true" />
@@ -88,21 +92,42 @@
         </div>
       </section>
 
-      <section id="interlude" class="section interlude-section" data-title="">
+      <section id="interlude" class="section section--dark interlude-section" data-title="">
         <div class="interlude-shell">
           <div class="interlude-band">
             <figure class="interlude-photo-half reveal reveal-scale">
               <img src="photos/LMN_2546.jpg" alt="Miki and Yi Jie" loading="lazy" decoding="async" />
             </figure>
-            <div class="interlude-color-half" aria-hidden="true">
+            <div class="interlude-color-half">
               <img class="motif interlude-motif motif--ivory" src="public/motifs/peony-branch.svg" alt="" aria-hidden="true" />
+              <div class="interlude-content reveal reveal-left">
+                <p class="interlude-kicker">Counting down to Beijing</p>
+                <div class="interlude-countdown" id="interludeCountdown" aria-live="polite">
+                  <div class="interlude-unit">
+                    <strong id="interludeDays">0</strong>
+                    <span>Days</span>
+                  </div>
+                  <div class="interlude-unit">
+                    <strong id="interludeHours">0</strong>
+                    <span>Hours</span>
+                  </div>
+                  <div class="interlude-unit">
+                    <strong id="interludeMinutes">0</strong>
+                    <span>Minutes</span>
+                  </div>
+                  <div class="interlude-unit">
+                    <strong id="interludeSeconds">0</strong>
+                    <span>Seconds</span>
+                  </div>
+                </div>
+                <a class="interlude-rsvp" href="#rsvp">RSVP reminder</a>
+              </div>
             </div>
-            <p class="interlude-label reveal">Our story</p>
           </div>
         </div>
       </section>
 
-      <section id="our-story" class="section section-ivory motif-host" data-title="Our story">
+      <section id="our-story" class="section section--light motif-host" data-title="Our story">
         <div class="section-inner content">
           <img class="motif motif--tc motif--sm motif--maroon" src="public/motifs/peony-bud.svg" alt="" aria-hidden="true" />
           <img class="motif motif--bl motif--sm motif--maroon" src="public/motifs/orchid-bud.svg" alt="" aria-hidden="true" />
@@ -139,7 +164,7 @@
         </div>
       </section>
 
-      <section id="venue" class="section section-ivory motif-host" data-title="Venue">
+      <section id="venue" class="section section--dark motif-host" data-title="Venue">
         <div class="section-inner content split split-3-2 reverse">
           <img class="motif motif--tr motif--md motif--maroon" src="public/motifs/peony-branch.svg" alt="" aria-hidden="true" />
           <img class="motif motif--bc motif--sm motif--maroon" src="public/motifs/peony-bud.svg" alt="" aria-hidden="true" />
@@ -160,7 +185,7 @@
         </div>
       </section>
 
-      <section id="schedule" class="section section-maroon motif-host" data-title="Schedule of events">
+      <section id="schedule" class="section section--light motif-host" data-title="Schedule of events">
         <div class="section-inner content schedule-shell">
           <img class="motif motif--tl motif--md motif--ivory" src="public/motifs/chrysanthemum-branch.svg" alt="" aria-hidden="true" />
           <img class="motif motif--br motif--sm motif--ivory" src="public/motifs/chrysanthemum-bud.svg" alt="" aria-hidden="true" />
@@ -177,7 +202,7 @@
         </div>
       </section>
 
-      <section id="rsvp" class="section section-ivory motif-host" data-title="RSVP">
+      <section id="rsvp" class="section section--dark motif-host" data-title="RSVP">
         <div class="section-inner content narrow">
           <img class="motif motif--rsvp-main motif--lift motif--md motif--maroon" src="public/motifs/orchid-branch.svg" alt="" aria-hidden="true" />
           <img class="motif motif--rsvp-accent motif--lift motif--sm motif--maroon" src="public/motifs/orchid-bud.svg" alt="" aria-hidden="true" />
@@ -282,7 +307,7 @@
         </div>
       </section>
 
-      <section id="faq" class="section section-maroon motif-host" data-title="FAQ">
+      <section id="faq" class="section section--light motif-host" data-title="FAQ">
         <div class="section-inner content narrow">
           <img class="motif motif--faq-main motif--lift motif--md motif--ivory" src="public/motifs/peony-bud.svg" alt="" aria-hidden="true" />
           <img class="motif motif--faq-accent motif--lift motif--sm motif--ivory" src="public/motifs/orchid-bud.svg" alt="" aria-hidden="true" />
@@ -322,6 +347,22 @@
               </summary>
               <div class="faq-answer">
                 <p>English and Chinese, if our emcee is willing — thanks Yukai.</p>
+              </div>
+            </details>
+            <details>
+              <summary class="faq-summary">
+                <span class="faq-q">How will seating work at the venue? (Yes, it’s a little different.)</span>
+                <span class="faq-chevron" aria-hidden="true"></span>
+              </summary>
+              <div class="faq-answer">
+                <p>
+                  We’re getting married at the Mandarin Oriental Qianmen Mansion. It’s beautiful, meaningful… and has two separate dining areas
+                  with a courtyard in the middle. (Miki chose meaning over convenience. I chose acceptance.)
+                </p>
+                <p>
+                  Here’s the flow: we’ll do the ceremony all together in the central courtyard. After that, dinner will be in two rooms—one
+                  more English-leaning (friends) and one more Chinese-leaning (family)
+                </p>
               </div>
             </details>
             <details>
@@ -403,7 +444,7 @@
         </div>
       </section>
 
-      <section id="stay" class="section section-ivory motif-host" data-title="Where to stay">
+      <section id="stay" class="section section--dark motif-host" data-title="Where to stay">
         <div class="section-inner content">
           <img class="motif motif--stay-main motif--lift motif--md motif--maroon" src="public/motifs/chrysanthemum-branch.svg" alt="" aria-hidden="true" />
           <img class="motif motif--stay-accent motif--lift motif--sm motif--maroon" src="public/motifs/peony-bud.svg" alt="" aria-hidden="true" />
@@ -494,7 +535,7 @@
         </div>
       </section>
 
-      <section id="things-to-do" class="section section-maroon motif-host" data-title="Things to do in Beijing">
+      <section id="things-to-do" class="section section--light motif-host" data-title="Things to do in Beijing">
         <div class="section-inner content">
           <img class="motif motif--ivory motif--things-main motif--lift" src="public/motifs/chrysanthemum-branch.svg" alt="" aria-hidden="true" />
           <img class="motif motif--ivory motif--things-accent motif--lift motif--sm" src="public/motifs/orchid-bud.svg" alt="" aria-hidden="true" />
@@ -576,7 +617,26 @@
         </div>
       </section>
 
-      <section id="travel-visa" class="section section-ivory motif-host" data-title="Travel &amp; Visa">
+      <section id="makan" class="section section--dark motif-host" data-title="What to eat">
+        <div class="section-inner content makan-wrap">
+          <h2 class="section-title reveal reveal-left">What to eat (makan)</h2>
+          <p class="makan-subhead reveal">
+            Beijing is basically a 3,000-year-old food court. We’re building a short list of places we’d actually take friends. Coming soon.
+          </p>
+
+          <div class="makan-menu-card reveal reveal-scale">
+            <div class="makan-menu-head">
+              <h3>Beijing Makan Menu</h3>
+              <span class="makan-badge">COMING SOON</span>
+            </div>
+            <div class="makan-grid" id="makanGrid" aria-label="Makan categories"></div>
+          </div>
+
+          <p class="makan-microcopy reveal">Have a must-eat spot? Send it to us and we’ll add it.</p>
+        </div>
+      </section>
+
+      <section id="travel-visa" class="section section--light motif-host" data-title="Travel &amp; Visa">
         <div class="content travel-wrap">
           <img class="motif motif--travel-only motif--sm motif--maroon" src="public/motifs/orchid-bud.svg" alt="" aria-hidden="true" />
           <h2 class="section-title">Travel &amp; Visa</h2>
@@ -637,6 +697,13 @@
               <a class="link-pill" href="https://www.mfa.go.th/en/content/thcn280124?cate=5d" target="_blank" rel="noopener">Thailand MFA visa exemption page</a>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section id="gallery" class="section section--dark" data-title="Recent moments">
+        <div class="content">
+          <h2 class="section-title">Recent moments of us</h2>
+          <div class="gallery-grid" id="galleryGrid" aria-label="Recent moments gallery"></div>
         </div>
       </section>
     </main>

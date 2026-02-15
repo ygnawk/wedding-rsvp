@@ -2,7 +2,7 @@ const SHEETS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwpfLq3hB_mRi
 const RSVP_LOCAL_FALLBACK_KEY = "wedding_rsvp_fallback";
 const BASE_PATH = window.location.hostname === "ygnawk.github.io" ? "/wedding-rsvp" : "";
 
-const SECTION_IDS = ["top", "interlude", "our-story", "venue", "schedule", "rsvp", "faq", "stay", "things-to-do", "travel-visa"];
+const SECTION_IDS = ["top", "interlude", "our-story", "venue", "schedule", "rsvp", "faq", "stay", "things-to-do", "makan", "travel-visa", "gallery"];
 
 const inviteState = {
   token: "",
@@ -20,6 +20,11 @@ const mobileNavSheet = document.getElementById("mobileNavSheet");
 
 const heroGreeting = document.getElementById("heroGreeting");
 const heroCountdown = document.getElementById("heroCountdown");
+const interludeKicker = document.querySelector(".interlude-kicker");
+const interludeDays = document.getElementById("interludeDays");
+const interludeHours = document.getElementById("interludeHours");
+const interludeMinutes = document.getElementById("interludeMinutes");
+const interludeSeconds = document.getElementById("interludeSeconds");
 
 const choiceCards = Array.from(document.querySelectorAll(".choice-card"));
 const attendanceChoice = document.getElementById("attendanceChoice");
@@ -47,7 +52,6 @@ const stayToggle = document.getElementById("stayToggle");
 const stayExtraCards = Array.from(document.querySelectorAll(".stay-extra"));
 
 const galleryGrid = document.getElementById("galleryGrid");
-const galleryEmpty = document.getElementById("galleryEmpty");
 const galleryLightbox = document.getElementById("lightbox") || document.getElementById("galleryLightbox");
 const galleryLightboxImage = document.getElementById("lightboxImg") || document.getElementById("galleryLightboxImage");
 const galleryLightboxCounter = document.getElementById("lightboxCounter");
@@ -61,18 +65,6 @@ const galleryLightboxCloseButtons = galleryLightbox
 let galleryImages = [];
 let currentGalleryIndex = 0;
 let galleryTouchStartX = null;
-
-const GALLERY_FALLBACK_FILES = [
-  "LMN_0527.jpg",
-  "LMN_0953.jpg",
-  "LMN_2093.jpg",
-  "LMN_4200.jpg",
-  "LMN_4326.jpg",
-  "LMN_1503.jpg",
-  "LMN_0812.jpg",
-  "LMN_1409.jpg",
-  "LMN_2075.jpg",
-];
 
 const TIMELINE_CAPTIONS = {
   1995: "Yi Jie — Born in Singapore. Born tired. Still tired.",
@@ -89,6 +81,15 @@ const TIMELINE_CAPTIONS = {
   2026: "Wedding in Beijing. Finally.",
   2027: "What’s next…? We will pretend we have a plan.",
 };
+
+const MAKAN_CATEGORIES = [
+  { title: "Breakfast & street snacks", items: [] },
+  { title: "Dumplings & noodles", items: [] },
+  { title: "Duck & roasts", items: [] },
+  { title: "Hotpot & late-night", items: [] },
+  { title: "Desserts & tea", items: [] },
+  { title: "Coffee (jet-lag recovery)", items: [] },
+];
 const TIMELINE_ASSET_VERSION = "20260215-1310";
 const TIMELINE_OVERRIDES = {
   // Lock problematic files so orientation and year placement stay stable.
@@ -110,6 +111,7 @@ const TIMELINE_OVERRIDES = {
 const WEDDING_DATE_SHANGHAI = { year: 2026, month: 9, day: 19 };
 const SHANGHAI_TIMEZONE = "Asia/Shanghai";
 let countdownIntervalId = null;
+let interludeCountdownIntervalId = null;
 
 function getShanghaiDateParts(dateValue = new Date()) {
   const formatter = new Intl.DateTimeFormat("en-CA", {
@@ -124,6 +126,30 @@ function getShanghaiDateParts(dateValue = new Date()) {
   const month = Number(parts.find((part) => part.type === "month")?.value || 0);
   const day = Number(parts.find((part) => part.type === "day")?.value || 0);
   return { year, month, day };
+}
+
+function getShanghaiDateTimeParts(dateValue = new Date()) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: SHANGHAI_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(dateValue);
+  const getPart = (type) => Number(parts.find((part) => part.type === type)?.value || 0);
+  return {
+    year: getPart("year"),
+    month: getPart("month"),
+    day: getPart("day"),
+    hour: getPart("hour"),
+    minute: getPart("minute"),
+    second: getPart("second"),
+  };
 }
 
 function getDaysUntilWeddingShanghai(now = new Date()) {
@@ -155,6 +181,65 @@ function initHeroCountdown() {
   renderHeroCountdown();
   if (countdownIntervalId) window.clearInterval(countdownIntervalId);
   countdownIntervalId = window.setInterval(renderHeroCountdown, 60 * 60 * 1000);
+}
+
+function padCountdownValue(value) {
+  return String(Math.max(0, Number(value) || 0)).padStart(2, "0");
+}
+
+function setInterludeCountdownValues(days, hours, minutes, seconds) {
+  if (interludeDays) interludeDays.textContent = String(Math.max(0, days));
+  if (interludeHours) interludeHours.textContent = padCountdownValue(hours);
+  if (interludeMinutes) interludeMinutes.textContent = padCountdownValue(minutes);
+  if (interludeSeconds) interludeSeconds.textContent = padCountdownValue(seconds);
+}
+
+function getShanghaiCountdownRemainingMs(now = new Date()) {
+  const targetUtcEquivalent = Date.UTC(
+    WEDDING_DATE_SHANGHAI.year,
+    WEDDING_DATE_SHANGHAI.month - 1,
+    WEDDING_DATE_SHANGHAI.day,
+    0,
+    0,
+    0,
+  );
+  const currentParts = getShanghaiDateTimeParts(now);
+  const nowUtcEquivalent = Date.UTC(
+    currentParts.year,
+    currentParts.month - 1,
+    currentParts.day,
+    currentParts.hour,
+    currentParts.minute,
+    currentParts.second,
+  );
+  return targetUtcEquivalent - nowUtcEquivalent;
+}
+
+function renderInterludeCountdown() {
+  if (!interludeDays || !interludeHours || !interludeMinutes || !interludeSeconds) return;
+
+  const remainingMs = getShanghaiCountdownRemainingMs(new Date());
+  if (remainingMs > 0) {
+    const totalSeconds = Math.floor(remainingMs / 1000);
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    setInterludeCountdownValues(days, hours, minutes, seconds);
+    if (interludeKicker) interludeKicker.textContent = "Counting down to Beijing";
+    return;
+  }
+
+  const dayDelta = getDaysUntilWeddingShanghai(new Date());
+  setInterludeCountdownValues(0, 0, 0, 0);
+  if (interludeKicker) interludeKicker.textContent = dayDelta === 0 ? "Today" : "Married!";
+}
+
+function initInterludeCountdown() {
+  if (!interludeDays || !interludeHours || !interludeMinutes || !interludeSeconds) return;
+  renderInterludeCountdown();
+  if (interludeCountdownIntervalId) window.clearInterval(interludeCountdownIntervalId);
+  interludeCountdownIntervalId = window.setInterval(renderInterludeCountdown, 1000);
 }
 
 function withBasePath(pathValue) {
@@ -248,6 +333,49 @@ function initStayDisclosure() {
   stayToggle.addEventListener("click", () => {
     const currentlyExpanded = stayToggle.getAttribute("aria-expanded") === "true";
     setExpanded(!currentlyExpanded);
+  });
+}
+
+function initMakanSection() {
+  const makanGrid = document.getElementById("makanGrid");
+  if (!makanGrid) return;
+
+  makanGrid.innerHTML = "";
+
+  MAKAN_CATEGORIES.forEach((category) => {
+    const card = document.createElement("article");
+    card.className = "makan-category";
+
+    const title = document.createElement("h4");
+    title.className = "makan-category-title";
+    title.textContent = category.title;
+    card.appendChild(title);
+
+    const list = document.createElement("ul");
+    list.className = "makan-lines";
+
+    const hasItems = Array.isArray(category.items) && category.items.length > 0;
+    const lines = hasItems ? category.items.slice(0, 4) : ["TBD", "TBD", "TBD", "TBD"];
+
+    lines.forEach((line) => {
+      const item = document.createElement("li");
+      item.className = hasItems ? "makan-line" : "makan-line is-placeholder";
+
+      const name = document.createElement("span");
+      name.className = "makan-line-name";
+      name.textContent = String(line);
+
+      const dots = document.createElement("span");
+      dots.className = "makan-line-dots";
+      dots.setAttribute("aria-hidden", "true");
+
+      item.appendChild(name);
+      item.appendChild(dots);
+      list.appendChild(item);
+    });
+
+    card.appendChild(list);
+    makanGrid.appendChild(card);
   });
 }
 
@@ -615,9 +743,6 @@ function normalizeGalleryEntry(entry) {
       alt: "",
       cropClass: "img-round",
       objectPosition: "50% 35%",
-      tags: [],
-      category: "",
-      people: false,
     };
   }
 
@@ -627,21 +752,14 @@ function normalizeGalleryEntry(entry) {
       alt: "",
       cropClass: "img-round",
       objectPosition: "50% 35%",
-      tags: [],
-      category: "",
-      people: false,
     };
   }
 
-  const tags = Array.isArray(entry.tags) ? entry.tags.map((tag) => String(tag).toLowerCase()) : [];
   return {
     file: String(entry.file || entry.src || "").trim(),
     alt: String(entry.alt || "").trim(),
     cropClass: String(entry.cropClass || "img-round").trim(),
     objectPosition: String(entry.objectPosition || "50% 35%").trim(),
-    tags,
-    category: String(entry.category || "").toLowerCase(),
-    people: Boolean(entry.people),
   };
 }
 
@@ -659,170 +777,23 @@ function isExcludedGalleryFile(filePath) {
   );
 }
 
-function hasHumanSignal(entry) {
-  const file = String(entry.file || "").toLowerCase();
-  const alt = String(entry.alt || "").toLowerCase();
-  const combinedTags = `${entry.category || ""} ${Array.isArray(entry.tags) ? entry.tags.join(" ") : ""}`;
-
-  if (entry.people) return true;
-  if (/(^|\/)lmn_/i.test(file)) return true;
-  if (/(people|person|human|portrait|couple|friends|family|miki|yi j|yi jie|us|together)/i.test(alt)) return true;
-  if (/(people|person|human|portrait|couple|friends|family)/i.test(combinedTags)) return true;
-
-  return false;
-}
-
-function getHumanGalleryCandidates(manifest) {
+function getConfiguredGalleryEntries(manifest) {
   const galleryRaw = manifest && Array.isArray(manifest.gallery) ? manifest.gallery : [];
   const normalized = galleryRaw.map((entry) => normalizeGalleryEntry(entry)).filter((entry) => entry.file);
-
-  const filtered = normalized.filter((entry) => !isExcludedGalleryFile(entry.file) && hasHumanSignal(entry));
   const deduped = [];
   const seen = new Set();
 
-  filtered.forEach((entry) => {
-    const key = String(entry.file).toLowerCase();
-    if (seen.has(key)) return;
+  normalized.forEach((entry) => {
+    const key = String(entry.file || "").toLowerCase();
+    if (!key || seen.has(key)) return;
+    if (isExcludedGalleryFile(entry.file)) return;
     seen.add(key);
     deduped.push(entry);
   });
 
-  return deduped;
-}
-
-function getFallbackGalleryEntries(manifest) {
-  const galleryRaw = manifest && Array.isArray(manifest.gallery) ? manifest.gallery : [];
-  const normalized = galleryRaw.map((entry) => normalizeGalleryEntry(entry)).filter((entry) => entry.file);
-
-  const byFile = new Map(normalized.map((entry) => [String(entry.file).toLowerCase(), entry]));
-  const picked = [];
-
-  GALLERY_FALLBACK_FILES.forEach((file) => {
-    const match = byFile.get(file.toLowerCase());
-    if (match && !isExcludedGalleryFile(match.file)) picked.push(match);
-  });
-
-  if (picked.length >= 6) return picked.slice(0, 6);
-
-  const seen = new Set(picked.map((entry) => String(entry.file).toLowerCase()));
-  normalized.forEach((entry) => {
-    const key = String(entry.file).toLowerCase();
-    if (seen.has(key)) return;
-    if (isExcludedGalleryFile(entry.file)) return;
-    if (!/(^|\/)lmn_/i.test(entry.file)) return;
-    picked.push(entry);
-    seen.add(key);
-  });
-
-  const finalPicked = picked.slice(0, 6);
-  if (finalPicked.length) return finalPicked;
-
-  return GALLERY_FALLBACK_FILES.map((file) => ({
-    file,
-    alt: "",
-    cropClass: "img-round",
-    objectPosition: "50% 42%",
-    tags: ["couple"],
-    category: "gallery",
-    people: true,
-  }));
-}
-
-function measureImageBrightness(src) {
-  return new Promise((resolve) => {
-    if (!src) {
-      resolve(null);
-      return;
-    }
-
-    const img = new Image();
-    img.decoding = "async";
-    img.onload = () => {
-      try {
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        if (!ctx) {
-          resolve(null);
-          return;
-        }
-
-        const sampleSize = 48;
-        canvas.width = sampleSize;
-        canvas.height = sampleSize;
-        ctx.drawImage(img, 0, 0, sampleSize, sampleSize);
-        const imageData = ctx.getImageData(0, 0, sampleSize, sampleSize).data;
-
-        let luminanceSum = 0;
-        let pixels = 0;
-        for (let i = 0; i < imageData.length; i += 4) {
-          const r = imageData[i];
-          const g = imageData[i + 1];
-          const b = imageData[i + 2];
-          luminanceSum += 0.2126 * r + 0.7152 * g + 0.0722 * b;
-          pixels += 1;
-        }
-
-        resolve(pixels ? luminanceSum / pixels : null);
-      } catch (_error) {
-        resolve(null);
-      }
-    };
-
-    img.onerror = () => resolve(null);
-    img.src = src;
-  });
-}
-
-async function pickBalancedGalleryEntries(entries, count) {
-  const safeCount = Math.max(0, Number(count) || 0);
-  if (safeCount === 0) return [];
-  if (!entries.length) return [];
-
-  const withBrightness = await Promise.all(
-    entries.map(async (entry) => ({
-      ...entry,
-      _brightness: await measureImageBrightness(toPhotoSrc(entry.file)),
-    })),
-  );
-
-  const measured = withBrightness.filter((entry) => Number.isFinite(entry._brightness));
-  if (measured.length < safeCount) return withBrightness.slice(0, safeCount);
-
-  const sortedByLight = [...measured].sort((a, b) => a._brightness - b._brightness);
-  const half = Math.floor(sortedByLight.length / 2);
-  const moodyPool = sortedByLight.slice(0, half);
-  const brightPool = sortedByLight.slice(half).reverse();
-
-  const targetBright = Math.min(3, brightPool.length);
-  const targetMoody = Math.min(3, moodyPool.length);
-
-  const selected = [];
-  let brightUsed = 0;
-  let moodyUsed = 0;
-  while (selected.length < safeCount && (brightPool.length || moodyPool.length)) {
-    if (brightUsed < targetBright && brightPool.length) {
-      selected.push(brightPool.shift());
-      brightUsed += 1;
-    }
-    if (selected.length >= safeCount) break;
-    if (moodyUsed < targetMoody && moodyPool.length) {
-      selected.push(moodyPool.shift());
-      moodyUsed += 1;
-    }
-    if (brightUsed >= targetBright && moodyUsed >= targetMoody) break;
-  }
-
-  if (selected.length < safeCount) {
-    const seen = new Set(selected.map((entry) => entry.file.toLowerCase()));
-    for (const entry of sortedByLight.reverse()) {
-      if (seen.has(entry.file.toLowerCase())) continue;
-      selected.push(entry);
-      seen.add(entry.file.toLowerCase());
-      if (selected.length >= safeCount) break;
-    }
-  }
-
-  return selected.slice(0, safeCount);
+  const lmnFirst = deduped.filter((entry) => /(^|\/)lmn_/i.test(entry.file));
+  const nonLmn = deduped.filter((entry) => !/(^|\/)lmn_/i.test(entry.file));
+  return [...lmnFirst, ...nonLmn].slice(0, 9);
 }
 
 function isGalleryLightboxOpen() {
@@ -851,6 +822,10 @@ function openGalleryLightbox(index) {
   galleryLightbox.classList.add("open");
   galleryLightbox.setAttribute("aria-hidden", "false");
   document.body.classList.add("modal-open");
+}
+
+function openLightbox(index) {
+  openGalleryLightbox(index);
 }
 
 function closeGalleryLightbox() {
@@ -942,34 +917,21 @@ function bindGalleryLightboxEvents() {
 }
 
 function buildGalleryCard(entry, index) {
-  const card = document.createElement("figure");
-  card.className = "gallery-item";
-  card.setAttribute("tabindex", "0");
-  card.setAttribute("role", "button");
-  card.setAttribute("aria-label", "Open photo");
-
-  const frame = document.createElement("div");
-  const cropClass = entry.cropClass === "img-arch" || entry.cropClass === "img-round" || entry.cropClass === "img-moon" ? entry.cropClass : "img-round";
-  frame.className = `photo-frame ${cropClass}`;
+  const card = document.createElement("button");
+  card.type = "button";
+  card.className = "gallery-tile";
+  card.setAttribute("aria-label", `Open photo ${index + 1} of ${galleryImages.length || 9}`);
 
   const img = document.createElement("img");
   img.src = toPhotoSrc(entry.file);
-  img.alt = "";
+  img.alt = entry.alt || "Miki and Yi Jie";
   img.loading = "lazy";
   img.decoding = "async";
   img.style.objectFit = "cover";
   img.style.objectPosition = entry.objectPosition || "50% 35%";
-
-  frame.appendChild(img);
-  card.appendChild(frame);
-
-  card.addEventListener("click", () => openGalleryLightbox(index));
-  card.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      openGalleryLightbox(index);
-    }
-  });
+  card.style.setProperty("--objPos", entry.objectPosition || "50% 35%");
+  card.appendChild(img);
+  card.addEventListener("click", () => openLightbox(index));
 
   return card;
 }
@@ -979,49 +941,27 @@ async function initGallery() {
   bindGalleryLightboxEvents();
 
   galleryGrid.innerHTML = "";
-  if (galleryEmpty) galleryEmpty.classList.add("hidden");
+  const selected = getConfiguredGalleryEntries(photoManifest || {}).slice(0, 9);
 
-  try {
-    const candidates = getHumanGalleryCandidates(photoManifest || {});
-    const targetCount = 9;
-    const prioritized = getFallbackGalleryEntries(photoManifest || {});
-    let selected = prioritized.slice(0, targetCount);
+  galleryImages = selected;
+  window.__galleryItems = selected.map((item) => ({
+    src: toPhotoSrc(item.file),
+    alt: item.alt || "Miki and Yi Jie",
+    objPos: item.objectPosition || "50% 35%",
+  }));
 
-    if (selected.length < targetCount) {
-      const used = new Set(selected.map((entry) => String(entry.file).toLowerCase()));
-      const remaining = candidates.filter((entry) => !used.has(String(entry.file).toLowerCase()));
-      const extras = await pickBalancedGalleryEntries(remaining, targetCount - selected.length);
-      selected = [...selected, ...extras].slice(0, targetCount);
-    }
-
-    if (!selected.length) {
-      selected = await pickBalancedGalleryEntries(candidates, targetCount);
-    }
-
-    if (!selected.length) {
-      if (galleryEmpty) galleryEmpty.classList.remove("hidden");
-      return;
-    }
-
-    galleryImages = selected.slice(0, targetCount);
-    galleryImages.forEach((entry, index) => {
-      const card = buildGalleryCard(entry, index);
-      galleryGrid.appendChild(card);
-    });
-  } catch (_error) {
-    const fallback = getFallbackGalleryEntries(photoManifest || {});
-    if (fallback.length) {
-      galleryImages = fallback.slice(0, 9);
-      galleryImages.forEach((entry, index) => {
-        const card = buildGalleryCard(entry, index);
-        galleryGrid.appendChild(card);
-      });
-      return;
-    }
-
-    galleryImages = [];
-    if (galleryEmpty) galleryEmpty.classList.remove("hidden");
+  if (!galleryImages.length) {
+    const empty = document.createElement("p");
+    empty.className = "gallery-empty";
+    empty.textContent = "Photos coming soon.";
+    galleryGrid.appendChild(empty);
+    return;
   }
+
+  galleryImages.forEach((entry, index) => {
+    const card = buildGalleryCard(entry, index);
+    galleryGrid.appendChild(card);
+  });
 }
 
 function extractTimelineYear(value) {
@@ -1320,8 +1260,10 @@ async function init() {
   setActiveLink("top");
   initHeader();
   initHeroCountdown();
+  initInterludeCountdown();
   initSectionObserver();
   initStayDisclosure();
+  initMakanSection();
   initReveals();
   await initStoryTimeline();
   initRsvpCards();
