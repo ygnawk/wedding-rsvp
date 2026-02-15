@@ -2949,36 +2949,81 @@ details[open] .faq-answer {
 }
 
 .gallery-grid {
+  --galleryGap: 16px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-auto-rows: clamp(78px, 7.1vw, 116px);
+  gap: var(--galleryGap);
   margin-top: 18px;
 }
 
-@media (max-width: 980px) {
-  .gallery-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 600px) {
-  .gallery-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
 .gallery-tile {
-  border-radius: 22px;
+  border-radius: 0;
   overflow: hidden;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: var(--tile-ratio, 4 / 3);
   background: rgba(0, 0, 0, 0.04);
   cursor: pointer;
-  outline: 1px solid rgba(201, 174, 116, 0.18);
-  border: 0;
+  border: 1px solid rgba(255, 245, 230, 0.18);
+  box-shadow: 0 8px 18px rgba(8, 3, 5, 0.18);
+  outline: 0;
   padding: 0;
   width: 100%;
   position: relative;
   isolation: isolate;
+}
+
+.gallery-tile--slot-1 {
+  --tile-ratio: 16 / 10;
+  grid-column: 1 / span 8;
+  grid-row: 1 / span 2;
+}
+
+.gallery-tile--slot-2 {
+  --tile-ratio: 4 / 3;
+  grid-column: 9 / span 4;
+  grid-row: 1 / span 1;
+}
+
+.gallery-tile--slot-3 {
+  --tile-ratio: 4 / 3;
+  grid-column: 9 / span 4;
+  grid-row: 2 / span 1;
+}
+
+.gallery-tile--slot-4 {
+  --tile-ratio: 4 / 3;
+  grid-column: 1 / span 4;
+  grid-row: 3 / span 1;
+}
+
+.gallery-tile--slot-5 {
+  --tile-ratio: 4 / 3;
+  grid-column: 5 / span 4;
+  grid-row: 3 / span 1;
+}
+
+.gallery-tile--slot-6 {
+  --tile-ratio: 4 / 3;
+  grid-column: 9 / span 4;
+  grid-row: 3 / span 1;
+}
+
+.gallery-tile--slot-7 {
+  --tile-ratio: 16 / 9;
+  grid-column: 1 / span 6;
+  grid-row: 4 / span 1;
+}
+
+.gallery-tile--slot-8 {
+  --tile-ratio: 4 / 3;
+  grid-column: 7 / span 3;
+  grid-row: 4 / span 1;
+}
+
+.gallery-tile--slot-9 {
+  --tile-ratio: 4 / 3;
+  grid-column: 10 / span 3;
+  grid-row: 4 / span 1;
 }
 
 .gallery-tile img {
@@ -3003,6 +3048,38 @@ details[open] .faq-answer {
 
 .gallery-tile:hover img {
   transform: scale(1.02);
+}
+
+@media (max-width: 980px) {
+  .gallery-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: auto;
+  }
+
+  .gallery-tile {
+    grid-column: auto;
+    grid-row: auto;
+    --tile-ratio: 4 / 3;
+  }
+
+  .gallery-tile--hero {
+    --tile-ratio: 16 / 9;
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 600px) {
+  .gallery-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .gallery-tile {
+    --tile-ratio: 4 / 3;
+  }
+
+  .gallery-tile--hero {
+    --tile-ratio: 16 / 10;
+  }
 }
 
 .gallery-empty {

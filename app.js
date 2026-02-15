@@ -1747,6 +1747,11 @@ function buildGalleryCard(entry, index) {
   const card = document.createElement("button");
   card.type = "button";
   card.className = "gallery-tile";
+  card.classList.add(`gallery-tile--slot-${index + 1}`);
+  if (index === 0) card.classList.add("gallery-tile--hero");
+  if (index === 1) card.classList.add("gallery-tile--medium-top");
+  if (index === 2) card.classList.add("gallery-tile--medium-bottom");
+  if (index === 6) card.classList.add("gallery-tile--wide");
   card.setAttribute("aria-label", `Open photo ${index + 1} of ${galleryImages.length || 9}`);
 
   const img = document.createElement("img");
