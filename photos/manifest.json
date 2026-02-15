@@ -1,5 +1,17 @@
 {
   "images": {
+    "faqWhatToWear": {
+      "file": "faq-photo/what-to-wear.png",
+      "alt": "Dress code examples: Western formal and Chinese traditional",
+      "cropClass": "img-round",
+      "objectPosition": "50% 50%"
+    },
+    "interludeHands": {
+      "file": "LMN_2546.jpg",
+      "alt": "Miki and Yi Jie",
+      "cropClass": "img-round",
+      "objectPosition": "50% 55%"
+    },
     "venueMain": {
       "file": "Location-main.jpg",
       "alt": "Zhengyang Mansion courtyard at Mandarin Oriental Qianmen",
