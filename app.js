@@ -79,6 +79,9 @@ const storyPrev = document.getElementById("storyPrev");
 const storyNext = document.getElementById("storyNext");
 const storyDots = document.getElementById("storyDots");
 const storyHint = document.getElementById("storyHint");
+const storyMosaicLayout = document.getElementById("storyMosaicLayout");
+const storyMosaicLeft = document.getElementById("storyMosaicLeft");
+const storyMosaicRight = document.getElementById("storyMosaicRight");
 const storyScrollyTrack = document.getElementById("storyScrollyTrack");
 const storyStage = document.getElementById("storyStage");
 const storyMosaicGrid = document.getElementById("storyMosaicGrid");
@@ -237,6 +240,20 @@ const STORY_OVERRIDES = {
   "2024-proposal-v2.jpg": { rotate: -90, yearTop: 72, objPos: "50% 40%" },
   "2024 - She said yes.JPG": { rotate: -90, yearTop: 72, objPos: "50% 40%" },
 };
+const STORY_MOSAIC_PLAN = [
+  { year: 1995, column: "left", slot: "hero" },
+  { year: 2013, column: "left", slot: "feature" },
+  { year: 2023, column: "left", slot: "half" },
+  { year: 2024, column: "left", slot: "half" },
+  { year: 1998, column: "right", slot: "small" },
+  { year: 2001, column: "right", slot: "small" },
+  { year: 2008, column: "right", slot: "small" },
+  { year: 2016, column: "right", slot: "small" },
+  { year: 2020, column: "right", slot: "small" },
+  { year: 2021, column: "right", slot: "small" },
+  { year: 2025, column: "right", slot: "small" },
+  { year: 2027, column: "right", slot: "small" },
+];
 const WEDDING_DATE_SHANGHAI = { year: 2026, month: 9, day: 19 };
 const SHANGHAI_TIMEZONE = "Asia/Shanghai";
 let countdownIntervalId = null;
@@ -2124,6 +2141,118 @@ async function initStoryTimeline() {
   window.requestAnimationFrame(() => scrollStoryTimelineTo(0, "auto"));
 }
 
+function buildStoryMosaicCard(item, slot) {
+  const card = document.createElement("button");
+  card.type = "button";
+  card.className = `story-mosaic-card story-mosaic-card--${slot}`;
+  card.setAttribute("aria-label", `Open story from ${item.yearLabel}`);
+
+  const img = document.createElement("img");
+  img.src = `${toPhotoSrc(item.file)}${String(item.file).includes("?") ? "&" : "?"}v=${STORY_ASSET_VERSION}`;
+  img.alt = item.alt || `Story photo ${item.yearLabel}`;
+  img.loading = "lazy";
+  img.decoding = "async";
+  img.style.objectPosition = item.objectPosition || "50% 50%";
+  img.style.imageOrientation = "from-image";
+  if (item.rotation === 90) img.style.setProperty("--storyRotate", "90deg");
+  else if (item.rotation === -90) img.style.setProperty("--storyRotate", "-90deg");
+  else if (item.rotation === 180) img.style.setProperty("--storyRotate", "180deg");
+  else img.style.setProperty("--storyRotate", "0deg");
+
+  const overlay = document.createElement("span");
+  overlay.className = "story-card-overlay";
+  overlay.textContent = item.blurb;
+
+  const yearPill = document.createElement("span");
+  yearPill.className = "story-year-pill";
+  yearPill.textContent = item.yearLabel;
+
+  card.appendChild(img);
+  card.appendChild(overlay);
+  card.appendChild(yearPill);
+
+  const lightboxIndex = storyItems.findIndex((storyItem) => storyItem.file === item.file);
+  card.addEventListener("click", () => {
+    if (lightboxIndex < 0) return;
+    openStoryLightbox(lightboxIndex);
+  });
+
+  return card;
+}
+
+function applyStoryMosaicReveal(cards) {
+  if (!cards.length) return;
+  if (reducedMotion) {
+    cards.forEach((card) => card.classList.add("is-in-view"));
+    return;
+  }
+
+  const observer = new IntersectionObserver(
+    (entries, obs) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add("is-in-view");
+        obs.unobserve(entry.target);
+      });
+    },
+    {
+      threshold: 0.2,
+      rootMargin: "0px 0px -8% 0px",
+    },
+  );
+
+  cards.forEach((card) => observer.observe(card));
+}
+
+function orderedStoryMosaicItems() {
+  const yearToItem = new Map();
+  storyItems.forEach((item) => {
+    if (!yearToItem.has(item.year)) yearToItem.set(item.year, item);
+  });
+
+  const ordered = [];
+  STORY_MOSAIC_PLAN.forEach((slotPlan) => {
+    const item = yearToItem.get(slotPlan.year);
+    if (!item) return;
+    ordered.push({ ...slotPlan, item });
+    yearToItem.delete(slotPlan.year);
+  });
+
+  Array.from(yearToItem.values())
+    .sort((a, b) => a.year - b.year)
+    .forEach((item) => ordered.push({ year: item.year, column: "right", slot: "small", item }));
+
+  return ordered;
+}
+
+async function initStoryMosaicLayout() {
+  if (!storyMosaicLayout || !storyMosaicLeft || !storyMosaicRight) return;
+
+  const entries = sortStoryEntries(await loadStoryEntriesFromManifest());
+  storyItems = entries.map((entry) => buildStoryItem(entry));
+  storyMosaicLeft.innerHTML = "";
+  storyMosaicRight.innerHTML = "";
+  bindStoryLightboxEvents();
+
+  if (!storyItems.length) {
+    const empty = document.createElement("div");
+    empty.className = "story-mosaic-empty";
+    empty.textContent = "Story photos coming soon.";
+    storyMosaicLayout.appendChild(empty);
+    return;
+  }
+
+  const cards = [];
+  orderedStoryMosaicItems().forEach((entry) => {
+    const card = buildStoryMosaicCard(entry.item, entry.slot);
+    if (entry.column === "left") storyMosaicLeft.appendChild(card);
+    else storyMosaicRight.appendChild(card);
+    cards.push(card);
+  });
+
+  applyStoryMosaicReveal(cards);
+}
+
 function isCoarsePointer() {
   return window.matchMedia("(hover: none), (pointer: coarse)").matches || window.innerWidth <= 760;
 }
@@ -2675,7 +2804,7 @@ async function init() {
   initHotelMatrix();
   initMakanSection();
   initReveals();
-  await initStoryTimeline();
+  await initStoryMosaicLayout();
   initRsvpCards();
   initRsvpForm();
 

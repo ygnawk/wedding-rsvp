@@ -121,7 +121,7 @@
           <div class="story-timeline-head">
             <div class="story-head-row">
               <h2 class="section-title reveal reveal-left settle">Our story</h2>
-              <a class="story-skip" href="#venue">Skip story →</a>
+              <a class="story-skip" href="#venue">Skip</a>
             </div>
             <p class="ourstory-lede reveal settle" data-delay="70">
               We met on orientation day at Wesleyan University in 2016. Since then, life has taken us across cities and continents—and many of
@@ -129,16 +129,10 @@
             </p>
           </div>
 
-          <div class="story-timeline-wrap" aria-label="Our story timeline">
-            <button id="storyPrev" class="story-timeline-nav story-timeline-nav--prev" type="button" aria-label="Previous year">‹</button>
-            <div id="storyViewport" class="story-timeline-viewport" tabindex="0">
-              <div id="storyTrack" class="story-timeline-track"></div>
-            </div>
-            <button id="storyNext" class="story-timeline-nav story-timeline-nav--next" type="button" aria-label="Next year">›</button>
+          <div class="story-mosaic-layout" id="storyMosaicLayout" aria-label="Our story mosaic">
+            <div class="story-mosaic-column story-mosaic-column--left" id="storyMosaicLeft"></div>
+            <div class="story-mosaic-column story-mosaic-column--right" id="storyMosaicRight"></div>
           </div>
-
-          <p id="storyHint" class="story-timeline-hint">Swipe timeline →</p>
-          <div id="storyDots" class="story-timeline-dots" aria-hidden="true"></div>
         </div>
       </section>
 
