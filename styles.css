@@ -1016,7 +1016,7 @@ a:focus-visible,
 .stay-grid {
   margin-top: 16px;
   display: grid;
-  gap: 12px;
+  gap: 24px;
 }
 
 @media (min-width: 900px) {
@@ -1025,41 +1025,41 @@ a:focus-visible,
   }
 }
 
-.stay-card {
+.content-card {
   margin: 0;
-  background: var(--paper);
-  color: var(--ink);
-  border-radius: 16px;
-  padding: 12px;
+  background: var(--maroon);
+  color: var(--ivory);
+  border-radius: 22px;
+  padding: 18px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
-.stay-card h3,
-.thing-card h3 {
+.content-card h3 {
   font-family: var(--displayFont);
+  font-size: 22px;
+  margin: 0;
 }
 
-.stay-card p {
+.content-card p {
+  font-family: var(--bodyFont);
+  opacity: 0.92;
   margin: 0;
+  line-height: 1.5;
 }
 
 .distance {
-  opacity: 0.9;
+  opacity: 0.85;
   font-size: 0.92rem;
 }
 
-.links {
+.thing-links,
+.hotel-links {
   display: flex;
-  gap: 12px;
+  gap: 14px;
+  margin-top: 4px;
   flex-wrap: wrap;
-  margin-top: auto;
-}
-
-.links a,
-.thing-card a {
-  text-underline-offset: 3px;
 }
 
 .things-grid {
@@ -1079,123 +1079,25 @@ a:focus-visible,
   .things-grid {
     grid-template-columns: 1fr;
   }
-}
-
-/* Mobile sizing pass: keep Stay/Things cards compact so sections don't feel oversized. */
-@media (max-width: 760px) {
   .stay-grid {
-    gap: 10px;
-  }
-
-  .stay-card {
-    padding: 10px;
-    gap: 6px;
-    border-radius: 14px;
-  }
-
-  #stay .photo-frame.img-arch,
-  #stay .photo-frame.img-round,
-  #stay .photo-frame.img-moon {
-    aspect-ratio: 16 / 9;
-    max-height: 180px;
-  }
-
-  .stay-card h3 {
-    font-size: 1.08rem;
-    line-height: 1.2;
-  }
-
-  .stay-card p,
-  .distance {
-    font-size: 0.88rem;
-    line-height: 1.38;
-  }
-
-  .links {
-    gap: 8px;
-  }
-
-  .links a {
-    font-size: 0.84rem;
-  }
-
-  .things-grid {
-    gap: 12px;
-  }
-
-  .thing-card {
-    padding: 12px;
-    gap: 8px;
-    border-radius: 16px;
-  }
-
-  .thing-img {
-    aspect-ratio: 16 / 9;
-    max-height: 180px;
-    border-radius: 14px;
-  }
-
-  .thing-card h3 {
-    font-size: 1.1rem;
-    line-height: 1.2;
-  }
-
-  .thing-card p {
-    font-size: 0.9rem;
-    line-height: 1.4;
-  }
-
-  .thing-links {
-    gap: 8px;
-  }
-
-  .thing-links a {
-    font-size: 0.84rem;
+    grid-template-columns: 1fr;
   }
 }
 
-.thing-card {
-  margin: 0;
-  background: var(--maroon);
-  color: var(--ivory);
-  border-radius: 22px;
-  padding: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.thing-card h3 {
-  font-family: var(--displayFont);
-  font-size: 22px;
-  margin: 0;
-}
-
-.thing-card p {
-  font-family: var(--bodyFont);
-  opacity: 0.92;
-  margin: 0;
-  line-height: 1.5;
-}
-
-.thing-links {
-  display: flex;
-  gap: 14px;
-  margin-top: 4px;
-  flex-wrap: wrap;
-}
-
-.thing-links a {
+.thing-links a,
+.hotel-links a {
   color: var(--gold);
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
 }
 
-.thing-links a:hover {
+.thing-links a:hover,
+.hotel-links a:hover {
   color: var(--ivory);
 }
 
+.content-media,
 .thing-img {
   border-radius: 999px 999px 22px 22px;
   overflow: hidden;
@@ -1206,6 +1108,12 @@ a:focus-visible,
   isolation: isolate;
 }
 
+.content-media.img-arch,
+.thing-img.img-arch {
+  border-radius: 999px 999px 18px 18px;
+}
+
+.content-media img,
 .thing-img img {
   position: relative;
   z-index: 0;
@@ -1217,6 +1125,7 @@ a:focus-visible,
   filter: var(--photoGradeFilter);
 }
 
+.content-media::after,
 .thing-img::after {
   content: "";
   position: absolute;
