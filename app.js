@@ -19,6 +19,7 @@ const menuToggle = document.getElementById("menuToggle");
 const mobileNavSheet = document.getElementById("mobileNavSheet");
 
 const heroGreeting = document.getElementById("heroGreeting");
+const heroCountdown = document.getElementById("heroCountdown");
 
 const choiceCards = Array.from(document.querySelectorAll(".choice-card"));
 const attendanceChoice = document.getElementById("attendanceChoice");
@@ -64,18 +65,18 @@ const GALLERY_FALLBACK_FILES = [
 
 const TIMELINE_CAPTIONS = {
   1995: "Yi Jie — Born in Singapore. Born tired. Still tired.",
-  1998: "Miki — Born in Japan. (Already cooler than us.)",
+  1998: "Miki — Born in Japan. Already cooler than us.",
   2001: "Yi Jie — Grew up with siblings. Character building.",
-  2008: "Miki — Moved to Beijing to learn music. (Discipline arc begins.)",
+  2008: "Miki — Moved to Beijing to learn music. Discipline arc begins.",
   2013: "Yi Jie — Went to the military… to fish?!?",
-  2016: "We met at Wesleyan (CT). Plot twist: it wasn't for the classes ;)",
-  2020: "Moved to NYC in the middle of COVID. (Oops.)",
+  2016: "We met at Wesleyan in Connecticut. Plot twist: it was not for the classes.",
+  2020: "Moved to NYC in the middle of COVID. Oops.",
   2021: "SF for the outdoors. But we couldn't afford a car.",
   2023: "Asia year, mostly in Tokyo — Miki quit her job, YJ found projects in JP",
-  2024: "Proposal in Singapore. (She said yes. We are still shocked.)",
+  2024: "Proposal in Singapore. She said yes. We are still shocked.",
   2025: "Adopted Leo & Luna — two fluffy Siberians. Zero personal space.",
-  2026: "Wedding in Beijing. (Finally.)",
-  2027: "What’s next…? (We’ll pretend we have a plan.)",
+  2026: "Wedding in Beijing. Finally.",
+  2027: "What’s next…? We will pretend we have a plan.",
 };
 const TIMELINE_ASSET_VERSION = "20260215-1310";
 const TIMELINE_OVERRIDES = {
@@ -95,6 +96,55 @@ const TIMELINE_OVERRIDES = {
   "2024-proposal-v2.jpg": { rotate: -90, yearTop: 56, objPos: "50% 40%" },
   "2024 - She said yes.JPG": { rotate: -90, yearTop: 56, objPos: "50% 40%" },
 };
+const WEDDING_DATE_SHANGHAI = { year: 2026, month: 9, day: 19 };
+const SHANGHAI_TIMEZONE = "Asia/Shanghai";
+let countdownIntervalId = null;
+
+function getShanghaiDateParts(dateValue = new Date()) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: SHANGHAI_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  const parts = formatter.formatToParts(dateValue);
+  const year = Number(parts.find((part) => part.type === "year")?.value || 0);
+  const month = Number(parts.find((part) => part.type === "month")?.value || 0);
+  const day = Number(parts.find((part) => part.type === "day")?.value || 0);
+  return { year, month, day };
+}
+
+function getDaysUntilWeddingShanghai(now = new Date()) {
+  const shanghaiToday = getShanghaiDateParts(now);
+  const todayUtcMidnight = Date.UTC(shanghaiToday.year, shanghaiToday.month - 1, shanghaiToday.day);
+  const weddingUtcMidnight = Date.UTC(WEDDING_DATE_SHANGHAI.year, WEDDING_DATE_SHANGHAI.month - 1, WEDDING_DATE_SHANGHAI.day);
+  return Math.floor((weddingUtcMidnight - todayUtcMidnight) / 86400000);
+}
+
+function renderHeroCountdown() {
+  if (!heroCountdown) return;
+
+  const daysRemaining = getDaysUntilWeddingShanghai(new Date());
+  if (daysRemaining > 0) {
+    heroCountdown.textContent = `In ${daysRemaining} days`;
+    return;
+  }
+
+  if (daysRemaining === 0) {
+    heroCountdown.textContent = "Today";
+    return;
+  }
+
+  heroCountdown.textContent = "Married!";
+}
+
+function initHeroCountdown() {
+  if (!heroCountdown) return;
+  renderHeroCountdown();
+  if (countdownIntervalId) window.clearInterval(countdownIntervalId);
+  countdownIntervalId = window.setInterval(renderHeroCountdown, 60 * 60 * 1000);
+}
 
 function withBasePath(pathValue) {
   if (!pathValue) return "";
@@ -1160,6 +1210,7 @@ async function initStoryTimeline() {
 async function init() {
   setActiveLink("top");
   initHeader();
+  initHeroCountdown();
   initSectionObserver();
   initReveals();
   await initStoryTimeline();

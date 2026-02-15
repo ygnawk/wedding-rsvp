@@ -1,18 +1,6 @@
-<svg width="180" height="72" viewBox="0 0 180 72" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect x="1" y="1" width="178" height="70" rx="35" stroke="#C9AE74" stroke-width="1.6"/>
-
-  <g stroke="#C9AE74" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M36 46V24L50 41L64 24V46"/>
-    <path d="M115 24L126 36M137 24L126 36V46"/>
-    <path d="M88 50C80 50 76 43 79 37C81 33 86 31 91 32C96 33 99 37 99 41C99 46 95 50 90 50C84 50 80 45 80 40C80 32 86 24 95 24"/>
-  </g>
-
-  <g stroke="#C9AE74" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.88">
-    <path d="M18 51C25 45 30 37 33 28"/>
-    <path d="M27 27C30 26 33 28 34 31C31 32 28 30 27 27Z"/>
-    <path d="M22 34C19 34 17 36 16 39C19 40 21 38 22 34Z"/>
-    <path d="M147 48C153 42 157 35 160 27"/>
-    <path d="M155 27C158 26 161 28 162 31C159 32 156 30 155 27Z"/>
-    <path d="M150 34C147 34 145 36 144 39C147 40 149 38 150 34Z"/>
-  </g>
+<svg width="200" height="72" viewBox="0 0 200 72" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="M and Y monogram">
+  <rect x="1" y="1" width="198" height="70" rx="35" stroke="#C9AE74" stroke-width="1.4" />
+  <text x="58" y="47" fill="#F7F1E6" text-anchor="middle" font-size="36" font-family="Cormorant Garamond, Georgia, serif" font-weight="600">M</text>
+  <text x="100" y="50" fill="#C9AE74" text-anchor="middle" font-size="46" font-family="Allura, Brush Script MT, cursive" font-weight="400">&amp;</text>
+  <text x="142" y="47" fill="#F7F1E6" text-anchor="middle" font-size="36" font-family="Cormorant Garamond, Georgia, serif" font-weight="600">Y</text>
 </svg>

@@ -24,17 +24,17 @@
       "cropClass": "img-arch",
       "objectPosition": "50% 52%"
     },
-    "hotelRosewood": {
-      "file": "hotels/rosewood-beijing.jpg",
-      "alt": "Rosewood Beijing",
+    "hotelPuXuan": {
+      "file": "hotels/puxuan-hotel-and-spa-beijing.jpg",
+      "alt": "The PuXuan Hotel and Spa",
       "cropClass": "img-arch",
-      "objectPosition": "50% 50%"
+      "objectPosition": "50% 52%"
     },
-    "hotelPeninsula": {
-      "file": "hotels/peninsula-beijing.jpg",
-      "alt": "The Peninsula Beijing",
+    "hotelGrandHyatt": {
+      "file": "hotels/grand-hyatt-beijing.jpg",
+      "alt": "Grand Hyatt Beijing",
       "cropClass": "img-arch",
-      "objectPosition": "50% 40%"
+      "objectPosition": "50% 48%"
     },
     "hotelWaldorf": {
       "file": "hotels/waldorf-astoria-beijing.jpg",

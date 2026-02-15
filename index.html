@@ -15,13 +15,13 @@
     />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="icon" type="image/png" href="./favicon-32.png" />
-    <link rel="stylesheet" href="./styles.css?v=20260215-stay-things-mobile-fix2" />
+    <link rel="stylesheet" href="./styles.css?v=20260215-logo-visa-rsvp-motif" />
   </head>
   <body>
     <header id="floatingHeader" class="floating-header" aria-label="Site navigation">
       <div class="header-pill">
         <a class="brand" href="#top" aria-label="Back to top">
-          <img src="public/logo.svg" alt="Miki and Yi Jie monogram" />
+          <img src="public/logo.svg" alt="M and Y monogram" width="92" height="44" decoding="async" />
         </a>
 
         <button id="menuToggle" class="menu-toggle" aria-expanded="false" aria-controls="mobileNavSheet" aria-label="Open menu">☰</button>
@@ -71,6 +71,7 @@
               <span>Yi Jie Kwang</span>
             </h1>
             <p class="hero-subhead reveal" data-delay="130">Beijing • September 19, 2026</p>
+            <p id="heroCountdown" class="hero-countdown reveal" data-delay="150" aria-live="polite"></p>
             <p class="hero-venue-line reveal" data-delay="170">Zhengyang Mansion, Mandarin Oriental Qianmen</p>
             <p id="heroGreeting" class="hero-greeting reveal hidden" data-delay="210"></p>
             <div class="hero-actions reveal" data-delay="240">
@@ -161,29 +162,28 @@
           <div class="rsvp-panel">
             <h2 class="reveal reveal-left">RSVP</h2>
             <p class="reveal">
-              We’re hosting the celebration in an intimate setting so we can share the evening closely with our guests. We have space for about 50
-              people.
+              We’re hosting the celebration in an intimate setting so we can share the evening closely with our guests.
               <br />
-              We’d love your RSVP within 2 weeks (by end of February). We’ll follow up about a month later to reconfirm.
+              We have space for about 50 people. Please RSVP by the end of February.
               <br />
-              If you’re not sure yet, choose ‘We’re working on it’—we won’t hold a seat yet, and we’ll check in next month.
+              If you’re not sure yet, choose Maybe—don’t save us a seat, and we’ll check in next month.
             </p>
 
             <form id="rsvpForm" class="rsvp-form reveal" novalidate>
               <div id="choiceGroup" class="choice-grid" role="radiogroup" aria-label="RSVP choice">
                 <button type="button" class="choice-card" data-choice="yes">
                   <span class="checkmark" aria-hidden="true">✓</span>
-                  <span class="choice-title">Yes — save our seats</span>
-                  <span class="choice-subtext">We’re ready to plan travel and visa.</span>
+                  <span class="choice-title">Yes — count us in</span>
+                  <span class="choice-subtext">Please reserve our seats. We’ll start planning travel.</span>
                 </button>
                 <button type="button" class="choice-card" data-choice="working">
                   <span class="checkmark" aria-hidden="true">✓</span>
-                  <span class="choice-title">We’re working on it — keep us posted</span>
-                  <span class="choice-subtext">Not confirmed yet — don’t save us a seat. We’ll let you know in a month.</span>
+                  <span class="choice-title">Maybe — we need a month</span>
+                  <span class="choice-subtext">Don’t save us a seat yet. We’ll confirm next month.</span>
                 </button>
                 <button type="button" class="choice-card" data-choice="no">
                   <span class="checkmark" aria-hidden="true">✓</span>
-                  <span class="choice-title">We can’t make it — sending love from afar</span>
+                  <span class="choice-title">No — we can’t make it but will send love from afar</span>
                   <span class="choice-subtext">Thank you for replying. It means a lot.</span>
                 </button>
               </div>
@@ -204,7 +204,7 @@
 
                 <div class="field-grid two-col">
                   <div class="field">
-                    <label for="phone">Phone (optional)</label>
+                    <label for="phone">Phone, optional</label>
                     <input id="phone" name="phone" type="text" />
                   </div>
                 </div>
@@ -220,7 +220,7 @@
                   </div>
                   <div id="attendeeNamesWrap" class="field-grid two-col"></div>
                   <div class="field">
-                    <label for="dietary">Dietary restrictions (optional)</label>
+                    <label for="dietary">Dietary restrictions, optional</label>
                     <textarea id="dietary" name="dietary"></textarea>
                   </div>
                 </div>
@@ -238,7 +238,7 @@
                       <select id="workingConfirm" name="workingConfirm">
                         <option value="">Select</option>
                         <option value="I can confirm by end of March">I can confirm by end of March</option>
-                        <option value="I’m not sure yet (keep me posted)">I’m not sure yet (keep me posted)</option>
+                        <option value="I’m not sure yet — keep me posted">I’m not sure yet — keep me posted</option>
                       </select>
                     </div>
                   </div>
@@ -262,8 +262,8 @@
 
       <section id="faq" class="section section-ivory motif-host" data-title="FAQ">
         <div class="section-inner content narrow">
-          <img class="motif motif--faq-main motif--lift motif--md motif--maroon" src="public/motifs/peony-branch.svg" alt="" aria-hidden="true" />
-          <img class="motif motif--faq-accent motif--lift motif--sm motif--maroon" src="public/motifs/bamboo-bud.svg" alt="" aria-hidden="true" />
+          <img class="motif motif--faq-main motif--lift motif--md motif--maroon" src="public/motifs/peony-bud.svg" alt="" aria-hidden="true" />
+          <img class="motif motif--faq-accent motif--lift motif--sm motif--maroon" src="public/motifs/orchid-bud.svg" alt="" aria-hidden="true" />
           <h2 class="reveal reveal-left">FAQ</h2>
           <div class="faq-list reveal">
             <details>
@@ -276,11 +276,11 @@
             </details>
             <details>
               <summary>What language will the wedding be conducted in?</summary>
-              <p>English and Chinese (if our emcee is willing — thanks Yukai.)</p>
+              <p>English and Chinese, if our emcee is willing — thanks Yukai.</p>
             </details>
             <details>
               <summary>Weather?</summary>
-              <p>September is the nicest month in Beijing. It’s the perfect weather — the only 2 weeks that’s enjoyable — typically mild: about 15–26°C (59–79°F). Bring a light layer for evenings.</p>
+              <p>September is the nicest month in Beijing. It’s the perfect weather — the only two weeks that are especially enjoyable — typically mild: about 15–26°C, or 59–79°F. Bring a light layer for evenings.</p>
             </details>
             <details>
               <summary>Should we bring a gift?</summary>
@@ -293,7 +293,7 @@
             </details>
             <details>
               <summary>What are the best things to do in Beijing?</summary>
-              <p>We picked a few favorites (with photos and maps) if you’re staying longer.</p>
+              <p>We picked a few favorites with photos and maps if you’re staying longer.</p>
               <p><a class="faq-cta" href="#things-to-do">See things to do →</a></p>
             </details>
             <details>
@@ -310,12 +310,12 @@
             </details>
             <details>
               <summary>Why is the website doing that?</summary>
-              <p>Great question. Again, please direct your questions to Yi Jie - he built (and I’m using that word generously) it with a healthy amount of hope (in his AI assistant)… and a brave disregard for error messages.</p>
+              <p>Great question. Again, please direct your questions to Yi Jie — he built it with a healthy amount of hope in his AI assistant and a brave disregard for error messages.</p>
             </details>
             <details>
               <summary>Are these hotel recommendations vetted?</summary>
               <p>Absolutely*</p>
-              <p>(*vetted by ChatGPT at 1:00am. We have not personally stayed at any of them.)</p>
+              <p>Vetted by ChatGPT at 1:00am. We have not personally stayed at any of them.</p>
             </details>
           </div>
         </div>
@@ -369,27 +369,27 @@
 
             <article class="content-card hotel-card reveal">
               <figure class="content-media thing-img img-arch">
-                <img data-photo-key="hotelRosewood" src="photos/hotels/rosewood-beijing.jpg" alt="Rosewood Beijing" loading="lazy" />
+                <img data-photo-key="hotelPuXuan" src="photos/hotels/puxuan-hotel-and-spa-beijing.jpg" alt="The PuXuan Hotel and Spa" loading="lazy" />
               </figure>
-              <h3>Rosewood Beijing</h3>
-              <p>Modern art-forward luxury with a residential feel and great dining.</p>
-              <p class="distance">9.0 km • 27 min by car</p>
+              <h3>The PuXuan Hotel and Spa</h3>
+              <p>Design-forward luxury beside Wangfujing with serene rooms and refined service.</p>
+              <p class="distance">3.2 km • 14 min by car</p>
               <p class="thing-links hotel-links">
-                <a href="https://www.rosewoodhotels.com/en/beijing" target="_blank" rel="noopener noreferrer">Book</a>
-                <a href="https://www.google.com/maps/dir/?api=1&origin=Rosewood+Beijing&destination=Mandarin+Oriental+Qianmen%2C+Beijing%2C+No.1+Caochang+Alley+10%2C+Dongcheng+District%2C+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">Directions</a>
+                <a href="https://thepuxuan.com/" target="_blank" rel="noopener noreferrer">Book</a>
+                <a href="https://www.google.com/maps/dir/?api=1&origin=The+PuXuan+Hotel+and+Spa+Beijing&destination=Mandarin+Oriental+Qianmen%2C+Beijing%2C+No.1+Caochang+Alley+10%2C+Dongcheng+District%2C+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">Directions</a>
               </p>
             </article>
 
             <article class="content-card hotel-card reveal">
               <figure class="content-media thing-img img-arch">
-                <img data-photo-key="hotelPeninsula" src="photos/hotels/peninsula-beijing.jpg" alt="The Peninsula Beijing" loading="lazy" />
+                <img data-photo-key="hotelGrandHyatt" src="photos/hotels/grand-hyatt-beijing.jpg" alt="Grand Hyatt Beijing" loading="lazy" />
               </figure>
-              <h3>The Peninsula Beijing</h3>
-              <p>Classic grand-hotel style near Wangfujing with large all-suite rooms.</p>
-              <p class="distance">3.7 km • 16 min by car</p>
+              <h3>Grand Hyatt Beijing</h3>
+              <p>Contemporary five-star stay in Wangfujing with broad dining and leisure options.</p>
+              <p class="distance">3.1 km • 14 min by car</p>
               <p class="thing-links hotel-links">
-                <a href="https://www.peninsula.com/en/beijing/5-star-luxury-hotel-wangfujing" target="_blank" rel="noopener noreferrer">Book</a>
-                <a href="https://www.google.com/maps/dir/?api=1&origin=The+Peninsula+Beijing&destination=Mandarin+Oriental+Qianmen%2C+Beijing%2C+No.1+Caochang+Alley+10%2C+Dongcheng+District%2C+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">Directions</a>
+                <a href="https://www.hyatt.com/grand-hyatt/en-US/pekgh-grand-hyatt-beijing" target="_blank" rel="noopener noreferrer">Book</a>
+                <a href="https://www.google.com/maps/dir/?api=1&origin=Grand+Hyatt+Beijing&destination=Mandarin+Oriental+Qianmen%2C+Beijing%2C+No.1+Caochang+Alley+10%2C+Dongcheng+District%2C+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">Directions</a>
               </p>
             </article>
 
@@ -505,34 +505,59 @@
             <div class="passport-grid">
               <div class="passport-card">
                 <h3>U.S. passport</h3>
-                <p>Tourist visa is generally required for standard trips to China.</p>
+                <p>Tourist visa is generally required for standard trips.</p>
+                <p><a class="passport-link" href="https://travel.state.gov/content/travel/en/international-travel/International-Travel-Country-Information-Pages/China.html" target="_blank" rel="noopener noreferrer">Official link</a></p>
+                <div class="transit-mini-card">
+                  <h4>240-hour transit</h4>
+                  <p>If you are transiting to a third country or region, you may qualify for up to 240 hours visa-free transit—your onward destination must differ from your origin.</p>
+                  <p><a class="passport-link" href="https://en.nia.gov.cn/n147413/c178106/content.html" target="_blank" rel="noopener noreferrer">Official link</a></p>
+                </div>
               </div>
 
               <div class="passport-card">
                 <h3>Singapore passport</h3>
-                <p>Visa exemption policy allows short stays (currently up to 30 days).</p>
+                <p>Visa-free entry for short stays is available; please confirm current rules.</p>
+                <p><a class="passport-link" href="https://www.mfa.gov.sg/travelling-overseas/travel-advisories-notices-and-visa-information/china/" target="_blank" rel="noopener noreferrer">Official link</a></p>
               </div>
 
               <div class="passport-card">
                 <h3>Japan passport</h3>
-                <p>Currently included in China’s unilateral visa-free policy through December 31, 2026.</p>
+                <p>Visa-free entry is available for short stays; please confirm current rules.</p>
+                <p><a class="passport-link" href="https://www.visaforchina.cn/FRA3_EN/tongzhigonggao/276259502922272768.html" target="_blank" rel="noopener noreferrer">Official link</a></p>
               </div>
 
               <div class="passport-card">
-                <h3>China passport</h3>
-                <p>No visa requirements for domestic travel within China.</p>
+                <h3>Thailand passport</h3>
+                <p>Visa exemption may apply for short stays; please confirm current rules.</p>
+                <p><a class="passport-link" href="https://www.mfa.go.th/en/content/thcn280124?cate=5d5bcb4e15e39c306000683e" target="_blank" rel="noopener noreferrer">Official link</a></p>
+              </div>
+
+              <div class="passport-card">
+                <h3>Malaysia passport</h3>
+                <p>Visa exemption may apply for short stays; please confirm current rules.</p>
+                <p><a class="passport-link" href="https://my.china-embassy.gov.cn/eng/fwzc/lsyw/qz/202508/t20250801_11681401.htm" target="_blank" rel="noopener noreferrer">Official link</a></p>
+              </div>
+
+              <div class="passport-card">
+                <h3>South Korean passport</h3>
+                <p>Visa-free entry is available for short stays; please confirm current rules.</p>
+                <p><a class="passport-link" href="https://www.visaforchina.cn/FRA3_EN/tongzhigonggao/276259502922272768.html" target="_blank" rel="noopener noreferrer">Official link</a></p>
               </div>
             </div>
 
-            <p><em>Note: Visa rules change. Not legal advice. Not liable. (Miki made us add this.) Official links below.</em></p>
+            <p class="travel-note"><em>Note: Visa rules change. Not legal advice. Not liable. Miki made us add this. Official links below.</em></p>
 
             <div class="links-row">
               <span class="links-label">Official links</span>
               <div class="links-buttons">
                 <a class="link-pill" href="https://consular.mfa.gov.cn/VISA/" target="_blank" rel="noopener noreferrer">China visa portal</a>
                 <a class="link-pill" href="https://travel.state.gov/content/travel/en/international-travel/International-Travel-Country-Information-Pages/China.html" target="_blank" rel="noopener noreferrer">U.S. State Dept China page</a>
-                <a class="link-pill" href="https://www.mfa.gov.sg/travelling-overseas/travel-advisories-notices-and-visa-information/china" target="_blank" rel="noopener noreferrer">Singapore MFA China page</a>
-                <a class="link-pill" href="https://www.visaforchina.cn/LON3_EN/tongzhigonggao/315858144490295296.html" target="_blank" rel="noopener noreferrer">VisaForChina policy page</a>
+                <a class="link-pill" href="https://en.nia.gov.cn/n147413/c178106/content.html" target="_blank" rel="noopener noreferrer">China NIA 240-hour transit update</a>
+                <a class="link-pill" href="https://us.china-embassy.gov.cn/eng/lsfw/zj/qz2021/202412/t20241217_11495647.htm" target="_blank" rel="noopener noreferrer">China embassy 240-hour transit note</a>
+                <a class="link-pill" href="https://www.mfa.gov.sg/travelling-overseas/travel-advisories-notices-and-visa-information/china/" target="_blank" rel="noopener noreferrer">Singapore MFA China page</a>
+                <a class="link-pill" href="https://www.mfa.go.th/en/content/thcn280124?cate=5d5bcb4e15e39c306000683e" target="_blank" rel="noopener noreferrer">Thailand MFA visa exemption page</a>
+                <a class="link-pill" href="https://my.china-embassy.gov.cn/eng/fwzc/lsyw/qz/202508/t20250801_11681401.htm" target="_blank" rel="noopener noreferrer">China Embassy Malaysia FAQ</a>
+                <a class="link-pill" href="https://www.visaforchina.cn/FRA3_EN/tongzhigonggao/276259502922272768.html" target="_blank" rel="noopener noreferrer">VisaForChina notice</a>
               </div>
             </div>
           </div>
@@ -561,6 +586,6 @@
       <p>Questions? Email Yi Jie: Kwangyijie@gmail.com</p>
     </footer>
 
-    <script src="./app.js?v=20260215-stay-things-mobile-fix2"></script>
+    <script src="./app.js?v=20260215-logo-visa-rsvp-motif"></script>
   </body>
 </html>

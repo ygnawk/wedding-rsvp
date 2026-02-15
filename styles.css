@@ -14,7 +14,7 @@
 
   --headerH: 64px;
   --sectionH: clamp(680px, 84svh, 860px);
-  --motifOpacity: 0.17;
+  --motifOpacity: 0.14;
   --radius: 22px;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --photoGradeFilter: sepia(0.22) saturate(0.88) contrast(0.92) brightness(0.98) hue-rotate(-8deg);
@@ -178,8 +178,9 @@ a {
 }
 
 .brand img {
-  width: 92px;
-  height: 44px;
+  width: auto;
+  height: 24px;
+  max-width: 92px;
   display: block;
   object-fit: contain;
 }
@@ -306,7 +307,7 @@ a {
   position: absolute;
   pointer-events: none;
   opacity: var(--motifOpacity);
-  width: min(500px, 42vw);
+  width: min(540px, 44vw);
   height: auto;
   z-index: 0;
   transform: none;
@@ -322,25 +323,25 @@ a {
 
 .motif--tr {
   top: 24px;
-  left: calc(50% + 170px);
+  left: calc(50% + 190px);
   transform: rotate(6deg);
 }
 
 .motif--tl {
   top: 24px;
-  left: calc(50% - 560px);
+  left: calc(50% - 535px);
   transform: rotate(-6deg);
 }
 
 .motif--br {
   bottom: 24px;
-  left: calc(50% + 170px);
+  left: calc(50% + 195px);
   transform: rotate(-8deg);
 }
 
 .motif--bl {
   bottom: 24px;
-  left: calc(50% - 560px);
+  left: calc(50% - 535px);
   transform: rotate(8deg);
 }
 
@@ -369,78 +370,77 @@ a {
 }
 
 .motif--sm {
-  width: min(260px, 23vw);
+  width: min(290px, 25vw);
 }
 
 .motif--md {
-  width: min(380px, 32vw);
+  width: min(420px, 34vw);
 }
 
 .motif--lg {
-  width: min(650px, 52vw);
+  width: min(690px, 54vw);
 }
 
 .motif--lift {
-  z-index: 2;
   opacity: calc(var(--motifOpacity) + 0.02);
 }
 
 .motif--rsvp-main {
-  top: 86px;
-  left: calc(50% + 280px);
+  top: 30px;
+  left: calc(50% + 245px);
   transform: rotate(7deg);
 }
 
 .motif--rsvp-accent {
-  bottom: 40px;
-  left: calc(50% - 540px);
+  bottom: 18px;
+  left: calc(50% - 505px);
   transform: rotate(-8deg);
 }
 
 .motif--faq-main {
-  top: 92px;
-  left: calc(50% + 250px);
+  top: 28px;
+  left: calc(50% + 240px);
   transform: rotate(7deg);
 }
 
 .motif--faq-accent {
-  bottom: 34px;
-  left: calc(50% - 520px);
+  bottom: 12px;
+  left: calc(50% - 490px);
   transform: rotate(-8deg);
 }
 
 .motif--stay-main {
-  top: 70px;
-  left: calc(50% + 310px);
+  top: 24px;
+  left: calc(50% + 270px);
   transform: rotate(6deg);
 }
 
 .motif--stay-accent {
-  bottom: 30px;
-  left: calc(50% - 590px);
+  bottom: 16px;
+  left: calc(50% - 520px);
   transform: rotate(-7deg);
 }
 
 .motif--things-main {
-  top: 84px;
-  left: calc(50% + 250px);
-  width: min(360px, 33vw);
+  top: 26px;
+  left: calc(50% + 245px);
+  width: min(390px, 34vw);
   transform: rotate(4deg);
 }
 
 .motif--things-accent {
-  bottom: 30px;
-  left: calc(50% - 585px);
+  bottom: 16px;
+  left: calc(50% - 515px);
   transform: rotate(-6deg);
 }
 
 @media (max-width: 768px) {
   :root {
-    --motifOpacity: 0.19;
+    --motifOpacity: 0.16;
   }
 
   .motif {
-    width: min(320px, 76vw);
+    width: min(280px, 68vw);
   }
 
   .motif--tr,
@@ -481,20 +481,20 @@ a {
   .motif--stay-main,
   .motif--things-main {
     left: auto;
-    right: 10px;
-    top: 58px;
+    right: 8px;
+    top: 74px;
   }
 
   .motif--rsvp-accent,
   .motif--faq-accent,
   .motif--stay-accent,
   .motif--things-accent {
-    left: 8px;
-    bottom: 12px;
+    left: 6px;
+    bottom: 18px;
   }
 
   .motif--things-main {
-    width: min(250px, 62vw);
+    width: min(220px, 56vw);
   }
 }
 
@@ -540,6 +540,24 @@ a {
 .hero-subhead,
 .hero-venue-line {
   margin: 4px 0;
+}
+
+.hero-countdown {
+  margin: 8px 0 6px;
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 4px 11px;
+  border: 1px solid rgba(247, 241, 230, 0.28);
+  border-radius: 999px;
+  background: rgba(247, 241, 230, 0.04);
+  color: rgba(247, 241, 230, 0.92);
+  font-size: 0.86rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  line-height: 1.25;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .hero-venue-line {
@@ -898,6 +916,13 @@ a:focus-visible,
   gap: 4px;
   align-items: flex-start;
   transition: border-color 180ms var(--ease-out), background-color 180ms var(--ease-out), transform 180ms var(--ease-out);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.choice-card * {
+  color: inherit;
+  text-decoration: none;
 }
 
 .choice-card:hover {
@@ -906,7 +931,7 @@ a:focus-visible,
 
 .choice-card.selected {
   border-color: var(--gold);
-  background: #fcf7ee;
+  background: rgba(75, 15, 23, 0.09);
 }
 
 .choice-title {
@@ -916,22 +941,24 @@ a:focus-visible,
 
 .choice-subtext {
   font-size: 0.92rem;
-  color: #544f48;
+  color: rgba(21, 21, 21, 0.82);
 }
 
 .checkmark {
   position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 18px;
-  height: 18px;
+  right: 12px;
+  bottom: 12px;
+  width: 24px;
+  height: 24px;
   border-radius: 999px;
   border: 1px solid var(--gold);
+  background: rgba(201, 174, 116, 0.18);
   color: var(--maroonDeep);
   display: none;
   align-items: center;
   justify-content: center;
-  font-size: 0.68rem;
+  font-size: 0.84rem;
+  font-weight: 700;
 }
 
 .choice-card.selected .checkmark {
@@ -1323,6 +1350,49 @@ a:focus-visible,
   line-height: 1.55;
 }
 
+.passport-link {
+  display: inline-flex;
+  margin-top: 12px;
+  align-items: center;
+  min-height: 34px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(201, 174, 116, 0.42);
+  color: var(--gold);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.transit-mini-card {
+  margin-top: 10px;
+  padding: 10px 10px 6px;
+  border-radius: 12px;
+  border: 1px solid rgba(201, 174, 116, 0.2);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.transit-mini-card h4 {
+  margin: 0 0 4px;
+  font-family: var(--displayFont);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ivory);
+}
+
+.transit-mini-card p {
+  margin: 0;
+}
+
+.passport-link:hover {
+  color: var(--ivory);
+  border-color: rgba(201, 174, 116, 0.75);
+}
+
+.travel-note {
+  margin: 4px 0 18px;
+  color: rgba(247, 241, 230, 0.9);
+}
+
 .links-row {
   display: flex;
   align-items: center;
@@ -1495,6 +1565,11 @@ a:focus-visible,
 
   .hero-script {
     font-size: clamp(2.7rem, 11vw, 4rem);
+  }
+
+  .hero-countdown {
+    font-size: 0.8rem;
+    padding: 3px 10px;
   }
 }
 
