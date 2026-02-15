@@ -63,8 +63,10 @@
     <main>
       <section id="top" class="section section--dark motif-host" data-title="You’re invited">
         <div class="section-inner content hero-inner">
-          <img class="motif motif--tr motif--lg motif--ivory motif--hero-main" src="public/motifs/peony-branch.svg" alt="" aria-hidden="true" />
-          <img class="motif motif--bl motif--md motif--ivory motif--hero-secondary" src="public/motifs/bamboo-branch.svg" alt="" aria-hidden="true" />
+          <div class="motif-layer motif-layer--section motif-layer--maroon motif-layer--both" aria-hidden="true">
+            <img class="motif-layer__item motif-layer__item--topRight" src="public/motifs/peony-branch.svg" alt="" />
+            <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/bamboo-branch.svg" alt="" />
+          </div>
           <div class="hero-lockup">
             <div class="hero-group hero-group--identity">
               <p class="hero-kicker reveal">You’re invited to the wedding of</p>
@@ -76,7 +78,7 @@
             </div>
             <div class="hero-group hero-group--details">
               <p class="hero-subhead reveal" data-delay="130">Beijing • September 19, 2026</p>
-              <p id="heroCountdown" class="hero-countdown reveal" data-delay="150" aria-live="polite"></p>
+              <p id="heroCountdown" class="hero-countdown countdown-pill reveal" data-delay="150" aria-live="polite"></p>
               <p class="hero-venue-line reveal" data-delay="170">Zhengyang Mansion, Mandarin Oriental Qianmen</p>
               <p id="heroGreeting" class="hero-greeting reveal hidden" data-delay="210"></p>
             </div>
@@ -86,8 +88,8 @@
               </div>
             </div>
           </div>
-          <div class="hero-art reveal reveal-right" data-delay="120" aria-hidden="true">
-            <img class="hero-engraving" src="public/motifs/peony-branch.svg" alt="" />
+          <div class="hero-art" aria-hidden="true">
+            <img class="hero-engraving" src="public/motifs/peony-branch.svg" alt="" width="880" height="620" decoding="async" fetchpriority="high" />
           </div>
         </div>
       </section>
@@ -99,31 +101,9 @@
               <img src="photos/LMN_2546.jpg" alt="Miki and Yi Jie" loading="lazy" decoding="async" />
             </figure>
             <div class="interlude-color-half">
-              <div class="motif-layer motif-layer--maroon" aria-hidden="true">
-                <img class="motif-layer__item motif-layer__item--tr motif--ivory" src="public/motifs/peony-branch.svg" alt="" />
-                <img class="motif-layer__item motif-layer__item--bl motif--ivory" src="public/motifs/peony-branch.svg" alt="" />
-              </div>
-              <div class="interlude-content reveal reveal-left">
-                <p class="interlude-kicker">Counting down to Beijing</p>
-                <div class="interlude-countdown" id="interludeCountdown" aria-live="polite">
-                  <div class="interlude-unit">
-                    <strong id="interludeDays">0</strong>
-                    <span>Days</span>
-                  </div>
-                  <div class="interlude-unit">
-                    <strong id="interludeHours">0</strong>
-                    <span>Hours</span>
-                  </div>
-                  <div class="interlude-unit">
-                    <strong id="interludeMinutes">0</strong>
-                    <span>Minutes</span>
-                  </div>
-                  <div class="interlude-unit">
-                    <strong id="interludeSeconds">0</strong>
-                    <span>Seconds</span>
-                  </div>
-                </div>
-                <a class="interlude-rsvp" href="#rsvp">RSVP reminder</a>
+              <div class="motif-layer motif-layer--maroon motif-layer--both" aria-hidden="true">
+                <img class="motif-layer__item motif-layer__item--topRight" src="public/motifs/peony-branch.svg" alt="" />
+                <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/peony-branch.svg" alt="" />
               </div>
             </div>
           </div>
@@ -131,40 +111,43 @@
       </section>
 
       <div id="our-story" class="anchor-target" aria-hidden="true"></div>
-      <section id="story" class="section section--light motif-host story-scrolly" data-title="Our story">
-        <div class="story-scrolly-track" id="storyScrollyTrack">
-          <div class="story-scrolly-sticky">
-            <img class="motif motif--tc motif--sm motif--maroon" src="public/motifs/peony-bud.svg" alt="" aria-hidden="true" />
-            <img class="motif motif--bl motif--sm motif--maroon" src="public/motifs/orchid-bud.svg" alt="" aria-hidden="true" />
-            <a class="story-skip" href="#venue">Skip story →</a>
-
-            <div class="story-scrolly-head">
-              <h2 class="section-title reveal reveal-left settle">Our story</h2>
-              <p class="ourstory-lede reveal settle" data-delay="70">
-                We met on orientation day at Wesleyan University in 2016. Since then, life has taken us across cities and continents—and many of
-                you have been part of that journey. We’d love to celebrate this milestone together with you in Beijing.
-              </p>
-            </div>
-
-            <div id="storyStage" class="story-stage" aria-label="Our story timeline">
-              <div id="storyMosaicGrid" class="story-mosaic-grid"></div>
-              <button id="storyFocusOverlay" class="story-focus-overlay hidden" type="button" aria-label="Open highlighted story moment">
-                <img id="storyFocusImage" src="" alt="" loading="lazy" decoding="async" />
-              </button>
-            </div>
-
-            <div id="storyCaption" class="story-focus-caption hidden" aria-live="polite">
-              <p id="storyCaptionTitle" class="story-focus-title"></p>
-              <p id="storyCaptionBlurb" class="story-focus-blurb"></p>
-            </div>
+      <section id="story" class="section section--light motif-host story-timeline-section" data-title="Our story">
+        <div class="section-inner content story-timeline-shell">
+          <div class="motif-layer motif-layer--section motif-layer--cream motif-layer--both" aria-hidden="true">
+            <img class="motif-layer__item motif-layer__item--topRight" src="public/motifs/peony-bud.svg" alt="" />
+            <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/orchid-bud.svg" alt="" />
           </div>
+
+          <div class="story-timeline-head">
+            <div class="story-head-row">
+              <h2 class="section-title reveal reveal-left settle">Our story</h2>
+              <a class="story-skip" href="#venue">Skip story →</a>
+            </div>
+            <p class="ourstory-lede reveal settle" data-delay="70">
+              We met on orientation day at Wesleyan University in 2016. Since then, life has taken us across cities and continents—and many of
+              you have been part of that journey. We’d love to celebrate this milestone together with you in Beijing.
+            </p>
+          </div>
+
+          <div class="story-timeline-wrap" aria-label="Our story timeline">
+            <button id="storyPrev" class="story-timeline-nav story-timeline-nav--prev" type="button" aria-label="Previous year">‹</button>
+            <div id="storyViewport" class="story-timeline-viewport" tabindex="0">
+              <div id="storyTrack" class="story-timeline-track"></div>
+            </div>
+            <button id="storyNext" class="story-timeline-nav story-timeline-nav--next" type="button" aria-label="Next year">›</button>
+          </div>
+
+          <p id="storyHint" class="story-timeline-hint">Swipe timeline →</p>
+          <div id="storyDots" class="story-timeline-dots" aria-hidden="true"></div>
         </div>
       </section>
 
       <section id="venue" class="section section--dark motif-host" data-title="Venue">
-        <div class="section-inner content split split-3-2 reverse">
-          <img class="motif motif--tr motif--md motif--maroon" src="public/motifs/peony-branch.svg" alt="" aria-hidden="true" />
-          <img class="motif motif--bc motif--sm motif--maroon" src="public/motifs/peony-bud.svg" alt="" aria-hidden="true" />
+        <div class="section-inner content split layout-two-col split-3-2 reverse">
+          <div class="motif-layer motif-layer--section motif-layer--maroon motif-layer--both" aria-hidden="true">
+            <img class="motif-layer__item motif-layer__item--topRight" src="public/motifs/peony-branch.svg" alt="" />
+            <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/peony-bud.svg" alt="" />
+          </div>
           <div class="venue-cutout-stack">
             <figure class="cutout-parallax cutout-parallax--large reveal reveal-scale" data-parallax-speed="0.14">
               <div class="cutout-parallax__paper" aria-hidden="true"></div>
@@ -175,7 +158,7 @@
             <figure class="cutout-parallax cutout-parallax--small reveal reveal-scale" data-parallax-speed="0.1">
               <div class="cutout-parallax__paper" aria-hidden="true"></div>
               <div class="cutout-parallax__media">
-                <img src="photos/hotels/mandarin-oriental-qianmen-venue.jpg" alt="Mandarin Oriental Qianmen courtyard detail" loading="lazy" />
+                <img data-photo-key="hotelMO" src="photos/hotels/mandarin-oriental-qianmen-venue.jpg" alt="Mandarin Oriental Qianmen courtyard detail" loading="lazy" />
               </div>
             </figure>
           </div>
@@ -194,26 +177,51 @@
       </section>
 
       <section id="schedule" class="section section--light motif-host" data-title="Schedule of events">
-        <div class="section-inner content schedule-shell">
-          <img class="motif motif--tl motif--md motif--ivory" src="public/motifs/chrysanthemum-branch.svg" alt="" aria-hidden="true" />
-          <img class="motif motif--br motif--sm motif--ivory" src="public/motifs/chrysanthemum-bud.svg" alt="" aria-hidden="true" />
-          <div>
-            <h2 class="reveal reveal-left settle">Schedule of events</h2>
+        <div class="section-inner content schedule-shell layout-two-col">
+          <div class="motif-layer motif-layer--section motif-layer--cream motif-layer--both motif-layer--schedule" aria-hidden="true">
+            <img class="motif-layer__item motif-layer__item--topRight" src="public/motifs/chrysanthemum-branch.svg" alt="" />
+            <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/chrysanthemum-bud.svg" alt="" />
           </div>
-          <div class="schedule-list">
-            <article class="reveal reveal-right"><time>3:00 PM</time><p>Early check-in at venue</p></article>
-            <article class="reveal reveal-right"><time>4:00 PM</time><p>Cocktails</p></article>
-            <article class="reveal reveal-right"><time>5:00 PM</time><p>Ceremony</p></article>
-            <article class="reveal reveal-right"><time>6:00 PM</time><p>Dinner</p></article>
-            <article class="reveal reveal-right"><time>8:00 PM</time><p>Afterparty</p></article>
+          <div class="schedule-intro">
+            <h2 class="reveal reveal-left settle">Schedule of events</h2>
+            <div class="schedule-divider reveal" aria-hidden="true"></div>
+          </div>
+          <div class="schedule-list" role="list" aria-label="Wedding day schedule">
+            <article class="schedule-item reveal reveal-right" role="listitem">
+              <span class="schedule-dot" aria-hidden="true"></span>
+              <time datetime="15:00">3:00 PM</time>
+              <p>Early check-in at venue</p>
+            </article>
+            <article class="schedule-item reveal reveal-right" role="listitem">
+              <span class="schedule-dot" aria-hidden="true"></span>
+              <time datetime="16:00">4:00 PM</time>
+              <p>Cocktails</p>
+            </article>
+            <article class="schedule-item reveal reveal-right" role="listitem">
+              <span class="schedule-dot" aria-hidden="true"></span>
+              <time datetime="17:00">5:00 PM</time>
+              <p>Ceremony</p>
+            </article>
+            <article class="schedule-item reveal reveal-right" role="listitem">
+              <span class="schedule-dot" aria-hidden="true"></span>
+              <time datetime="18:00">6:00 PM</time>
+              <p>Dinner</p>
+            </article>
+            <article class="schedule-item reveal reveal-right" role="listitem">
+              <span class="schedule-dot" aria-hidden="true"></span>
+              <time datetime="20:00">8:00 PM</time>
+              <p>Afterparty</p>
+            </article>
           </div>
         </div>
       </section>
 
       <section id="rsvp" class="section section--dark motif-host" data-title="RSVP">
         <div class="section-inner content narrow">
-          <img class="motif motif--rsvp-main motif--lift motif--md motif--maroon" src="public/motifs/orchid-branch.svg" alt="" aria-hidden="true" />
-          <img class="motif motif--rsvp-accent motif--lift motif--sm motif--maroon" src="public/motifs/orchid-bud.svg" alt="" aria-hidden="true" />
+          <div class="motif-layer motif-layer--section motif-layer--maroon motif-layer--both" aria-hidden="true">
+            <img class="motif-layer__item motif-layer__item--topRight" src="public/motifs/orchid-branch.svg" alt="" />
+            <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/orchid-bud.svg" alt="" />
+          </div>
           <div class="rsvp-panel">
             <h2 class="reveal reveal-left settle">RSVP</h2>
             <p class="reveal">
@@ -319,8 +327,10 @@
 
       <section id="faq" class="section section--light motif-host" data-title="FAQ">
         <div class="section-inner content narrow">
-          <img class="motif motif--faq-main motif--lift motif--md motif--ivory" src="public/motifs/peony-bud.svg" alt="" aria-hidden="true" />
-          <img class="motif motif--faq-accent motif--lift motif--sm motif--ivory" src="public/motifs/orchid-bud.svg" alt="" aria-hidden="true" />
+          <div class="motif-layer motif-layer--section motif-layer--cream motif-layer--both" aria-hidden="true">
+            <img class="motif-layer__item motif-layer__item--topRight" src="public/motifs/peony-bud.svg" alt="" />
+            <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/orchid-bud.svg" alt="" />
+          </div>
           <h2 class="reveal reveal-left">FAQ</h2>
           <div class="faq-list reveal">
             <details>
@@ -339,6 +349,8 @@
                     alt="Attire inspiration: Western formal and Chinese traditional"
                     loading="lazy"
                     decoding="async"
+                    width="1200"
+                    height="800"
                   />
                 </div>
               </div>
@@ -359,6 +371,22 @@
               </summary>
               <div class="faq-answer">
                 <p>English and Chinese (if our emcee is willing — thanks Yukai.)</p>
+              </div>
+            </details>
+            <details>
+              <summary class="faq-summary">
+                <span class="faq-q">How will seating work at the venue? (Yes, it’s a little different.)</span>
+                <span class="faq-chevron" aria-hidden="true"></span>
+              </summary>
+              <div class="faq-answer">
+                <p>
+                  We’re getting married at the Mandarin Oriental Qianmen Mansion. It’s beautiful, meaningful… and has two separate dining areas with a courtyard in the middle.
+                  (<em>Miki chose meaning over convenience. I chose acceptance.</em>)
+                </p>
+                <p>
+                  Here’s the flow: we’ll do the ceremony all together in the central courtyard. After that, dinner will be in two rooms—one more English-leaning (friends) and
+                  one more Chinese-leaning (family).
+                </p>
               </div>
             </details>
             <details>
@@ -452,129 +480,63 @@
       <section id="stay" class="section section--dark motif-host" data-title="Where to stay">
         <div class="section-inner content">
           <div id="hotels" class="anchor-target" aria-hidden="true"></div>
-          <img class="motif motif--stay-main motif--lift motif--md motif--maroon" src="public/motifs/chrysanthemum-branch.svg" alt="" aria-hidden="true" />
-          <img class="motif motif--stay-accent motif--lift motif--sm motif--maroon" src="public/motifs/peony-bud.svg" alt="" aria-hidden="true" />
-          <h2 class="reveal reveal-left">Where to stay</h2>
-
-          <div class="stay-grid">
-            <article class="content-card hotel-card reveal">
-              <figure class="content-media thing-img img-arch">
-                <img data-photo-key="hotelMO" src="photos/hotels/mandarin-oriental-qianmen-venue.jpg" alt="Mandarin Oriental Qianmen, Beijing" loading="lazy" />
-              </figure>
-              <h3>Mandarin Oriental Qianmen, Beijing</h3>
-              <p>On-site and the easiest option for the wedding night.</p>
-              <p class="distance">0.0 km • 2 min by car</p>
-              <p class="thing-links hotel-links">
-                <a href="https://www.mandarinoriental.com/en/beijing/qianmen" target="_blank" rel="noopener noreferrer">Book</a>
-                <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Mandarin+Oriental+Qianmen%2C+Beijing%2C+No.1+Caochang+Alley+10%2C+Dongcheng+District%2C+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">Directions</a>
-              </p>
-            </article>
-
-            <article class="content-card hotel-card reveal">
-              <figure class="content-media thing-img img-arch">
-                <img data-photo-key="hotelFourSeasons" src="photos/hotels/four-seasons-beijing.jpg" alt="Four Seasons Hotel Beijing" loading="lazy" />
-              </figure>
-              <h3>Four Seasons Hotel Beijing</h3>
-              <p>Quiet luxury in Chaoyang with polished service and spacious rooms.</p>
-              <p class="distance">9.1 km • 28 min by car</p>
-              <p class="thing-links hotel-links">
-                <a href="https://www.fourseasons.com/beijing/" target="_blank" rel="noopener noreferrer">Book</a>
-                <a href="https://www.google.com/maps/dir/?api=1&origin=Four+Seasons+Hotel+Beijing&destination=Mandarin+Oriental+Qianmen%2C+Beijing%2C+No.1+Caochang+Alley+10%2C+Dongcheng+District%2C+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">Directions</a>
-              </p>
-            </article>
-
-            <article class="content-card hotel-card reveal">
-              <figure class="content-media thing-img img-arch">
-                <img data-photo-key="hotelParkHyatt" src="photos/hotels/park-hyatt-beijing.jpg" alt="Park Hyatt Beijing" loading="lazy" />
-              </figure>
-              <h3>Park Hyatt Beijing</h3>
-              <p>High-floor skyline views in Beijing CBD with sleek contemporary design.</p>
-              <p class="distance">8.4 km • 24 min by car</p>
-              <p class="thing-links hotel-links">
-                <a href="https://www.hyatt.com/en-US/hotel/china/park-hyatt-beijing/beiph" target="_blank" rel="noopener noreferrer">Book</a>
-                <a href="https://www.google.com/maps/dir/?api=1&origin=Park+Hyatt+Beijing&destination=Mandarin+Oriental+Qianmen%2C+Beijing%2C+No.1+Caochang+Alley+10%2C+Dongcheng+District%2C+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">Directions</a>
-              </p>
-            </article>
-
-            <article class="content-card hotel-card reveal stay-extra" hidden>
-              <figure class="content-media thing-img img-arch">
-                <img data-photo-key="hotelPuXuan" src="photos/hotels/puxuan-hotel-and-spa-beijing.jpg" alt="The PuXuan Hotel and Spa" loading="lazy" />
-              </figure>
-              <h3>The PuXuan Hotel and Spa</h3>
-              <p>Design-forward luxury beside Wangfujing with serene rooms and refined service.</p>
-              <p class="distance">3.2 km • 14 min by car</p>
-              <p class="thing-links hotel-links">
-                <a href="https://thepuxuan.com/" target="_blank" rel="noopener noreferrer">Book</a>
-                <a href="https://www.google.com/maps/dir/?api=1&origin=The+PuXuan+Hotel+and+Spa+Beijing&destination=Mandarin+Oriental+Qianmen%2C+Beijing%2C+No.1+Caochang+Alley+10%2C+Dongcheng+District%2C+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">Directions</a>
-              </p>
-            </article>
-
-            <article class="content-card hotel-card reveal stay-extra" hidden>
-              <figure class="content-media thing-img img-arch">
-                <img data-photo-key="hotelGrandHyatt" src="photos/hotels/grand-hyatt-beijing.jpg" alt="Grand Hyatt Beijing" loading="lazy" />
-              </figure>
-              <h3>Grand Hyatt Beijing</h3>
-              <p>Contemporary five-star stay in Wangfujing with broad dining and leisure options.</p>
-              <p class="distance">3.1 km • 14 min by car</p>
-              <p class="thing-links hotel-links">
-                <a href="https://www.hyatt.com/grand-hyatt/en-US/pekgh-grand-hyatt-beijing" target="_blank" rel="noopener noreferrer">Book</a>
-                <a href="https://www.google.com/maps/dir/?api=1&origin=Grand+Hyatt+Beijing&destination=Mandarin+Oriental+Qianmen%2C+Beijing%2C+No.1+Caochang+Alley+10%2C+Dongcheng+District%2C+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">Directions</a>
-              </p>
-            </article>
-
-            <article class="content-card hotel-card reveal stay-extra" hidden>
-              <figure class="content-media thing-img img-arch">
-                <img data-photo-key="hotelJWMarriottCentral" src="photos/hotels/jw-marriott-beijing-central.jpg" alt="JW Marriott Hotel Beijing Central" loading="lazy" />
-              </figure>
-              <h3>JW Marriott Hotel Beijing Central</h3>
-              <p>Business-friendly five-star comfort with polished rooms and strong amenities.</p>
-              <p class="distance">2.1 km • 10 min by car</p>
-              <p class="thing-links hotel-links">
-                <a href="https://www.marriott.com/en-us/hotels/pekdt-jw-marriott-hotel-beijing-central/overview/" target="_blank" rel="noopener noreferrer">Book</a>
-                <a href="https://www.google.com/maps/dir/?api=1&origin=JW+Marriott+Hotel+Beijing+Central&destination=Mandarin+Oriental+Qianmen%2C+Beijing%2C+No.1+Caochang+Alley+10%2C+Dongcheng+District%2C+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">Directions</a>
-              </p>
-            </article>
+          <div class="motif-layer motif-layer--section motif-layer--maroon motif-layer--both" aria-hidden="true">
+            <img class="motif-layer__item motif-layer__item--topRight" src="public/motifs/chrysanthemum-branch.svg" alt="" />
+            <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/peony-bud.svg" alt="" />
           </div>
-          <div class="stay-disclosure-wrap reveal">
-            <button id="stayToggle" class="btn stay-disclosure-btn" type="button" aria-expanded="false">Show 3 more</button>
-          </div>
+          <p class="stay-eyebrow reveal">Where to stay</p>
+          <h2 class="reveal reveal-left">Hotels near the venue — mapped by comfort and price</h2>
+          <p class="stay-subtitle reveal">
+            Comfort uses guest review scores. Price uses a public nightly-rate snapshot. Hover a dot to see details and links.
+          </p>
 
-          <div class="hotel-matrix-block reveal" aria-labelledby="hotelMatrixHeading">
-            <h3 id="hotelMatrixHeading" class="hotel-matrix-heading">Hotels at a glance</h3>
-            <p class="hotel-matrix-helper">
-              <span class="hotel-matrix-helper-desktop">Hover a dot for details.</span>
-              <span class="hotel-matrix-helper-mobile">Tap a dot for details.</span>
-            </p>
+          <div class="hotel-map-card reveal" aria-labelledby="hotelMatrixHeading">
+            <div class="hotel-map-chart-col">
+              <h3 id="hotelMatrixHeading" class="hotel-map-heading">Hotels at a glance</h3>
+              <p class="hotel-map-helper">
+                <span class="hotel-map-helper-desktop">Hover a dot to see details. Click to pin.</span>
+                <span class="hotel-map-helper-mobile">Tap a dot to see details.</span>
+              </p>
 
-            <div id="hotelMatrixShell" class="hotel-matrix-shell">
-              <svg
-                id="hotelMatrixSvg"
-                class="hotel-matrix-svg"
-                viewBox="0 0 600 420"
-                role="img"
-                aria-labelledby="hotelMatrixTitle hotelMatrixDesc"
-              >
-                <title id="hotelMatrixTitle">Hotels matrix by price and comfort</title>
-                <desc id="hotelMatrixDesc">
-                  Price increases from left to right, comfort increases from bottom to top.
-                </desc>
-              </svg>
-              <div id="hotelMatrixTooltip" class="hotel-matrix-tooltip" hidden></div>
+              <div id="hotelMatrixShell" class="hotel-map-shell">
+                <svg
+                  id="hotelMatrixSvg"
+                  class="hotel-map-svg"
+                  viewBox="0 0 760 460"
+                  role="img"
+                  aria-labelledby="hotelMatrixTitle hotelMatrixDesc"
+                >
+                  <title id="hotelMatrixTitle">Hotels matrix by price and comfort</title>
+                  <desc id="hotelMatrixDesc">Price increases from left to right, comfort increases from bottom to top.</desc>
+                </svg>
+              </div>
             </div>
 
-            <p class="hotel-matrix-contact">
-              Questions? Email us at
-              <a href="mailto:Kwangyijie@gmail.com">Kwangyijie@gmail.com</a>
-            </p>
-            <p class="hotel-matrix-disclaimer">Friendly note: this page is not legal advice. (Our lawyer made us say this.)</p>
+            <aside id="hotelMatrixDetails" class="hotel-map-details" aria-live="polite">
+              <div class="hotel-map-empty">
+                <p class="hotel-map-empty-title">Hover a dot to see details.</p>
+                <p>Click a dot to pin this hotel while you compare options.</p>
+              </div>
+            </aside>
+          </div>
+        </div>
+
+        <div id="hotelMatrixSheet" class="hotel-map-sheet" hidden>
+          <button type="button" class="hotel-map-sheet-backdrop" data-sheet-close aria-label="Close hotel details"></button>
+          <div class="hotel-map-sheet-panel" role="dialog" aria-modal="true" aria-labelledby="hotelMatrixSheetTitle">
+            <button id="hotelMatrixSheetClose" class="hotel-map-sheet-close" type="button" aria-label="Close">×</button>
+            <h3 id="hotelMatrixSheetTitle" class="hotel-map-sheet-title">Hotel details</h3>
+            <div id="hotelMatrixSheetContent" class="hotel-map-sheet-content"></div>
           </div>
         </div>
       </section>
 
       <section id="things-to-do" class="section section--light motif-host" data-title="Things to do in Beijing">
         <div class="section-inner content">
-          <img class="motif motif--ivory motif--things-main motif--lift" src="public/motifs/chrysanthemum-branch.svg" alt="" aria-hidden="true" />
-          <img class="motif motif--ivory motif--things-accent motif--lift motif--sm" src="public/motifs/orchid-bud.svg" alt="" aria-hidden="true" />
+          <div class="motif-layer motif-layer--section motif-layer--cream motif-layer--both" aria-hidden="true">
+            <img class="motif-layer__item motif-layer__item--topRight" src="public/motifs/chrysanthemum-branch.svg" alt="" />
+            <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/orchid-bud.svg" alt="" />
+          </div>
           <h2 class="reveal reveal-left">Things to do in Beijing</h2>
 
           <div class="things-grid">
@@ -614,7 +576,7 @@
               </p>
             </article>
 
-            <article class="content-card thing-card reveal">
+            <article class="content-card thing-card reveal thing-extra" hidden>
               <figure class="content-media thing-img">
                 <img data-photo-key="thingMutianyu" src="photos/things/great-wall-mutianyu.jpg" alt="Great Wall at Mutianyu" loading="lazy" />
               </figure>
@@ -626,7 +588,7 @@
               </p>
             </article>
 
-            <article class="content-card thing-card reveal">
+            <article class="content-card thing-card reveal thing-extra" hidden>
               <figure class="content-media thing-img">
                 <img data-photo-key="thingJingshan" src="photos/things/jingshan-park.jpg" alt="Jingshan Park" loading="lazy" />
               </figure>
@@ -638,7 +600,7 @@
               </p>
             </article>
 
-            <article class="content-card thing-card reveal">
+            <article class="content-card thing-card reveal thing-extra" hidden>
               <figure class="content-media thing-img">
                 <img data-photo-key="thingSanlitun" src="photos/things/sanlitun-taikooli.jpg" alt="Sanlitun Taikoo Li" loading="lazy" />
               </figure>
@@ -650,11 +612,18 @@
               </p>
             </article>
           </div>
+          <div class="things-disclosure-wrap reveal">
+            <button id="thingsToggle" class="btn things-disclosure-btn" type="button" aria-expanded="false">Show 3 more</button>
+          </div>
         </div>
       </section>
 
       <section id="makan" class="section section--dark motif-host" data-title="What to eat">
         <div class="section-inner content makan-wrap">
+          <div class="motif-layer motif-layer--section motif-layer--maroon motif-layer--both" aria-hidden="true">
+            <img class="motif-layer__item motif-layer__item--topRight" src="public/motifs/bamboo-branch.svg" alt="" />
+            <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/peony-bud.svg" alt="" />
+          </div>
           <h2 class="section-title reveal reveal-left">What to eat (makan)</h2>
           <p class="makan-subhead reveal">
             Beijing is basically a 3,000-year-old food court. We’re building a short list of places we’d actually take friends. Coming soon.
@@ -674,7 +643,9 @@
 
       <section id="travel-visa" class="section section--light motif-host" data-title="Travel &amp; Visa">
         <div class="content travel-wrap">
-          <img class="motif motif--travel-only motif--sm motif--maroon" src="public/motifs/orchid-bud.svg" alt="" aria-hidden="true" />
+          <div class="motif-layer motif-layer--section motif-layer--cream motif-layer--topRight" aria-hidden="true">
+            <img class="motif-layer__item motif-layer__item--topRight" src="public/motifs/orchid-bud.svg" alt="" />
+          </div>
           <h2 class="section-title">Travel &amp; Visa</h2>
 
           <p class="travel-intro">
@@ -733,8 +704,12 @@
         </div>
       </section>
 
-      <section id="gallery" class="section section--dark" data-title="Recent moments">
+      <section id="gallery" class="section section--dark motif-host" data-title="Recent moments">
         <div class="content">
+          <div class="motif-layer motif-layer--section motif-layer--maroon motif-layer--both" aria-hidden="true">
+            <img class="motif-layer__item motif-layer__item--topRight" src="public/motifs/peony-bud.svg" alt="" />
+            <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/bamboo-bud.svg" alt="" />
+          </div>
           <h2 class="section-title">Recent moments of us</h2>
           <div class="gallery-grid" id="galleryGrid" aria-label="Recent moments gallery"></div>
         </div>
@@ -781,9 +756,17 @@
     </div>
 
     <footer class="site-footer">
-      <p>Questions? Email Yi Jie: Kwangyijie@gmail.com</p>
+      <div class="site-footer-inner">
+        <p class="site-footer-main">
+          Questions? Email us at
+          <a href="mailto:Kwangyijie@gmail.com">Kwangyijie@gmail.com</a>
+        </p>
+        <p class="site-footer-legal">This site is for wedding logistics. No information should be taken as legal advice. (Our lawyer made us say this.)</p>
+        <p class="site-footer-copy">© 2026 Miki &amp; Yi Jie</p>
+      </div>
     </footer>
 
+    <script src="./data/hotels.js?v=20260216-matrix"></script>
     <script src="./app.js?v=20260215-v9-rebuild"></script>
   </body>
 </html>
