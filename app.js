@@ -2804,14 +2804,14 @@ function initCutoutParallax() {
     img.dataset.cutoutBound = "true";
   });
 
-  const setStatic = (scale = 1.08) => {
+  const setStatic = (scale = 1.01) => {
     entries.forEach((entry) => {
       entry.img.style.transform = `translate3d(0, 0, 0) scale(${scale})`;
     });
   };
 
   if (reducedMotion) {
-    setStatic(1.08);
+    setStatic(1);
     return;
   }
 
@@ -2826,7 +2826,7 @@ function initCutoutParallax() {
       if (!active.has(entry.block)) return;
 
       if (isMobile) {
-        entry.img.style.transform = "translate3d(0, 0, 0) scale(1.08)";
+        entry.img.style.transform = "translate3d(0, 0, 0) scale(1.01)";
         return;
       }
 
@@ -2834,10 +2834,10 @@ function initCutoutParallax() {
       const viewportCenter = window.innerHeight / 2;
       const blockCenter = rect.top + rect.height / 2;
       const delta = viewportCenter - blockCenter;
-      const strength = entry.speed * 0.42;
-      const maxShift = 18;
+      const strength = entry.speed * 0.3;
+      const maxShift = 24;
       const translateY = Math.max(-maxShift, Math.min(maxShift, delta * strength));
-      entry.img.style.transform = `translate3d(0, ${translateY.toFixed(2)}px, 0) scale(1.12)`;
+      entry.img.style.transform = `translate3d(0, ${translateY.toFixed(2)}px, 0) scale(1.03)`;
     });
   };
 
@@ -2865,13 +2865,13 @@ function initCutoutParallax() {
   window.addEventListener("scroll", requestTick, { passive: true });
   window.addEventListener("resize", () => {
     if (window.innerWidth <= 900) {
-      setStatic(1.08);
+      setStatic(1.01);
       return;
     }
     requestTick();
   });
   if (window.innerWidth <= 900) {
-    setStatic(1.08);
+    setStatic(1.01);
   }
   requestTick();
 }
