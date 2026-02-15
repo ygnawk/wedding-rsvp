@@ -487,8 +487,24 @@
           <p class="stay-eyebrow reveal">Where to stay</p>
           <h2 class="reveal reveal-left">Hotels near the venue — mapped by comfort and price</h2>
           <p class="stay-subtitle reveal">
-            Comfort uses guest review scores. Price uses a public nightly-rate snapshot. Hover a dot to see details and links.
+            Comfort uses guest reviews. Price uses a public nightly-rate snapshot. Hover a dot to see details.
+            <button
+              id="hotelMethodTrigger"
+              class="stay-method-trigger"
+              type="button"
+              aria-expanded="false"
+              aria-controls="hotelMethodTooltip"
+            >
+              Methodology
+            </button>
           </p>
+          <div id="hotelMethodTooltip" class="hotel-method-tooltip" role="tooltip" hidden aria-hidden="true">
+            <p class="hotel-method-tooltip-title">METHODOLOGY</p>
+            <p class="hotel-method-tooltip-body">
+              We had a deluge of hotel tabs. A consultant did what they do: made a matrix. ChatGPT helped with the synthesis. Please don’t ask
+              for the appendix.
+            </p>
+          </div>
 
           <div class="hotel-map-card reveal" aria-labelledby="hotelMatrixHeading">
             <div class="hotel-map-chart-col">
@@ -515,7 +531,7 @@
             <aside id="hotelMatrixDetails" class="hotel-map-details" aria-live="polite">
               <div class="hotel-map-empty">
                 <p class="hotel-map-empty-title">Hover a dot to see details.</p>
-                <p>Click a dot to pin this hotel while you compare options.</p>
+                <p>Yes, this is a framework. Old habits. ChatGPT made it faster.</p>
               </div>
             </aside>
           </div>

@@ -52,6 +52,8 @@ const hotelMatrixSheet = document.getElementById("hotelMatrixSheet");
 const hotelMatrixSheetContent = document.getElementById("hotelMatrixSheetContent");
 const hotelMatrixSheetClose = document.getElementById("hotelMatrixSheetClose");
 const hotelMatrixSheetCloseControls = hotelMatrixSheet ? Array.from(hotelMatrixSheet.querySelectorAll("[data-sheet-close], #hotelMatrixSheetClose")) : [];
+const hotelMethodTrigger = document.getElementById("hotelMethodTrigger");
+const hotelMethodTooltip = document.getElementById("hotelMethodTooltip");
 
 const galleryGrid = document.getElementById("galleryGrid");
 const galleryLightbox = document.getElementById("lightbox");
@@ -111,6 +113,7 @@ let activeHotelMatrixId = "";
 let hotelDetailsSwapTimer = null;
 let hotelSheetOpen = false;
 let hotelMatrixMetaById = new Map();
+let hotelMethodOpen = false;
 
 const jumpMenuWrap = document.getElementById("jumpMenuWrap");
 const jumpMenuToggle = document.getElementById("jumpMenuToggle");
@@ -501,6 +504,95 @@ function getActiveHotelMatrixId() {
   return hotelMatrixPinnedId || hotelMatrixHoveredId || "";
 }
 
+function positionHotelMethodTooltip() {
+  if (!hotelMethodTrigger || !hotelMethodTooltip || hotelMethodTooltip.hidden) return;
+
+  const triggerRect = hotelMethodTrigger.getBoundingClientRect();
+  const tooltipRect = hotelMethodTooltip.getBoundingClientRect();
+  const gap = 10;
+  const viewportPadding = 12;
+
+  let left = triggerRect.left + triggerRect.width / 2 - tooltipRect.width / 2;
+  left = Math.max(viewportPadding, Math.min(left, window.innerWidth - tooltipRect.width - viewportPadding));
+
+  let top = triggerRect.bottom + gap;
+  if (top + tooltipRect.height > window.innerHeight - viewportPadding) {
+    top = triggerRect.top - tooltipRect.height - gap;
+  }
+  if (top < viewportPadding) top = viewportPadding;
+
+  hotelMethodTooltip.style.left = `${left}px`;
+  hotelMethodTooltip.style.top = `${top}px`;
+}
+
+function closeHotelMethodologyTooltip() {
+  if (!hotelMethodTooltip || !hotelMethodTrigger) return;
+  hotelMethodTooltip.hidden = true;
+  hotelMethodTooltip.setAttribute("aria-hidden", "true");
+  hotelMethodTrigger.setAttribute("aria-expanded", "false");
+  hotelMethodOpen = false;
+}
+
+function openHotelMethodologyTooltip() {
+  if (!hotelMethodTooltip || !hotelMethodTrigger) return;
+  hotelMethodTooltip.hidden = false;
+  hotelMethodTooltip.setAttribute("aria-hidden", "false");
+  hotelMethodTrigger.setAttribute("aria-expanded", "true");
+  hotelMethodOpen = true;
+  positionHotelMethodTooltip();
+}
+
+function toggleHotelMethodologyTooltip() {
+  if (hotelMethodOpen) {
+    closeHotelMethodologyTooltip();
+  } else {
+    openHotelMethodologyTooltip();
+  }
+}
+
+function initHotelMethodology() {
+  if (!hotelMethodTrigger || !hotelMethodTooltip) return;
+  if (hotelMethodTrigger.dataset.bound === "true") return;
+
+  closeHotelMethodologyTooltip();
+
+  hotelMethodTrigger.addEventListener("click", (event) => {
+    event.preventDefault();
+    toggleHotelMethodologyTooltip();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && hotelMethodOpen) {
+      closeHotelMethodologyTooltip();
+    }
+  });
+
+  document.addEventListener(
+    "pointerdown",
+    (event) => {
+      if (!hotelMethodOpen) return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (hotelMethodTooltip.contains(target) || hotelMethodTrigger.contains(target)) return;
+      closeHotelMethodologyTooltip();
+    },
+    { passive: true },
+  );
+
+  window.addEventListener("resize", () => {
+    if (hotelMethodOpen) positionHotelMethodTooltip();
+  });
+  window.addEventListener(
+    "scroll",
+    () => {
+      if (hotelMethodOpen) positionHotelMethodTooltip();
+    },
+    { passive: true },
+  );
+
+  hotelMethodTrigger.dataset.bound = "true";
+}
+
 function buildHotelEmptyState() {
   const empty = document.createElement("div");
   empty.className = "hotel-map-empty";
@@ -508,7 +600,7 @@ function buildHotelEmptyState() {
   title.className = "hotel-map-empty-title";
   title.textContent = "Hover a dot to see details.";
   const body = document.createElement("p");
-  body.textContent = "Click a dot to pin this hotel while you compare options.";
+  body.textContent = "Yes, this is a framework. Old habits. ChatGPT made it faster.";
   empty.appendChild(title);
   empty.appendChild(body);
   return empty;
@@ -644,6 +736,7 @@ function applyHotelMatrixSelection() {
 function initHotelMatrix() {
   if (!hotelMatrixShell || !hotelMatrixSvg || !hotelMatrixDetails) return;
   if (hotelMatrixShell.dataset.initialized === "true") return;
+  initHotelMethodology();
 
   hotelMatrixItems = HOTELS_DATA.slice(0, 6);
   if (!hotelMatrixItems.length) return;
