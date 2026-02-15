@@ -1478,6 +1478,27 @@ a:focus-visible,
   }
 }
 
+/* Mobile safety: keep Stay + Things visible even if reveal observer misses. */
+@media (max-width: 900px) {
+  #stay .reveal,
+  #stay .reveal-left,
+  #stay .reveal-right,
+  #stay .reveal-scale,
+  #things-to-do .reveal,
+  #things-to-do .reveal-left,
+  #things-to-do .reveal-right,
+  #things-to-do .reveal-scale {
+    opacity: 1;
+    transform: none;
+  }
+
+  #stay .motif,
+  #things-to-do .motif {
+    z-index: 0;
+    opacity: 0.14;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
