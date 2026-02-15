@@ -735,55 +735,80 @@
             As of today, entry rules depend on passport and can change. Please check official sources before booking.
           </p>
 
-          <div class="travel-simple-list" role="list">
-            <div class="travel-simple-row" role="listitem">
-              <div class="travel-simple-country">U.S. passport</div>
-              <div class="travel-simple-text">Tourist visa is generally required for standard trips.</div>
-            </div>
-            <div class="travel-simple-row" role="listitem">
-              <div class="travel-simple-country">Singapore passport</div>
-              <div class="travel-simple-text">Visa-free entry up to 30 days.</div>
-            </div>
-            <div class="travel-simple-row" role="listitem">
-              <div class="travel-simple-country">Japan passport</div>
-              <div class="travel-simple-text">Visa-free entry up to 30 days through Dec 31, 2026.</div>
-            </div>
-            <div class="travel-simple-row" role="listitem">
-              <div class="travel-simple-country">Thailand passport</div>
-              <div class="travel-simple-text">Visa exemption up to 30 days per entry; 90 days within any 180 days.</div>
-            </div>
-            <div class="travel-simple-row" role="listitem">
-              <div class="travel-simple-country">Malaysia passport</div>
-              <div class="travel-simple-text">Visa exemption up to 30 days per entry; 90 days within any 180 days.</div>
-            </div>
-            <div class="travel-simple-row" role="listitem">
-              <div class="travel-simple-country">South Korean passport</div>
-              <div class="travel-simple-text">Visa-free entry up to 30 days through Dec 31, 2026.</div>
-            </div>
-            <div class="travel-simple-row travel-simple-row--callout" role="listitem">
-              <div class="travel-simple-country">240-hour visa-free transit</div>
-              <div class="travel-simple-text">
-                240-hour visa-free transit may apply only for eligible travelers transiting to a third country or region with a confirmed onward
-                ticket; eligibility depends on passport and itinerary.
+          <div class="travel-selector reveal">
+            <label class="travel-selector-label" for="travelPassportSelect">Select your passport</label>
+            <select id="travelPassportSelect" class="travel-passport-select" aria-describedby="travelPassportHint">
+              <option value="">Select…</option>
+              <option value="us">U.S.</option>
+              <option value="singapore">Singapore</option>
+              <option value="japan">Japan</option>
+              <option value="thailand">Thailand</option>
+              <option value="malaysia">Malaysia</option>
+              <option value="south-korea">South Korea</option>
+              <option value="other">Other</option>
+            </select>
+            <p id="travelPassportHint" class="travel-selector-hint">Choose your passport to see a quick summary.</p>
+
+            <article id="travelPassportResult" class="travel-result-card" aria-live="polite" hidden>
+              <h3 class="travel-result-title"></h3>
+              <p class="travel-result-outcome"></p>
+              <p class="travel-result-detail"></p>
+            </article>
+          </div>
+
+          <article class="travel-transit-callout reveal">
+            <h3>240-hour visa-free transit</h3>
+            <p>
+              240-hour visa-free transit may apply only for eligible travelers transiting to a third country or region with a confirmed onward
+              ticket; eligibility depends on passport and itinerary.
+            </p>
+            <p>
+              <a href="https://en.nia.gov.cn/n147413/c178106/content.html" target="_blank" rel="noopener">Official transit update</a>
+            </p>
+          </article>
+
+          <details class="travel-sources-disclosure reveal">
+            <summary class="travel-sources-summary">
+              <span class="travel-sources-title">Official sources</span>
+              <span class="travel-sources-toggle-wrap" aria-hidden="true">
+                <span class="travel-sources-toggle travel-sources-toggle--show">Show</span>
+                <span class="travel-sources-toggle travel-sources-toggle--hide">Hide</span>
+                <span class="travel-sources-chevron"></span>
+              </span>
+            </summary>
+
+            <div class="travel-sources-panel">
+              <div class="travel-source-groups">
+                <section class="travel-source-group" aria-label="China visa sources">
+                  <h3>China visa</h3>
+                  <ul class="travel-source-list">
+                    <li><a href="https://consular.mfa.gov.cn/VISA/" target="_blank" rel="noopener">China visa portal</a></li>
+                    <li><a href="https://www.visaforchina.cn/FRA3_EN/tongzhigonggao/276259502922272768.html" target="_blank" rel="noopener">VisaForChina policy page</a></li>
+                  </ul>
+                </section>
+
+                <section class="travel-source-group" aria-label="Transit sources">
+                  <h3>Transit</h3>
+                  <ul class="travel-source-list">
+                    <li><a href="https://us.china-embassy.gov.cn/eng/lsfw/zj/qz2021/202412/t20241217_11495647.htm" target="_blank" rel="noopener">China embassy 240-hour transit note</a></li>
+                    <li><a href="https://en.nia.gov.cn/n147413/c178106/content.html" target="_blank" rel="noopener">China NIA transit update</a></li>
+                  </ul>
+                </section>
+
+                <section class="travel-source-group" aria-label="Country information sources">
+                  <h3>Country info</h3>
+                  <ul class="travel-source-list">
+                    <li><a href="https://travel.state.gov/content/travel/en/international-travel/International-Travel-Country-Information-Pages/China.html" target="_blank" rel="noopener">U.S. State Dept China page</a></li>
+                    <li><a href="https://www.mfa.gov.sg/travelling-overseas/travel-advisories-notices-and-visa-information/china/" target="_blank" rel="noopener">Singapore MFA China page</a></li>
+                    <li><a href="https://www.mfa.go.th/en/content/thcn280124?cate=5d" target="_blank" rel="noopener">Thailand MFA visa exemption page</a></li>
+                    <li><a href="https://my.china-embassy.gov.cn/eng/fwzc/lsyw/qz/202508/t20250801_11681401.htm" target="_blank" rel="noopener">China Embassy Malaysia FAQ</a></li>
+                  </ul>
+                </section>
               </div>
             </div>
-          </div>
+          </details>
 
-          <p class="travel-note">Rules change. Please rely on the official sources below.</p>
-
-          <div class="travel-links">
-            <div class="travel-links-label">Official sources</div>
-            <div class="travel-links-pills">
-              <a class="link-pill" href="https://consular.mfa.gov.cn/VISA/" target="_blank" rel="noopener">China visa portal</a>
-              <a class="link-pill" href="https://travel.state.gov/content/travel/en/international-travel/International-Travel-Country-Information-Pages/China.html" target="_blank" rel="noopener">U.S. State Dept China page</a>
-              <a class="link-pill" href="https://us.china-embassy.gov.cn/eng/lsfw/zj/qz2021/202412/t20241217_11495647.htm" target="_blank" rel="noopener">China embassy 240-hour transit note</a>
-              <a class="link-pill" href="https://en.nia.gov.cn/n147413/c178106/content.html" target="_blank" rel="noopener">China NIA transit update</a>
-              <a class="link-pill" href="https://www.mfa.gov.sg/travelling-overseas/travel-advisories-notices-and-visa-information/china/" target="_blank" rel="noopener">Singapore MFA China page</a>
-              <a class="link-pill" href="https://www.mfa.go.th/en/content/thcn280124?cate=5d" target="_blank" rel="noopener">Thailand MFA visa exemption page</a>
-              <a class="link-pill" href="https://my.china-embassy.gov.cn/eng/fwzc/lsyw/qz/202508/t20250801_11681401.htm" target="_blank" rel="noopener">China Embassy Malaysia FAQ</a>
-              <a class="link-pill" href="https://www.visaforchina.cn/FRA3_EN/tongzhigonggao/276259502922272768.html" target="_blank" rel="noopener">VisaForChina policy page</a>
-            </div>
-          </div>
+          <p class="travel-note">Rules change. Not legal advice. Not liable (per Miki). Please rely on official sources.</p>
         </div>
       </section>
 

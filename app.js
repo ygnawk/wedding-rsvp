@@ -124,9 +124,49 @@ const jumpMenuWrap = document.getElementById("jumpMenuWrap");
 const jumpMenuToggle = document.getElementById("jumpMenuToggle");
 const jumpMenuPanel = document.getElementById("jumpMenuPanel");
 const jumpMenuLinks = jumpMenuPanel ? Array.from(jumpMenuPanel.querySelectorAll("a[href^='#']")) : [];
+const travelPassportSelect = document.getElementById("travelPassportSelect");
+const travelPassportResult = document.getElementById("travelPassportResult");
+const travelSourcesDisclosure = document.querySelector(".travel-sources-disclosure");
 
 const HOTELS_DATA = Array.isArray(window.HOTELS_DATA) ? window.HOTELS_DATA : [];
 const BEIJING_FOOD_PLACES = Array.isArray(window.BEIJING_FOOD_PLACES) ? window.BEIJING_FOOD_PLACES : [];
+const TRAVEL_PASSPORT_RULES = {
+  us: {
+    title: "U.S. passport",
+    outcome: "Visa required (typical)",
+    detail: "Tourist visa is generally required for standard trips.",
+  },
+  singapore: {
+    title: "Singapore passport",
+    outcome: "Visa-free (typical)",
+    detail: "Visa-free entry up to 30 days.",
+  },
+  japan: {
+    title: "Japan passport",
+    outcome: "Visa-free (typical)",
+    detail: "Visa-free entry up to 30 days through Dec 31, 2026.",
+  },
+  thailand: {
+    title: "Thailand passport",
+    outcome: "Visa exemption (typical)",
+    detail: "Visa exemption up to 30 days per entry; 90 days within any 180 days.",
+  },
+  malaysia: {
+    title: "Malaysia passport",
+    outcome: "Visa exemption (typical)",
+    detail: "Visa exemption up to 30 days per entry; 90 days within any 180 days.",
+  },
+  "south-korea": {
+    title: "South Korean passport",
+    outcome: "Visa-free (typical)",
+    detail: "Visa-free entry up to 30 days through Dec 31, 2026.",
+  },
+  other: {
+    title: "Other passport",
+    outcome: "Varies by passport",
+    detail: "Rules vary by passport. Please check official sources below.",
+  },
+};
 
 const STORY_COPY = {
   1995: {
@@ -470,6 +510,49 @@ function initCardDisclosure(toggleButton, extraCards) {
 
 function initThingsDisclosure() {
   initCardDisclosure(thingsToggle, thingsExtraCards);
+}
+
+function renderTravelPassportResult(key) {
+  if (!travelPassportResult) return;
+  const rule = TRAVEL_PASSPORT_RULES[String(key || "")];
+  if (!rule) {
+    travelPassportResult.hidden = true;
+    return;
+  }
+
+  const title = travelPassportResult.querySelector(".travel-result-title");
+  const outcome = travelPassportResult.querySelector(".travel-result-outcome");
+  const detail = travelPassportResult.querySelector(".travel-result-detail");
+  if (!title || !outcome || !detail) return;
+
+  title.textContent = rule.title;
+  outcome.textContent = "";
+  const strong = document.createElement("strong");
+  strong.textContent = rule.outcome;
+  outcome.appendChild(strong);
+  detail.textContent = rule.detail;
+  travelPassportResult.hidden = false;
+}
+
+function initTravelVisaSection() {
+  if (travelPassportSelect && travelPassportSelect.dataset.bound !== "true") {
+    const syncPassportResult = () => {
+      renderTravelPassportResult(travelPassportSelect.value);
+    };
+    travelPassportSelect.addEventListener("change", syncPassportResult);
+    syncPassportResult();
+    travelPassportSelect.dataset.bound = "true";
+  }
+
+  if (travelSourcesDisclosure && travelSourcesDisclosure.dataset.bound !== "true") {
+    travelSourcesDisclosure.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      travelSourcesDisclosure.open = false;
+      const summary = travelSourcesDisclosure.querySelector("summary");
+      if (summary instanceof HTMLElement) summary.focus({ preventScroll: true });
+    });
+    travelSourcesDisclosure.dataset.bound = "true";
+  }
 }
 
 async function copyTextToClipboard(value) {
@@ -2801,6 +2884,7 @@ async function init() {
   initSectionObserver();
   initJumpMenu();
   initThingsDisclosure();
+  initTravelVisaSection();
   initHotelMatrix();
   initMakanSection();
   initReveals();
