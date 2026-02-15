@@ -3,9 +3,16 @@
 ## Run locally
 ```bash
 cd /Users/kwangyijie/Desktop/Coding/wedding-rsvp
-npm start
+npm install
+npm run dev
 ```
 
+Live preview (auto-reload): `http://localhost:3001`
+
+Server only (no auto-reload):
+```bash
+npm start
+```
 Open: `http://localhost:3000`
 
 ## Connect Google Sheets
