@@ -1,5 +1,6 @@
 const SHEETS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwpfLq3hB_mRiKKgiwMv1bvZUUtcoUZP7ifjKpnLpcK0HgaOKHwm_LRsPPCahWWQ67U/exec";
 const RSVP_LOCAL_FALLBACK_KEY = "wedding_rsvp_fallback";
+const PROJECT_PATH_PREFIX = "/wedding-rsvp";
 
 const SECTION_IDS = ["top", "our-story", "venue", "schedule", "rsvp", "faq", "stay", "things-to-do", "travel-visa"];
 
@@ -75,6 +76,21 @@ const TIMELINE_OVERRIDES = {
   "2024-proposal-v2.jpg": { rotate: -90, yearTop: 56, objPos: "50% 40%" },
   "2024 - She said yes.JPG": { rotate: -90, yearTop: 56, objPos: "50% 40%" },
 };
+
+function withBasePath(pathValue) {
+  if (!pathValue) return "";
+  if (/^https?:\/\//i.test(pathValue)) return pathValue;
+
+  const rawPath = String(pathValue);
+  const onProjectPages =
+    window.location.hostname.endsWith(".github.io") && window.location.pathname.startsWith(`${PROJECT_PATH_PREFIX}/`);
+
+  const base = onProjectPages ? PROJECT_PATH_PREFIX : "";
+  if (!base) return rawPath;
+  if (rawPath.startsWith(base)) return rawPath;
+  if (rawPath.startsWith("/")) return `${base}${rawPath}`;
+  return `${base}/${rawPath.replace(/^\.?\//, "")}`;
+}
 
 function clampPartySize(value) {
   const num = Number(value);
@@ -381,7 +397,7 @@ async function submitToSheets(payload) {
 }
 
 async function submitToLocal(payload) {
-  const response = await fetch("/api/rsvp", {
+  const response = await fetch(withBasePath("/api/rsvp"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -466,7 +482,7 @@ function initRsvpForm() {
 
 async function loadManifest() {
   try {
-    const response = await fetch("/photos/manifest.json", { cache: "no-store" });
+    const response = await fetch(withBasePath("/photos/manifest.json"), { cache: "no-store" });
     if (!response.ok) return null;
     return await response.json();
   } catch (_error) {
@@ -477,8 +493,8 @@ async function loadManifest() {
 function toPhotoSrc(name) {
   if (!name) return "";
   if (/^https?:\/\//i.test(name)) return name;
-  if (name.startsWith("/")) return name;
-  return `/photos/${name.replace(/^\.\//, "")}`;
+  if (name.startsWith("/")) return withBasePath(name);
+  return withBasePath(`/photos/${name.replace(/^\.\//, "")}`);
 }
 
 function applyPhotoSettings(config, img) {
@@ -579,7 +595,7 @@ function sortTimelineEntries(entries) {
 
 async function loadTimelinePhotosFromApi() {
   try {
-    const response = await fetch("/api/timeline-photos", { cache: "no-store" });
+    const response = await fetch(withBasePath("/api/timeline-photos"), { cache: "no-store" });
     if (!response.ok) return [];
     const payload = await response.json();
     if (!payload || payload.ok !== true || !Array.isArray(payload.files)) return [];
@@ -590,7 +606,7 @@ async function loadTimelinePhotosFromApi() {
 }
 
 async function loadTimelinePhotosFromManifest() {
-  const pathsToTry = ["/photos/timeline-photos/manifest.json", "/photos/manifest.json"];
+  const pathsToTry = [withBasePath("/photos/timeline-photos/manifest.json"), withBasePath("/photos/manifest.json")];
 
   for (const manifestPath of pathsToTry) {
     try {
@@ -604,7 +620,9 @@ async function loadTimelinePhotosFromManifest() {
           .filter((entry) => entry.file)
           .map((entry) => ({
             ...entry,
-            file: entry.file.startsWith("/") ? entry.file : `/photos/timeline-photos/${encodeURIComponent(entry.file)}`,
+            file: entry.file.startsWith("/")
+              ? withBasePath(entry.file)
+              : withBasePath(`/photos/timeline-photos/${encodeURIComponent(entry.file)}`),
           }));
       }
 
@@ -614,7 +632,9 @@ async function loadTimelinePhotosFromManifest() {
           .filter((entry) => entry.file)
           .map((entry) => ({
             ...entry,
-            file: entry.file.startsWith("/") ? entry.file : `/photos/timeline-photos/${encodeURIComponent(entry.file)}`,
+            file: entry.file.startsWith("/")
+              ? withBasePath(entry.file)
+              : withBasePath(`/photos/timeline-photos/${encodeURIComponent(entry.file)}`),
           }));
       }
 
@@ -624,7 +644,9 @@ async function loadTimelinePhotosFromManifest() {
           .filter((entry) => entry.file)
           .map((entry) => ({
             ...entry,
-            file: entry.file.startsWith("/") ? entry.file : `/photos/timeline-photos/${encodeURIComponent(entry.file)}`,
+            file: entry.file.startsWith("/")
+              ? withBasePath(entry.file)
+              : withBasePath(`/photos/timeline-photos/${encodeURIComponent(entry.file)}`),
           }));
       }
     } catch (_error) {
