@@ -1,0 +1,186 @@
+{
+  "images": {
+    "venueMain": {
+      "file": "Location-main.jpg",
+      "alt": "Zhengyang Mansion courtyard at Mandarin Oriental Qianmen",
+      "cropClass": "img-arch",
+      "objectPosition": "50% 52%"
+    },
+    "hotelMO": {
+      "file": "hotels/mandarin-oriental-qianmen-venue.jpg",
+      "alt": "Mandarin Oriental Qianmen, Beijing",
+      "cropClass": "img-arch",
+      "objectPosition": "50% 52%"
+    },
+    "hotelFourSeasons": {
+      "file": "hotels/four-seasons-beijing.jpg",
+      "alt": "Four Seasons Hotel Beijing",
+      "cropClass": "img-arch",
+      "objectPosition": "50% 56%"
+    },
+    "hotelParkHyatt": {
+      "file": "hotels/park-hyatt-beijing.jpg",
+      "alt": "Park Hyatt Beijing",
+      "cropClass": "img-arch",
+      "objectPosition": "50% 52%"
+    },
+    "hotelRosewood": {
+      "file": "hotels/rosewood-beijing.jpg",
+      "alt": "Rosewood Beijing",
+      "cropClass": "img-arch",
+      "objectPosition": "50% 50%"
+    },
+    "hotelPeninsula": {
+      "file": "hotels/peninsula-beijing.jpg",
+      "alt": "The Peninsula Beijing",
+      "cropClass": "img-arch",
+      "objectPosition": "50% 40%"
+    },
+    "hotelWaldorf": {
+      "file": "hotels/waldorf-astoria-beijing.jpg",
+      "alt": "Waldorf Astoria Beijing",
+      "cropClass": "img-arch",
+      "objectPosition": "50% 42%"
+    },
+    "thingForbiddenCity": {
+      "file": "things/forbidden-city.jpg",
+      "alt": "Forbidden City",
+      "cropClass": "img-arch",
+      "objectPosition": "50% 44%"
+    },
+    "thingTempleHeaven": {
+      "file": "things/temple-of-heaven.jpg",
+      "alt": "Temple of Heaven",
+      "cropClass": "img-arch",
+      "objectPosition": "50% 42%"
+    },
+    "thingSummerPalace": {
+      "file": "things/summer-palace.jpg",
+      "alt": "Summer Palace",
+      "cropClass": "img-arch",
+      "objectPosition": "50% 36%"
+    },
+    "thingMutianyu": {
+      "file": "things/great-wall-mutianyu.jpg",
+      "alt": "Great Wall at Mutianyu",
+      "cropClass": "img-arch",
+      "objectPosition": "50% 52%"
+    },
+    "thingJingshan": {
+      "file": "things/jingshan-park.jpg",
+      "alt": "Jingshan Park",
+      "cropClass": "img-arch",
+      "objectPosition": "50% 27%"
+    },
+    "thingSanlitun": {
+      "file": "things/sanlitun-taikooli.jpg",
+      "alt": "Taikoo Li Sanlitun",
+      "cropClass": "img-arch",
+      "objectPosition": "50% 42%"
+    }
+  },
+  "gallery": [
+    {
+      "file": "LMN_0527.jpg",
+      "alt": "Couple portrait in Beijing",
+      "cropClass": "img-round",
+      "objectPosition": "50% 38%"
+    },
+    {
+      "file": "LMN_0953.jpg",
+      "alt": "Engagement session moment",
+      "cropClass": "img-round",
+      "objectPosition": "50% 36%"
+    },
+    {
+      "file": "LMN_2093.jpg",
+      "alt": "Couple candid photo",
+      "cropClass": "img-round",
+      "objectPosition": "50% 40%"
+    },
+    {
+      "file": "LMN_4200.jpg",
+      "alt": "Beijing city portrait",
+      "cropClass": "img-round",
+      "objectPosition": "50% 42%"
+    },
+    {
+      "file": "LMN_4326.jpg",
+      "alt": "Evening engagement portrait",
+      "cropClass": "img-round",
+      "objectPosition": "50% 44%"
+    },
+    {
+      "file": "LMN_1503.jpg",
+      "alt": "Couple walking candid",
+      "cropClass": "img-round",
+      "objectPosition": "50% 46%"
+    },
+    {
+      "file": "LMN_0812.jpg",
+      "alt": "Couple portrait by architecture",
+      "cropClass": "img-round",
+      "objectPosition": "50% 44%"
+    },
+    {
+      "file": "LMN_1409.jpg",
+      "alt": "Couple editorial portrait",
+      "cropClass": "img-round",
+      "objectPosition": "50% 46%"
+    },
+    {
+      "file": "LMN_2075.jpg",
+      "alt": "Couple portrait",
+      "cropClass": "img-round",
+      "objectPosition": "50% 42%"
+    },
+    {
+      "file": "LMN_2925.jpg",
+      "alt": "Couple moment",
+      "cropClass": "img-round",
+      "objectPosition": "50% 46%"
+    },
+    {
+      "file": "LMN_3780.jpg",
+      "alt": "Couple in motion",
+      "cropClass": "img-round",
+      "objectPosition": "50% 44%"
+    },
+    {
+      "file": "LMN_1256.jpg",
+      "alt": "Couple portrait",
+      "cropClass": "img-round",
+      "objectPosition": "50% 43%"
+    },
+    {
+      "file": "LMN_2546.jpg",
+      "alt": "Couple photo",
+      "cropClass": "img-round",
+      "objectPosition": "50% 43%"
+    },
+    {
+      "file": "LMN_0353.jpg",
+      "alt": "Couple portrait",
+      "cropClass": "img-round",
+      "objectPosition": "50% 40%"
+    },
+    {
+      "file": "LMN_0803.jpg",
+      "alt": "Couple portrait",
+      "cropClass": "img-round",
+      "objectPosition": "50% 39%"
+    },
+    {
+      "file": "LMN_3428.jpg",
+      "alt": "Couple portrait",
+      "cropClass": "img-round",
+      "objectPosition": "50% 43%"
+    },
+    {
+      "file": "LMN_3164.jpg",
+      "alt": "Couple portrait",
+      "cropClass": "img-round",
+      "objectPosition": "50% 42%"
+    }
+  ]
+}

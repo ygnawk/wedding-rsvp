@@ -1,0 +1,65 @@
+{
+  "timeline": [
+    {
+      "file": "1995-yi-jie-born.png",
+      "alt": "Yi Jie as a child in 1995",
+      "objectPosition": "50% 34%"
+    },
+    {
+      "file": "1998-miki-born.jpg",
+      "alt": "Miki as a child in 1998",
+      "objectPosition": "50% 47%"
+    },
+    {
+      "file": "2001-stools.jpg",
+      "alt": "Yi Jie and siblings on tiny stools in 2001",
+      "objectPosition": "50% 45%"
+    },
+    {
+      "file": "2008-miki-moves-beijing-upright.jpg",
+      "alt": "Miki in 2008",
+      "objectPosition": "50% 36%"
+    },
+    {
+      "file": "2013-army.jpg",
+      "alt": "Yi Jie in military uniform in 2013",
+      "objectPosition": "50% 16%"
+    },
+    {
+      "file": "2016-wesleyan.jpg",
+      "alt": "Miki and Yi Jie at Wesleyan in 2016",
+      "objectPosition": "50% 40%"
+    },
+    {
+      "file": "2020-covid-upright.jpg",
+      "alt": "Miki and Yi Jie in masks in 2020",
+      "objectPosition": "50% 34%"
+    },
+    {
+      "file": "2021-sf.jpg",
+      "alt": "Miki and Yi Jie in San Francisco in 2021",
+      "fit": "contain",
+      "objectPosition": "50% 50%"
+    },
+    {
+      "file": "2023-japan.jpg",
+      "alt": "Miki and Yi Jie in 2023",
+      "objectPosition": "50% 42%"
+    },
+    {
+      "file": "2024-proposal-upright.jpg",
+      "alt": "Proposal moment in 2024",
+      "objectPosition": "50% 36%"
+    },
+    {
+      "file": "2025-cats.jpg",
+      "alt": "Miki and Yi Jie with Leo and Luna in 2025",
+      "objectPosition": "50% 42%"
+    },
+    {
+      "file": "2027-whats-next.png",
+      "alt": "2027 what is next illustration with Miki, Yi Jie, and two cats",
+      "objectPosition": "50% 44%"
+    }
+  ]
+}

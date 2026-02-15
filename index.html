@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>Miki Yang & Yi Jie Kwang</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Allura&family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="icon" type="image/svg+xml" href="/public/favicon.svg" />
+    <link rel="icon" type="image/png" href="/public/favicon-32.png" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header id="floatingHeader" class="floating-header" aria-label="Site navigation">
+      <div class="header-pill">
+        <a class="brand" href="#top" aria-label="Back to top">
+          <img src="/public/logo.svg" alt="Miki and Yi Jie monogram" />
+        </a>
+
+        <button id="menuToggle" class="menu-toggle" aria-expanded="false" aria-controls="mobileNavSheet" aria-label="Open menu">☰</button>
+
+        <nav class="desktop-nav" aria-label="Primary">
+          <a href="#top" data-link="top">Home</a>
+          <a href="#our-story" data-link="our-story">Our story</a>
+          <a href="#venue" data-link="venue">Venue</a>
+          <a href="#schedule" data-link="schedule">Schedule</a>
+          <a href="#rsvp" data-link="rsvp">RSVP</a>
+          <a href="#faq" data-link="faq">FAQ</a>
+          <a href="#stay" data-link="stay">Where to stay</a>
+          <a href="#things-to-do" data-link="things-to-do">Things to do</a>
+          <a href="#travel-visa" data-link="travel-visa">Travel &amp; Visa</a>
+        </nav>
+
+        <a class="header-rsvp" href="#rsvp">RSVP</a>
+      </div>
+    </header>
+
+    <aside id="mobileNavSheet" class="mobile-sheet" aria-label="Mobile menu">
+      <nav class="mobile-nav">
+        <a href="#top" data-link="top">Home</a>
+        <a href="#our-story" data-link="our-story">Our story</a>
+        <a href="#venue" data-link="venue">Venue</a>
+        <a href="#schedule" data-link="schedule">Schedule</a>
+        <a href="#rsvp" data-link="rsvp">RSVP</a>
+        <a href="#faq" data-link="faq">FAQ</a>
+        <a href="#stay" data-link="stay">Where to stay</a>
+        <a href="#things-to-do" data-link="things-to-do">Things to do</a>
+        <a href="#travel-visa" data-link="travel-visa">Travel &amp; Visa</a>
+      </nav>
+    </aside>
+
+    <main>
+      <section id="top" class="section section-maroon motif-host" data-title="You’re invited">
+        <div class="section-inner content hero-inner">
+          <img class="motif motif--tr motif--lg motif--ivory" src="/motifs/peony-branch.svg" alt="" aria-hidden="true" />
+          <img class="motif motif--bl motif--md motif--ivory" src="/motifs/bamboo-branch.svg" alt="" aria-hidden="true" />
+          <div class="hero-lockup">
+            <p class="hero-kicker reveal">You’re invited to the wedding of</p>
+            <h1 class="hero-names reveal reveal-left" data-delay="80">
+              <span>Miki Yang</span>
+              <span class="hero-script">&amp;</span>
+              <span>Yi Jie Kwang</span>
+            </h1>
+            <p class="hero-subhead reveal" data-delay="130">Beijing • September 19, 2026</p>
+            <p class="hero-venue-line reveal" data-delay="170">Zhengyang Mansion, Mandarin Oriental Qianmen</p>
+            <p id="heroGreeting" class="hero-greeting reveal hidden" data-delay="210"></p>
+            <div class="hero-actions reveal" data-delay="240">
+              <a class="btn btn-gold" href="#rsvp">RSVP</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="our-story" class="section section-ivory motif-host" data-title="Our story">
+        <div class="section-inner content">
+          <img class="motif motif--tc motif--sm motif--maroon" src="/motifs/bamboo-bud.svg" alt="" aria-hidden="true" />
+          <img class="motif motif--bl motif--sm motif--maroon" src="/motifs/orchid-bud.svg" alt="" aria-hidden="true" />
+          <h2 class="section-title reveal reveal-left">Our story</h2>
+          <p class="ourstory-lede reveal" data-delay="90">
+            Life has taken us across cities and continents, and many of you have been part of that journey. We’d love to celebrate this
+            milestone together with you in Beijing.
+          </p>
+
+          <div class="timeline reveal" data-delay="120" aria-label="Our story timeline">
+            <button class="timeline-btn timeline-btn--prev" id="timelinePrev" type="button" aria-label="Previous">‹</button>
+
+            <div class="timeline-viewport" id="timelineViewport">
+              <div class="timeline-track" id="timelineTrack">
+                <!-- slides injected by app.js -->
+              </div>
+            </div>
+
+            <button class="timeline-btn timeline-btn--next" id="timelineNext" type="button" aria-label="Next">›</button>
+          </div>
+          <div class="timeline-dots" id="timelineDots" aria-hidden="true"></div>
+          <template id="timelineSlideTemplate">
+            <div class="timeline-slide" data-year="" data-rotate="0">
+              <div class="timeline-image">
+                <div class="timeline-year" style="--yearTop: 56px;"></div>
+                <div class="timeline-media img-moon">
+                  <img src="" alt="" loading="lazy" decoding="async" />
+                </div>
+              </div>
+              <div class="timeline-caption"></div>
+            </div>
+          </template>
+        </div>
+      </section>
+
+      <section id="venue" class="section section-maroon motif-host" data-title="Venue">
+        <div class="section-inner content split split-3-2 reverse">
+          <img class="motif motif--tr motif--md motif--ivory" src="/motifs/siheyuan-roofline.svg" alt="" aria-hidden="true" />
+          <img class="motif motif--bc motif--sm motif--ivory" src="/motifs/peony-bud.svg" alt="" aria-hidden="true" />
+          <figure class="photo-frame img-arch reveal reveal-scale">
+            <img data-photo-key="venueMain" src="/photos/Location-main.jpg" alt="Zhengyang Mansion, Mandarin Oriental Qianmen" loading="lazy" />
+          </figure>
+
+          <article class="split-text">
+            <h2 class="reveal reveal-left">Venue</h2>
+            <p class="reveal">
+              We picked Mandarin Oriental Qianmen for its classic siheyuan-style courtyard homes and hutong neighborhood — a setting Miki spent
+              time around growing up. It’s in central Beijing, a short drive from the Forbidden City.
+            </p>
+            <p class="reveal">
+              Beijing is also where Miki spent many of her formative years after moving from Japan, before heading to the U.S.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section id="schedule" class="section section-ivory motif-host" data-title="Schedule of events">
+        <div class="section-inner content schedule-shell">
+          <img class="motif motif--tl motif--md motif--maroon" src="/motifs/chrysanthemum-branch.svg" alt="" aria-hidden="true" />
+          <img class="motif motif--br motif--sm motif--maroon" src="/motifs/chrysanthemum-bud.svg" alt="" aria-hidden="true" />
+          <div>
+            <h2 class="reveal reveal-left">Schedule of events</h2>
+          </div>
+          <div class="schedule-list">
+            <article class="reveal reveal-right"><time>3:00 PM</time><p>Early check-in at venue</p></article>
+            <article class="reveal reveal-right"><time>4:00 PM</time><p>Cocktails</p></article>
+            <article class="reveal reveal-right"><time>5:00 PM</time><p>Ceremony</p></article>
+            <article class="reveal reveal-right"><time>6:00 PM</time><p>Dinner</p></article>
+            <article class="reveal reveal-right"><time>8:00 PM</time><p>Afterparty</p></article>
+          </div>
+        </div>
+      </section>
+
+      <section id="rsvp" class="section section-maroon motif-host" data-title="RSVP">
+        <div class="section-inner content narrow">
+          <img class="motif motif--rsvp-main motif--lift motif--md motif--ivory" src="/motifs/orchid-branch.svg" alt="" aria-hidden="true" />
+          <img class="motif motif--rsvp-accent motif--lift motif--sm motif--ivory" src="/motifs/orchid-bud.svg" alt="" aria-hidden="true" />
+          <div class="rsvp-panel">
+            <h2 class="reveal reveal-left">RSVP</h2>
+            <p class="reveal">
+              We’re hosting the celebration in an intimate setting so we can share the evening closely with our guests. We have space for about 50
+              people.
+              <br />
+              We’d love your RSVP within 2 weeks (by end of February). We’ll follow up about a month later to reconfirm.
+              <br />
+              If you’re not sure yet, choose ‘We’re working on it’—we won’t hold a seat yet, and we’ll check in next month.
+            </p>
+
+            <form id="rsvpForm" class="rsvp-form reveal" novalidate>
+              <div id="choiceGroup" class="choice-grid" role="radiogroup" aria-label="RSVP choice">
+                <button type="button" class="choice-card" data-choice="yes">
+                  <span class="checkmark" aria-hidden="true">✓</span>
+                  <span class="choice-title">Yes — save our seats</span>
+                  <span class="choice-subtext">We’re ready to plan travel and visa.</span>
+                </button>
+                <button type="button" class="choice-card" data-choice="working">
+                  <span class="checkmark" aria-hidden="true">✓</span>
+                  <span class="choice-title">We’re working on it — keep us posted</span>
+                  <span class="choice-subtext">Not confirmed yet — don’t save us a seat. We’ll let you know in a month.</span>
+                </button>
+                <button type="button" class="choice-card" data-choice="no">
+                  <span class="checkmark" aria-hidden="true">✓</span>
+                  <span class="choice-title">We can’t make it — sending love from afar</span>
+                  <span class="choice-subtext">Thank you for replying. It means a lot.</span>
+                </button>
+              </div>
+
+              <input type="hidden" id="attendanceChoice" name="attendanceChoice" required />
+
+              <div id="rsvpFields" class="fields hidden">
+                <div class="field-grid two-col">
+                  <div class="field">
+                    <label for="fullName">Full name</label>
+                    <input id="fullName" name="fullName" type="text" required />
+                  </div>
+                  <div class="field">
+                    <label for="email">Email</label>
+                    <input id="email" name="email" type="email" required />
+                  </div>
+                </div>
+
+                <div class="field-grid two-col">
+                  <div class="field">
+                    <label for="phone">Phone (optional)</label>
+                    <input id="phone" name="phone" type="text" />
+                  </div>
+                </div>
+
+                <div id="yesFields" class="conditional hidden" aria-live="polite">
+                  <div class="field-grid two-col">
+                    <div class="field">
+                      <label for="yesCount">Party size</label>
+                      <select id="yesCount" name="yesCount">
+                        <option value="">Select</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div id="attendeeNamesWrap" class="field-grid two-col"></div>
+                  <div class="field">
+                    <label for="dietary">Dietary restrictions (optional)</label>
+                    <textarea id="dietary" name="dietary"></textarea>
+                  </div>
+                </div>
+
+                <div id="workingFields" class="conditional hidden" aria-live="polite">
+                  <div class="field-grid two-col">
+                    <div class="field">
+                      <label for="workingCount">Potential party size</label>
+                      <select id="workingCount" name="workingCount">
+                        <option value="">Select</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label for="workingConfirm">When will you know?</label>
+                      <select id="workingConfirm" name="workingConfirm">
+                        <option value="">Select</option>
+                        <option value="I can confirm by end of March">I can confirm by end of March</option>
+                        <option value="I’m not sure yet (keep me posted)">I’m not sure yet (keep me posted)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div id="noFields" class="conditional hidden" aria-live="polite">
+                  <div class="field">
+                    <label for="noNote">Optional note</label>
+                    <textarea id="noNote" name="noNote"></textarea>
+                  </div>
+                </div>
+
+                <button id="submitButton" type="submit" class="btn btn-maroon">Send reply</button>
+              </div>
+            </form>
+
+            <div id="rsvpConfirmation" class="confirmation hidden" role="status" aria-live="polite"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="faq" class="section section-ivory motif-host" data-title="FAQ">
+        <div class="section-inner content narrow">
+          <img class="motif motif--faq-main motif--lift motif--md motif--maroon" src="/motifs/peony-branch.svg" alt="" aria-hidden="true" />
+          <img class="motif motif--faq-accent motif--lift motif--sm motif--maroon" src="/motifs/bamboo-bud.svg" alt="" aria-hidden="true" />
+          <h2 class="reveal reveal-left">FAQ</h2>
+          <div class="faq-list reveal">
+            <details>
+              <summary>What to wear?</summary>
+              <p>Western formal. Chinese traditional is encouraged — it’s fun, cool, and fitting for Beijing.</p>
+            </details>
+            <details>
+              <summary>When should I arrive?</summary>
+              <p>At least a day before. If you have extra time, Beijing is lovely in September.</p>
+            </details>
+            <details>
+              <summary>What language will the wedding be conducted in?</summary>
+              <p>English and Chinese (if our emcee is willing — thanks Yukai.)</p>
+            </details>
+            <details>
+              <summary>Weather?</summary>
+              <p>September is the nicest month in Beijing. It’s the perfect weather — the only 2 weeks that’s enjoyable — typically mild: about 15–26°C (59–79°F). Bring a light layer for evenings.</p>
+            </details>
+            <details>
+              <summary>Should we bring a gift?</summary>
+              <p>We don’t expect anything—Beijing is already a big ask, and your time means the world. If you insist, we’ll accept with gratitude. But please don’t feel you have to.</p>
+            </details>
+            <details>
+              <summary>Where should I stay?</summary>
+              <p>We listed a few hotels nearby, with booking links and directions.</p>
+              <p><a class="faq-cta" href="#stay">See hotels →</a></p>
+            </details>
+            <details>
+              <summary>What are the best things to do in Beijing?</summary>
+              <p>We picked a few favorites (with photos and maps) if you’re staying longer.</p>
+              <p><a class="faq-cta" href="#things-to-do">See things to do →</a></p>
+            </details>
+            <details>
+              <summary>Do I need a visa, and which airport should I fly into?</summary>
+              <p>Visa rules depend on passport and can change—please check official sources before booking.</p>
+              <p><a class="faq-cta" href="#travel-visa">Travel &amp; visa →</a></p>
+            </details>
+            <details>
+              <summary>Found a bug on this site?</summary>
+              <p>
+                Please report it to Yi Jie. He built this with Codex + ChatGPT using pure vibes and zero knowledge of what the code actually does.
+                It worked once, briefly, on his laptop.
+              </p>
+            </details>
+            <details>
+              <summary>Why is the website doing that?</summary>
+              <p>Great question. Again, please direct your questions to Yi Jie - he built (and I’m using that word generously) it with a healthy amount of hope (in his AI assistant)… and a brave disregard for error messages.</p>
+            </details>
+            <details>
+              <summary>Are these hotel recommendations vetted?</summary>
+              <p>Absolutely*</p>
+              <p>(*vetted by ChatGPT at 1:00am. We have not personally stayed at any of them.)</p>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <section id="stay" class="section section-maroon motif-host" data-title="Where to stay">
+        <div class="section-inner content">
+          <img class="motif motif--stay-main motif--lift motif--md motif--ivory" src="/motifs/bamboo-branch.svg" alt="" aria-hidden="true" />
+          <img class="motif motif--stay-accent motif--lift motif--sm motif--ivory" src="/motifs/peony-bud.svg" alt="" aria-hidden="true" />
+          <h2 class="reveal reveal-left">Where to stay</h2>
+
+          <div class="stay-grid">
+            <article class="stay-card reveal">
+              <figure class="photo-frame img-arch">
+                <img data-photo-key="hotelMO" src="/photos/hotels/mandarin-oriental-qianmen-venue.jpg" alt="Mandarin Oriental Qianmen, Beijing" loading="lazy" />
+              </figure>
+              <h3>Mandarin Oriental Qianmen, Beijing</h3>
+              <p>On-site and the easiest option for the wedding night. And also very overpriced.</p>
+              <p class="distance">0.0 km • 2 min by car</p>
+              <p class="links">
+                <a href="https://www.mandarinoriental.com/en/beijing/qianmen" target="_blank" rel="noopener noreferrer">Book</a>
+                <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Mandarin+Oriental+Qianmen%2C+Beijing%2C+No.1+Caochang+Alley+10%2C+Dongcheng+District%2C+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">Directions</a>
+              </p>
+            </article>
+
+            <article class="stay-card reveal">
+              <figure class="photo-frame img-arch">
+                <img data-photo-key="hotelFourSeasons" src="/photos/hotels/four-seasons-beijing.jpg" alt="Four Seasons Hotel Beijing" loading="lazy" />
+              </figure>
+              <h3>Four Seasons Hotel Beijing</h3>
+              <p>Quiet luxury in Chaoyang with polished service and spacious rooms.</p>
+              <p class="distance">9.1 km • 28 min by car</p>
+              <p class="links">
+                <a href="https://www.fourseasons.com/beijing/" target="_blank" rel="noopener noreferrer">Book</a>
+                <a href="https://www.google.com/maps/dir/?api=1&origin=Four+Seasons+Hotel+Beijing&destination=Mandarin+Oriental+Qianmen%2C+Beijing%2C+No.1+Caochang+Alley+10%2C+Dongcheng+District%2C+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">Directions</a>
+              </p>
+            </article>
+
+            <article class="stay-card reveal">
+              <figure class="photo-frame img-arch">
+                <img data-photo-key="hotelParkHyatt" src="/photos/hotels/park-hyatt-beijing.jpg" alt="Park Hyatt Beijing" loading="lazy" />
+              </figure>
+              <h3>Park Hyatt Beijing</h3>
+              <p>High-floor skyline views in Beijing CBD with sleek contemporary design.</p>
+              <p class="distance">8.4 km • 24 min by car</p>
+              <p class="links">
+                <a href="https://www.hyatt.com/en-US/hotel/china/park-hyatt-beijing/beiph" target="_blank" rel="noopener noreferrer">Book</a>
+                <a href="https://www.google.com/maps/dir/?api=1&origin=Park+Hyatt+Beijing&destination=Mandarin+Oriental+Qianmen%2C+Beijing%2C+No.1+Caochang+Alley+10%2C+Dongcheng+District%2C+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">Directions</a>
+              </p>
+            </article>
+
+            <article class="stay-card reveal">
+              <figure class="photo-frame img-arch">
+                <img data-photo-key="hotelRosewood" src="/photos/hotels/rosewood-beijing.jpg" alt="Rosewood Beijing" loading="lazy" />
+              </figure>
+              <h3>Rosewood Beijing</h3>
+              <p>Modern art-forward luxury with a residential feel and great dining.</p>
+              <p class="distance">9.0 km • 27 min by car</p>
+              <p class="links">
+                <a href="https://www.rosewoodhotels.com/en/beijing" target="_blank" rel="noopener noreferrer">Book</a>
+                <a href="https://www.google.com/maps/dir/?api=1&origin=Rosewood+Beijing&destination=Mandarin+Oriental+Qianmen%2C+Beijing%2C+No.1+Caochang+Alley+10%2C+Dongcheng+District%2C+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">Directions</a>
+              </p>
+            </article>
+
+            <article class="stay-card reveal">
+              <figure class="photo-frame img-arch">
+                <img data-photo-key="hotelPeninsula" src="/photos/hotels/peninsula-beijing.jpg" alt="The Peninsula Beijing" loading="lazy" />
+              </figure>
+              <h3>The Peninsula Beijing</h3>
+              <p>Classic grand-hotel style near Wangfujing with large all-suite rooms.</p>
+              <p class="distance">3.7 km • 16 min by car</p>
+              <p class="links">
+                <a href="https://www.peninsula.com/en/beijing/5-star-luxury-hotel-wangfujing" target="_blank" rel="noopener noreferrer">Book</a>
+                <a href="https://www.google.com/maps/dir/?api=1&origin=The+Peninsula+Beijing&destination=Mandarin+Oriental+Qianmen%2C+Beijing%2C+No.1+Caochang+Alley+10%2C+Dongcheng+District%2C+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">Directions</a>
+              </p>
+            </article>
+
+            <article class="stay-card reveal">
+              <figure class="photo-frame img-arch">
+                <img data-photo-key="hotelWaldorf" src="/photos/hotels/waldorf-astoria-beijing.jpg" alt="Waldorf Astoria Beijing" loading="lazy" />
+              </figure>
+              <h3>Waldorf Astoria Beijing</h3>
+              <p>Elegant five-star stay close to the historic core and top dining spots.</p>
+              <p class="distance">3.4 km • 15 min by car</p>
+              <p class="links">
+                <a href="https://www.hilton.com/en/hotels/bjswawa-waldorf-astoria-beijing/" target="_blank" rel="noopener noreferrer">Book</a>
+                <a href="https://www.google.com/maps/dir/?api=1&origin=Waldorf+Astoria+Beijing&destination=Mandarin+Oriental+Qianmen%2C+Beijing%2C+No.1+Caochang+Alley+10%2C+Dongcheng+District%2C+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">Directions</a>
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="things-to-do" class="section section-ivory motif-host" data-title="Things to do in Beijing">
+        <div class="section-inner content">
+          <img class="motif motif--maroon motif--things-main motif--lift" src="/motifs/temple-of-heaven.svg" alt="" aria-hidden="true" />
+          <img class="motif motif--maroon motif--things-accent motif--lift motif--sm" src="/motifs/orchid-bud.svg" alt="" aria-hidden="true" />
+          <h2 class="reveal reveal-left">Things to do in Beijing</h2>
+
+          <div class="things-grid">
+            <article class="thing-card reveal">
+              <figure class="thing-img">
+                <img data-photo-key="thingForbiddenCity" src="/photos/things/forbidden-city.jpg" alt="Forbidden City" loading="lazy" />
+              </figure>
+              <h3>Forbidden City</h3>
+              <p>Explore the former imperial palace complex and its iconic ceremonial halls.</p>
+              <p class="thing-links">
+                <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Forbidden+City+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                <a href="https://en.dpm.org.cn/" target="_blank" rel="noopener noreferrer">Website</a>
+              </p>
+            </article>
+
+            <article class="thing-card reveal">
+              <figure class="thing-img">
+                <img data-photo-key="thingTempleHeaven" src="/photos/things/temple-of-heaven.jpg" alt="Temple of Heaven" loading="lazy" />
+              </figure>
+              <h3>Temple of Heaven</h3>
+              <p>A landmark of Ming architecture and expansive gardens in central Beijing.</p>
+              <p class="thing-links">
+                <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Temple+of+Heaven+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                <a href="https://whc.unesco.org/en/list/881/" target="_blank" rel="noopener noreferrer">Website</a>
+              </p>
+            </article>
+
+            <article class="thing-card reveal">
+              <figure class="thing-img">
+                <img data-photo-key="thingSummerPalace" src="/photos/things/summer-palace.jpg" alt="Summer Palace" loading="lazy" />
+              </figure>
+              <h3>Summer Palace</h3>
+              <p>Lake views, painted corridors, and one of Beijing’s most scenic royal parks.</p>
+              <p class="thing-links">
+                <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Summer+Palace+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                <a href="https://whc.unesco.org/en/list/880/" target="_blank" rel="noopener noreferrer">Website</a>
+              </p>
+            </article>
+
+            <article class="thing-card reveal">
+              <figure class="thing-img">
+                <img data-photo-key="thingMutianyu" src="/photos/things/great-wall-mutianyu.jpg" alt="Great Wall at Mutianyu" loading="lazy" />
+              </figure>
+              <h3>Great Wall (Mutianyu)</h3>
+              <p>A scenic section of the Wall with mountain panoramas and restored watchtowers.</p>
+              <p class="thing-links">
+                <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Mutianyu+Great+Wall&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                <a href="https://www.mutianyugreatwall.com/" target="_blank" rel="noopener noreferrer">Website</a>
+              </p>
+            </article>
+
+            <article class="thing-card reveal">
+              <figure class="thing-img">
+                <img data-photo-key="thingJingshan" src="/photos/things/jingshan-park.jpg" alt="Jingshan Park" loading="lazy" />
+              </figure>
+              <h3>Jingshan Park</h3>
+              <p>A short climb with one of the best panoramic views over old Beijing.</p>
+              <p class="thing-links">
+                <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Jingshan+Park+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                <a href="https://en.wikipedia.org/wiki/Jingshan_Park" target="_blank" rel="noopener noreferrer">Website</a>
+              </p>
+            </article>
+
+            <article class="thing-card reveal">
+              <figure class="thing-img">
+                <img data-photo-key="thingSanlitun" src="/photos/things/sanlitun-taikooli.jpg" alt="Sanlitun Taikoo Li" loading="lazy" />
+              </figure>
+              <h3>Sanlitun (Taikoo Li)</h3>
+              <p>Modern shopping, cafes, and nightlife—one of Beijing’s most energetic neighborhoods.</p>
+              <p class="thing-links">
+                <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Taikoo+Li+Sanlitun+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                <a href="https://taikoolisanlitun.com" target="_blank" rel="noopener noreferrer">Website</a>
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="travel-visa" class="section section-maroon motif-host" data-title="Travel &amp; Visa">
+        <div class="section-inner content">
+          <img class="motif motif--tc motif--md motif--ivory" src="/motifs/orchid-branch.svg" alt="" aria-hidden="true" />
+          <img class="motif motif--br motif--sm motif--ivory" src="/motifs/orchid-bud.svg" alt="" aria-hidden="true" />
+          <h2 class="reveal reveal-left">Travel &amp; Visa</h2>
+
+          <div class="travel-block reveal">
+            <p class="travel-intro">
+              As of today, entry rules depend on passport and can change. Please check official sources before booking.
+            </p>
+
+            <div class="passport-grid">
+              <div class="passport-card">
+                <h3>U.S. passport</h3>
+                <p>Tourist visa is generally required for standard trips to China.</p>
+              </div>
+
+              <div class="passport-card">
+                <h3>Singapore passport</h3>
+                <p>Visa exemption policy allows short stays (currently up to 30 days).</p>
+              </div>
+
+              <div class="passport-card">
+                <h3>Japan passport</h3>
+                <p>Currently included in China’s unilateral visa-free policy through December 31, 2026.</p>
+              </div>
+
+              <div class="passport-card">
+                <h3>China passport</h3>
+                <p>No visa requirements for domestic travel within China.</p>
+              </div>
+            </div>
+
+            <p><em>Note: Visa rules change. Not legal advice. Not liable. (Miki made us add this.) Official links below.</em></p>
+
+            <div class="links-row">
+              <span class="links-label">Official links</span>
+              <div class="links-buttons">
+                <a class="link-pill" href="https://consular.mfa.gov.cn/VISA/" target="_blank" rel="noopener noreferrer">China visa portal</a>
+                <a class="link-pill" href="https://travel.state.gov/content/travel/en/international-travel/International-Travel-Country-Information-Pages/China.html" target="_blank" rel="noopener noreferrer">U.S. State Dept China page</a>
+                <a class="link-pill" href="https://www.mfa.gov.sg/travelling-overseas/travel-advisories-notices-and-visa-information/china" target="_blank" rel="noopener noreferrer">Singapore MFA China page</a>
+                <a class="link-pill" href="https://www.visaforchina.cn/LON3_EN/tongzhigonggao/315858144490295296.html" target="_blank" rel="noopener noreferrer">VisaForChina policy page</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>Questions? Email Yi Jie: Kwangyijie@gmail.com</p>
+    </footer>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
