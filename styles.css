@@ -748,15 +748,38 @@ a {
   align-items: center;
   justify-content: center;
   padding: clamp(24px, 3vw, 36px);
+  overflow: hidden;
 }
 
-.interlude-motif {
-  width: min(420px, 84%);
+.motif-layer {
   position: absolute;
-  right: -36px;
-  top: 54%;
-  transform: translateY(-50%) rotate(6deg);
-  opacity: 0.14;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.motif-layer__item {
+  position: absolute;
+  width: min(560px, 92%);
+  height: auto;
+  opacity: 0.1;
+}
+
+.motif-layer__item--tr {
+  top: -106px;
+  right: -188px;
+  transform: rotate(10deg);
+}
+
+.motif-layer__item--bl {
+  bottom: -138px;
+  left: -228px;
+  transform: rotate(188deg) scale(0.92);
+}
+
+.motif-layer--maroon .motif-layer__item {
+  opacity: 0.1;
 }
 
 .interlude-content {
@@ -766,6 +789,16 @@ a {
   color: var(--color-text-on-maroon);
   display: grid;
   gap: 16px;
+}
+
+.interlude-content::before {
+  content: "";
+  position: absolute;
+  inset: -16px -18px;
+  border-radius: 18px;
+  background: linear-gradient(140deg, rgba(50, 10, 16, 0.66) 0%, rgba(50, 10, 16, 0.24) 68%, rgba(50, 10, 16, 0) 100%);
+  pointer-events: none;
+  z-index: -1;
 }
 
 .interlude-kicker {
@@ -2406,13 +2439,21 @@ body.modal-open {
     object-position: 60% 56%;
   }
 
-  .interlude-motif {
-    width: min(280px, 72%);
-    right: -14px;
-    top: auto;
-    bottom: -10px;
-    transform: none;
-    opacity: 0.15;
+  .motif-layer--maroon .motif-layer__item {
+    width: min(320px, 78vw);
+    opacity: 0.11;
+  }
+
+  .motif-layer--maroon .motif-layer__item--tr {
+    top: -54px;
+    right: -108px;
+    transform: rotate(8deg);
+  }
+
+  .motif-layer--maroon .motif-layer__item--bl {
+    bottom: -78px;
+    left: -128px;
+    transform: rotate(186deg) scale(0.82);
   }
 
   .interlude-color-half {
