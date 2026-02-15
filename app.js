@@ -50,6 +50,15 @@ const galleryLightboxImage = document.getElementById("galleryLightboxImage");
 const galleryLightboxCaption = document.getElementById("galleryLightboxCaption");
 const galleryLightboxClose = document.getElementById("galleryLightboxClose");
 
+const GALLERY_FALLBACK_FILES = [
+  "LMN_0527.jpg",
+  "LMN_0953.jpg",
+  "LMN_2093.jpg",
+  "LMN_4200.jpg",
+  "LMN_4326.jpg",
+  "LMN_1503.jpg",
+];
+
 const TIMELINE_CAPTIONS = {
   1995: "Yi Jie — Born in Singapore. Born tired. Still tired.",
   1998: "Miki — Born in Japan. (Already cooler than us.)",
@@ -615,6 +624,44 @@ function getHumanGalleryCandidates(manifest) {
   return deduped;
 }
 
+function getFallbackGalleryEntries(manifest) {
+  const galleryRaw = manifest && Array.isArray(manifest.gallery) ? manifest.gallery : [];
+  const normalized = galleryRaw.map((entry) => normalizeGalleryEntry(entry)).filter((entry) => entry.file);
+
+  const byFile = new Map(normalized.map((entry) => [String(entry.file).toLowerCase(), entry]));
+  const picked = [];
+
+  GALLERY_FALLBACK_FILES.forEach((file) => {
+    const match = byFile.get(file.toLowerCase());
+    if (match && !isExcludedGalleryFile(match.file)) picked.push(match);
+  });
+
+  if (picked.length >= 6) return picked.slice(0, 6);
+
+  const seen = new Set(picked.map((entry) => String(entry.file).toLowerCase()));
+  normalized.forEach((entry) => {
+    const key = String(entry.file).toLowerCase();
+    if (seen.has(key)) return;
+    if (isExcludedGalleryFile(entry.file)) return;
+    if (!/(^|\/)lmn_/i.test(entry.file)) return;
+    picked.push(entry);
+    seen.add(key);
+  });
+
+  const finalPicked = picked.slice(0, 6);
+  if (finalPicked.length) return finalPicked;
+
+  return GALLERY_FALLBACK_FILES.map((file) => ({
+    file,
+    alt: "Couple photo",
+    cropClass: "img-round",
+    objectPosition: "50% 42%",
+    tags: ["couple"],
+    category: "gallery",
+    people: true,
+  }));
+}
+
 function measureImageBrightness(src) {
   return new Promise((resolve) => {
     if (!src) {
@@ -751,7 +798,7 @@ function bindGalleryLightboxEvents() {
 
 function buildGalleryCard(entry) {
   const card = document.createElement("figure");
-  card.className = "gallery-item reveal reveal-scale";
+  card.className = "gallery-item";
   card.setAttribute("tabindex", "0");
   card.setAttribute("role", "button");
   card.setAttribute("aria-label", entry.alt || "Open gallery photo");
@@ -789,20 +836,35 @@ async function initGallery() {
   galleryGrid.innerHTML = "";
   if (galleryEmpty) galleryEmpty.classList.add("hidden");
 
-  const candidates = getHumanGalleryCandidates(photoManifest || {});
-  const selected = await pickBalancedGalleryEntries(candidates, 6);
+  try {
+    const candidates = getHumanGalleryCandidates(photoManifest || {});
+    let selected = await pickBalancedGalleryEntries(candidates, 6);
 
-  if (!selected.length) {
+    if (!selected.length) {
+      selected = getFallbackGalleryEntries(photoManifest || {});
+    }
+
+    if (!selected.length) {
+      if (galleryEmpty) galleryEmpty.classList.remove("hidden");
+      return;
+    }
+
+    selected.forEach((entry) => {
+      const card = buildGalleryCard(entry);
+      galleryGrid.appendChild(card);
+    });
+  } catch (_error) {
+    const fallback = getFallbackGalleryEntries(photoManifest || {});
+    if (fallback.length) {
+      fallback.forEach((entry) => {
+        const card = buildGalleryCard(entry);
+        galleryGrid.appendChild(card);
+      });
+      return;
+    }
+
     if (galleryEmpty) galleryEmpty.classList.remove("hidden");
-    return;
   }
-
-  selected.forEach((entry, index) => {
-    const card = buildGalleryCard(entry);
-    card.setAttribute("data-delay", String(index * 80));
-    galleryGrid.appendChild(card);
-    setupRevealNode(card);
-  });
 }
 
 function extractTimelineYear(value) {
