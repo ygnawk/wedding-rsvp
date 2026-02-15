@@ -2,7 +2,7 @@ const SHEETS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwpfLq3hB_mRi
 const RSVP_LOCAL_FALLBACK_KEY = "wedding_rsvp_fallback";
 const PROJECT_PATH_PREFIX = "/wedding-rsvp";
 
-const SECTION_IDS = ["top", "our-story", "venue", "schedule", "rsvp", "faq", "stay", "things-to-do", "travel-visa"];
+const SECTION_IDS = ["top", "our-story", "venue", "schedule", "rsvp", "faq", "stay", "things-to-do", "travel-visa", "gallery"];
 
 const inviteState = {
   token: "",
@@ -42,6 +42,13 @@ const workingConfirm = document.getElementById("workingConfirm");
 
 const noFields = document.getElementById("noFields");
 const noNote = document.getElementById("noNote");
+
+const galleryGrid = document.getElementById("galleryGrid");
+const galleryEmpty = document.getElementById("galleryEmpty");
+const galleryLightbox = document.getElementById("galleryLightbox");
+const galleryLightboxImage = document.getElementById("galleryLightboxImage");
+const galleryLightboxCaption = document.getElementById("galleryLightboxCaption");
+const galleryLightboxClose = document.getElementById("galleryLightboxClose");
 
 const TIMELINE_CAPTIONS = {
   1995: "Yi Jie — Born in Singapore. Born tired. Still tired.",
@@ -526,6 +533,278 @@ function applyStaticPhotoManifest() {
   });
 }
 
+function normalizeGalleryEntry(entry) {
+  if (typeof entry === "string") {
+    return {
+      file: entry.trim(),
+      alt: "",
+      cropClass: "img-round",
+      objectPosition: "50% 35%",
+      tags: [],
+      category: "",
+      people: false,
+    };
+  }
+
+  if (!entry || typeof entry !== "object") {
+    return {
+      file: "",
+      alt: "",
+      cropClass: "img-round",
+      objectPosition: "50% 35%",
+      tags: [],
+      category: "",
+      people: false,
+    };
+  }
+
+  const tags = Array.isArray(entry.tags) ? entry.tags.map((tag) => String(tag).toLowerCase()) : [];
+  return {
+    file: String(entry.file || entry.src || "").trim(),
+    alt: String(entry.alt || "").trim(),
+    cropClass: String(entry.cropClass || "img-round").trim(),
+    objectPosition: String(entry.objectPosition || "50% 35%").trim(),
+    tags,
+    category: String(entry.category || "").toLowerCase(),
+    people: Boolean(entry.people),
+  };
+}
+
+function isExcludedGalleryFile(filePath) {
+  const lower = String(filePath || "").toLowerCase();
+  return (
+    lower.includes("location-main") ||
+    lower.includes("/hotels/") ||
+    lower.includes("/things/") ||
+    lower.includes("timeline-photos") ||
+    lower.includes("timeline/") ||
+    lower.includes("hotel") ||
+    lower.includes("venue") ||
+    lower.includes("mandarin-oriental")
+  );
+}
+
+function hasHumanSignal(entry) {
+  const file = String(entry.file || "").toLowerCase();
+  const alt = String(entry.alt || "").toLowerCase();
+  const combinedTags = `${entry.category || ""} ${Array.isArray(entry.tags) ? entry.tags.join(" ") : ""}`;
+
+  if (entry.people) return true;
+  if (/(^|\/)lmn_/i.test(file)) return true;
+  if (/(people|person|human|portrait|couple|friends|family|miki|yi j|yi jie|us|together)/i.test(alt)) return true;
+  if (/(people|person|human|portrait|couple|friends|family)/i.test(combinedTags)) return true;
+
+  return false;
+}
+
+function getHumanGalleryCandidates(manifest) {
+  const galleryRaw = manifest && Array.isArray(manifest.gallery) ? manifest.gallery : [];
+  const normalized = galleryRaw.map((entry) => normalizeGalleryEntry(entry)).filter((entry) => entry.file);
+
+  const filtered = normalized.filter((entry) => !isExcludedGalleryFile(entry.file) && hasHumanSignal(entry));
+  const deduped = [];
+  const seen = new Set();
+
+  filtered.forEach((entry) => {
+    const key = String(entry.file).toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    deduped.push(entry);
+  });
+
+  return deduped;
+}
+
+function measureImageBrightness(src) {
+  return new Promise((resolve) => {
+    if (!src) {
+      resolve(null);
+      return;
+    }
+
+    const img = new Image();
+    img.decoding = "async";
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        if (!ctx) {
+          resolve(null);
+          return;
+        }
+
+        const sampleSize = 48;
+        canvas.width = sampleSize;
+        canvas.height = sampleSize;
+        ctx.drawImage(img, 0, 0, sampleSize, sampleSize);
+        const imageData = ctx.getImageData(0, 0, sampleSize, sampleSize).data;
+
+        let luminanceSum = 0;
+        let pixels = 0;
+        for (let i = 0; i < imageData.length; i += 4) {
+          const r = imageData[i];
+          const g = imageData[i + 1];
+          const b = imageData[i + 2];
+          luminanceSum += 0.2126 * r + 0.7152 * g + 0.0722 * b;
+          pixels += 1;
+        }
+
+        resolve(pixels ? luminanceSum / pixels : null);
+      } catch (_error) {
+        resolve(null);
+      }
+    };
+
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
+async function pickBalancedGalleryEntries(entries, count) {
+  const safeCount = Math.max(0, Number(count) || 0);
+  if (safeCount === 0) return [];
+  if (!entries.length) return [];
+
+  const withBrightness = await Promise.all(
+    entries.map(async (entry) => ({
+      ...entry,
+      _brightness: await measureImageBrightness(toPhotoSrc(entry.file)),
+    })),
+  );
+
+  const measured = withBrightness.filter((entry) => Number.isFinite(entry._brightness));
+  if (measured.length < safeCount) return withBrightness.slice(0, safeCount);
+
+  const sortedByLight = [...measured].sort((a, b) => a._brightness - b._brightness);
+  const half = Math.floor(sortedByLight.length / 2);
+  const moodyPool = sortedByLight.slice(0, half);
+  const brightPool = sortedByLight.slice(half).reverse();
+
+  const targetBright = Math.min(3, brightPool.length);
+  const targetMoody = Math.min(3, moodyPool.length);
+
+  const selected = [];
+  let brightUsed = 0;
+  let moodyUsed = 0;
+  while (selected.length < safeCount && (brightPool.length || moodyPool.length)) {
+    if (brightUsed < targetBright && brightPool.length) {
+      selected.push(brightPool.shift());
+      brightUsed += 1;
+    }
+    if (selected.length >= safeCount) break;
+    if (moodyUsed < targetMoody && moodyPool.length) {
+      selected.push(moodyPool.shift());
+      moodyUsed += 1;
+    }
+    if (brightUsed >= targetBright && moodyUsed >= targetMoody) break;
+  }
+
+  if (selected.length < safeCount) {
+    const seen = new Set(selected.map((entry) => entry.file.toLowerCase()));
+    for (const entry of sortedByLight.reverse()) {
+      if (seen.has(entry.file.toLowerCase())) continue;
+      selected.push(entry);
+      seen.add(entry.file.toLowerCase());
+      if (selected.length >= safeCount) break;
+    }
+  }
+
+  return selected.slice(0, safeCount);
+}
+
+function openGalleryLightbox(entry) {
+  if (!galleryLightbox || !galleryLightboxImage || !galleryLightboxCaption) return;
+
+  galleryLightboxImage.src = toPhotoSrc(entry.file);
+  galleryLightboxImage.alt = entry.alt || "Gallery photo";
+  galleryLightboxCaption.textContent = entry.alt || "";
+  galleryLightbox.classList.add("open");
+  galleryLightbox.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+}
+
+function closeGalleryLightbox() {
+  if (!galleryLightbox || !galleryLightboxImage || !galleryLightboxCaption) return;
+  galleryLightbox.classList.remove("open");
+  galleryLightbox.setAttribute("aria-hidden", "true");
+  galleryLightboxImage.removeAttribute("src");
+  galleryLightboxCaption.textContent = "";
+  document.body.style.overflow = "";
+}
+
+function bindGalleryLightboxEvents() {
+  if (!galleryLightbox || galleryLightbox.dataset.bound === "true") return;
+
+  if (galleryLightboxClose) galleryLightboxClose.addEventListener("click", closeGalleryLightbox);
+  galleryLightbox.addEventListener("click", (event) => {
+    if (event.target === galleryLightbox) closeGalleryLightbox();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && galleryLightbox.classList.contains("open")) {
+      closeGalleryLightbox();
+    }
+  });
+
+  galleryLightbox.dataset.bound = "true";
+}
+
+function buildGalleryCard(entry) {
+  const card = document.createElement("figure");
+  card.className = "gallery-item reveal reveal-scale";
+  card.setAttribute("tabindex", "0");
+  card.setAttribute("role", "button");
+  card.setAttribute("aria-label", entry.alt || "Open gallery photo");
+
+  const frame = document.createElement("div");
+  const cropClass = entry.cropClass === "img-arch" || entry.cropClass === "img-round" || entry.cropClass === "img-moon" ? entry.cropClass : "img-round";
+  frame.className = `photo-frame ${cropClass}`;
+
+  const img = document.createElement("img");
+  img.src = toPhotoSrc(entry.file);
+  img.alt = entry.alt || "Gallery photo";
+  img.loading = "lazy";
+  img.decoding = "async";
+  img.style.objectFit = "cover";
+  img.style.objectPosition = entry.objectPosition || "50% 35%";
+
+  frame.appendChild(img);
+  card.appendChild(frame);
+
+  card.addEventListener("click", () => openGalleryLightbox(entry));
+  card.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openGalleryLightbox(entry);
+    }
+  });
+
+  return card;
+}
+
+async function initGallery() {
+  if (!galleryGrid) return;
+  bindGalleryLightboxEvents();
+
+  galleryGrid.innerHTML = "";
+  if (galleryEmpty) galleryEmpty.classList.add("hidden");
+
+  const candidates = getHumanGalleryCandidates(photoManifest || {});
+  const selected = await pickBalancedGalleryEntries(candidates, 6);
+
+  if (!selected.length) {
+    if (galleryEmpty) galleryEmpty.classList.remove("hidden");
+    return;
+  }
+
+  selected.forEach((entry, index) => {
+    const card = buildGalleryCard(entry);
+    card.setAttribute("data-delay", String(index * 80));
+    galleryGrid.appendChild(card);
+    setupRevealNode(card);
+  });
+}
+
 function extractTimelineYear(value) {
   const basename = String(value || "").split("/").pop() || "";
   const match = basename.match(/(?:^|[^0-9])((?:19|20)\d{2})(?!\d)/);
@@ -897,6 +1176,7 @@ async function init() {
   photoManifest = await loadManifest();
   applyInviteContext();
   applyStaticPhotoManifest();
+  await initGallery();
 
   inviteState.token = getTokenFromUrl();
   await lookupToken(inviteState.token);
