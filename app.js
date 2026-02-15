@@ -57,6 +57,9 @@ const GALLERY_FALLBACK_FILES = [
   "LMN_4200.jpg",
   "LMN_4326.jpg",
   "LMN_1503.jpg",
+  "LMN_0812.jpg",
+  "LMN_1409.jpg",
+  "LMN_2075.jpg",
 ];
 
 const TIMELINE_CAPTIONS = {
@@ -838,10 +841,19 @@ async function initGallery() {
 
   try {
     const candidates = getHumanGalleryCandidates(photoManifest || {});
-    let selected = await pickBalancedGalleryEntries(candidates, 6);
+    const targetCount = 9;
+    const prioritized = getFallbackGalleryEntries(photoManifest || {});
+    let selected = prioritized.slice(0, targetCount);
+
+    if (selected.length < targetCount) {
+      const used = new Set(selected.map((entry) => String(entry.file).toLowerCase()));
+      const remaining = candidates.filter((entry) => !used.has(String(entry.file).toLowerCase()));
+      const extras = await pickBalancedGalleryEntries(remaining, targetCount - selected.length);
+      selected = [...selected, ...extras].slice(0, targetCount);
+    }
 
     if (!selected.length) {
-      selected = getFallbackGalleryEntries(photoManifest || {});
+      selected = await pickBalancedGalleryEntries(candidates, targetCount);
     }
 
     if (!selected.length) {
