@@ -14,6 +14,7 @@ const inviteState = {
 };
 
 const MAX_GUESTS = 4;
+const MAX_PLUS_ONES = MAX_GUESTS - 1;
 const MAX_UPLOAD_FILES = 3;
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const UPLOAD_ALLOWED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "heic", "heif", "mp4", "mov", "webm"]);
@@ -209,6 +210,8 @@ const phoneInput = document.getElementById("phone");
 const messageInput = document.getElementById("message");
 
 const yesFields = document.getElementById("yesFields");
+const youFunFactsFields = document.getElementById("youFunFactsFields");
+const youGuestCardWrap = document.getElementById("youGuestCardWrap");
 const guestCardsWrap = document.getElementById("guestCardsWrap");
 const addGuestButton = document.getElementById("addGuestButton");
 const guestLimitError = document.getElementById("guestLimitError");
@@ -2573,6 +2576,50 @@ function getGuestNameLabel(index) {
   return `+${index} name`;
 }
 
+function buildPrimaryGuestCard(name = "", funFact = "") {
+  const card = document.createElement("article");
+  card.className = "guest-card";
+  card.dataset.guestIndex = "0";
+
+  const header = document.createElement("div");
+  header.className = "guest-card-header";
+  const title = document.createElement("h4");
+  title.textContent = "You";
+  header.appendChild(title);
+
+  const nameInput = document.createElement("input");
+  nameInput.id = "guestName1";
+  nameInput.type = "hidden";
+  nameInput.value = name;
+  nameInput.dataset.guestName = "true";
+  nameInput.dataset.primaryGuest = "true";
+  nameInput.dataset.autoSync = "true";
+
+  const factField = document.createElement("div");
+  factField.className = "field form-field";
+  const factLabel = document.createElement("label");
+  factLabel.setAttribute("for", "guestFunFact1");
+  factLabel.textContent = "Fun facts (we will print this on your name card to help break the ice)";
+  const factInput = document.createElement("textarea");
+  factInput.id = "guestFunFact1";
+  factInput.rows = 2;
+  factInput.placeholder = "Example: I will travel for noodles.";
+  factInput.value = funFact;
+  factInput.dataset.guestFunFact = "true";
+  const helper = document.createElement("p");
+  helper.className = "field-helper";
+  helper.textContent = "Short + specific is best.";
+  factField.appendChild(factLabel);
+  factField.appendChild(factInput);
+  factField.appendChild(helper);
+  factField.appendChild(buildFunFactExamplesPopover(factInput));
+
+  card.appendChild(header);
+  card.appendChild(nameInput);
+  card.appendChild(factField);
+  return card;
+}
+
 function buildGuestCard(index, name = "", funFact = "") {
   const card = document.createElement("article");
   card.className = "guest-card";
@@ -2585,45 +2632,37 @@ function buildGuestCard(index, name = "", funFact = "") {
   title.textContent = getGuestCardTitle(index);
   header.appendChild(title);
 
-  if (index > 0) {
-    const remove = document.createElement("button");
-    remove.type = "button";
-    remove.className = "guest-remove";
-    remove.textContent = "Remove";
-    remove.addEventListener("click", () => {
-      card.remove();
-      resequenceGuestCards();
-      hideGuestLimitError();
-    });
-    header.appendChild(remove);
-  }
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "guest-remove";
+  remove.textContent = "Remove";
+  remove.addEventListener("click", () => {
+    card.remove();
+    resequenceGuestCards();
+    hideGuestLimitError();
+    updateAddGuestButtonState();
+  });
+  header.appendChild(remove);
 
   const nameInput = document.createElement("input");
   nameInput.id = `guestName${index + 1}`;
   nameInput.required = true;
   nameInput.value = name;
   nameInput.dataset.guestName = "true";
-
-  if (index === 0) {
-    nameInput.type = "hidden";
-    nameInput.dataset.primaryGuest = "true";
-    nameInput.dataset.autoSync = "true";
-  } else {
-    const nameField = document.createElement("div");
-    nameField.className = "field form-field";
-    const nameLabel = document.createElement("label");
-    nameLabel.setAttribute("for", `guestName${index + 1}`);
-    nameLabel.textContent = getGuestNameLabel(index);
-    nameInput.type = "text";
-    nameField.appendChild(nameLabel);
-    const error = document.createElement("p");
-    error.className = "field-error hidden";
-    error.textContent = "Please enter a name.";
-    error.dataset.guestNameError = "true";
-    nameField.appendChild(nameInput);
-    nameField.appendChild(error);
-    card.appendChild(nameField);
-  }
+  nameInput.type = "text";
+  const nameField = document.createElement("div");
+  nameField.className = "field form-field";
+  const nameLabel = document.createElement("label");
+  nameLabel.setAttribute("for", `guestName${index + 1}`);
+  nameLabel.textContent = getGuestNameLabel(index);
+  nameField.appendChild(nameLabel);
+  const error = document.createElement("p");
+  error.className = "field-error hidden";
+  error.textContent = "Please enter a name.";
+  error.dataset.guestNameError = "true";
+  nameField.appendChild(nameInput);
+  nameField.appendChild(error);
+  card.appendChild(nameField);
 
   const factField = document.createElement("div");
   factField.className = "field form-field";
@@ -2645,9 +2684,6 @@ function buildGuestCard(index, name = "", funFact = "") {
   factField.appendChild(buildFunFactExamplesPopover(factInput));
 
   card.appendChild(header);
-  if (index === 0) {
-    card.appendChild(nameInput);
-  }
   card.appendChild(factField);
   return card;
 }
@@ -2656,51 +2692,37 @@ function resequenceGuestCards() {
   if (!guestCardsWrap) return;
   const cards = Array.from(guestCardsWrap.querySelectorAll(".guest-card"));
   cards.forEach((card, index) => {
-    card.dataset.guestIndex = String(index);
+    const guestIndex = index + 1;
+    card.dataset.guestIndex = String(guestIndex);
     const title = card.querySelector(".guest-card-header h4");
-    if (title) title.textContent = getGuestCardTitle(index);
+    if (title) title.textContent = getGuestCardTitle(guestIndex);
     const nameInput = card.querySelector("input[data-guest-name]");
     const factInput = card.querySelector("textarea[data-guest-fun-fact]");
-    if (nameInput) nameInput.id = `guestName${index + 1}`;
-    if (factInput) factInput.id = `guestFunFact${index + 1}`;
+    if (nameInput) nameInput.id = `guestName${guestIndex + 1}`;
+    if (factInput) factInput.id = `guestFunFact${guestIndex + 1}`;
     const nameLabel = card.querySelector("label[for^='guestName']");
     const factLabel = card.querySelector("label[for^='guestFunFact']");
     if (nameLabel) {
-      nameLabel.setAttribute("for", `guestName${index + 1}`);
-      nameLabel.textContent = getGuestNameLabel(index);
+      nameLabel.setAttribute("for", `guestName${guestIndex + 1}`);
+      nameLabel.textContent = getGuestNameLabel(guestIndex);
     }
-    if (factLabel) factLabel.setAttribute("for", `guestFunFact${index + 1}`);
-    if (nameInput) {
-      if (index === 0) {
-        nameInput.dataset.primaryGuest = "true";
-        if (!nameInput.dataset.autoSync) nameInput.dataset.autoSync = "true";
-      } else {
-        delete nameInput.dataset.primaryGuest;
-        delete nameInput.dataset.autoSync;
-      }
-    }
-    const remove = card.querySelector(".guest-remove");
-    if (remove) remove.toggleAttribute("hidden", index === 0);
+    if (factLabel) factLabel.setAttribute("for", `guestFunFact${guestIndex + 1}`);
   });
 }
 
-function ensureGuestCards(minCount = 1) {
-  if (!guestCardsWrap) return;
-  const cards = Array.from(guestCardsWrap.querySelectorAll(".guest-card"));
-  if (cards.length >= minCount) return;
-
+function ensurePrimaryGuestCard() {
+  if (!youGuestCardWrap) return;
+  const existing = youGuestCardWrap.querySelector(".guest-card");
+  if (existing) return;
   const preferredName = (fullNameInput && fullNameInput.value.trim()) || inviteState.greetingName;
-  for (let i = cards.length; i < minCount; i += 1) {
-    guestCardsWrap.appendChild(buildGuestCard(i, i === 0 ? preferredName : "", ""));
-  }
-  resequenceGuestCards();
-  syncPrimaryGuestName();
+  youGuestCardWrap.appendChild(buildPrimaryGuestCard(preferredName, ""));
+  syncPrimaryGuestName(true);
 }
 
 function syncPrimaryGuestName(force = false) {
-  if (!guestCardsWrap || !fullNameInput) return;
+  if (!youGuestCardWrap || !fullNameInput) return;
   const primaryGuestInput =
-    guestCardsWrap.querySelector("input[data-primary-guest='true']") || guestCardsWrap.querySelector("input[data-guest-name]");
+    youGuestCardWrap.querySelector("input[data-primary-guest='true']") || youGuestCardWrap.querySelector("input[data-guest-name]");
   if (!(primaryGuestInput instanceof HTMLInputElement)) return;
 
   const fullName = fullNameInput.value.trim();
@@ -2712,8 +2734,12 @@ function syncPrimaryGuestName(force = false) {
 }
 
 function collectGuests() {
-  if (!guestCardsWrap) return [];
-  const cards = Array.from(guestCardsWrap.querySelectorAll(".guest-card"));
+  const cards = [];
+  if (youGuestCardWrap) {
+    const primaryCard = youGuestCardWrap.querySelector(".guest-card");
+    if (primaryCard) cards.push(primaryCard);
+  }
+  if (guestCardsWrap) cards.push(...Array.from(guestCardsWrap.querySelectorAll(".guest-card")));
   const fullName = (fullNameInput && fullNameInput.value.trim()) || inviteState.greetingName;
   return cards.map((card) => {
     const nameInput = card.querySelector("input[data-guest-name]");
@@ -2742,6 +2768,19 @@ function validateGuestCards() {
     if (!hasName) valid = false;
   });
   return valid;
+}
+
+function getPlusOneCount() {
+  if (!guestCardsWrap) return 0;
+  return guestCardsWrap.querySelectorAll(".guest-card").length;
+}
+
+function updateAddGuestButtonState() {
+  if (!addGuestButton) return;
+  const plusOneCount = getPlusOneCount();
+  const atLimit = plusOneCount >= MAX_PLUS_ONES;
+  addGuestButton.disabled = atLimit;
+  addGuestButton.setAttribute("aria-disabled", String(atLimit));
 }
 
 function getUploadFileExtension(fileName) {
@@ -2946,7 +2985,7 @@ function initUploadSlots() {
 }
 
 function clearRsvpChoice() {
-  if (!attendanceChoice || !rsvpFields || !submitButton || !yesFields || !workingFields || !noFields) return;
+  if (!attendanceChoice || !rsvpFields || !submitButton || !yesFields || !workingFields || !noFields || !youFunFactsFields) return;
 
   if (rsvpForm) rsvpForm.reset();
 
@@ -2959,11 +2998,15 @@ function clearRsvpChoice() {
   });
 
   yesFields.classList.add("hidden");
+  youFunFactsFields.classList.add("hidden");
   workingFields.classList.add("hidden");
   noFields.classList.add("hidden");
 
   if (guestCardsWrap) {
     guestCardsWrap.innerHTML = "";
+  }
+  if (youGuestCardWrap) {
+    youGuestCardWrap.innerHTML = "";
   }
 
   if (workingCount) {
@@ -2978,6 +3021,7 @@ function clearRsvpChoice() {
 
   clearUploadSlots();
   hideGuestLimitError();
+  updateAddGuestButtonState();
 
   submitButton.textContent = "Send reply";
 
@@ -2992,7 +3036,7 @@ function clearRsvpChoice() {
 }
 
 function setChoice(choice) {
-  if (!attendanceChoice || !rsvpFields || !submitButton || !yesFields || !workingFields || !noFields) return;
+  if (!attendanceChoice || !rsvpFields || !submitButton || !yesFields || !workingFields || !noFields || !youFunFactsFields) return;
   if (!choice) {
     clearRsvpChoice();
     return;
@@ -3013,8 +3057,15 @@ function setChoice(choice) {
   });
 
   yesFields.classList.toggle("hidden", choice !== "yes");
+  youFunFactsFields.classList.toggle("hidden", choice !== "yes");
   workingFields.classList.toggle("hidden", choice !== "working");
   noFields.classList.toggle("hidden", choice !== "no");
+  if (youGuestCardWrap) {
+    youGuestCardWrap.querySelectorAll("input[data-guest-name]").forEach((input) => {
+      input.required = false;
+      if (choice !== "yes") input.setCustomValidity("");
+    });
+  }
   if (guestCardsWrap) {
     guestCardsWrap.querySelectorAll("input[data-guest-name]").forEach((input) => {
       input.required = choice === "yes";
@@ -3026,17 +3077,20 @@ function setChoice(choice) {
   if (workingConfirm) workingConfirm.required = choice === "working";
 
   if (choice === "yes") {
-    ensureGuestCards(1);
+    ensurePrimaryGuestCard();
     syncPrimaryGuestName(true);
+    updateAddGuestButtonState();
     submitButton.textContent = "Confirm attendance";
   }
 
   if (choice === "working") {
+    updateAddGuestButtonState();
     submitButton.textContent = "Add me to the list";
     hideGuestLimitError();
   }
 
   if (choice === "no") {
+    updateAddGuestButtonState();
     submitButton.textContent = "Send reply";
     hideGuestLimitError();
   }
@@ -3060,15 +3114,19 @@ function initRsvpCards() {
     addGuestButton.addEventListener("click", () => {
       if (!guestCardsWrap) return;
       const cards = Array.from(guestCardsWrap.querySelectorAll(".guest-card"));
-      if (cards.length >= MAX_GUESTS) {
-        showGuestLimitError("Max 4 guests.");
+      if (cards.length >= MAX_PLUS_ONES) {
+        showGuestLimitError("Max 3 +1 guests.");
+        updateAddGuestButtonState();
         return;
       }
-      guestCardsWrap.appendChild(buildGuestCard(cards.length));
+      guestCardsWrap.appendChild(buildGuestCard(cards.length + 1));
       resequenceGuestCards();
       hideGuestLimitError();
+      updateAddGuestButtonState();
     });
   }
+
+  updateAddGuestButtonState();
 
   if (fullNameInput) {
     fullNameInput.addEventListener("input", () => {
@@ -3216,7 +3274,7 @@ function initRsvpForm() {
     if (!rsvpForm.reportValidity()) return;
 
     if (attendanceChoice.value === "yes") {
-      ensureGuestCards(1);
+      ensurePrimaryGuestCard();
       if (!validateGuestCards()) {
         rsvpConfirmation.textContent = "Please enter all guest names.";
         rsvpConfirmation.classList.remove("hidden");
