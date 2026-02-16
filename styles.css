@@ -2588,6 +2588,134 @@ a:focus-visible,
   margin-top: var(--form-space-16);
 }
 
+.field-helper {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: rgba(21, 21, 21, 0.68);
+}
+
+.field-error {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.4;
+  color: #8b1e1e;
+}
+
+.btn-outline {
+  border: 1px solid rgba(75, 15, 23, 0.4);
+  background: transparent;
+  color: var(--maroonDeep);
+  border-radius: 999px;
+  padding: 10px 14px;
+  min-height: 44px;
+}
+
+.btn-outline:hover,
+.btn-outline:focus-visible {
+  border-color: rgba(75, 15, 23, 0.7);
+  background: rgba(75, 15, 23, 0.06);
+}
+
+.guest-cards-wrap {
+  display: grid;
+  gap: 14px;
+}
+
+.guest-card {
+  border: 1px solid rgba(75, 15, 23, 0.16);
+  border-radius: 12px;
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+}
+
+.guest-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.guest-card-header h4 {
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+.guest-remove {
+  border: 0;
+  background: none;
+  color: var(--maroonDeep);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  min-height: 44px;
+  padding: 0;
+}
+
+.fun-fact-examples {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.fun-fact-examples-toggle {
+  border: 0;
+  background: none;
+  color: rgba(75, 15, 23, 0.84);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-size: 0.85rem;
+  min-height: 44px;
+  padding: 0;
+}
+
+.fun-fact-examples-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: min(320px, calc(100vw - 64px));
+  max-height: 220px;
+  overflow: auto;
+  background: var(--paper);
+  border: 1px solid rgba(75, 15, 23, 0.2);
+  border-radius: 10px;
+  padding: 8px;
+  z-index: 10;
+}
+
+.fun-fact-examples-popover ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+}
+
+.fun-fact-examples-popover button {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: none;
+  padding: 8px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+
+.fun-fact-examples-popover button:hover,
+.fun-fact-examples-popover button:focus-visible {
+  background: rgba(75, 15, 23, 0.06);
+}
+
+.upload-file-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
 @media (max-width: 639px) {
   .form-row.two-col,
   .field-grid.two-col {

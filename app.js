@@ -11,9 +11,28 @@ const inviteState = {
   maxPartySize: 6,
 };
 
+const MAX_GUESTS = 4;
+const MAX_UPLOAD_FILES = 3;
+const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
+const FUN_FACT_EXAMPLES = [
+  "I will travel for noodles.",
+  "I can’t handle horror films.",
+  "Ask me about my latest hyper-fixation.",
+  "I judge cities by their coffee.",
+  "I have strong opinions about dumplings.",
+  "My toxic trait is planning trips like a spreadsheet.",
+  "I’ll cross a city for good hot pot.",
+  "Char kway teow has my loyalty.",
+  "I’m here for the dance floor.",
+  "I will always order dessert.",
+  "I’ve cried at a movie on an airplane.",
+  "I’m a morning person (unfortunately).",
+];
+
 let photoManifest = null;
 let revealObserver = null;
 let reducedMotion = false;
+let selectedUploadFiles = [];
 
 const floatingHeader = document.getElementById("floatingHeader");
 const menuToggle = document.getElementById("menuToggle");
@@ -38,8 +57,9 @@ const emailInput = document.getElementById("email");
 const phoneInput = document.getElementById("phone");
 
 const yesFields = document.getElementById("yesFields");
-const yesCount = document.getElementById("yesCount");
-const attendeeNamesWrap = document.getElementById("attendeeNamesWrap");
+const guestCardsWrap = document.getElementById("guestCardsWrap");
+const addGuestButton = document.getElementById("addGuestButton");
+const guestLimitError = document.getElementById("guestLimitError");
 const dietary = document.getElementById("dietary");
 
 const workingFields = document.getElementById("workingFields");
@@ -47,7 +67,9 @@ const workingCount = document.getElementById("workingCount");
 const workingConfirm = document.getElementById("workingConfirm");
 
 const noFields = document.getElementById("noFields");
-const noNote = document.getElementById("noNote");
+const photoUploadInput = document.getElementById("photoUpload");
+const photoUploadError = document.getElementById("photoUploadError");
+const photoUploadList = document.getElementById("photoUploadList");
 const thingsThemeList = document.getElementById("thingsThemeList");
 const makanTipTrigger = document.getElementById("makanTipTrigger");
 const makanTipPopover = document.getElementById("makanTipPopover");
@@ -1786,7 +1808,6 @@ function applyInviteContext() {
     }
   }
 
-  populatePartySizeOptions(yesCount, inviteState.maxPartySize);
   populatePartySizeOptions(workingCount, inviteState.maxPartySize);
 
   if (fullNameInput && inviteState.greetingName && !fullNameInput.value.trim()) {
@@ -1829,41 +1850,241 @@ function populatePartySizeOptions(selectEl, maxParty) {
   if (current && Number(current) <= max) selectEl.value = current;
 }
 
-function renderAttendeeFields(count) {
-  if (!attendeeNamesWrap) return;
-  attendeeNamesWrap.innerHTML = "";
-
-  const safeCount = Math.max(0, Math.min(clampPartySize(inviteState.maxPartySize), Number(count) || 0));
-  for (let i = 1; i <= safeCount; i += 1) {
-    const field = document.createElement("div");
-    field.className = "field form-field";
-
-    const label = document.createElement("label");
-    label.setAttribute("for", `attendeeName${i}`);
-    label.textContent = `Attendee ${i} name`;
-
-    const input = document.createElement("input");
-    input.id = `attendeeName${i}`;
-    input.type = "text";
-    input.required = attendanceChoice && attendanceChoice.value === "yes";
-    input.dataset.attendeeName = String(i);
-
-    if (i === 1) {
-      const preferred = (fullNameInput && fullNameInput.value.trim()) || inviteState.greetingName;
-      if (preferred) input.value = preferred;
-    }
-
-    field.appendChild(label);
-    field.appendChild(input);
-    attendeeNamesWrap.appendChild(field);
-  }
+function hideGuestLimitError() {
+  if (!guestLimitError) return;
+  guestLimitError.textContent = "";
+  guestLimitError.classList.add("hidden");
 }
 
-function collectAttendeeNames() {
-  if (!attendeeNamesWrap) return [];
-  return Array.from(attendeeNamesWrap.querySelectorAll("input[data-attendee-name]"))
-    .map((input) => input.value.trim())
-    .filter(Boolean);
+function showGuestLimitError(message) {
+  if (!guestLimitError) return;
+  guestLimitError.textContent = message;
+  guestLimitError.classList.remove("hidden");
+}
+
+function buildFunFactExamplesPopover(input) {
+  const wrap = document.createElement("div");
+  wrap.className = "fun-fact-examples";
+
+  const trigger = document.createElement("button");
+  trigger.type = "button";
+  trigger.className = "fun-fact-examples-toggle";
+  trigger.textContent = "See examples";
+
+  const popover = document.createElement("div");
+  popover.className = "fun-fact-examples-popover hidden";
+  popover.setAttribute("role", "dialog");
+  popover.setAttribute("aria-label", "Fun fact examples");
+
+  const list = document.createElement("ul");
+  FUN_FACT_EXAMPLES.forEach((example) => {
+    const item = document.createElement("li");
+    const exampleButton = document.createElement("button");
+    exampleButton.type = "button";
+    exampleButton.textContent = example;
+    exampleButton.addEventListener("click", () => {
+      input.value = example;
+      popover.classList.add("hidden");
+      trigger.setAttribute("aria-expanded", "false");
+      input.focus();
+    });
+    item.appendChild(exampleButton);
+    list.appendChild(item);
+  });
+  popover.appendChild(list);
+
+  trigger.setAttribute("aria-expanded", "false");
+  trigger.addEventListener("click", () => {
+    const isOpen = !popover.classList.contains("hidden");
+    popover.classList.toggle("hidden", isOpen);
+    trigger.setAttribute("aria-expanded", String(!isOpen));
+  });
+
+  document.addEventListener("pointerdown", (event) => {
+    if (!(event.target instanceof Node)) return;
+    if (wrap.contains(event.target)) return;
+    popover.classList.add("hidden");
+    trigger.setAttribute("aria-expanded", "false");
+  });
+
+  wrap.appendChild(trigger);
+  wrap.appendChild(popover);
+  return wrap;
+}
+
+function buildGuestCard(index, name = "", funFact = "") {
+  const card = document.createElement("article");
+  card.className = "guest-card";
+  card.dataset.guestIndex = String(index);
+
+  const header = document.createElement("div");
+  header.className = "guest-card-header";
+
+  const title = document.createElement("h4");
+  title.textContent = `Guest ${index + 1}`;
+  header.appendChild(title);
+
+  if (index > 0) {
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "guest-remove";
+    remove.textContent = "Remove";
+    remove.addEventListener("click", () => {
+      card.remove();
+      resequenceGuestCards();
+      hideGuestLimitError();
+    });
+    header.appendChild(remove);
+  }
+
+  const nameField = document.createElement("div");
+  nameField.className = "field form-field";
+  const nameLabel = document.createElement("label");
+  nameLabel.setAttribute("for", `guestName${index + 1}`);
+  nameLabel.textContent = "Guest name";
+  const nameInput = document.createElement("input");
+  nameInput.id = `guestName${index + 1}`;
+  nameInput.type = "text";
+  nameInput.required = true;
+  nameInput.value = name;
+  nameInput.dataset.guestName = "true";
+  const error = document.createElement("p");
+  error.className = "field-error hidden";
+  error.textContent = "Please enter a name.";
+  error.dataset.guestNameError = "true";
+  nameField.appendChild(nameLabel);
+  nameField.appendChild(nameInput);
+  nameField.appendChild(error);
+
+  const factField = document.createElement("div");
+  factField.className = "field form-field";
+  const factLabel = document.createElement("label");
+  factLabel.setAttribute("for", `guestFunFact${index + 1}`);
+  factLabel.textContent = "Fun fact (we may print this on your name card)";
+  const factInput = document.createElement("textarea");
+  factInput.id = `guestFunFact${index + 1}`;
+  factInput.rows = 2;
+  factInput.placeholder = "Example: I will travel for noodles.";
+  factInput.value = funFact;
+  factInput.dataset.guestFunFact = "true";
+  const helper = document.createElement("p");
+  helper.className = "field-helper";
+  helper.textContent = "Short + specific is best.";
+  factField.appendChild(factLabel);
+  factField.appendChild(factInput);
+  factField.appendChild(helper);
+  factField.appendChild(buildFunFactExamplesPopover(factInput));
+
+  card.appendChild(header);
+  card.appendChild(nameField);
+  card.appendChild(factField);
+  return card;
+}
+
+function resequenceGuestCards() {
+  if (!guestCardsWrap) return;
+  const cards = Array.from(guestCardsWrap.querySelectorAll(".guest-card"));
+  cards.forEach((card, index) => {
+    card.dataset.guestIndex = String(index);
+    const title = card.querySelector(".guest-card-header h4");
+    if (title) title.textContent = `Guest ${index + 1}`;
+    const nameInput = card.querySelector("input[data-guest-name]");
+    const factInput = card.querySelector("textarea[data-guest-fun-fact]");
+    if (nameInput) nameInput.id = `guestName${index + 1}`;
+    if (factInput) factInput.id = `guestFunFact${index + 1}`;
+    const labels = card.querySelectorAll("label");
+    if (labels[0]) labels[0].setAttribute("for", `guestName${index + 1}`);
+    if (labels[1]) labels[1].setAttribute("for", `guestFunFact${index + 1}`);
+    const remove = card.querySelector(".guest-remove");
+    if (remove) remove.toggleAttribute("hidden", index === 0);
+  });
+}
+
+function ensureGuestCards(minCount = 1) {
+  if (!guestCardsWrap) return;
+  const cards = Array.from(guestCardsWrap.querySelectorAll(".guest-card"));
+  if (cards.length >= minCount) return;
+
+  const preferredName = (fullNameInput && fullNameInput.value.trim()) || inviteState.greetingName;
+  for (let i = cards.length; i < minCount; i += 1) {
+    guestCardsWrap.appendChild(buildGuestCard(i, i === 0 ? preferredName : "", ""));
+  }
+  resequenceGuestCards();
+}
+
+function collectGuests() {
+  if (!guestCardsWrap) return [];
+  const cards = Array.from(guestCardsWrap.querySelectorAll(".guest-card"));
+  return cards.map((card) => {
+    const nameInput = card.querySelector("input[data-guest-name]");
+    const factInput = card.querySelector("textarea[data-guest-fun-fact]");
+    return {
+      name: nameInput ? nameInput.value.trim() : "",
+      funFact: factInput ? factInput.value.trim() : "",
+      nameInput,
+      errorNode: card.querySelector("[data-guest-name-error]"),
+    };
+  });
+}
+
+function validateGuestCards() {
+  const guests = collectGuests();
+  let valid = true;
+  guests.forEach((guest) => {
+    const hasName = Boolean(guest.name);
+    if (guest.errorNode) guest.errorNode.classList.toggle("hidden", hasName);
+    if (guest.nameInput) guest.nameInput.setCustomValidity(hasName ? "" : "Please enter a name.");
+    if (!hasName) valid = false;
+  });
+  return valid;
+}
+
+function showUploadError(message) {
+  if (!photoUploadError) return;
+  photoUploadError.textContent = message;
+  photoUploadError.classList.remove("hidden");
+}
+
+function clearUploadError() {
+  if (!photoUploadError) return;
+  photoUploadError.textContent = "";
+  photoUploadError.classList.add("hidden");
+}
+
+function renderSelectedUploadFiles() {
+  if (!photoUploadList) return;
+  photoUploadList.innerHTML = "";
+  selectedUploadFiles.forEach((file) => {
+    const li = document.createElement("li");
+    li.textContent = file.name;
+    photoUploadList.appendChild(li);
+  });
+}
+
+function validateAndStoreUploadFiles(fileList) {
+  clearUploadError();
+  const files = Array.from(fileList || []);
+  if (!files.length) {
+    selectedUploadFiles = [];
+    renderSelectedUploadFiles();
+    return true;
+  }
+
+  if (files.length > MAX_UPLOAD_FILES) {
+    showUploadError("Please upload up to 3 photos.");
+    return false;
+  }
+
+  for (const file of files) {
+    if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+      showUploadError(`${file.name} is larger than 10MB.`);
+      return false;
+    }
+  }
+
+  selectedUploadFiles = files;
+  renderSelectedUploadFiles();
+  return true;
 }
 
 function setChoice(choice) {
@@ -1881,25 +2102,29 @@ function setChoice(choice) {
   yesFields.classList.toggle("hidden", choice !== "yes");
   workingFields.classList.toggle("hidden", choice !== "working");
   noFields.classList.toggle("hidden", choice !== "no");
+  if (guestCardsWrap) {
+    guestCardsWrap.querySelectorAll("input[data-guest-name]").forEach((input) => {
+      input.required = choice === "yes";
+      if (choice !== "yes") input.setCustomValidity("");
+    });
+  }
 
-  if (yesCount) yesCount.required = choice === "yes";
   if (workingCount) workingCount.required = choice === "working";
   if (workingConfirm) workingConfirm.required = choice === "working";
 
   if (choice === "yes") {
-    if (yesCount && !yesCount.value) yesCount.value = "1";
-    renderAttendeeFields(Number((yesCount && yesCount.value) || 1));
+    ensureGuestCards(1);
     submitButton.textContent = "Confirm attendance";
   }
 
   if (choice === "working") {
     submitButton.textContent = "Add me to the list";
-    if (attendeeNamesWrap) attendeeNamesWrap.innerHTML = "";
+    hideGuestLimitError();
   }
 
   if (choice === "no") {
     submitButton.textContent = "Send reply";
-    if (attendeeNamesWrap) attendeeNamesWrap.innerHTML = "";
+    hideGuestLimitError();
   }
 }
 
@@ -1917,33 +2142,46 @@ function initRsvpCards() {
     });
   });
 
-  if (yesCount) {
-    yesCount.addEventListener("change", () => {
-      if (attendanceChoice && attendanceChoice.value === "yes") {
-        renderAttendeeFields(Number(yesCount.value));
+  if (addGuestButton) {
+    addGuestButton.addEventListener("click", () => {
+      if (!guestCardsWrap) return;
+      const cards = Array.from(guestCardsWrap.querySelectorAll(".guest-card"));
+      if (cards.length >= MAX_GUESTS) {
+        showGuestLimitError("Max 4 guests.");
+        return;
       }
+      guestCardsWrap.appendChild(buildGuestCard(cards.length));
+      resequenceGuestCards();
+      hideGuestLimitError();
     });
   }
 
   if (fullNameInput) {
     fullNameInput.addEventListener("input", () => {
-      const first = attendeeNamesWrap && attendeeNamesWrap.querySelector('input[data-attendee-name="1"]');
+      const first = guestCardsWrap && guestCardsWrap.querySelector("input[data-guest-name]");
       if (first && !first.value.trim()) first.value = fullNameInput.value.trim();
+    });
+  }
+
+  if (photoUploadInput) {
+    photoUploadInput.addEventListener("change", () => {
+      if (!validateAndStoreUploadFiles(photoUploadInput.files)) {
+        photoUploadInput.value = "";
+        selectedUploadFiles = [];
+        renderSelectedUploadFiles();
+      }
     });
   }
 }
 
 function buildPayload() {
-  const attendeeNamesRaw = collectAttendeeNames();
   const choice = attendanceChoice ? attendanceChoice.value : "";
   const status = choice === "yes" ? "yes" : choice === "working" ? "maybe" : "no";
   const fullName = (fullNameInput && fullNameInput.value.trim()) || inviteState.greetingName;
 
-  const yesPartySize = choice === "yes" ? Number((yesCount && yesCount.value) || attendeeNamesRaw.length || 0) : 0;
+  const guests = choice === "yes" ? collectGuests().map((guest) => ({ name: guest.name, funFact: guest.funFact })) : [];
+  const yesPartySize = choice === "yes" ? guests.length : 0;
   const potentialPartySize = choice === "working" ? Number((workingCount && workingCount.value) || 0) : 0;
-
-  const attendeeNames = [...attendeeNamesRaw].slice(0, 6);
-  while (attendeeNames.length < 6) attendeeNames.push("");
 
   return {
     token: inviteState.token,
@@ -1954,11 +2192,11 @@ function buildPayload() {
     phone: phoneInput ? phoneInput.value.trim() : "",
     partySize: status === "yes" ? yesPartySize : potentialPartySize,
     potentialPartySize,
-    attendeeNames,
+    guests,
     dietary: status === "yes" && dietary ? dietary.value.trim() : "",
     whenWillYouKnow: status === "maybe" && workingConfirm ? workingConfirm.value : "",
     followupChoice: status === "maybe" && workingConfirm ? workingConfirm.value : "",
-    note: status === "no" && noNote ? noNote.value.trim() : "",
+    photoFiles: selectedUploadFiles.map((file) => ({ name: file.name, size: file.size, type: file.type || "" })),
     userAgent: navigator.userAgent || "",
   };
 }
@@ -2025,13 +2263,18 @@ function initRsvpForm() {
     if (!rsvpForm.reportValidity()) return;
 
     if (attendanceChoice.value === "yes") {
-      const required = Number((yesCount && yesCount.value) || 0);
-      const names = collectAttendeeNames();
-      if (names.length < required) {
-        rsvpConfirmation.textContent = "Please enter all attendee names for your party.";
+      ensureGuestCards(1);
+      if (!validateGuestCards()) {
+        rsvpConfirmation.textContent = "Please enter all guest names.";
         rsvpConfirmation.classList.remove("hidden");
         return;
       }
+    }
+
+    if (!validateAndStoreUploadFiles(photoUploadInput ? photoUploadInput.files : [])) {
+      rsvpConfirmation.textContent = "Please fix the photo upload errors before submitting.";
+      rsvpConfirmation.classList.remove("hidden");
+      return;
     }
 
     const payload = buildPayload();
