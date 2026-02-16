@@ -244,8 +244,7 @@ const makanMenuRows = document.getElementById("makanMenuRows");
 const makanExpandAll = document.getElementById("makanExpandAll");
 const makanCollapseAll = document.getElementById("makanCollapseAll");
 const makanLegalTrigger = document.getElementById("makanLegalTrigger");
-const makanLegalModal = document.getElementById("makanLegalModal");
-const makanLegalBackdrop = document.getElementById("makanLegalBackdrop");
+const makanLegalPopover = document.getElementById("makanLegalPopover");
 const makanLegalClose = document.getElementById("makanLegalClose");
 const hotelMatrixShell = document.getElementById("hotelMatrixShell");
 const hotelMapCard = document.querySelector(".hotel-map-card");
@@ -1478,12 +1477,11 @@ function initMakanTipPopover() {
 }
 
 function closeMakanLegalModal({ restoreFocus = true } = {}) {
-  if (!makanLegalModal || !makanLegalTrigger) return;
-  makanLegalModal.classList.add("hidden");
-  makanLegalModal.classList.remove("open");
-  makanLegalModal.setAttribute("aria-hidden", "true");
+  if (!makanLegalPopover || !makanLegalTrigger) return;
+  makanLegalPopover.hidden = true;
+  makanLegalPopover.classList.remove("open");
+  makanLegalPopover.setAttribute("aria-hidden", "true");
   makanLegalTrigger.setAttribute("aria-expanded", "false");
-  document.body.classList.remove("modal-open");
   makanLegalOpen = false;
   if (restoreFocus) {
     makanLegalTrigger.focus({ preventScroll: true });
@@ -1491,12 +1489,11 @@ function closeMakanLegalModal({ restoreFocus = true } = {}) {
 }
 
 function openMakanLegalModal() {
-  if (!makanLegalModal || !makanLegalTrigger) return;
-  makanLegalModal.classList.remove("hidden");
-  makanLegalModal.classList.add("open");
-  makanLegalModal.setAttribute("aria-hidden", "false");
+  if (!makanLegalPopover || !makanLegalTrigger) return;
+  makanLegalPopover.hidden = false;
+  makanLegalPopover.classList.add("open");
+  makanLegalPopover.setAttribute("aria-hidden", "false");
   makanLegalTrigger.setAttribute("aria-expanded", "true");
-  document.body.classList.add("modal-open");
   makanLegalOpen = true;
   if (makanLegalClose instanceof HTMLElement) {
     window.requestAnimationFrame(() => makanLegalClose.focus({ preventScroll: true }));
@@ -1504,7 +1501,7 @@ function openMakanLegalModal() {
 }
 
 function initMakanLegalModal() {
-  if (!makanLegalTrigger || !makanLegalModal) return;
+  if (!makanLegalTrigger || !makanLegalPopover) return;
   if (makanLegalTrigger.dataset.boundLegal === "true") return;
 
   closeMakanLegalModal({ restoreFocus: false });
@@ -1519,14 +1516,18 @@ function initMakanLegalModal() {
     makanLegalClose.addEventListener("click", () => closeMakanLegalModal());
   }
 
-  if (makanLegalBackdrop) {
-    makanLegalBackdrop.addEventListener("click", () => closeMakanLegalModal({ restoreFocus: false }));
-  }
-
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && makanLegalOpen) {
       closeMakanLegalModal();
     }
+  });
+
+  document.addEventListener("pointerdown", (event) => {
+    if (!makanLegalOpen) return;
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (makanLegalPopover.contains(target) || makanLegalTrigger.contains(target)) return;
+    closeMakanLegalModal({ restoreFocus: false });
   });
 
   makanLegalTrigger.dataset.boundLegal = "true";

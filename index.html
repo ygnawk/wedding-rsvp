@@ -1062,25 +1062,24 @@
             </div>
 
             <div class="makan-legal-row">
-              <button id="makanLegalTrigger" class="makan-legal-link" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="makanLegalModal">
+              <button id="makanLegalTrigger" class="makan-legal-link" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="makanLegalPopover">
                 ⚖️ Legal-ish note
               </button>
+              <div id="makanLegalPopover" class="makan-legal-popover" role="dialog" aria-modal="false" aria-labelledby="makanLegalTitle" hidden aria-hidden="true">
+                <span class="makan-legal-popover-arrow" aria-hidden="true"></span>
+                <div class="makan-legal-card" role="document">
+                  <h3 id="makanLegalTitle">Legal-ish note (said with love)</h3>
+                  <p>
+                    We are not responsible for food comas, spice-induced tears, or any dumpling-related life choices. Please consult your stomach and/or actual counsel.
+                  </p>
+                  <button id="makanLegalClose" class="makan-legal-close" type="button">Got it</button>
+                </div>
+              </div>
             </div>
           </div>
 
         </div>
       </section>
-
-      <div id="makanLegalModal" class="makan-legal-modal hidden" role="dialog" aria-modal="true" aria-labelledby="makanLegalTitle">
-        <button id="makanLegalBackdrop" class="makan-legal-backdrop" type="button" tabindex="-1" aria-label="Close legal note"></button>
-        <div class="makan-legal-card" role="document">
-          <h3 id="makanLegalTitle">Legal-ish note (said with love)</h3>
-          <p>
-            We are not responsible for food comas, spice-induced tears, or any dumpling-related life choices. Please consult your stomach and/or actual counsel.
-          </p>
-          <button id="makanLegalClose" class="makan-legal-close" type="button">Got it</button>
-        </div>
-      </div>
 
       <section id="travel-visa" class="section section--light motif-host" data-title="Travel &amp; Visa">
         <div class="content travel-wrap">

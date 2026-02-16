@@ -4359,6 +4359,10 @@ details[open] .faq-answer {
 
 .makan-legal-row {
   margin-top: 12px;
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
 
 .makan-legal-link {
@@ -4385,31 +4389,29 @@ details[open] .faq-answer {
   border-radius: 6px;
 }
 
-.makan-legal-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 180;
-  display: grid;
-  place-items: center;
-  padding: 18px;
-}
-
-.makan-legal-modal.hidden {
-  display: none;
-}
-
-.makan-legal-backdrop {
+.makan-legal-popover {
   position: absolute;
-  inset: 0;
-  border: 0;
-  margin: 0;
-  padding: 0;
-  background: rgba(18, 9, 11, 0.18);
+  left: 0;
+  top: calc(100% + 8px);
+  z-index: 200;
+  width: min(460px, calc(100vw - 28px));
+}
+
+.makan-legal-popover-arrow {
+  position: absolute;
+  left: 18px;
+  top: -7px;
+  width: 12px;
+  height: 12px;
+  background: rgba(247, 241, 230, 0.98);
+  border-left: 1px solid rgba(201, 174, 116, 0.36);
+  border-top: 1px solid rgba(201, 174, 116, 0.36);
+  transform: rotate(45deg);
 }
 
 .makan-legal-card {
   position: relative;
-  width: min(460px, calc(100vw - 28px));
+  width: 100%;
   border-radius: 16px;
   border: 1px solid rgba(201, 174, 116, 0.36);
   background: rgba(247, 241, 230, 0.98);
@@ -4521,15 +4523,18 @@ details[open] .faq-answer {
     grid-template-columns: 42px minmax(0, 1fr) 28px;
   }
 
-  .makan-legal-modal {
-    align-items: end;
-    padding: 10px;
+  .makan-legal-popover {
+    left: 0;
+    right: auto;
+    top: calc(100% + 8px);
+    width: min(360px, calc(100vw - 24px));
+  }
+
+  .makan-legal-popover-arrow {
+    left: 14px;
   }
 
   .makan-legal-card {
-    width: 100%;
-    border-bottom-left-radius: 12px;
-    border-bottom-right-radius: 12px;
     padding: 16px 14px 14px;
   }
 }
