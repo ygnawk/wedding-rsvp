@@ -31,13 +31,26 @@
           <a href="#story" data-link="story">Our story</a>
           <a href="#venue" data-link="venue">Venue</a>
           <a href="#schedule" data-link="schedule">Schedule</a>
-          <a href="#rsvp" data-link="rsvp">RSVP</a>
-          <a href="#faq" data-link="faq">FAQ</a>
-          <a href="#stay" data-link="stay">Where to stay</a>
-          <a href="#things-to-do" data-link="things-to-do">Things to do</a>
-          <a href="#makan" data-link="makan">What to eat</a>
-          <a href="#travel-visa" data-link="travel-visa">Travel &amp; Visa</a>
-          <a href="#gallery" data-link="gallery">Recent moments</a>
+          <div id="desktopNavMore" class="desktop-nav-more">
+            <button
+              id="desktopMoreToggle"
+              class="desktop-nav-more-toggle"
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="desktopMoreMenu"
+            >
+              More
+            </button>
+            <div id="desktopMoreMenu" class="desktop-nav-more-menu" role="menu" hidden>
+              <a href="#faq" data-link="faq" role="menuitem">FAQ</a>
+              <a href="#stay" data-link="stay" role="menuitem">Where to stay</a>
+              <a href="#things-to-do" data-link="things-to-do" role="menuitem">Things to do</a>
+              <a href="#makan" data-link="makan" role="menuitem">What to eat</a>
+              <a href="#travel-visa" data-link="travel-visa" role="menuitem">Travel &amp; Visa</a>
+              <a href="#gallery" data-link="gallery" role="menuitem">Recent moments</a>
+            </div>
+          </div>
         </nav>
 
         <a class="header-rsvp" href="#rsvp">RSVP</a>
