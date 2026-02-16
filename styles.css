@@ -797,6 +797,51 @@ a:focus-visible,
   margin: 4px 0 0;
 }
 
+.story-year-scrubber {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.story-year-scrubber::-webkit-scrollbar {
+  display: none;
+}
+
+.story-year-pill-btn {
+  min-height: 36px;
+  padding: 8px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(75, 15, 23, 0.24);
+  background: rgba(247, 241, 230, 0.88);
+  color: rgba(62, 14, 22, 0.92);
+  font-family: var(--bodyFont);
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+
+.story-year-pill-btn:hover,
+.story-year-pill-btn:focus-visible {
+  border-color: rgba(201, 174, 116, 0.74);
+  background: rgba(247, 241, 230, 0.98);
+  color: var(--maroonDeep);
+}
+
+.story-year-pill-btn.is-active {
+  border-color: rgba(201, 174, 116, 0.8);
+  background: rgba(201, 174, 116, 0.18);
+  color: var(--maroonDeep);
+}
+
 #story.section--dark .ourstory-lede {
   color: rgba(247, 241, 230, 0.92);
 }
@@ -1565,6 +1610,22 @@ a:focus-visible,
     min-height: 28px;
   }
 
+  .story-year-scrubber {
+    position: sticky;
+    top: calc(var(--headerH) + 8px);
+    z-index: 6;
+    margin-top: 10px;
+    padding: 4px 0;
+    background: linear-gradient(180deg, rgba(247, 241, 230, 0.96) 0%, rgba(247, 241, 230, 0.82) 100%);
+    backdrop-filter: blur(4px);
+  }
+
+  .story-year-pill-btn {
+    min-height: 34px;
+    padding-inline: 10px;
+    font-size: 0.72rem;
+  }
+
   .story-timeline-shell {
     gap: 14px;
     padding-top: 8px;
@@ -1830,6 +1891,14 @@ a:focus-visible,
 
 .schedule-intro {
   align-self: start;
+}
+
+.schedule-note {
+  margin: 8px 0 0;
+  max-width: 58ch;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: rgba(21, 21, 21, 0.72);
 }
 
 .schedule-divider {
@@ -3585,7 +3654,9 @@ body.modal-open {
 }
 
 .travel-selector {
-  max-width: 580px;
+  max-width: 760px;
+  display: grid;
+  gap: 10px;
 }
 
 .travel-selector-label {
@@ -3597,28 +3668,42 @@ body.modal-open {
 }
 
 .travel-passport-pills {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
 
 .travel-passport-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
   min-height: 44px;
-  padding: 8px 13px;
-  border-radius: 999px;
+  padding: 10px 12px;
+  border-radius: 14px;
   border: 1px solid rgba(75, 15, 23, 0.24);
-  background: transparent;
+  background: rgba(247, 241, 230, 0.84);
   color: var(--ink);
   font-family: var(--bodyFont);
-  font-size: 0.92rem;
-  line-height: 1;
+  font-size: 0.89rem;
+  line-height: 1.2;
+  text-align: left;
   cursor: pointer;
   transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
 }
 
+.travel-passport-flag {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.travel-passport-label-text {
+  font-weight: 550;
+}
+
 .travel-passport-pill.is-active {
-  border-color: rgba(201, 174, 116, 0.8);
-  background: rgba(201, 174, 116, 0.16);
+  border-color: rgba(201, 174, 116, 0.85);
+  background: rgba(201, 174, 116, 0.2);
   color: var(--maroonDeep);
 }
 
@@ -3627,36 +3712,34 @@ body.modal-open {
   outline-offset: 2px;
 }
 
-.travel-passport-select {
-  width: 100%;
-  min-height: 46px;
-  border-radius: 12px;
-  border: 1px solid rgba(75, 15, 23, 0.25);
-  background: rgba(247, 241, 230, 0.9);
-  color: var(--ink);
-  padding: 10px 12px;
+.travel-passport-clear {
+  justify-self: flex-start;
+  min-height: 34px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(75, 15, 23, 0.74);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-size: 0.84rem;
+  cursor: pointer;
 }
 
-.travel-passport-select--sr {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  border: 0;
-  padding: 0;
-  clip-path: inset(50%);
-  overflow: hidden;
-  white-space: nowrap;
+.travel-passport-clear:focus-visible {
+  outline: 2px solid rgba(201, 174, 116, 0.68);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 
 .travel-selector-hint {
-  margin: 8px 0 0;
+  margin: 0;
   font-size: 0.86rem;
   color: rgba(21, 21, 21, 0.7);
 }
 
 .travel-result-card {
-  margin-top: 14px;
+  margin-top: 2px;
   border-radius: 16px;
   border: 1px solid rgba(201, 174, 116, 0.32);
   background: rgba(247, 241, 230, 0.92);
@@ -3840,23 +3923,23 @@ body.modal-open {
   color: rgba(21, 21, 21, 0.64);
 }
 
+@media (max-width: 980px) {
+  .travel-passport-pills {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 760px) {
   .travel-passport-pills {
-    display: none;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .travel-passport-select--sr {
-    position: static;
-    width: 100%;
-    height: auto;
-    margin: 0;
-    clip-path: none;
-    overflow: visible;
-    white-space: normal;
+  .travel-passport-pill {
+    min-height: 46px;
   }
 
   .travel-selector-hint {
-    margin-top: 10px;
+    margin-top: 2px;
   }
 
   .travel-source-groups {

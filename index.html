@@ -121,12 +121,13 @@
           <div class="story-timeline-head">
             <div class="story-head-row">
               <h2 class="section-title reveal reveal-left settle">Our story</h2>
-              <a class="story-skip" href="#venue">Skip</a>
+              <a class="story-skip" href="#schedule">Skip to logistics</a>
             </div>
             <p class="ourstory-lede reveal settle" data-delay="70">
               We met on orientation day at Wesleyan University in 2016. Since then, life has taken us across cities and continents—and many of
               you have been part of that journey. We’d love to celebrate this milestone together with you in Beijing.
             </p>
+            <div id="storyYearScrubber" class="story-year-scrubber reveal" data-delay="95" aria-label="Jump through story years"></div>
           </div>
 
           <div class="story-mosaic-layout" id="storyMosaicLayout" aria-label="Our story mosaic">
@@ -180,6 +181,7 @@
           </div>
           <div class="schedule-intro">
             <h2 class="reveal reveal-left settle">Schedule of events</h2>
+            <p class="schedule-note reveal">Times are a draft and may change as we get closer to the wedding.</p>
             <div class="schedule-divider reveal" aria-hidden="true"></div>
           </div>
           <div class="schedule-list" role="list" aria-label="Wedding day schedule">
@@ -801,26 +803,38 @@
           </p>
 
           <div class="travel-selector reveal">
-            <label class="travel-selector-label" for="travelPassportSelect">Select your passport</label>
+            <label class="travel-selector-label">Select your passport</label>
             <div class="travel-passport-pills" role="radiogroup" aria-label="Passport selector">
-              <button class="travel-passport-pill" type="button" data-passport="us">🇺🇸 U.S.</button>
-              <button class="travel-passport-pill" type="button" data-passport="singapore">🇸🇬 Singapore</button>
-              <button class="travel-passport-pill" type="button" data-passport="japan">🇯🇵 Japan</button>
-              <button class="travel-passport-pill" type="button" data-passport="thailand">🇹🇭 Thailand</button>
-              <button class="travel-passport-pill" type="button" data-passport="malaysia">🇲🇾 Malaysia</button>
-              <button class="travel-passport-pill" type="button" data-passport="south-korea">🇰🇷 South Korea</button>
-              <button class="travel-passport-pill" type="button" data-passport="other">🌍 Other</button>
+              <button class="travel-passport-pill" type="button" data-passport="us">
+                <span class="travel-passport-flag" aria-hidden="true">🇺🇸</span>
+                <span class="travel-passport-label-text">U.S.</span>
+              </button>
+              <button class="travel-passport-pill" type="button" data-passport="singapore">
+                <span class="travel-passport-flag" aria-hidden="true">🇸🇬</span>
+                <span class="travel-passport-label-text">Singapore</span>
+              </button>
+              <button class="travel-passport-pill" type="button" data-passport="japan">
+                <span class="travel-passport-flag" aria-hidden="true">🇯🇵</span>
+                <span class="travel-passport-label-text">Japan</span>
+              </button>
+              <button class="travel-passport-pill" type="button" data-passport="thailand">
+                <span class="travel-passport-flag" aria-hidden="true">🇹🇭</span>
+                <span class="travel-passport-label-text">Thailand</span>
+              </button>
+              <button class="travel-passport-pill" type="button" data-passport="malaysia">
+                <span class="travel-passport-flag" aria-hidden="true">🇲🇾</span>
+                <span class="travel-passport-label-text">Malaysia</span>
+              </button>
+              <button class="travel-passport-pill" type="button" data-passport="south-korea">
+                <span class="travel-passport-flag" aria-hidden="true">🇰🇷</span>
+                <span class="travel-passport-label-text">South Korea</span>
+              </button>
+              <button class="travel-passport-pill" type="button" data-passport="other">
+                <span class="travel-passport-flag" aria-hidden="true">🌍</span>
+                <span class="travel-passport-label-text">Other</span>
+              </button>
             </div>
-            <select id="travelPassportSelect" class="travel-passport-select travel-passport-select--sr" aria-describedby="travelPassportHint">
-              <option value="">Select…</option>
-              <option value="us">U.S.</option>
-              <option value="singapore">Singapore</option>
-              <option value="japan">Japan</option>
-              <option value="thailand">Thailand</option>
-              <option value="malaysia">Malaysia</option>
-              <option value="south-korea">South Korea</option>
-              <option value="other">Other</option>
-            </select>
+            <button id="travelPassportClear" class="travel-passport-clear hidden" type="button">Clear selection</button>
             <p id="travelPassportHint" class="travel-selector-hint">Choose your passport to see a quick summary.</p>
 
             <article id="travelPassportResult" class="travel-result-card" aria-live="polite" hidden>
@@ -943,7 +957,9 @@
           <span class="site-footer-main-label">Questions?</span>
           <a class="site-footer-email" href="mailto:Kwangyijie@gmail.com">Kwangyijie@gmail.com</a>
         </p>
-        <p class="site-footer-legal">This site is for wedding logistics. Please don’t treat it as legal advice. (Our lawyer made us say this.)</p>
+        <p class="site-footer-legal">
+          Wedding logistics only — not legal advice. If this site feels a little like a slide deck, blame Yi Jie’s last 6 years in PowerPoint.
+        </p>
         <p class="site-footer-copy">© 2026 Miki &amp; Yi Jie</p>
       </div>
     </footer>

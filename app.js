@@ -80,6 +80,7 @@ const storyPrev = document.getElementById("storyPrev");
 const storyNext = document.getElementById("storyNext");
 const storyDots = document.getElementById("storyDots");
 const storyHint = document.getElementById("storyHint");
+const storyYearScrubber = document.getElementById("storyYearScrubber");
 const storyMosaicLayout = document.getElementById("storyMosaicLayout");
 const storyMosaicLeft = document.getElementById("storyMosaicLeft");
 const storyMosaicRight = document.getElementById("storyMosaicRight");
@@ -112,6 +113,8 @@ let storyActiveStep = -1;
 let storyScrollRaf = null;
 let storyTileElements = [];
 let storyResizeRaf = null;
+let storyYearButtons = [];
+let storyYearObserver = null;
 let hotelMatrixItems = [];
 let hotelMatrixHoveredId = "";
 let hotelMatrixPinnedId = "";
@@ -126,8 +129,8 @@ const jumpMenuWrap = document.getElementById("jumpMenuWrap");
 const jumpMenuToggle = document.getElementById("jumpMenuToggle");
 const jumpMenuPanel = document.getElementById("jumpMenuPanel");
 const jumpMenuLinks = jumpMenuPanel ? Array.from(jumpMenuPanel.querySelectorAll("a[href^='#']")) : [];
-const travelPassportSelect = document.getElementById("travelPassportSelect");
 const travelPassportPills = Array.from(document.querySelectorAll(".travel-passport-pill"));
+const travelPassportClear = document.getElementById("travelPassportClear");
 const travelPassportResult = document.getElementById("travelPassportResult");
 const travelSourcesDisclosure = document.querySelector(".travel-sources-disclosure");
 
@@ -283,20 +286,6 @@ const STORY_OVERRIDES = {
   "2024-proposal-v2.jpg": { rotate: -90, yearTop: 72, objPos: "50% 40%" },
   "2024 - She said yes.JPG": { rotate: -90, yearTop: 72, objPos: "50% 40%" },
 };
-const STORY_MOSAIC_PLAN = [
-  { year: 1995, column: "left", slot: "hero" },
-  { year: 2013, column: "left", slot: "feature" },
-  { year: 2023, column: "left", slot: "half" },
-  { year: 2024, column: "left", slot: "half" },
-  { year: 1998, column: "right", slot: "small" },
-  { year: 2001, column: "right", slot: "small" },
-  { year: 2008, column: "right", slot: "small" },
-  { year: 2016, column: "right", slot: "small" },
-  { year: 2020, column: "right", slot: "small" },
-  { year: 2021, column: "right", slot: "small" },
-  { year: 2025, column: "right", slot: "small" },
-  { year: 2027, column: "right", slot: "small" },
-];
 const WEDDING_DATE_SHANGHAI = { year: 2026, month: 9, day: 19 };
 const SHANGHAI_TIMEZONE = "Asia/Shanghai";
 let countdownIntervalId = null;
@@ -375,6 +364,10 @@ function isSheetsConfigured() {
       !SHEETS_WEBAPP_URL.includes("PASTE_WEBAPP_URL_HERE") &&
       !SHEETS_WEBAPP_URL.includes("PASTE_WEB_APP_URL_HERE"),
   );
+}
+
+function getScrollBehavior() {
+  return reducedMotion ? "auto" : "smooth";
 }
 
 function setActiveLink(sectionId) {
@@ -467,7 +460,7 @@ function initJumpMenu() {
       const href = link.getAttribute("href") || "";
       const id = href.startsWith("#") ? href.slice(1) : href;
       const target = id ? document.getElementById(id) : null;
-      if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (target) target.scrollIntoView({ behavior: getScrollBehavior(), block: "start" });
       closeJumpMenu();
     });
   });
@@ -557,16 +550,11 @@ function renderTravelPassportResult(key) {
 }
 
 function initTravelVisaSection() {
-  const hasSelect = Boolean(travelPassportSelect);
   const hasPills = travelPassportPills.length > 0;
 
-  const syncPassportUi = (rawValue, source = "select") => {
+  const syncPassportUi = (rawValue) => {
     const key = String(rawValue || "");
     renderTravelPassportResult(key);
-
-    if (hasSelect && source !== "select") {
-      travelPassportSelect.value = key;
-    }
 
     if (hasPills) {
       travelPassportPills.forEach((pill) => {
@@ -575,14 +563,11 @@ function initTravelVisaSection() {
         pill.setAttribute("aria-pressed", String(isActive));
       });
     }
-  };
 
-  if (hasSelect && travelPassportSelect.dataset.bound !== "true") {
-    travelPassportSelect.addEventListener("change", () => {
-      syncPassportUi(travelPassportSelect.value, "select");
-    });
-    travelPassportSelect.dataset.bound = "true";
-  }
+    if (travelPassportClear) {
+      travelPassportClear.classList.toggle("hidden", !key);
+    }
+  };
 
   if (hasPills) {
     travelPassportPills.forEach((pill) => {
@@ -590,13 +575,21 @@ function initTravelVisaSection() {
       pill.setAttribute("aria-pressed", "false");
       pill.addEventListener("click", () => {
         const key = pill.dataset.passport || "";
-        syncPassportUi(key, "pill");
+        const currentlyActive = pill.classList.contains("is-active");
+        syncPassportUi(currentlyActive ? "" : key);
       });
       pill.dataset.bound = "true";
     });
   }
 
-  syncPassportUi(hasSelect ? travelPassportSelect.value : "");
+  if (travelPassportClear && travelPassportClear.dataset.bound !== "true") {
+    travelPassportClear.addEventListener("click", () => {
+      syncPassportUi("");
+    });
+    travelPassportClear.dataset.bound = "true";
+  }
+
+  syncPassportUi("");
 
   if (travelSourcesDisclosure && travelSourcesDisclosure.dataset.bound !== "true") {
     travelSourcesDisclosure.addEventListener("keydown", (event) => {
@@ -2161,11 +2154,11 @@ function extractStoryYear(value) {
 
 function normalizeStoryEntry(entry) {
   if (typeof entry === "string") {
-    return { file: entry.trim(), objectPosition: "", alt: "" };
+    return { file: entry.trim(), objectPosition: "", alt: "", year: NaN };
   }
 
   if (!entry || typeof entry !== "object") {
-    return { file: "", objectPosition: "", alt: "" };
+    return { file: "", objectPosition: "", alt: "", year: NaN };
   }
 
   return {
@@ -2173,11 +2166,13 @@ function normalizeStoryEntry(entry) {
     objectPosition: String(entry.objectPosition || "").trim(),
     fit: String(entry.fit || "").trim(),
     rotation: Number.isFinite(Number(entry.rotation)) ? Number(entry.rotation) : 0,
+    year: Number.isFinite(Number(entry.year)) ? Number(entry.year) : NaN,
     alt: String(entry.alt || "").trim(),
   };
 }
 
 function sortStoryEntries(entries) {
+  const isLocalDev = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
   const normalized = (entries || []).map(normalizeStoryEntry).filter((entry) => entry.file);
   const byFile = new Map();
 
@@ -2192,9 +2187,15 @@ function sortStoryEntries(entries) {
       fit: entry.fit,
       rotation: entry.rotation,
       alt: entry.alt,
-      year: extractStoryYear(entry.file),
+      year: Number.isFinite(entry.year) ? entry.year : extractStoryYear(entry.file),
     }))
-    .filter((entry) => Number.isFinite(entry.year))
+    .filter((entry) => {
+      if (Number.isFinite(entry.year)) return true;
+      if (isLocalDev) {
+        console.warn(`[story] missing year/date for timeline item: ${entry.file}`);
+      }
+      return false;
+    })
     .sort((a, b) => {
       if (a.year !== b.year) return a.year - b.year;
       return a.file.localeCompare(b.file, undefined, { numeric: true, sensitivity: "base" });
@@ -2320,6 +2321,86 @@ function buildStoryTimelinePlaceholder() {
   return slide;
 }
 
+function setActiveStoryScrubberIndex(index) {
+  if (!storyYearButtons.length) return;
+  const safeIndex = Math.max(0, Math.min(storyYearButtons.length - 1, Number(index) || 0));
+  storyYearButtons.forEach((button, buttonIndex) => {
+    const isActive = buttonIndex === safeIndex;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-current", isActive ? "true" : "false");
+  });
+}
+
+function renderStoryYearScrubber(items, yearTargets = []) {
+  if (!storyYearScrubber) return;
+  storyYearScrubber.innerHTML = "";
+  storyYearButtons = [];
+
+  if (!Array.isArray(items) || !items.length) {
+    storyYearScrubber.classList.add("hidden");
+    return;
+  }
+
+  const targetsByIndex = new Map();
+  yearTargets.forEach((entry) => {
+    if (!entry || !entry.element) return;
+    targetsByIndex.set(entry.index, entry.element);
+  });
+
+  items.forEach((item, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "story-year-pill-btn";
+    button.textContent = item.yearLabel;
+    button.setAttribute("aria-label", `Jump to ${item.yearLabel}`);
+    button.dataset.index = String(index);
+
+    button.addEventListener("click", () => {
+      const target = targetsByIndex.get(index);
+      if (target instanceof HTMLElement) {
+        target.scrollIntoView({ behavior: getScrollBehavior(), block: "center" });
+      }
+      scrollStoryTimelineTo(index, getScrollBehavior());
+      setActiveStoryScrubberIndex(index);
+    });
+
+    storyYearButtons.push(button);
+    storyYearScrubber.appendChild(button);
+  });
+
+  setActiveStoryScrubberIndex(0);
+  storyYearScrubber.classList.remove("hidden");
+}
+
+function bindStoryYearObserver(yearTargets = []) {
+  if (storyYearObserver) {
+    storyYearObserver.disconnect();
+    storyYearObserver = null;
+  }
+  if (!yearTargets.length) return;
+
+  storyYearObserver = new IntersectionObserver(
+    (entries) => {
+      const visible = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+      if (!visible.length) return;
+      const idx = Number(visible[0].target.getAttribute("data-year-index"));
+      if (!Number.isFinite(idx)) return;
+      setActiveStoryScrubberIndex(idx);
+    },
+    {
+      threshold: [0.45, 0.7],
+      rootMargin: "-32% 0px -32% 0px",
+    },
+  );
+
+  yearTargets.forEach((entry) => {
+    if (!(entry.element instanceof Element)) return;
+    storyYearObserver.observe(entry.element);
+  });
+}
+
 function getNearestStoryTimelineIndex() {
   if (!storyViewport || !storyTrack) return 0;
   const slides = Array.from(storyTrack.children);
@@ -2355,9 +2436,11 @@ function updateStoryTimelineUI(index) {
       dot.setAttribute("aria-current", dotIndex === storyTimelineIndex ? "true" : "false");
     });
   }
+
+  setActiveStoryScrubberIndex(storyTimelineIndex);
 }
 
-function scrollStoryTimelineTo(index, behavior = "smooth") {
+function scrollStoryTimelineTo(index, behavior = getScrollBehavior()) {
   if (!storyViewport || !storyTrack) return;
   const slides = Array.from(storyTrack.children);
   if (!slides.length) return;
@@ -2388,9 +2471,9 @@ function bindStoryTimelineEvents() {
   if (storySkip && storySkip.dataset.bound !== "true") {
     storySkip.addEventListener("click", (event) => {
       event.preventDefault();
-      const target = document.getElementById("venue");
+      const target = document.getElementById("schedule");
       if (!target) return;
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      target.scrollIntoView({ behavior: getScrollBehavior(), block: "start" });
     });
     storySkip.dataset.bound = "true";
   }
@@ -2481,10 +2564,13 @@ async function initStoryTimeline() {
   window.requestAnimationFrame(() => scrollStoryTimelineTo(0, "auto"));
 }
 
-function buildStoryMosaicCard(item, slot) {
+function buildStoryMosaicCard(item, slot, index) {
   const card = document.createElement("button");
   card.type = "button";
   card.className = `story-mosaic-card story-mosaic-card--${slot}`;
+  card.id = `story-${item.year}-${index}`;
+  card.dataset.year = String(item.year);
+  card.dataset.yearIndex = String(index);
   card.setAttribute("aria-label", `Open story from ${item.yearLabel}`);
 
   const img = document.createElement("img");
@@ -2544,25 +2630,11 @@ function applyStoryMosaicReveal(cards) {
   cards.forEach((card) => observer.observe(card));
 }
 
-function orderedStoryMosaicItems() {
-  const yearToItem = new Map();
-  storyItems.forEach((item) => {
-    if (!yearToItem.has(item.year)) yearToItem.set(item.year, item);
-  });
-
-  const ordered = [];
-  STORY_MOSAIC_PLAN.forEach((slotPlan) => {
-    const item = yearToItem.get(slotPlan.year);
-    if (!item) return;
-    ordered.push({ ...slotPlan, item });
-    yearToItem.delete(slotPlan.year);
-  });
-
-  Array.from(yearToItem.values())
-    .sort((a, b) => a.year - b.year)
-    .forEach((item) => ordered.push({ year: item.year, column: "right", slot: "small", item }));
-
-  return ordered;
+function getStoryMosaicSlot(positionInColumn) {
+  if (positionInColumn === 0) return "hero";
+  if (positionInColumn === 1) return "feature";
+  if (positionInColumn <= 3) return "half";
+  return "small";
 }
 
 async function initStoryMosaicLayout() {
@@ -2572,6 +2644,7 @@ async function initStoryMosaicLayout() {
   storyItems = entries.map((entry) => buildStoryItem(entry));
   storyMosaicLeft.innerHTML = "";
   storyMosaicRight.innerHTML = "";
+  storyMosaicLayout.querySelectorAll(".story-mosaic-empty").forEach((node) => node.remove());
   bindStoryLightboxEvents();
 
   if (!storyItems.length) {
@@ -2579,17 +2652,35 @@ async function initStoryMosaicLayout() {
     empty.className = "story-mosaic-empty";
     empty.textContent = "Story photos coming soon.";
     storyMosaicLayout.appendChild(empty);
+    renderStoryYearScrubber([], []);
+    bindStoryYearObserver([]);
     return;
   }
 
+  const orderedItems = [...storyItems].sort((a, b) => {
+    if (a.year !== b.year) return a.year - b.year;
+    return a.file.localeCompare(b.file, undefined, { numeric: true, sensitivity: "base" });
+  });
+  storyItems = orderedItems;
+  const splitIndex = Math.ceil(orderedItems.length / 2);
   const cards = [];
-  orderedStoryMosaicItems().forEach((entry) => {
-    const card = buildStoryMosaicCard(entry.item, entry.slot);
-    if (entry.column === "left") storyMosaicLeft.appendChild(card);
+  const yearTargets = [];
+
+  orderedItems.forEach((item, index) => {
+    const isLeftColumn = index < splitIndex;
+    const localIndex = isLeftColumn ? index : index - splitIndex;
+    const slot = isLeftColumn ? getStoryMosaicSlot(localIndex) : localIndex <= 5 ? "small" : "half";
+    const card = buildStoryMosaicCard(item, slot, index);
+
+    if (isLeftColumn) storyMosaicLeft.appendChild(card);
     else storyMosaicRight.appendChild(card);
+
     cards.push(card);
+    yearTargets.push({ index, element: card });
   });
 
+  renderStoryYearScrubber(orderedItems, yearTargets);
+  bindStoryYearObserver(yearTargets);
   applyStoryMosaicReveal(cards);
 }
 
@@ -2975,9 +3066,9 @@ function bindStoryScrollyEvents() {
   if (storySkip) {
     storySkip.addEventListener("click", (event) => {
       event.preventDefault();
-      const target = document.getElementById("venue");
+      const target = document.getElementById("schedule");
       if (!target) return;
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      target.scrollIntoView({ behavior: getScrollBehavior(), block: "start" });
     });
   }
 
