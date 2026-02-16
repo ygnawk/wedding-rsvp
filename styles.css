@@ -3028,6 +3028,11 @@ details[open] .faq-answer {
   margin: 6px 0;
 }
 
+.faq-answer strong,
+.faq-answer b {
+  font-weight: 400 !important;
+}
+
 @keyframes faqFade {
   from {
     opacity: 0;
