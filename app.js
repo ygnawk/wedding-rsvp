@@ -3981,7 +3981,7 @@ function highlightStoryMobileCard() {
 }
 
 function isStoryMobileView() {
-  return window.matchMedia("(max-width: 760px)").matches;
+  return window.matchMedia("(max-width: 767px)").matches;
 }
 
 function renderStoryYearScrubber(items, yearTargets = [], onSelect = null) {
@@ -4197,7 +4197,11 @@ function syncStoryResponsiveMode() {
   }
   storyMobileStage.hidden = !isMobile;
   storyMobileStage.setAttribute("aria-hidden", String(!isMobile));
-  if (storyMosaicShell) storyMosaicShell.setAttribute("aria-hidden", String(isMobile));
+  if (storyMosaicShell) {
+    storyMosaicShell.hidden = isMobile;
+    storyMosaicShell.setAttribute("aria-hidden", String(isMobile));
+  }
+  storyMosaicLayout.hidden = isMobile;
   storyMosaicLayout.setAttribute("aria-hidden", String(isMobile));
   bindStoryYearObserver(isMobile ? [] : storyPathTargets);
 
@@ -4573,7 +4577,7 @@ async function initStoryMosaicLayout() {
   bindStoryChronologyResize();
   const preferredIndex = Math.max(
     0,
-    orderedItems.findIndex((item) => Number(item.year) === 2016),
+    orderedItems.findIndex((item) => Number(item.year) === 1998),
   );
   storyMobileIndex = preferredIndex;
   setStoryMobileSlide(preferredIndex, { scrollPill: false });
