@@ -138,7 +138,12 @@
             <p id="storyMobileBlurb" class="story-mobile-blurb"></p>
           </div>
 
-          <div class="story-mosaic-layout reveal" data-delay="120" id="storyMosaicLayout" aria-label="Our story mosaic"></div>
+          <div class="story-mosaic-shell reveal" data-delay="120" id="storyMosaicShell">
+            <svg class="story-chronology-path" id="storyChronologyPath" aria-hidden="true"></svg>
+            <span class="story-chronology-label story-chronology-label--start" id="storyChronologyStart" aria-hidden="true">Start</span>
+            <span class="story-chronology-label story-chronology-label--now" id="storyChronologyNow" aria-hidden="true">Now</span>
+            <div class="story-mosaic-layout" id="storyMosaicLayout" aria-label="Our story mosaic"></div>
+          </div>
         </div>
       </section>
 

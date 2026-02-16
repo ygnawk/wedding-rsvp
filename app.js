@@ -1,6 +1,7 @@
 const SHEETS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwpfLq3hB_mRiKKgiwMv1bvZUUtcoUZP7ifjKpnLpcK0HgaOKHwm_LRsPPCahWWQ67U/exec";
 const RSVP_LOCAL_FALLBACK_KEY = "wedding_rsvp_fallback";
 const BASE_PATH = window.location.hostname === "ygnawk.github.io" ? "/wedding-rsvp" : "";
+const IS_LOCAL_DEV = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
 
 const SECTION_IDS = ["top", "interlude", "story", "venue", "schedule", "rsvp", "faq", "stay", "things-to-do", "makan", "travel-visa", "gallery"];
 
@@ -83,7 +84,11 @@ const storyNext = document.getElementById("storyNext");
 const storyDots = document.getElementById("storyDots");
 const storyHint = document.getElementById("storyHint");
 const storyYearScrubber = document.getElementById("storyYearScrubber");
+const storyMosaicShell = document.getElementById("storyMosaicShell");
 const storyMosaicLayout = document.getElementById("storyMosaicLayout");
+const storyChronologyPath = document.getElementById("storyChronologyPath");
+const storyChronologyStart = document.getElementById("storyChronologyStart");
+const storyChronologyNow = document.getElementById("storyChronologyNow");
 const storyMobileStage = document.getElementById("storyMobileStage");
 const storyMobileCard = document.getElementById("storyMobileCard");
 const storyMobileImg = document.getElementById("storyMobileImg");
@@ -122,6 +127,10 @@ let storyYearButtons = [];
 let storyYearObserver = null;
 let storyMobileIndex = 0;
 let storyMobileTouchStartX = null;
+let storyPathTargets = [];
+let storyPathRaf = null;
+let storyPathResizeBound = false;
+let storyPathResizeObserver = null;
 let hotelMatrixItems = [];
 let hotelMatrixHoveredId = "";
 let hotelMatrixPinnedId = "";
@@ -298,6 +307,20 @@ const STORY_OVERRIDES = {
   "2024-proposal.jpg": { rotate: -90, yearTop: 72, objPos: "50% 40%" },
   "2024-proposal-v2.jpg": { rotate: -90, yearTop: 72, objPos: "50% 40%" },
   "2024 - She said yes.JPG": { rotate: -90, yearTop: 72, objPos: "50% 40%" },
+};
+const STORY_YEAR_FOCAL_PRESETS = {
+  1995: { focalX: 0.5, focalY: 0.3, cropMode: "cover" },
+  1998: { focalX: 0.45, focalY: 0.35, cropMode: "cover" },
+  2001: { focalX: 0.5, focalY: 0.3, cropMode: "cover" },
+  2008: { focalX: 0.5, focalY: 0.25, cropMode: "cover" },
+  2013: { focalX: 0.5, focalY: 0.22, cropMode: "cover" },
+  2016: { focalX: 0.55, focalY: 0.25, cropMode: "cover" },
+  2020: { focalX: 0.5, focalY: 0.3, cropMode: "cover" },
+  2021: { focalX: 0.5, focalY: 0.3, cropMode: "cover" },
+  2023: { focalX: 0.5, focalY: 0.24, cropMode: "cover" },
+  2024: { focalX: 0.5, focalY: 0.2, cropMode: "cover" },
+  2025: { focalX: 0.5, focalY: 0.22, cropMode: "cover" },
+  2027: { focalX: 0.5, focalY: 0.5, cropMode: "cover" },
 };
 const WEDDING_DATE_SHANGHAI = { year: 2026, month: 9, day: 19 };
 const SHANGHAI_TIMEZONE = "Asia/Shanghai";
@@ -2319,27 +2342,57 @@ function extractStoryYear(value) {
   return match ? Number(match[1]) : NaN;
 }
 
+function clamp01(value, fallback = 0.5) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  if (numeric < 0) return 0;
+  if (numeric > 1) return 1;
+  return numeric;
+}
+
+function normalizeCropMode(modeValue) {
+  const mode = String(modeValue || "").toLowerCase();
+  if (mode === "contain") return "contain";
+  if (mode === "cover") return "cover";
+  return "";
+}
+
+function parseStoryObjectPosition(positionValue) {
+  const match = String(positionValue || "").trim().match(/(-?\d+(?:\.\d+)?)%\s+(-?\d+(?:\.\d+)?)%/);
+  if (!match) return null;
+  return {
+    x: clamp01(Number(match[1]) / 100),
+    y: clamp01(Number(match[2]) / 100, 0.3),
+  };
+}
+
+function toObjectPosition(focalX = 0.5, focalY = 0.3) {
+  return `${(clamp01(focalX) * 100).toFixed(2)}% ${(clamp01(focalY, 0.3) * 100).toFixed(2)}%`;
+}
+
 function normalizeStoryEntry(entry) {
   if (typeof entry === "string") {
-    return { file: entry.trim(), objectPosition: "", alt: "", year: NaN };
+    return { file: entry.trim(), objectPosition: "", alt: "", year: NaN, focalX: NaN, focalY: NaN, cropMode: "" };
   }
 
   if (!entry || typeof entry !== "object") {
-    return { file: "", objectPosition: "", alt: "", year: NaN };
+    return { file: "", objectPosition: "", alt: "", year: NaN, focalX: NaN, focalY: NaN, cropMode: "" };
   }
 
   return {
     file: String(entry.file || "").trim(),
     objectPosition: String(entry.objectPosition || "").trim(),
     fit: String(entry.fit || "").trim(),
+    cropMode: normalizeCropMode(entry.cropMode || entry.fit),
     rotation: Number.isFinite(Number(entry.rotation)) ? Number(entry.rotation) : 0,
     year: Number.isFinite(Number(entry.year)) ? Number(entry.year) : NaN,
+    focalX: Number.isFinite(Number(entry.focalX)) ? clamp01(Number(entry.focalX)) : NaN,
+    focalY: Number.isFinite(Number(entry.focalY)) ? clamp01(Number(entry.focalY), 0.3) : NaN,
     alt: String(entry.alt || "").trim(),
   };
 }
 
 function sortStoryEntries(entries) {
-  const isLocalDev = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
   const normalized = (entries || []).map(normalizeStoryEntry).filter((entry) => entry.file);
   const byFile = new Map();
 
@@ -2352,13 +2405,16 @@ function sortStoryEntries(entries) {
       file: entry.file,
       objectPosition: entry.objectPosition,
       fit: entry.fit,
+      cropMode: entry.cropMode,
       rotation: entry.rotation,
       alt: entry.alt,
+      focalX: entry.focalX,
+      focalY: entry.focalY,
       year: Number.isFinite(entry.year) ? entry.year : extractStoryYear(entry.file),
     }))
     .filter((entry) => {
       if (Number.isFinite(entry.year)) return true;
-      if (isLocalDev) {
+      if (IS_LOCAL_DEV) {
         console.warn(`[story] missing year/date for timeline item: ${entry.file}`);
       }
       return false;
@@ -2426,7 +2482,7 @@ function buildStoryTimelineSlide(item, index) {
   img.decoding = "async";
   img.style.objectPosition = item.objectPosition || "50% 50%";
   img.style.imageOrientation = "from-image";
-  if (item.fit === "contain") img.style.objectFit = "contain";
+  img.style.objectFit = item.cropMode === "contain" || item.fit === "contain" ? "contain" : "cover";
 
   if (item.rotation === 90) {
     img.style.setProperty("--storyRotate", "90deg");
@@ -2498,6 +2554,28 @@ function setActiveStoryScrubberIndex(index) {
   });
 }
 
+function highlightStoryMosaicTile(target) {
+  if (!(target instanceof HTMLElement)) return;
+  target.classList.remove("is-jump-highlight");
+  window.requestAnimationFrame(() => {
+    target.classList.add("is-jump-highlight");
+  });
+  window.setTimeout(() => {
+    target.classList.remove("is-jump-highlight");
+  }, 820);
+}
+
+function highlightStoryMobileCard() {
+  if (!storyMobileCard) return;
+  storyMobileCard.classList.remove("is-jump-highlight");
+  window.requestAnimationFrame(() => {
+    storyMobileCard.classList.add("is-jump-highlight");
+  });
+  window.setTimeout(() => {
+    storyMobileCard.classList.remove("is-jump-highlight");
+  }, 780);
+}
+
 function isStoryMobileView() {
   return window.matchMedia("(max-width: 760px)").matches;
 }
@@ -2531,12 +2609,14 @@ function renderStoryYearScrubber(items, yearTargets = [], onSelect = null) {
 
       if (isStoryMobileView()) {
         setActiveStoryScrubberIndex(index);
+        highlightStoryMobileCard();
         return;
       }
 
       const target = targetsByIndex.get(index);
       if (target instanceof HTMLElement) {
         target.scrollIntoView({ behavior: getScrollBehavior(), block: "center" });
+        highlightStoryMosaicTile(target);
       }
       setActiveStoryScrubberIndex(index);
     });
@@ -2578,6 +2658,87 @@ function bindStoryYearObserver(yearTargets = []) {
   });
 }
 
+function clearStoryChronologyPath() {
+  if (storyChronologyPath) storyChronologyPath.innerHTML = "";
+  if (storyChronologyStart) storyChronologyStart.style.display = "none";
+  if (storyChronologyNow) storyChronologyNow.style.display = "none";
+}
+
+function drawStoryChronologyPath(yearTargets = []) {
+  if (!storyMosaicShell || !storyChronologyPath || isStoryMobileView()) {
+    clearStoryChronologyPath();
+    return;
+  }
+
+  const shellRect = storyMosaicShell.getBoundingClientRect();
+  const width = Math.max(1, shellRect.width);
+  const height = Math.max(1, shellRect.height);
+
+  const points = yearTargets
+    .filter((entry) => entry && entry.element instanceof HTMLElement)
+    .sort((a, b) => a.index - b.index)
+    .map((entry) => {
+      const tileRect = entry.element.getBoundingClientRect();
+      const x = tileRect.left - shellRect.left + Math.min(tileRect.width * 0.24, 44);
+      const y = tileRect.top - shellRect.top + Math.min(tileRect.height * 0.24, 40);
+      return {
+        index: entry.index,
+        x: Math.max(0, Math.min(width, x)),
+        y: Math.max(0, Math.min(height, y)),
+      };
+    });
+
+  if (points.length < 2) {
+    clearStoryChronologyPath();
+    return;
+  }
+
+  const pathD = points.map((point, pointIndex) => `${pointIndex === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(" ");
+  const circles = points
+    .map((point) => `<circle class="story-chronology-dot" cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="2.7"></circle>`)
+    .join("");
+
+  storyChronologyPath.setAttribute("viewBox", `0 0 ${width.toFixed(2)} ${height.toFixed(2)}`);
+  storyChronologyPath.innerHTML = `<path class="story-chronology-line" d="${pathD}"></path>${circles}`;
+
+  const placeEdgeLabel = (node, point, offsetX = 8) => {
+    if (!node || !point) return;
+    const labelWidth = 58;
+    const x = Math.max(8, Math.min(width - labelWidth, point.x + offsetX));
+    const y = Math.max(6, Math.min(height - 24, point.y - 16));
+    node.style.display = "inline-flex";
+    node.style.left = `${x.toFixed(2)}px`;
+    node.style.top = `${y.toFixed(2)}px`;
+  };
+
+  placeEdgeLabel(storyChronologyStart, points[0], 8);
+  placeEdgeLabel(storyChronologyNow, points[points.length - 1], 10);
+}
+
+function queueStoryChronologyPathRender() {
+  if (storyPathRaf) return;
+  storyPathRaf = window.requestAnimationFrame(() => {
+    storyPathRaf = null;
+    drawStoryChronologyPath(storyPathTargets);
+  });
+}
+
+function bindStoryChronologyResize() {
+  if (storyPathResizeBound) return;
+  window.addEventListener("resize", queueStoryChronologyPathRender, { passive: true });
+  storyPathResizeBound = true;
+
+  if (storyMosaicShell && "ResizeObserver" in window) {
+    if (storyPathResizeObserver) {
+      storyPathResizeObserver.disconnect();
+    }
+    storyPathResizeObserver = new ResizeObserver(() => {
+      queueStoryChronologyPathRender();
+    });
+    storyPathResizeObserver.observe(storyMosaicShell);
+  }
+}
+
 function setStoryMobileSlide(index, options = {}) {
   if (!storyItems.length || !storyMobileImg || !storyMobileYear) return;
 
@@ -2586,11 +2747,17 @@ function setStoryMobileSlide(index, options = {}) {
   const safeIndex = ((Number(index) || 0) % total + total) % total;
   const item = storyItems[safeIndex];
   storyMobileIndex = safeIndex;
+  const imageSrc = `${toPhotoSrc(item.file)}${String(item.file).includes("?") ? "&" : "?"}v=${STORY_ASSET_VERSION}`;
 
-  storyMobileImg.src = `${toPhotoSrc(item.file)}${String(item.file).includes("?") ? "&" : "?"}v=${STORY_ASSET_VERSION}`;
+  storyMobileImg.src = imageSrc;
   storyMobileImg.alt = item.alt || `Story photo ${item.yearLabel}`;
   storyMobileImg.style.objectPosition = item.objectPosition || "50% 50%";
   storyMobileImg.style.imageOrientation = "from-image";
+  storyMobileImg.style.objectFit = item.cropMode === "contain" ? "contain" : "cover";
+  if (storyMobileCard) {
+    storyMobileCard.classList.toggle("is-contain", item.cropMode === "contain");
+    storyMobileCard.style.setProperty("--storyMobileBgImage", item.cropMode === "contain" ? `url("${imageSrc}")` : "none");
+  }
 
   if (item.rotation === 90) storyMobileImg.style.setProperty("--storyRotate", "90deg");
   else if (item.rotation === -90) storyMobileImg.style.setProperty("--storyRotate", "-90deg");
@@ -2615,11 +2782,17 @@ function syncStoryResponsiveMode() {
   const isMobile = isStoryMobileView();
   storyMobileStage.hidden = !isMobile;
   storyMobileStage.setAttribute("aria-hidden", String(!isMobile));
+  if (storyMosaicShell) storyMosaicShell.setAttribute("aria-hidden", String(isMobile));
   storyMosaicLayout.setAttribute("aria-hidden", String(isMobile));
+  bindStoryYearObserver(isMobile ? [] : storyPathTargets);
 
   if (isMobile && storyItems.length) {
     setStoryMobileSlide(storyMobileIndex, { scrollPill: false });
+    clearStoryChronologyPath();
+    return;
   }
+
+  queueStoryChronologyPathRender();
 }
 
 function bindStoryMobileStage() {
@@ -2823,17 +2996,34 @@ function buildStoryMosaicCard(item, slot, index) {
   const card = document.createElement("button");
   card.type = "button";
   card.className = `story-mosaic-card story-mosaic-card--${slot}`;
+  if (item.cropMode === "contain") card.classList.add("story-mosaic-card--contain");
   card.id = `story-${item.year}-${index}`;
   card.dataset.year = String(item.year);
   card.dataset.yearIndex = String(index);
+  card.style.setProperty("--objPos", item.objectPosition || "50% 50%");
   card.setAttribute("aria-label", `Open story from ${item.yearLabel}`);
 
+  const imageSrc = `${toPhotoSrc(item.file)}${String(item.file).includes("?") ? "&" : "?"}v=${STORY_ASSET_VERSION}`;
+
+  if (item.cropMode === "contain") {
+    const bgImg = document.createElement("img");
+    bgImg.className = "story-mosaic-bg";
+    bgImg.src = imageSrc;
+    bgImg.alt = "";
+    bgImg.loading = "lazy";
+    bgImg.decoding = "async";
+    bgImg.setAttribute("aria-hidden", "true");
+    card.appendChild(bgImg);
+  }
+
   const img = document.createElement("img");
-  img.src = `${toPhotoSrc(item.file)}${String(item.file).includes("?") ? "&" : "?"}v=${STORY_ASSET_VERSION}`;
+  img.className = "story-mosaic-image";
+  img.src = imageSrc;
   img.alt = item.alt || `Story photo ${item.yearLabel}`;
   img.loading = "lazy";
   img.decoding = "async";
   img.style.objectPosition = item.objectPosition || "50% 50%";
+  img.style.objectFit = item.cropMode === "contain" ? "contain" : "cover";
   img.style.imageOrientation = "from-image";
   if (item.rotation === 90) img.style.setProperty("--storyRotate", "90deg");
   else if (item.rotation === -90) img.style.setProperty("--storyRotate", "-90deg");
@@ -2851,6 +3041,26 @@ function buildStoryMosaicCard(item, slot, index) {
   card.appendChild(img);
   card.appendChild(overlay);
   card.appendChild(yearPill);
+
+  if (IS_LOCAL_DEV) {
+    const marker = document.createElement("span");
+    marker.className = "story-focal-marker";
+    marker.style.left = `${(item.focalX * 100).toFixed(2)}%`;
+    marker.style.top = `${(item.focalY * 100).toFixed(2)}%`;
+    card.appendChild(marker);
+
+    img.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const rect = img.getBoundingClientRect();
+      const focalX = clamp01((event.clientX - rect.left) / Math.max(rect.width, 1));
+      const focalY = clamp01((event.clientY - rect.top) / Math.max(rect.height, 1), 0.3);
+      marker.style.left = `${(focalX * 100).toFixed(2)}%`;
+      marker.style.top = `${(focalY * 100).toFixed(2)}%`;
+      console.log(`year ${item.year} focalX=${focalX.toFixed(2)} focalY=${focalY.toFixed(2)}`);
+    });
+  }
 
   const lightboxIndex = storyItems.findIndex((storyItem) => storyItem.file === item.file);
   card.addEventListener("click", () => {
@@ -2919,6 +3129,8 @@ async function initStoryMosaicLayout() {
     empty.className = "story-mosaic-empty";
     empty.textContent = "Story photos coming soon.";
     storyMosaicLayout.appendChild(empty);
+    storyPathTargets = [];
+    clearStoryChronologyPath();
     renderStoryYearScrubber([], []);
     bindStoryYearObserver([]);
     syncStoryResponsiveMode();
@@ -2942,6 +3154,8 @@ async function initStoryMosaicLayout() {
     yearTargets.push({ index, element: card });
   });
 
+  storyPathTargets = yearTargets;
+
   renderStoryYearScrubber(orderedItems, yearTargets, (index) => {
     if (!isStoryMobileView()) return;
     setStoryMobileSlide(index);
@@ -2949,8 +3163,10 @@ async function initStoryMosaicLayout() {
   bindStoryYearObserver(isStoryMobileView() ? [] : yearTargets);
   applyStoryMosaicReveal(cards);
   bindStoryMobileStage();
+  bindStoryChronologyResize();
   setStoryMobileSlide(0, { scrollPill: false });
   syncStoryResponsiveMode();
+  queueStoryChronologyPathRender();
 }
 
 function isCoarsePointer() {
@@ -3086,13 +3302,22 @@ function bindStoryLightboxEvents() {
 function buildStoryItem(entry) {
   const filename = decodeURIComponent((String(entry.file || "").split("?")[0].split("/").pop() || "").trim());
   const override = STORY_OVERRIDES[filename] || {};
+  const yearPreset = STORY_YEAR_FOCAL_PRESETS[entry.year] || {};
   const copy = storyCopyForYear(entry.year);
   const rotation = Number.isFinite(Number(override.rotate))
     ? Number(override.rotate)
     : Number.isFinite(Number(entry.rotation))
       ? Number(entry.rotation)
       : 0;
-  const objectPosition = override.objPos || entry.objectPosition || "50% 50%";
+  const parsedEntryPosition = parseStoryObjectPosition(entry.objectPosition);
+  const focalX = Number.isFinite(Number(entry.focalX))
+    ? clamp01(Number(entry.focalX))
+    : parsedEntryPosition?.x ?? yearPreset.focalX ?? 0.5;
+  const focalY = Number.isFinite(Number(entry.focalY))
+    ? clamp01(Number(entry.focalY), 0.3)
+    : parsedEntryPosition?.y ?? yearPreset.focalY ?? 0.3;
+  const cropMode = normalizeCropMode(entry.cropMode || yearPreset.cropMode || entry.fit || "cover") || "cover";
+  const objectPosition = override.objPos || toObjectPosition(focalX, focalY);
 
   return {
     ...entry,
@@ -3100,6 +3325,9 @@ function buildStoryItem(entry) {
     blurb: copy.blurb,
     longCaption: copy.longCaption,
     rotation,
+    focalX,
+    focalY,
+    cropMode,
     objectPosition,
     yearLabel: storyYearLabel(entry.year),
   };

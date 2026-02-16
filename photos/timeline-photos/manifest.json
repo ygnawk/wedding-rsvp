@@ -4,74 +4,109 @@
       "file": "1995-yi-jie-born.png",
       "year": 1995,
       "alt": "Yi Jie as a child in 1995",
-      "objectPosition": "50% 34%"
+      "objectPosition": "50% 34%",
+      "focalX": 0.5,
+      "focalY": 0.3,
+      "cropMode": "cover"
     },
     {
       "file": "1998-miki-born.jpg",
       "year": 1998,
       "alt": "Miki as a child in 1998",
-      "objectPosition": "50% 47%"
+      "objectPosition": "50% 47%",
+      "focalX": 0.45,
+      "focalY": 0.35,
+      "cropMode": "cover"
     },
     {
       "file": "2001-stools.jpg",
       "year": 2001,
       "alt": "Yi Jie and siblings on tiny stools in 2001",
-      "objectPosition": "50% 45%"
+      "objectPosition": "50% 45%",
+      "focalX": 0.5,
+      "focalY": 0.3,
+      "cropMode": "cover"
     },
     {
       "file": "2008-miki-moves-beijing-upright.jpg",
       "year": 2008,
       "alt": "Miki in 2008",
-      "objectPosition": "50% 36%"
+      "objectPosition": "50% 36%",
+      "focalX": 0.5,
+      "focalY": 0.25,
+      "cropMode": "cover"
     },
     {
       "file": "2013-army.jpg",
       "year": 2013,
       "alt": "Yi Jie in military uniform in 2013",
-      "objectPosition": "50% 16%"
+      "objectPosition": "50% 16%",
+      "focalX": 0.5,
+      "focalY": 0.22,
+      "cropMode": "cover"
     },
     {
       "file": "2016-wesleyan.jpg",
       "year": 2016,
       "alt": "Miki and Yi Jie at Wesleyan in 2016",
-      "objectPosition": "50% 40%"
+      "objectPosition": "50% 40%",
+      "focalX": 0.55,
+      "focalY": 0.25,
+      "cropMode": "cover"
     },
     {
       "file": "2020-covid-upright.jpg",
       "year": 2020,
       "alt": "Miki and Yi Jie in masks in 2020",
-      "objectPosition": "50% 34%"
+      "objectPosition": "50% 34%",
+      "focalX": 0.5,
+      "focalY": 0.3,
+      "cropMode": "cover"
     },
     {
       "file": "2021-sf.jpg",
       "year": 2021,
       "alt": "Miki and Yi Jie in San Francisco in 2021",
-      "fit": "contain",
-      "objectPosition": "50% 50%"
+      "objectPosition": "50% 50%",
+      "focalX": 0.5,
+      "focalY": 0.3,
+      "cropMode": "cover"
     },
     {
       "file": "2023-japan.jpg",
       "year": 2023,
       "alt": "Miki and Yi Jie in 2023",
-      "objectPosition": "50% 42%"
+      "objectPosition": "50% 42%",
+      "focalX": 0.5,
+      "focalY": 0.24,
+      "cropMode": "cover"
     },
     {
       "file": "2024-proposal-upright.jpg",
       "year": 2024,
       "alt": "Proposal moment in 2024",
-      "objectPosition": "50% 36%"
+      "objectPosition": "50% 36%",
+      "focalX": 0.5,
+      "focalY": 0.2,
+      "cropMode": "cover"
     },
     {
       "file": "2025-cats.jpg",
       "year": 2025,
       "alt": "Miki and Yi Jie with Leo and Luna in 2025",
-      "objectPosition": "50% 42%"
+      "objectPosition": "50% 42%",
+      "focalX": 0.5,
+      "focalY": 0.22,
+      "cropMode": "cover"
     },
     {
       "file": "2027-whats-next.png",
       "year": 2027,
       "alt": "2027 what is next illustration with Miki, Yi Jie, and two cats",
-      "objectPosition": "50% 44%"
+      "objectPosition": "50% 44%",
+      "focalX": 0.5,
+      "focalY": 0.5,
+      "cropMode": "cover"
     }
   ]
 }
