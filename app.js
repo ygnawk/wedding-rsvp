@@ -4047,6 +4047,7 @@ function initCutoutParallax() {
   let sceneHeight = 0;
   let viewportHeight = window.innerHeight;
   let panPx = 0;
+  let overscanFactor = 1.45;
   let startPx = 0;
   let endPx = 0;
   let lastPanX = Number.NaN;
@@ -4076,14 +4077,11 @@ function initCutoutParallax() {
     sceneHeight = sceneRect.height;
 
     const frameWidth = media.clientWidth || 0;
-    const basePanPx = Math.min(140, frameWidth * 0.12);
     const isMobile = window.innerWidth <= 760;
-    panPx = isMobile ? basePanPx * 0.55 : basePanPx;
-
-    const startRatio = 0.05;
-    const endRatio = isMobile ? 0.36 : 0.68;
-    startPx = -(panPx * startRatio);
-    endPx = -(panPx * endRatio);
+    overscanFactor = isMobile ? 1.3 : 1.45;
+    panPx = Math.max(0, frameWidth * (overscanFactor - 1));
+    startPx = 0;
+    endPx = -panPx;
 
     img.style.width = `calc(100% + ${panPx.toFixed(2)}px)`;
     img.style.maxWidth = "none";
@@ -4107,7 +4105,8 @@ function initCutoutParallax() {
     if (!inViewport) return;
 
     const progress = getProgress();
-    const nextPanX = startPx + (endPx - startPx) * progress;
+    const nextPanXRaw = startPx + (endPx - startPx) * progress;
+    const nextPanX = Math.max(-panPx, Math.min(0, nextPanXRaw));
     if (Number.isFinite(lastPanX) && Math.abs(nextPanX - lastPanX) < 0.08) return;
 
     lastPanX = nextPanX;
