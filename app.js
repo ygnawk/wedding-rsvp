@@ -17,6 +17,8 @@ const MAX_GUESTS = 4;
 const MAX_PLUS_ONES = MAX_GUESTS - 1;
 const MAX_UPLOAD_FILES = 3;
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
+const HOTEL_PANEL_TRANSITION_MS = 500;
+const HOTEL_CONTENT_FADE_MS = 500;
 const UPLOAD_ALLOWED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "heic", "heif", "mp4", "mov", "webm"]);
 const UPLOAD_ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
@@ -1248,7 +1250,7 @@ function buildMakanRestaurantItem(place) {
   }
 
   const actions = document.createElement("div");
-  actions.className = "makan-row-actions makan-item-actions";
+  actions.className = "makan-item-actions";
   if (place.dianping_url) {
     const link = document.createElement("a");
     link.className = "makan-link";
@@ -1258,6 +1260,7 @@ function buildMakanRestaurantItem(place) {
     link.textContent = "Open in 大众点评";
     actions.appendChild(link);
   }
+  meta.appendChild(actions);
 
   const panel = document.createElement("div");
   panel.className = "makan-item-panel";
@@ -1268,7 +1271,6 @@ function buildMakanRestaurantItem(place) {
   panel.appendChild(fullDescription);
   row.appendChild(meta);
   row.appendChild(panel);
-  row.appendChild(actions);
   return row;
 }
 
@@ -1753,8 +1755,9 @@ function buildHotelDetailsCard(item) {
   const image = document.createElement("img");
   image.src = toPhotoSrc(item.imageSrc);
   image.alt = item.name;
-  image.loading = "lazy";
-  image.decoding = "async";
+  image.loading = "eager";
+  image.fetchPriority = "high";
+  image.decoding = "sync";
   media.appendChild(image);
   card.appendChild(media);
 
@@ -1838,9 +1841,19 @@ function swapHotelDetails(item) {
 
   const nextId = item.id;
   if (hotelMatrixDetails.dataset.hotelId === nextId) return;
+  if (reducedMotion) {
+    hotelMatrixDetails.replaceChildren(buildHotelDetailsCard(item));
+    hotelMatrixDetails.dataset.hotelId = nextId;
+    return;
+  }
 
-  hotelMatrixDetails.replaceChildren(buildHotelDetailsCard(item));
-  hotelMatrixDetails.dataset.hotelId = nextId;
+  hotelMatrixDetails.classList.add("is-swapping");
+  hotelDetailsSwapTimer = window.setTimeout(() => {
+    hotelMatrixDetails.replaceChildren(buildHotelDetailsCard(item));
+    hotelMatrixDetails.dataset.hotelId = nextId;
+    hotelMatrixDetails.classList.remove("is-swapping");
+    hotelDetailsSwapTimer = null;
+  }, HOTEL_CONTENT_FADE_MS);
 }
 
 function openHotelMatrixSheet(item) {
@@ -1893,7 +1906,7 @@ function applyHotelMatrixSelection() {
       hotelDetailsSwapTimer = window.setTimeout(() => {
         if (!hotelMatrixPinnedId && hotelMatrixDetails) hotelMatrixDetails.replaceChildren();
         hotelDetailsSwapTimer = null;
-      }, 560);
+      }, HOTEL_PANEL_TRANSITION_MS);
     }
   }
   queueHotelMatrixRender();
@@ -1928,7 +1941,7 @@ function renderHotelMatrix() {
   const width = hotelMatrixWidth;
   const height = hotelMatrixHeight;
   const isCompact = width < 560;
-  const margins = isCompact ? { top: 24, right: 18, bottom: 54, left: 54 } : { top: 42, right: 52, bottom: 84, left: 88 };
+  const margins = isCompact ? { top: 24, right: 24, bottom: 72, left: 80 } : { top: 42, right: 56, bottom: 104, left: 122 };
   const plotWidth = Math.max(180, width - margins.left - margins.right);
   const plotHeight = Math.max(170, height - margins.top - margins.bottom);
   const ringRadius = isCompact ? 10.8 : 12;
@@ -2029,8 +2042,8 @@ function renderHotelMatrix() {
       y: bestValueTopY,
       width: bestValueZoneWidth,
       height: bestValueZoneHeight,
-      rx: 10,
-      ry: 10,
+      rx: 0,
+      ry: 0,
     }),
   );
 
@@ -2063,14 +2076,14 @@ function renderHotelMatrix() {
         x1: x,
         x2: x,
         y1: margins.top + plotHeight,
-        y2: margins.top + plotHeight + 8,
+        y2: margins.top + plotHeight + 11,
       }),
     );
 
     const node = createSvgNode("text", {
       class: "hotel-map-tick",
       x,
-      y: margins.top + plotHeight + 20,
+      y: margins.top + plotHeight + 31,
       "text-anchor": "middle",
       "dominant-baseline": "hanging",
     });
@@ -2083,7 +2096,7 @@ function renderHotelMatrix() {
     hotelMatrixSvg.appendChild(
       createSvgNode("line", {
         class: "hotel-map-tick-line",
-        x1: margins.left - 8,
+        x1: margins.left - 11,
         x2: margins.left,
         y1: y,
         y2: y,
@@ -2092,7 +2105,7 @@ function renderHotelMatrix() {
 
     const node = createSvgNode("text", {
       class: "hotel-map-tick",
-      x: margins.left - 14,
+      x: margins.left - 24,
       y,
       "text-anchor": "end",
       "dominant-baseline": "middle",
@@ -2101,8 +2114,10 @@ function renderHotelMatrix() {
     hotelMatrixSvg.appendChild(node);
   });
 
+  const axisLabelClass = isCompact ? "hotel-map-axis-label hotel-map-axis-label--compact" : "hotel-map-axis-label";
+
   const xAxisLabel = createSvgNode("text", {
-    class: "hotel-map-axis-label",
+    class: axisLabelClass,
     x: margins.left + plotWidth / 2,
     y: height - 12,
     "text-anchor": "middle",
@@ -2110,94 +2125,16 @@ function renderHotelMatrix() {
   xAxisLabel.textContent = "Price ($ to $$$$)";
   hotelMatrixSvg.appendChild(xAxisLabel);
 
-  const yAxisLabelX = isCompact ? 18 : 22;
+  const yAxisLabelX = isCompact ? 22 : 26;
   const yAxisLabel = createSvgNode("text", {
-    class: "hotel-map-axis-label",
+    class: axisLabelClass,
     x: yAxisLabelX,
     y: margins.top + plotHeight / 2,
     "text-anchor": "middle",
     transform: `rotate(-90 ${yAxisLabelX} ${margins.top + plotHeight / 2})`,
   });
-  yAxisLabel.textContent = "Drive time to wedding venue (mins)";
+  yAxisLabel.textContent = isCompact ? "Drive time to venue (mins)" : "Drive time to wedding venue (mins)";
   hotelMatrixSvg.appendChild(yAxisLabel);
-
-  const chipWidth = Math.min(isCompact ? 186 : 230, Math.max(146, bestValueZoneWidth - 16));
-  const chipHeight = isCompact ? 42 : 50;
-  const chipPadding = 8;
-  const chipCandidates = [
-    { x: bestValueZoneX + chipPadding, y: bestValueTopY + chipPadding },
-    { x: bestValueZoneX + bestValueZoneWidth - chipWidth - chipPadding, y: bestValueTopY + chipPadding },
-    {
-      x: bestValueZoneX + chipPadding,
-      y: bestValueTopY + bestValueZoneHeight - chipHeight - chipPadding,
-    },
-    {
-      x: bestValueZoneX + bestValueZoneWidth - chipWidth - chipPadding,
-      y: bestValueTopY + bestValueZoneHeight - chipHeight - chipPadding,
-    },
-  ]
-    .map((candidate) => ({
-      x: clamp(candidate.x, bestValueZoneX + 4, bestValueZoneX + bestValueZoneWidth - chipWidth - 4),
-      y: clamp(candidate.y, bestValueTopY + 4, bestValueTopY + bestValueZoneHeight - chipHeight - 4),
-    }))
-    .filter(
-      (candidate, index, array) =>
-        array.findIndex((entry) => Math.abs(entry.x - candidate.x) < 0.5 && Math.abs(entry.y - candidate.y) < 0.5) === index,
-    );
-
-  const pointHitsRect = (point, rect, radius) => {
-    const nearestX = clamp(point.cx, rect.x, rect.x + rect.width);
-    const nearestY = clamp(point.cy, rect.y, rect.y + rect.height);
-    const dx = point.cx - nearestX;
-    const dy = point.cy - nearestY;
-    return dx * dx + dy * dy < radius * radius;
-  };
-
-  const collisionRadius = ringRadius + (isCompact ? 5 : 6);
-  let chipX = bestValueZoneX + chipPadding;
-  let chipY = Math.min(bestValueTopY + chipPadding, margins.top + plotHeight - chipHeight - chipPadding);
-  let lowestCollisions = Number.POSITIVE_INFINITY;
-  chipCandidates.forEach((candidate) => {
-    const rect = { x: candidate.x, y: candidate.y, width: chipWidth, height: chipHeight };
-    const collisions = pointCoords.reduce(
-      (count, point) => count + (pointHitsRect(point, rect, collisionRadius) ? 1 : 0),
-      0,
-    );
-    if (collisions < lowestCollisions) {
-      lowestCollisions = collisions;
-      chipX = candidate.x;
-      chipY = candidate.y;
-    }
-  });
-  hotelMatrixSvg.appendChild(
-    createSvgNode("rect", {
-      class: "hotel-map-best-value-chip",
-      x: chipX,
-      y: chipY,
-      width: chipWidth,
-      height: chipHeight,
-      rx: 9,
-      ry: 9,
-    }),
-  );
-
-  const bestValueLabel = createSvgNode("text", {
-    class: "hotel-map-best-value-label",
-    x: chipX + 10,
-    y: chipY + (isCompact ? 17 : 20),
-    "text-anchor": "start",
-  });
-  bestValueLabel.textContent = "Best value";
-  hotelMatrixSvg.appendChild(bestValueLabel);
-
-  const bestValueSubtext = createSvgNode("text", {
-    class: "hotel-map-best-value-subtext",
-    x: chipX + 10,
-    y: chipY + (isCompact ? 32 : 38),
-    "text-anchor": "start",
-  });
-  bestValueSubtext.textContent = "Closest + most affordable sweet spot.";
-  hotelMatrixSvg.appendChild(bestValueSubtext);
 
   const layer = createSvgNode("g", { class: "hotel-map-points", "clip-path": "url(#hotelMatrixPlotClip)" });
   hotelMatrixSvg.appendChild(layer);
@@ -2368,7 +2305,7 @@ function setupRevealNode(node) {
   const delay = node.getAttribute("data-delay");
   node.style.setProperty("--reveal-delay", `${Number(delay || 0)}ms`);
 
-  const shouldAnimate = node.classList.contains("settle");
+  const shouldAnimate = node.classList.contains("settle") || node.classList.contains("section-title-reveal");
   if (reducedMotion || !shouldAnimate) {
     node.classList.add("in-view");
     return;
@@ -2386,7 +2323,9 @@ function initReveals() {
     revealObserver = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          entry.target.classList.toggle("in-view", entry.isIntersecting);
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add("in-view");
+          revealObserver?.unobserve(entry.target);
         });
       },
       {
@@ -2396,7 +2335,7 @@ function initReveals() {
     );
   }
 
-  document.querySelectorAll(".reveal, .reveal-left, .reveal-right, .reveal-scale").forEach((node) => setupRevealNode(node));
+  document.querySelectorAll(".reveal, .reveal-left, .reveal-right, .reveal-scale, .section-title-reveal").forEach((node) => setupRevealNode(node));
 }
 
 function getTokenFromUrl() {
@@ -2578,14 +2517,8 @@ function getGuestNameLabel(index) {
 
 function buildPrimaryGuestCard(name = "", funFact = "") {
   const card = document.createElement("article");
-  card.className = "guest-card";
+  card.className = "guest-card guest-card--primary-inline";
   card.dataset.guestIndex = "0";
-
-  const header = document.createElement("div");
-  header.className = "guest-card-header";
-  const title = document.createElement("h4");
-  title.textContent = "You";
-  header.appendChild(title);
 
   const nameInput = document.createElement("input");
   nameInput.id = "guestName1";
@@ -2614,7 +2547,6 @@ function buildPrimaryGuestCard(name = "", funFact = "") {
   factField.appendChild(helper);
   factField.appendChild(buildFunFactExamplesPopover(factInput));
 
-  card.appendChild(header);
   card.appendChild(nameInput);
   card.appendChild(factField);
   return card;
@@ -3371,13 +3303,13 @@ function initFaqWearImageDebug() {
 
     if (!attemptedEncodedFallback) {
       attemptedEncodedFallback = true;
-      img.src = withBasePath("/photos/FAQ%20photo/what-to-wear.png");
+      img.src = withBasePath("/photos/faq-photo/new%20what%20to%20wear.png");
       return;
     }
 
     const wrap = img.closest(".faq-wear-media");
     if (wrap) {
-      wrap.innerHTML = '<div class="faq-wear-missing">Image not found. Check /photos/faq-photo/what-to-wear.png</div>';
+      wrap.innerHTML = '<div class="faq-wear-missing">Image not found. Check /photos/faq-photo/new what to wear.png</div>';
     }
   });
 }

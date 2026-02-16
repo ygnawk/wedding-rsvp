@@ -15,7 +15,7 @@
     />
     <link rel="icon" type="image/svg+xml" href="public/favicon.svg" />
     <link rel="icon" type="image/png" href="public/favicon-32.png" />
-    <link rel="stylesheet" href="./styles.css?v=20260216-makan" />
+    <link rel="stylesheet" href="./styles.css?v=20260216-title-reveal-fix1" />
   </head>
   <body>
     <header id="floatingHeader" class="floating-header" aria-label="Site navigation">
@@ -133,7 +133,7 @@
 
           <div class="story-timeline-head">
             <div class="story-head-row">
-              <h2 class="section-title reveal reveal-left settle">Our story</h2>
+              <h2 class="section-title section-title-reveal settle">Our story</h2>
             </div>
             <p class="ourstory-lede reveal settle" data-delay="70">
               We met on orientation day at Wesleyan University in 2016. Since then, life has taken us across cities and continents—and many of
@@ -167,7 +167,7 @@
                 </div>
 
                 <article class="venue-copy">
-                  <h2 class="reveal reveal-left settle">Venue</h2>
+                  <h2 class="section-title-reveal settle">Venue</h2>
                   <p class="reveal">
                     We picked Mandarin Oriental Qianmen for its classic siheyuan-style courtyard homes and hutong neighborhood — a setting Miki
                     spent time around growing up. It’s in central Beijing, a short drive from the Forbidden City.
@@ -195,7 +195,7 @@
             <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/chrysanthemum-bud.svg" alt="" />
           </div>
           <div class="schedule-intro">
-            <h2 class="reveal reveal-left settle">Schedule of events</h2>
+            <h2 class="section-title-reveal settle">Schedule of events</h2>
             <p class="schedule-note reveal">Times are a draft and may change as we get closer to the wedding.</p>
             <div class="schedule-divider reveal" aria-hidden="true"></div>
           </div>
@@ -236,7 +236,7 @@
             <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/orchid-bud.svg" alt="" />
           </div>
           <div class="rsvp-panel">
-            <h2 class="reveal reveal-left settle">RSVP</h2>
+            <h2 class="section-title-reveal settle">RSVP</h2>
             <p class="reveal">
               We’re hosting the celebration in an intimate setting so we can share the evening closely with our guests.
               <br />
@@ -429,7 +429,7 @@
             <img class="motif-layer__item motif-layer__item--topRight" src="public/motifs/peony-bud.svg" alt="" />
             <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/orchid-bud.svg" alt="" />
           </div>
-          <h2 class="reveal reveal-left">FAQ</h2>
+          <h2 class="section-title-reveal reveal settle">FAQ</h2>
           <div class="faq-groups reveal">
             <section class="faq-group">
               <details class="faq-group-disclosure">
@@ -449,9 +449,17 @@
                     <div class="faq-wear-media">
                       <img
                         id="faqWearImg"
-                        data-src="/photos/faq-photo/what-to-wear.png"
-                        src="photos/faq-photo/what-to-wear.png"
+                        data-src="/photos/faq-photo/new%20what%20to%20wear.png"
+                        src="photos/faq-photo/new%20what%20to%20wear.png"
                         alt="Attire inspiration: Western formal and Chinese traditional"
+                        loading="lazy"
+                        decoding="async"
+                        width="1200"
+                        height="800"
+                      />
+                      <img
+                        src="photos/faq-photo/what%20to%20avoid.png"
+                        alt="Attire examples to avoid"
                         loading="lazy"
                         decoding="async"
                         width="1200"
@@ -701,9 +709,9 @@
             <img class="motif-layer__item motif-layer__item--topRight" src="public/motifs/chrysanthemum-branch.svg" alt="" />
             <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/peony-bud.svg" alt="" />
           </div>
-          <h2 id="stayHeading" class="reveal reveal-left">Where to stay</h2>
+          <h2 id="stayHeading" class="section-title-reveal reveal settle">Where to stay</h2>
 
-          <div class="hotel-map-card reveal" aria-labelledby="stayHeading">
+          <div class="hotel-map-card stayInner reveal" aria-labelledby="stayHeading">
             <div class="hotel-map-chart-col">
               <div class="hotel-map-title-row">
                 <h3 id="stayChartHeading" class="hotel-map-heading">Top rated hotels mapped by price and distance</h3>
@@ -721,6 +729,13 @@
                 Click a dot for hotel details.
                 <span id="hotelMatrixRatingClaim" class="hotel-map-rating-claim">All hotels shown are rated ≥ 9.0 on Expedia.</span>
               </p>
+              <div class="hotel-map-legend" aria-hidden="true">
+                <span class="hotel-map-legend-swatch"></span>
+                <span class="hotel-map-legend-copy">
+                  <span class="hotel-map-legend-title">Best value</span>
+                  <span class="hotel-map-legend-subtitle">Closest + most affordable sweet spot.</span>
+                </span>
+              </div>
 
               <div id="hotelMatrixShell" class="hotel-map-shell">
                 <svg
@@ -757,7 +772,7 @@
             <img class="motif-layer__item motif-layer__item--topRight" src="public/motifs/chrysanthemum-branch.svg" alt="" />
             <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/orchid-bud.svg" alt="" />
           </div>
-          <h2 class="reveal reveal-left">Things to do in Beijing</h2>
+          <h2 class="section-title-reveal reveal settle">Things to do in Beijing</h2>
           <div class="things-theme-list reveal" id="thingsThemeList">
             <details class="things-theme">
               <summary class="things-theme-summary">
@@ -1037,7 +1052,7 @@
             <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/peony-bud.svg" alt="" />
           </div>
           <div class="makan-menu-card reveal reveal-scale">
-            <h2 class="section-title reveal reveal-left">Beijing Food Menu</h2>
+            <h2 class="section-title section-title-reveal reveal settle">Beijing Food Menu</h2>
             <p class="makan-intro">
               Beijing food is loud, proud, and extremely good — basically 3,000 years of culinary history condensed into a food court (but you
               don't need a imperial budget). Here are a few favorites: a mix of ‘only in Beijing’ experiences and reliable classics.
@@ -1091,7 +1106,7 @@
           <div class="motif-layer motif-layer--section motif-layer--cream motif-layer--topRight" aria-hidden="true">
             <img class="motif-layer__item motif-layer__item--topRight" src="public/motifs/orchid-bud.svg" alt="" />
           </div>
-          <h2 class="section-title">Travel &amp; Visa</h2>
+          <h2 class="section-title section-title-reveal reveal settle">Travel &amp; Visa</h2>
 
           <p class="travel-intro">
             As of Feb 15, 2026, entry rules depend on passport and can change. Please check official sources before booking.
@@ -1198,7 +1213,7 @@
             <img class="motif-layer__item motif-layer__item--topRight" src="public/motifs/peony-bud.svg" alt="" />
             <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/bamboo-bud.svg" alt="" />
           </div>
-          <h2 class="section-title">Recent moments of us</h2>
+          <h2 class="section-title section-title-reveal reveal settle">Recent moments of us</h2>
           <div class="gallery-grid" id="galleryGrid" aria-label="Recent moments gallery"></div>
         </div>
       </section>
@@ -1254,7 +1269,7 @@
     </footer>
 
     <script src="./data/hotels.js?v=20260216-matrix"></script>
-    <script src="./data/beijing-food.js?v=20260216-makan"></script>
-    <script src="./app.js?v=20260216-makan"></script>
+    <script src="./data/beijing-food.js?v=20260216-title-reveal-fix1"></script>
+    <script src="./app.js?v=20260216-title-reveal-fix1"></script>
   </body>
 </html>
