@@ -267,6 +267,7 @@ const hotelMethodTrigger = document.getElementById("hotelMethodTrigger");
 let hotelMethodTooltip = null;
 
 const galleryGrid = document.getElementById("galleryGrid");
+const galleryDots = document.getElementById("galleryDots");
 const galleryLightbox = document.getElementById("lightbox");
 const galleryLightboxImage = document.getElementById("lightboxImg");
 const galleryLightboxCounter = document.getElementById("lightboxCounter");
@@ -280,6 +281,7 @@ const galleryLightboxCloseButtons = galleryLightbox
 let galleryImages = [];
 let currentGalleryIndex = 0;
 let galleryTouchStartX = null;
+let galleryScrollRaf = null;
 
 const storySection = document.getElementById("story");
 const storyViewport = document.getElementById("storyViewport");
@@ -3655,9 +3657,87 @@ function buildGalleryCard(entry, index) {
   return card;
 }
 
+function isGalleryMobileView() {
+  return window.matchMedia("(max-width: 600px)").matches;
+}
+
+function setActiveGalleryDot(index) {
+  if (!galleryDots) return;
+  const dots = Array.from(galleryDots.querySelectorAll(".gallery-dot"));
+  dots.forEach((dot, dotIndex) => {
+    const active = dotIndex === index;
+    dot.classList.toggle("is-active", active);
+    dot.setAttribute("aria-current", active ? "true" : "false");
+  });
+}
+
+function syncGalleryDotFromScroll() {
+  if (!galleryGrid || !galleryImages.length || !isGalleryMobileView()) return;
+  const width = galleryGrid.clientWidth || 1;
+  const index = Math.round(galleryGrid.scrollLeft / width);
+  const boundedIndex = Math.max(0, Math.min(galleryImages.length - 1, index));
+  setActiveGalleryDot(boundedIndex);
+}
+
+function renderGalleryDots() {
+  if (!galleryDots) return;
+  galleryDots.innerHTML = "";
+
+  if (!galleryImages.length) {
+    galleryDots.hidden = true;
+    return;
+  }
+
+  galleryImages.forEach((_, index) => {
+    const dot = document.createElement("button");
+    dot.type = "button";
+    dot.className = "gallery-dot";
+    dot.setAttribute("aria-label", `Go to photo ${index + 1}`);
+    dot.setAttribute("aria-current", "false");
+    dot.addEventListener("click", () => {
+      if (!galleryGrid || !isGalleryMobileView()) return;
+      const left = index * galleryGrid.clientWidth;
+      galleryGrid.scrollTo({ left, behavior: reducedMotion ? "auto" : "smooth" });
+      setActiveGalleryDot(index);
+    });
+    galleryDots.appendChild(dot);
+  });
+
+  galleryDots.hidden = !isGalleryMobileView();
+  setActiveGalleryDot(0);
+}
+
+function bindGalleryMobileCarouselEvents() {
+  if (!galleryGrid || galleryGrid.dataset.carouselBound === "true") return;
+
+  galleryGrid.addEventListener(
+    "scroll",
+    () => {
+      if (galleryScrollRaf) return;
+      galleryScrollRaf = window.requestAnimationFrame(() => {
+        galleryScrollRaf = null;
+        syncGalleryDotFromScroll();
+      });
+    },
+    { passive: true },
+  );
+
+  window.addEventListener(
+    "resize",
+    () => {
+      if (galleryDots) galleryDots.hidden = !isGalleryMobileView() || !galleryImages.length;
+      syncGalleryDotFromScroll();
+    },
+    { passive: true },
+  );
+
+  galleryGrid.dataset.carouselBound = "true";
+}
+
 async function initGallery() {
   if (!galleryGrid) return;
   bindGalleryLightboxEvents();
+  bindGalleryMobileCarouselEvents();
 
   galleryGrid.innerHTML = "";
   const selected = getConfiguredGalleryEntries(photoManifest || {}).slice(0, 9);
@@ -3684,6 +3764,9 @@ async function initGallery() {
     const card = buildGalleryCard(entry, index);
     galleryGrid.appendChild(card);
   });
+
+  renderGalleryDots();
+  syncGalleryDotFromScroll();
 }
 
 function extractStoryYear(value) {
