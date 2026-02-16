@@ -2683,30 +2683,67 @@ function buildPayload() {
   };
 }
 
-async function submitToSheets(payload) {
-  const res = await fetch(`${SHEETS_WEBAPP_URL}`, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify(payload),
+function buildRsvpFormData(payload) {
+  const formData = new FormData();
+  formData.append("token", payload.token || "");
+  formData.append("status", payload.status || "");
+  formData.append("fullName", payload.fullName || "");
+  formData.append("guestName", payload.guestName || "");
+  formData.append("email", payload.email || "");
+  formData.append("phone", payload.phone || "");
+  formData.append("message", payload.message || "");
+  formData.append("partySize", String(payload.partySize || 0));
+  formData.append("potentialPartySize", String(payload.potentialPartySize || 0));
+  formData.append("guests_json", JSON.stringify(Array.isArray(payload.guests) ? payload.guests : []));
+  formData.append("dietary", payload.dietary || "");
+  formData.append("whenWillYouKnow", payload.whenWillYouKnow || "");
+  formData.append("followupChoice", payload.followupChoice || "");
+  formData.append("userAgent", payload.userAgent || "");
+
+  selectedUploadFiles.forEach((file, index) => {
+    if (!file) return;
+    formData.append(`photo${index + 1}`, file, file.name);
   });
 
-  const text = await res.text();
+  return formData;
+}
+
+async function submitToRsvpApi(payload) {
+  const response = await fetch(withBasePath("/api/rsvp"), {
+    method: "POST",
+    body: buildRsvpFormData(payload),
+  });
+  const text = await response.text();
+  let data;
+
   try {
-    return JSON.parse(text);
-  } catch {
-    return { ok: false, raw: text };
+    data = text ? JSON.parse(text) : {};
+  } catch (_error) {
+    data = null;
   }
+
+  if (!data || typeof data !== "object") {
+    return {
+      ok: false,
+      error: response.ok ? "Unexpected RSVP response from server." : "RSVP request failed.",
+    };
+  }
+
+  if (!response.ok && data.ok !== true) {
+    return {
+      ok: false,
+      error: data.error || "RSVP request failed.",
+    };
+  }
+
+  return data;
 }
 
 async function submitRSVP(payload) {
-  if (!isSheetsConfigured()) {
-    return { ok: false, error: "RSVP submission is not configured yet. Please contact Yi Jie." };
-  }
-
   try {
-    const data = await submitToSheets(payload);
+    const data = await submitToRsvpApi(payload);
     if (!data || data.ok !== true) throw new Error(data && data.error ? String(data.error) : "Sheets submit failed");
-    return { ok: true };
+    return data;
   } catch (error) {
     // Keep a local backup copy, but report failure to the UI.
     try {
@@ -2768,7 +2805,8 @@ function initRsvpForm() {
     }
 
     rsvpForm.classList.add("hidden");
-    rsvpConfirmation.textContent = confirmationMessage(attendanceChoice.value);
+    const baseMessage = confirmationMessage(attendanceChoice.value);
+    rsvpConfirmation.textContent = result.warning ? `${baseMessage} ${result.warning}` : baseMessage;
     rsvpConfirmation.classList.remove("hidden");
   });
 }
