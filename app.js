@@ -2564,19 +2564,36 @@ function buildGuestCard(index, name = "", funFact = "") {
   nameLabel.textContent = getGuestNameLabel(index);
   const nameInput = document.createElement("input");
   nameInput.id = `guestName${index + 1}`;
-  nameInput.type = "text";
   nameInput.required = true;
   nameInput.value = name;
   nameInput.dataset.guestName = "true";
+
   if (index === 0) {
+    const display = document.createElement("p");
+    display.className = "guest-primary-display";
+    display.dataset.primaryGuestDisplay = "true";
+    display.textContent = `You: ${name || "—"}`;
+
+    const hint = document.createElement("p");
+    hint.className = "guest-primary-hint";
+    hint.textContent = "Edit above";
+
+    nameInput.type = "hidden";
     nameInput.dataset.primaryGuest = "true";
     nameInput.dataset.autoSync = "true";
+    nameField.appendChild(nameLabel);
+    nameField.appendChild(display);
+    nameField.appendChild(hint);
+  } else {
+    nameInput.type = "text";
+    nameField.appendChild(nameLabel);
+    nameField.appendChild(nameInput);
   }
+
   const error = document.createElement("p");
   error.className = "field-error hidden";
   error.textContent = "Please enter a name.";
   error.dataset.guestNameError = "true";
-  nameField.appendChild(nameLabel);
   nameField.appendChild(nameInput);
   nameField.appendChild(error);
 
@@ -2652,6 +2669,7 @@ function syncPrimaryGuestName(force = false) {
   const primaryGuestInput =
     guestCardsWrap.querySelector("input[data-primary-guest='true']") || guestCardsWrap.querySelector("input[data-guest-name]");
   if (!(primaryGuestInput instanceof HTMLInputElement)) return;
+  const primaryDisplay = guestCardsWrap.querySelector("[data-primary-guest-display='true']");
 
   const fullName = fullNameInput.value.trim();
   const canSync = force || primaryGuestInput.dataset.autoSync === "true" || !primaryGuestInput.value.trim();
@@ -2659,6 +2677,9 @@ function syncPrimaryGuestName(force = false) {
 
   primaryGuestInput.value = fullName;
   primaryGuestInput.dataset.autoSync = "true";
+  if (primaryDisplay instanceof HTMLElement) {
+    primaryDisplay.textContent = `You: ${fullName || "—"}`;
+  }
 }
 
 function handlePrimaryGuestManualEdit(input) {
@@ -2677,7 +2698,7 @@ function collectGuests() {
     const nameInput = card.querySelector("input[data-guest-name]");
     const factInput = card.querySelector("textarea[data-guest-fun-fact]");
     return {
-      name: nameInput ? nameInput.value.trim() : "",
+      name: nameInput instanceof HTMLInputElement ? nameInput.value.trim() : "",
       funFact: factInput ? factInput.value.trim() : "",
       nameInput,
       errorNode: card.querySelector("[data-guest-name-error]"),
@@ -3026,12 +3047,6 @@ function initRsvpCards() {
   if (fullNameInput) {
     fullNameInput.addEventListener("input", () => {
       syncPrimaryGuestName();
-    });
-  }
-
-  if (guestCardsWrap) {
-    guestCardsWrap.addEventListener("input", (event) => {
-      handlePrimaryGuestManualEdit(event.target);
     });
   }
 
