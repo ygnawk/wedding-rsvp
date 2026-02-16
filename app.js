@@ -74,6 +74,8 @@ const thingsThemeList = document.getElementById("thingsThemeList");
 const makanTipTrigger = document.getElementById("makanTipTrigger");
 const makanTipPopover = document.getElementById("makanTipPopover");
 const makanMenuRows = document.getElementById("makanMenuRows");
+const makanExpandAll = document.getElementById("makanExpandAll");
+const makanCollapseAll = document.getElementById("makanCollapseAll");
 const hotelMatrixShell = document.getElementById("hotelMatrixShell");
 const hotelMatrixChartCol = document.querySelector(".hotel-map-chart-col");
 const hotelMatrixSvg = document.getElementById("hotelMatrixSvg");
@@ -170,6 +172,8 @@ let hotelMatrixHeight = 460;
 let hotelMethodOpen = false;
 let hotelMethodCloseTimer = null;
 let makanTipOpen = false;
+let makanTypeAccordions = [];
+let makanBulkToggle = false;
 
 const jumpMenuWrap = document.getElementById("jumpMenuWrap");
 const jumpMenuToggle = document.getElementById("jumpMenuToggle");
@@ -802,9 +806,11 @@ function createFoodCopyButton(copyValueInput, options = {}) {
   const copiedLabel = String(options.copiedLabel || "Copied");
   const failedLabel = String(options.failedLabel || "Copy failed");
   const ariaLabel = String(options.ariaLabel || `Copy ${label.toLowerCase()}`);
+  const className = String(options.className || "makan-copy-btn");
+  const onComplete = typeof options.onComplete === "function" ? options.onComplete : null;
   const button = document.createElement("button");
   button.type = "button";
-  button.className = "makan-copy-btn";
+  button.className = className;
   button.setAttribute("aria-label", ariaLabel);
   button.textContent = label;
   button.dataset.defaultText = button.textContent;
@@ -818,13 +824,77 @@ function createFoodCopyButton(copyValueInput, options = {}) {
       button.textContent = button.dataset.defaultText || label;
       button.classList.remove("is-copied");
     }, 1300);
+
+    if (onComplete) onComplete(copied);
   });
 
   return button;
 }
 
+function closeMakanCopyMenus(exceptMenu = null) {
+  if (!makanMenuRows) return;
+  const menus = Array.from(makanMenuRows.querySelectorAll(".makan-copy-menu[open]"));
+  menus.forEach((menu) => {
+    if (!(menu instanceof HTMLDetailsElement)) return;
+    if (exceptMenu && menu === exceptMenu) return;
+    menu.open = false;
+  });
+}
+
+function createMakanCopyMenu(place) {
+  const nameValue = String(place.name_cn || place.name_en || "").trim();
+  const addressValue = String(place.address_cn || "").trim();
+  if (!nameValue && !addressValue) return null;
+
+  const menu = document.createElement("details");
+  menu.className = "makan-copy-menu";
+
+  const summary = document.createElement("summary");
+  summary.className = "makan-copy-trigger";
+  summary.textContent = "Copy";
+  summary.setAttribute("aria-label", "Copy options");
+
+  const options = document.createElement("div");
+  options.className = "makan-copy-options";
+
+  if (nameValue) {
+    options.appendChild(
+      createFoodCopyButton(nameValue, {
+        className: "makan-copy-option",
+        label: "Copy name",
+        ariaLabel: `Copy restaurant name ${nameValue}`,
+        onComplete: () => {
+          menu.open = false;
+        },
+      }),
+    );
+  }
+
+  if (addressValue) {
+    options.appendChild(
+      createFoodCopyButton(addressValue, {
+        className: "makan-copy-option",
+        label: "Copy address",
+        ariaLabel: `Copy restaurant address ${addressValue}`,
+        onComplete: () => {
+          menu.open = false;
+        },
+      }),
+    );
+  }
+
+  menu.appendChild(summary);
+  menu.appendChild(options);
+
+  menu.addEventListener("toggle", () => {
+    if (menu.open) closeMakanCopyMenus(menu);
+  });
+
+  return menu;
+}
+
 function buildMakanRestaurantItem(place) {
-  const row = document.createElement("article");
+  const row = document.createElement("details");
   row.className = "makan-item";
   const rawNameEn = String(place.name_en || "").trim();
   const nameParts = rawNameEn.split(/\s+—\s+/);
@@ -834,70 +904,114 @@ function buildMakanRestaurantItem(place) {
   const baseBlurb = String(place.blurb_en || "").trim();
   const blurbText = [taglineLead, baseBlurb].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
 
-  const colRestaurant = document.createElement("span");
-  colRestaurant.className = "makan-col makan-col--restaurant makan-item-restaurant";
+  const summary = document.createElement("summary");
+  summary.className = "makan-item-summary";
+  summary.setAttribute("aria-label", `Toggle details for ${nameOnly}`);
 
-  const nameEn = document.createElement("span");
+  const summaryMain = document.createElement("div");
+  summaryMain.className = "makan-item-summary-main";
+
+  const nameEn = document.createElement("strong");
   nameEn.className = "makan-name-en";
   nameEn.textContent = nameOnly;
   const nameCn = document.createElement("span");
   nameCn.className = "makan-name-cn";
   nameCn.textContent = place.name_cn;
-  colRestaurant.appendChild(nameEn);
-  colRestaurant.appendChild(nameCn);
 
-  const colBlurb = document.createElement("span");
-  colBlurb.className = "makan-col makan-col--blurb makan-item-blurb";
-  const blurbBody = document.createElement("span");
-  blurbBody.className = "makan-blurb-text";
-  blurbBody.textContent = blurbText;
-  colBlurb.appendChild(blurbBody);
+  const summaryBlurb = document.createElement("span");
+  summaryBlurb.className = "makan-item-summary-blurb";
+  summaryBlurb.textContent = blurbText;
+
+  const summaryChevron = document.createElement("span");
+  summaryChevron.className = "makan-item-chevron";
+  summaryChevron.setAttribute("aria-hidden", "true");
+
+  summaryMain.appendChild(nameEn);
+  summaryMain.appendChild(nameCn);
+  summaryMain.appendChild(summaryBlurb);
+  summary.appendChild(summaryMain);
+  summary.appendChild(summaryChevron);
+
+  const panel = document.createElement("div");
+  panel.className = "makan-item-panel";
+
+  const fullDescription = document.createElement("p");
+  fullDescription.className = "makan-item-description";
+  fullDescription.textContent = blurbText;
+  panel.appendChild(fullDescription);
 
   if (place.address_cn) {
-    const addressInline = document.createElement("span");
+    const addressInline = document.createElement("p");
     addressInline.className = "makan-address-inline";
     addressInline.textContent = place.address_cn;
-    colBlurb.appendChild(addressInline);
+    panel.appendChild(addressInline);
   }
-
-  const main = document.createElement("div");
-  main.className = "makan-item-main";
-  main.appendChild(colRestaurant);
-  main.appendChild(colBlurb);
 
   const actions = document.createElement("div");
   actions.className = "makan-row-actions";
-  actions.appendChild(
-    createFoodCopyButton(place.name_cn || place.name_en, {
-      label: "Copy name",
-      ariaLabel: `Copy restaurant name ${String(place.name_cn || place.name_en || "").trim()}`,
-    }),
-  );
-  if (place.address_cn) {
-    actions.appendChild(
-      createFoodCopyButton(place.address_cn, {
-        label: "Copy 地址",
-        ariaLabel: `Copy restaurant address ${String(place.address_cn).trim()}`,
-      }),
-    );
-  }
   if (place.dianping_url) {
     const link = document.createElement("a");
     link.className = "makan-link";
     link.href = place.dianping_url;
     link.target = "_blank";
     link.rel = "noopener noreferrer";
-    link.textContent = "Open in the app";
+    link.textContent = "Open in 大众点评";
     actions.appendChild(link);
   }
-  row.appendChild(main);
-  row.appendChild(actions);
+
+  const copyMenu = createMakanCopyMenu(place);
+  if (copyMenu) actions.appendChild(copyMenu);
+  panel.appendChild(actions);
+
+  row.appendChild(summary);
+  row.appendChild(panel);
   return row;
+}
+
+function updateMakanTypeControls() {
+  if (!makanTypeAccordions.length) return;
+  const openCount = makanTypeAccordions.reduce((count, accordion) => (accordion.open ? count + 1 : count), 0);
+  if (makanExpandAll) makanExpandAll.disabled = openCount === makanTypeAccordions.length;
+  if (makanCollapseAll) makanCollapseAll.disabled = openCount === 0;
+}
+
+function setMakanTypeAccordionState(shouldOpen) {
+  if (!makanTypeAccordions.length) return;
+  makanBulkToggle = true;
+  makanTypeAccordions.forEach((accordion) => {
+    accordion.open = Boolean(shouldOpen);
+  });
+  makanBulkToggle = false;
+  updateMakanTypeControls();
+}
+
+function initMakanTypeControls() {
+  if ((!makanExpandAll && !makanCollapseAll) || (makanExpandAll && makanExpandAll.dataset.bound === "true")) {
+    updateMakanTypeControls();
+    return;
+  }
+
+  if (makanExpandAll) {
+    makanExpandAll.addEventListener("click", () => {
+      setMakanTypeAccordionState(true);
+    });
+    makanExpandAll.dataset.bound = "true";
+  }
+
+  if (makanCollapseAll) {
+    makanCollapseAll.addEventListener("click", () => {
+      setMakanTypeAccordionState(false);
+    });
+    makanCollapseAll.dataset.bound = "true";
+  }
+
+  updateMakanTypeControls();
 }
 
 function renderMakanMenuRows() {
   if (!makanMenuRows) return;
   makanMenuRows.innerHTML = "";
+  makanTypeAccordions = [];
 
   const sorted = [...BEIJING_FOOD_PLACES].sort((a, b) => {
     const aType = String(a.restaurantType || a.category || "");
@@ -951,7 +1065,21 @@ function renderMakanMenuRows() {
     accordion.appendChild(summary);
     accordion.appendChild(panel);
     makanMenuRows.appendChild(accordion);
+    makanTypeAccordions.push(accordion);
+
+    accordion.addEventListener("toggle", () => {
+      if (!accordion.open || makanBulkToggle) {
+        updateMakanTypeControls();
+        return;
+      }
+      makanTypeAccordions.forEach((peer) => {
+        if (peer !== accordion && peer.open) peer.open = false;
+      });
+      updateMakanTypeControls();
+    });
   });
+
+  updateMakanTypeControls();
 }
 
 function closeMakanTipPopover() {
@@ -1041,7 +1169,28 @@ function initMakanTipPopover() {
 
 function initMakanSection() {
   renderMakanMenuRows();
+  initMakanTypeControls();
   initMakanTipPopover();
+
+  if (makanMenuRows && makanMenuRows.dataset.bound !== "true") {
+    document.addEventListener(
+      "pointerdown",
+      (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        if (target.closest(".makan-copy-menu")) return;
+        closeMakanCopyMenus();
+      },
+      { passive: true },
+    );
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      closeMakanCopyMenus();
+    });
+
+    makanMenuRows.dataset.bound = "true";
+  }
 }
 
 function createSvgNode(tagName, attributes = {}) {
