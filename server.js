@@ -320,6 +320,7 @@ function deriveFileTypeFromMime(mimeType) {
 
 async function createSubmissionFolder(drive, parentFolderId, submissionId) {
   const response = await drive.files.create({
+    supportsAllDrives: true,
     requestBody: {
       name: submissionId,
       mimeType: "application/vnd.google-apps.folder",
@@ -343,6 +344,7 @@ async function uploadMediaFilesToDrive(drive, folderId, files) {
     const originalName = normalizeFieldValue(file.originalFilename) || `upload-${i + 1}`;
 
     const response = await drive.files.create({
+      supportsAllDrives: true,
       requestBody: {
         name: originalName,
         parents: [folderId],
