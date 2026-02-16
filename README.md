@@ -65,3 +65,44 @@ git push -u origin main
 See:
 - `/Users/kwangyijie/Desktop/Coding/wedding-rsvp/DEPLOY.md`
 # weddingsite
+
+## Zero-Pixel Visual Parity Check
+
+Generate and compare screenshots at required breakpoints/sections:
+
+```bash
+# 1) Create baseline (once)
+./tools/visual/visual-check.sh baseline
+
+# 2) Capture current state
+./tools/visual/visual-check.sh current
+
+# 3) Compare against baseline
+./tools/visual/visual-check.sh compare
+```
+
+Or run capture+compare in one shot:
+
+```bash
+./tools/visual/visual-check.sh all
+```
+
+Breakpoints:
+- Mobile: 390x844
+- Tablet: 834x1112
+- Desktop: 1440x900
+
+Sections captured:
+- Home (top)
+- Our story
+- Where to stay
+- Things to do
+- Beijing food menu
+- Travel & Visa
+- RSVP
+- Recent moments
+
+Local output folders (not committed):
+- `visual-baseline/baseline`
+- `visual-baseline/current`
+- `visual-baseline/diff`
