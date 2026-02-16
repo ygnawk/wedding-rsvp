@@ -4165,10 +4165,19 @@ function setStoryMobileSlide(index, options = {}) {
     storyMobileCard.style.setProperty("--storyMobileBgImage", item.cropMode === "contain" ? `url("${imageSrc}")` : "none");
   }
 
-  if (item.rotation === 90) storyMobileImg.style.setProperty("--storyRotate", "90deg");
-  else if (item.rotation === -90) storyMobileImg.style.setProperty("--storyRotate", "-90deg");
-  else if (item.rotation === 180) storyMobileImg.style.setProperty("--storyRotate", "180deg");
-  else storyMobileImg.style.setProperty("--storyRotate", "0deg");
+  if (item.rotation === 90) {
+    storyMobileImg.style.setProperty("--storyRotate", "90deg");
+    storyMobileImg.style.transform = "rotate(90deg)";
+  } else if (item.rotation === -90) {
+    storyMobileImg.style.setProperty("--storyRotate", "-90deg");
+    storyMobileImg.style.transform = "rotate(-90deg)";
+  } else if (item.rotation === 180) {
+    storyMobileImg.style.setProperty("--storyRotate", "180deg");
+    storyMobileImg.style.transform = "rotate(180deg)";
+  } else {
+    storyMobileImg.style.setProperty("--storyRotate", "0deg");
+    storyMobileImg.style.transform = "none";
+  }
 
   storyMobileYear.textContent = item.yearLabel;
   if (storyMobileBlurb) storyMobileBlurb.textContent = item.blurb || "";
