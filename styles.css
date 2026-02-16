@@ -2000,6 +2000,30 @@ a:focus-visible,
     display: grid;
   }
 
+  .story-mobile-card {
+    aspect-ratio: 3 / 4;
+    max-height: min(68svh, 560px);
+  }
+
+  .story-mobile-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background-image: var(--storyMobileBgImage, none);
+    background-size: cover;
+    background-position: center;
+    filter: blur(14px) saturate(0.9);
+    transform: scale(1.08);
+    opacity: 0.82;
+  }
+
+  .story-mobile-card img {
+    object-fit: contain !important;
+    object-position: center !important;
+    background: rgba(75, 15, 23, 0.1);
+  }
+
   .story-mosaic-shell {
     display: none;
   }

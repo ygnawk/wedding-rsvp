@@ -4253,7 +4253,7 @@ function setStoryMobileSlide(index, options = {}) {
   storyMobileImg.style.objectFit = item.cropMode === "contain" ? "contain" : "cover";
   if (storyMobileCard) {
     storyMobileCard.classList.toggle("is-contain", item.cropMode === "contain");
-    storyMobileCard.style.setProperty("--storyMobileBgImage", item.cropMode === "contain" ? `url("${imageSrc}")` : "none");
+    storyMobileCard.style.setProperty("--storyMobileBgImage", `url("${imageSrc}")`);
   }
 
   if (item.rotation === 90) {
