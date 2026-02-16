@@ -504,7 +504,7 @@ const MAKAN_PLACEHOLDER_COPY = {
     "Send us your favorite spot and we’ll add it.",
   ],
 };
-const STORY_ASSET_VERSION = "20260216-0915";
+const STORY_ASSET_VERSION = "20260216-2135";
 const STORY_DEFAULT_FOCAL_X = 0.5;
 const STORY_DEFAULT_FOCAL_Y = 0.28;
 const STORY_OVERRIDES = {
@@ -512,17 +512,17 @@ const STORY_OVERRIDES = {
   "2008-miki-moves-beijing-upright.jpg": { rotate: 0, objPos: "50% 44%" },
   "2020-covid-upright.jpg": { rotate: 0, objPos: "50% 42%" },
   "2024-proposal-upright.jpg": { rotate: 0, objPos: "50% 44%" },
-  // Legacy names (kept in case old files are reintroduced).
-  "2008-miki-moves-beijing.jpg": { rotate: -90, yearTop: 72, objPos: "50% 36%" },
-  "2008-miki-moves-beijing-v2.jpg": { rotate: -90, yearTop: 72, objPos: "50% 36%" },
-  "2008 - Miki moves to China.JPG": { rotate: -90, yearTop: 72, objPos: "50% 36%" },
-  "2020-covid.jpg": { rotate: 180, yearTop: 72, objPos: "50% 36%" },
-  "2020-covid-v2.jpg": { rotate: 180, yearTop: 72, objPos: "50% 36%" },
-  "2020-covid-from-heic.jpg": { rotate: 180, yearTop: 72, objPos: "50% 36%" },
-  "2020 - COVID.HEIC": { rotate: 180, yearTop: 72, objPos: "50% 36%" },
-  "2024-proposal.jpg": { rotate: -90, yearTop: 72, objPos: "50% 40%" },
-  "2024-proposal-v2.jpg": { rotate: -90, yearTop: 72, objPos: "50% 40%" },
-  "2024 - She said yes.JPG": { rotate: -90, yearTop: 72, objPos: "50% 40%" },
+  // Legacy names are also pinned upright to avoid accidental rotation regressions.
+  "2008-miki-moves-beijing.jpg": { rotate: 0, objPos: "50% 44%" },
+  "2008-miki-moves-beijing-v2.jpg": { rotate: 0, objPos: "50% 44%" },
+  "2008 - Miki moves to China.JPG": { rotate: 0, objPos: "50% 44%" },
+  "2020-covid.jpg": { rotate: 0, objPos: "50% 42%" },
+  "2020-covid-v2.jpg": { rotate: 0, objPos: "50% 42%" },
+  "2020-covid-from-heic.jpg": { rotate: 0, objPos: "50% 42%" },
+  "2020 - COVID.HEIC": { rotate: 0, objPos: "50% 42%" },
+  "2024-proposal.jpg": { rotate: 0, objPos: "50% 44%" },
+  "2024-proposal-v2.jpg": { rotate: 0, objPos: "50% 44%" },
+  "2024 - She said yes.JPG": { rotate: 0, objPos: "50% 44%" },
 };
 const STORY_YEAR_FOCAL_PRESETS = {
   1995: { focalX: 0.5, focalY: 0.42, cropMode: "cover" },
