@@ -2406,13 +2406,13 @@ function populatePartySizeOptions(selectEl, maxParty) {
 function hideGuestLimitError() {
   if (!guestLimitError) return;
   guestLimitError.textContent = "";
-  guestLimitError.classList.add("hidden");
+  setHiddenClass(guestLimitError, true);
 }
 
 function showGuestLimitError(message) {
   if (!guestLimitError) return;
   guestLimitError.textContent = message;
-  guestLimitError.classList.remove("hidden");
+  setHiddenClass(guestLimitError, false);
 }
 
 function pickRandomFunFactExamples(limit = FUN_FACT_CHIP_COUNT) {
