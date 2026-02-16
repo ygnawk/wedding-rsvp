@@ -756,22 +756,26 @@ async function copyTextToClipboard(value) {
   return copied;
 }
 
-function createFoodCopyButton(nameCn, nameEn) {
-  const copyValue = String(nameCn || nameEn || "").trim();
+function createFoodCopyButton(copyValueInput, options = {}) {
+  const copyValue = String(copyValueInput || "").trim();
+  const label = String(options.label || "Copy name");
+  const copiedLabel = String(options.copiedLabel || "Copied");
+  const failedLabel = String(options.failedLabel || "Copy failed");
+  const ariaLabel = String(options.ariaLabel || `Copy ${label.toLowerCase()}`);
   const button = document.createElement("button");
   button.type = "button";
   button.className = "makan-copy-btn";
-  button.setAttribute("aria-label", `Copy restaurant name ${copyValue}`);
-  button.textContent = "Copy name";
+  button.setAttribute("aria-label", ariaLabel);
+  button.textContent = label;
   button.dataset.defaultText = button.textContent;
 
   button.addEventListener("click", async () => {
     const copied = await copyTextToClipboard(copyValue);
-    button.textContent = copied ? "Copied" : "Copy failed";
+    button.textContent = copied ? copiedLabel : failedLabel;
     button.classList.toggle("is-copied", copied);
 
     window.setTimeout(() => {
-      button.textContent = button.dataset.defaultText || "Copy name";
+      button.textContent = button.dataset.defaultText || label;
       button.classList.remove("is-copied");
     }, 1300);
   });
@@ -816,7 +820,17 @@ function buildMakanRow(place, rowIndex) {
 
   const colBlurb = document.createElement("span");
   colBlurb.className = "makan-col makan-col--blurb";
-  colBlurb.textContent = blurbText;
+  const blurbBody = document.createElement("span");
+  blurbBody.className = "makan-blurb-text";
+  blurbBody.textContent = blurbText;
+  colBlurb.appendChild(blurbBody);
+
+  if (place.address_cn) {
+    const addressInline = document.createElement("span");
+    addressInline.className = "makan-address-inline";
+    addressInline.textContent = place.address_cn;
+    colBlurb.appendChild(addressInline);
+  }
 
   const chevron = document.createElement("span");
   chevron.className = "makan-row-chevron";
@@ -834,7 +848,20 @@ function buildMakanRow(place, rowIndex) {
 
   const actions = document.createElement("div");
   actions.className = "makan-row-actions";
-  actions.appendChild(createFoodCopyButton(place.name_cn, place.name_en));
+  actions.appendChild(
+    createFoodCopyButton(place.name_cn || place.name_en, {
+      label: "Copy name",
+      ariaLabel: `Copy restaurant name ${String(place.name_cn || place.name_en || "").trim()}`,
+    }),
+  );
+  if (place.address_cn) {
+    actions.appendChild(
+      createFoodCopyButton(place.address_cn, {
+        label: "Copy 地址",
+        ariaLabel: `Copy restaurant address ${String(place.address_cn).trim()}`,
+      }),
+    );
+  }
   if (place.dianping_url) {
     const link = document.createElement("a");
     link.className = "makan-link";
