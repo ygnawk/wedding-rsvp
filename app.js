@@ -43,12 +43,13 @@ const workingConfirm = document.getElementById("workingConfirm");
 
 const noFields = document.getElementById("noFields");
 const noNote = document.getElementById("noNote");
-const thingsToggle = document.getElementById("thingsToggle");
-const thingsMore = document.getElementById("things-to-do-more");
-const makanSpecialsTrack = document.getElementById("makanSpecialsTrack");
-const makanCategoryGrid = document.getElementById("makanCategoryGrid");
+const thingsThemeList = document.getElementById("thingsThemeList");
+const makanTipTrigger = document.getElementById("makanTipTrigger");
+const makanTipPopover = document.getElementById("makanTipPopover");
+const makanMenuRows = document.getElementById("makanMenuRows");
 const hotelMatrixShell = document.getElementById("hotelMatrixShell");
 const hotelMatrixSvg = document.getElementById("hotelMatrixSvg");
+const hotelMatrixTooltip = document.getElementById("hotelMatrixTooltip");
 const hotelMatrixDetails = document.getElementById("hotelMatrixDetails");
 const hotelMatrixSheet = document.getElementById("hotelMatrixSheet");
 const hotelMatrixSheetContent = document.getElementById("hotelMatrixSheetContent");
@@ -119,12 +120,14 @@ let hotelDetailsSwapTimer = null;
 let hotelSheetOpen = false;
 let hotelMatrixMetaById = new Map();
 let hotelMethodOpen = false;
+let makanTipOpen = false;
 
 const jumpMenuWrap = document.getElementById("jumpMenuWrap");
 const jumpMenuToggle = document.getElementById("jumpMenuToggle");
 const jumpMenuPanel = document.getElementById("jumpMenuPanel");
 const jumpMenuLinks = jumpMenuPanel ? Array.from(jumpMenuPanel.querySelectorAll("a[href^='#']")) : [];
 const travelPassportSelect = document.getElementById("travelPassportSelect");
+const travelPassportPills = Array.from(document.querySelectorAll(".travel-passport-pill"));
 const travelPassportResult = document.getElementById("travelPassportResult");
 const travelSourcesDisclosure = document.querySelector(".travel-sources-disclosure");
 
@@ -490,31 +493,45 @@ function initJumpMenu() {
   jumpMenuWrap.dataset.bound = "true";
 }
 
-function initThingsDisclosure() {
-  if (!thingsToggle || !thingsMore) return;
-  if (thingsToggle.dataset.bound === "true") return;
+function initThingsThemes() {
+  if (!thingsThemeList) return;
+  if (thingsThemeList.dataset.bound === "true") return;
 
-  const moreCards = Array.from(thingsMore.querySelectorAll(".thing-card"));
-  if (!moreCards.length) {
-    thingsToggle.hidden = true;
-    thingsMore.hidden = true;
-    return;
-  }
+  const detailsNodes = Array.from(thingsThemeList.querySelectorAll("details.things-theme"));
+  if (!detailsNodes.length) return;
 
-  const setExpanded = (expanded) => {
-    thingsToggle.setAttribute("aria-expanded", String(expanded));
-    thingsToggle.textContent = expanded ? "Show less" : "Show 3 more";
-    thingsMore.hidden = !expanded;
+  const isMobile = () => window.matchMedia("(max-width: 760px)").matches;
+  let currentMode = "";
+
+  const applyDefaults = () => {
+    const nextMode = isMobile() ? "mobile" : "desktop";
+    if (nextMode === currentMode) return;
+    currentMode = nextMode;
+
+    if (nextMode === "mobile") {
+      detailsNodes.forEach((node) => {
+        node.open = false;
+      });
+      return;
+    }
+
+    if (!detailsNodes.some((node) => node.open)) {
+      detailsNodes[0].open = true;
+    }
   };
 
-  setExpanded(false);
-
-  thingsToggle.addEventListener("click", () => {
-    const expanded = thingsToggle.getAttribute("aria-expanded") === "true";
-    setExpanded(!expanded);
+  detailsNodes.forEach((node) => {
+    node.addEventListener("toggle", () => {
+      if (!node.open) return;
+      detailsNodes.forEach((other) => {
+        if (other !== node) other.open = false;
+      });
+    });
   });
 
-  thingsToggle.dataset.bound = "true";
+  applyDefaults();
+  window.addEventListener("resize", applyDefaults);
+  thingsThemeList.dataset.bound = "true";
 }
 
 function renderTravelPassportResult(key) {
@@ -540,14 +557,46 @@ function renderTravelPassportResult(key) {
 }
 
 function initTravelVisaSection() {
-  if (travelPassportSelect && travelPassportSelect.dataset.bound !== "true") {
-    const syncPassportResult = () => {
-      renderTravelPassportResult(travelPassportSelect.value);
-    };
-    travelPassportSelect.addEventListener("change", syncPassportResult);
-    syncPassportResult();
+  const hasSelect = Boolean(travelPassportSelect);
+  const hasPills = travelPassportPills.length > 0;
+
+  const syncPassportUi = (rawValue, source = "select") => {
+    const key = String(rawValue || "");
+    renderTravelPassportResult(key);
+
+    if (hasSelect && source !== "select") {
+      travelPassportSelect.value = key;
+    }
+
+    if (hasPills) {
+      travelPassportPills.forEach((pill) => {
+        const isActive = pill.dataset.passport === key;
+        pill.classList.toggle("is-active", isActive);
+        pill.setAttribute("aria-pressed", String(isActive));
+      });
+    }
+  };
+
+  if (hasSelect && travelPassportSelect.dataset.bound !== "true") {
+    travelPassportSelect.addEventListener("change", () => {
+      syncPassportUi(travelPassportSelect.value, "select");
+    });
     travelPassportSelect.dataset.bound = "true";
   }
+
+  if (hasPills) {
+    travelPassportPills.forEach((pill) => {
+      if (pill.dataset.bound === "true") return;
+      pill.setAttribute("aria-pressed", "false");
+      pill.addEventListener("click", () => {
+        const key = pill.dataset.passport || "";
+        syncPassportUi(key, "pill");
+      });
+      pill.dataset.bound = "true";
+    });
+  }
+
+  syncPassportUi(hasSelect ? travelPassportSelect.value : "");
 
   if (travelSourcesDisclosure && travelSourcesDisclosure.dataset.bound !== "true") {
     travelSourcesDisclosure.addEventListener("keydown", (event) => {
@@ -615,61 +664,81 @@ function createFoodCopyButton(nameCn) {
   return button;
 }
 
-function FoodMenuRow(place) {
+function buildMakanRow(place, rowIndex) {
   const row = document.createElement("article");
   row.className = "makan-menu-row";
 
-  const top = document.createElement("div");
-  top.className = "makan-menu-row-top";
+  const detailsId = `makanRowDetails${rowIndex + 1}`;
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "makan-row-toggle";
+  toggle.setAttribute("aria-expanded", "false");
+  toggle.setAttribute("aria-controls", detailsId);
+  toggle.setAttribute("aria-label", `Show details for ${place.name_en}`);
 
-  const main = document.createElement("div");
-  main.className = "makan-menu-main";
+  const colType = document.createElement("span");
+  colType.className = "makan-col makan-col--type";
+  colType.textContent = place.category;
 
-  const en = document.createElement("p");
-  en.className = "makan-name-en";
-  en.textContent = place.name_en;
+  const colRestaurant = document.createElement("span");
+  colRestaurant.className = "makan-col makan-col--restaurant";
+  const nameEn = document.createElement("span");
+  nameEn.className = "makan-name-en";
+  nameEn.textContent = place.name_en;
+  const nameCn = document.createElement("span");
+  nameCn.className = "makan-name-cn";
+  nameCn.textContent = place.name_cn;
+  colRestaurant.appendChild(nameEn);
+  colRestaurant.appendChild(nameCn);
 
-  const cn = document.createElement("p");
-  cn.className = "makan-name-cn";
-  cn.textContent = place.name_cn;
+  const colBlurb = document.createElement("span");
+  colBlurb.className = "makan-col makan-col--blurb";
+  colBlurb.textContent = place.blurb_en;
 
-  const blurb = document.createElement("p");
-  blurb.className = "makan-row-blurb";
-  blurb.textContent = place.blurb_en;
+  const chevron = document.createElement("span");
+  chevron.className = "makan-row-chevron";
+  chevron.setAttribute("aria-hidden", "true");
 
-  main.appendChild(en);
-  main.appendChild(cn);
-  main.appendChild(blurb);
+  toggle.appendChild(colType);
+  toggle.appendChild(colRestaurant);
+  toggle.appendChild(colBlurb);
+  toggle.appendChild(chevron);
 
-  const leader = document.createElement("span");
-  leader.className = "makan-row-leader";
-  leader.setAttribute("aria-hidden", "true");
+  const details = document.createElement("div");
+  details.id = detailsId;
+  details.className = "makan-row-details";
+  details.hidden = true;
 
-  const chips = document.createElement("div");
-  chips.className = "makan-chip-group";
-  (place.vibe_tags || []).slice(0, 3).forEach((tag) => {
-    const chip = document.createElement("span");
-    chip.className = "makan-chip";
-    chip.textContent = tag;
-    chips.appendChild(chip);
-  });
-
-  top.appendChild(main);
-  top.appendChild(leader);
-  top.appendChild(chips);
-
-  const foot = document.createElement("div");
-  foot.className = "makan-menu-row-foot";
+  if (place.image) {
+    const media = document.createElement("figure");
+    media.className = "makan-row-photo";
+    const img = document.createElement("img");
+    img.src = toPhotoSrc(place.image);
+    img.alt = place.name_en;
+    img.loading = "lazy";
+    img.decoding = "async";
+    media.appendChild(img);
+    details.appendChild(media);
+  }
 
   const address = document.createElement("p");
   address.className = "makan-address";
   address.textContent = place.address_cn ? `📍 ${place.address_cn}` : "📍 Beijing";
-  foot.appendChild(address);
+  details.appendChild(address);
+
+  const tagWrap = document.createElement("div");
+  tagWrap.className = "makan-chip-group";
+  (place.vibe_tags || []).slice(0, 3).forEach((tag) => {
+    const chip = document.createElement("span");
+    chip.className = "makan-chip";
+    chip.textContent = tag;
+    tagWrap.appendChild(chip);
+  });
+  if (tagWrap.childElementCount) details.appendChild(tagWrap);
 
   const actions = document.createElement("div");
   actions.className = "makan-row-actions";
   actions.appendChild(createFoodCopyButton(place.name_cn));
-
   if (place.dianping_url) {
     const link = document.createElement("a");
     link.className = "makan-link";
@@ -679,123 +748,134 @@ function FoodMenuRow(place) {
     link.textContent = "Open in 大众点评";
     actions.appendChild(link);
   }
+  details.appendChild(actions);
 
-  foot.appendChild(actions);
-  row.appendChild(top);
-  row.appendChild(foot);
-  return row;
+  row.appendChild(toggle);
+  row.appendChild(details);
+  return { row, toggle, details };
 }
 
-function FoodSpecialsStrip(places) {
-  if (!makanSpecialsTrack) return;
+function renderMakanMenuRows() {
+  if (!makanMenuRows) return;
+  makanMenuRows.innerHTML = "";
 
-  const fallbackImages = [
-    "/public/images/makan-placeholder-gongyan.svg",
-    "/public/images/makan-placeholder-duck.svg",
-    "/public/images/makan-placeholder-cantonese.svg",
-    "/public/images/makan-placeholder-jiangnan.svg",
-  ];
-
-  const specials = places.filter((place) => place.is_house_special).slice(0, 6);
-  makanSpecialsTrack.innerHTML = "";
-
-  specials.forEach((place, index) => {
-    const card = document.createElement("article");
-    card.className = "makan-special-card";
-
-    const media = document.createElement("figure");
-    media.className = "makan-special-media";
-
-    const image = document.createElement("img");
-    image.loading = "lazy";
-    image.decoding = "async";
-    image.alt = `${place.name_en}`;
-    image.src = toPhotoSrc(place.image || fallbackImages[index % fallbackImages.length]);
-    media.appendChild(image);
-
-    const body = document.createElement("div");
-    body.className = "makan-special-body";
-
-    const name = document.createElement("h4");
-    name.className = "makan-special-name";
-    name.textContent = place.name_en;
-
-    const nameCn = document.createElement("p");
-    nameCn.className = "makan-special-name-cn";
-    nameCn.textContent = place.name_cn;
-
-    const why = document.createElement("p");
-    why.className = "makan-special-why";
-    why.textContent = place.blurb_en;
-
-    const actions = document.createElement("div");
-    actions.className = "makan-special-actions";
-    actions.appendChild(createFoodCopyButton(place.name_cn));
-
-    if (place.dianping_url) {
-      const link = document.createElement("a");
-      link.className = "makan-link";
-      link.href = place.dianping_url;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      link.textContent = "Open in 大众点评";
-      actions.appendChild(link);
-    }
-
-    body.appendChild(name);
-    body.appendChild(nameCn);
-    body.appendChild(why);
-    body.appendChild(actions);
-
-    card.appendChild(media);
-    card.appendChild(body);
-    makanSpecialsTrack.appendChild(card);
+  const sorted = [...BEIJING_FOOD_PLACES].sort((a, b) => {
+    const categoryDelta = MAKAN_CATEGORY_ORDER.indexOf(a.category) - MAKAN_CATEGORY_ORDER.indexOf(b.category);
+    if (categoryDelta !== 0) return categoryDelta;
+    return a.name_en.localeCompare(b.name_en, undefined, { sensitivity: "base" });
   });
-}
 
-function FoodCategoryGrid(places) {
-  if (!makanCategoryGrid) return;
-  makanCategoryGrid.innerHTML = "";
+  const rowBindings = [];
+  sorted.forEach((place, index) => {
+    const { row, toggle, details } = buildMakanRow(place, index);
+    makanMenuRows.appendChild(row);
+    rowBindings.push({ toggle, details, row });
+  });
 
-  MAKAN_CATEGORY_ORDER.forEach((categoryTitle) => {
-    const card = document.createElement("article");
-    card.className = "makan-category-card";
-
-    const title = document.createElement("h4");
-    title.className = "makan-category-title";
-    title.textContent = categoryTitle;
-    card.appendChild(title);
-
-    const items = places.filter((place) => place.category === categoryTitle);
-    if (items.length > 0) {
-      const rowsWrap = document.createElement("div");
-      rowsWrap.className = "makan-rows";
-      items.forEach((place) => rowsWrap.appendChild(FoodMenuRow(place)));
-      card.appendChild(rowsWrap);
-    } else {
-      const placeholderList = document.createElement("ul");
-      placeholderList.className = "makan-placeholder-list";
-      (MAKAN_PLACEHOLDER_COPY[categoryTitle] || []).forEach((line) => {
-        const item = document.createElement("li");
-        item.textContent = line;
-        placeholderList.appendChild(item);
+  rowBindings.forEach((binding) => {
+    binding.toggle.addEventListener("click", () => {
+      const willOpen = binding.toggle.getAttribute("aria-expanded") !== "true";
+      rowBindings.forEach((candidate) => {
+        candidate.toggle.setAttribute("aria-expanded", "false");
+        candidate.details.hidden = true;
+        candidate.row.classList.remove("is-open");
       });
-      card.appendChild(placeholderList);
-    }
-
-    makanCategoryGrid.appendChild(card);
+      if (!willOpen) return;
+      binding.toggle.setAttribute("aria-expanded", "true");
+      binding.details.hidden = false;
+      binding.row.classList.add("is-open");
+    });
   });
 }
 
-function BeijingMakanMenuSection() {
-  if (!makanSpecialsTrack || !makanCategoryGrid) return;
+function closeMakanTipPopover() {
+  if (!makanTipTrigger || !makanTipPopover) return;
+  makanTipPopover.hidden = true;
+  makanTipPopover.setAttribute("aria-hidden", "true");
+  makanTipTrigger.setAttribute("aria-expanded", "false");
+  makanTipOpen = false;
+}
 
-  FoodSpecialsStrip(BEIJING_FOOD_PLACES);
-  FoodCategoryGrid(BEIJING_FOOD_PLACES);
+function positionMakanTipPopover() {
+  if (!makanTipTrigger || !makanTipPopover || makanTipPopover.hidden) return;
+  const triggerRect = makanTipTrigger.getBoundingClientRect();
+  const popoverRect = makanTipPopover.getBoundingClientRect();
+  const gap = 10;
+  const viewportPadding = 12;
+
+  let left = triggerRect.left + triggerRect.width / 2 - popoverRect.width / 2;
+  left = Math.max(viewportPadding, Math.min(left, window.innerWidth - popoverRect.width - viewportPadding));
+
+  let top = triggerRect.bottom + gap;
+  if (top + popoverRect.height > window.innerHeight - viewportPadding) {
+    top = triggerRect.top - popoverRect.height - gap;
+  }
+  if (top < viewportPadding) top = viewportPadding;
+
+  makanTipPopover.style.left = `${left}px`;
+  makanTipPopover.style.top = `${top}px`;
+}
+
+function openMakanTipPopover() {
+  if (!makanTipTrigger || !makanTipPopover) return;
+  makanTipPopover.hidden = false;
+  makanTipPopover.setAttribute("aria-hidden", "false");
+  makanTipTrigger.setAttribute("aria-expanded", "true");
+  makanTipOpen = true;
+  positionMakanTipPopover();
+}
+
+function toggleMakanTipPopover() {
+  if (makanTipOpen) closeMakanTipPopover();
+  else openMakanTipPopover();
+}
+
+function initMakanTipPopover() {
+  if (!makanTipTrigger || !makanTipPopover) return;
+  if (makanTipTrigger.dataset.bound === "true") return;
+
+  closeMakanTipPopover();
+
+  makanTipTrigger.addEventListener("click", (event) => {
+    event.preventDefault();
+    toggleMakanTipPopover();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !makanTipOpen) return;
+    closeMakanTipPopover();
+  });
+
+  document.addEventListener(
+    "pointerdown",
+    (event) => {
+      if (!makanTipOpen) return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (makanTipTrigger.contains(target) || makanTipPopover.contains(target)) return;
+      closeMakanTipPopover();
+    },
+    { passive: true },
+  );
+
+  window.addEventListener("resize", () => {
+    if (makanTipOpen) positionMakanTipPopover();
+  });
+
+  window.addEventListener(
+    "scroll",
+    () => {
+      if (makanTipOpen) positionMakanTipPopover();
+    },
+    { passive: true },
+  );
+
+  makanTipTrigger.dataset.bound = "true";
 }
 
 function initMakanSection() {
-  BeijingMakanMenuSection();
+  renderMakanMenuRows();
+  initMakanTipPopover();
 }
 
 function createSvgNode(tagName, attributes = {}) {
@@ -927,6 +1007,49 @@ function buildHotelEmptyState() {
   return empty;
 }
 
+function hideHotelDotTooltip() {
+  if (!hotelMatrixTooltip) return;
+  hotelMatrixTooltip.hidden = true;
+  hotelMatrixTooltip.setAttribute("aria-hidden", "true");
+}
+
+function showHotelDotTooltip(item, cx, cy) {
+  if (!hotelMatrixTooltip || !hotelMatrixShell || !item) return;
+  if (isHotelMatrixMobile() || hotelMatrixPinnedId) {
+    hideHotelDotTooltip();
+    return;
+  }
+
+  hotelMatrixTooltip.innerHTML = `
+    <p class="hotel-map-dot-tooltip-title">${item.name}</p>
+    <p class="hotel-map-dot-tooltip-body">${Number(item.metrics.comfortRating).toFixed(1)}/10 comfort · $${item.metrics.priceUsd}/night snapshot</p>
+  `;
+
+  hotelMatrixTooltip.hidden = false;
+  hotelMatrixTooltip.setAttribute("aria-hidden", "false");
+
+  const shellRect = hotelMatrixShell.getBoundingClientRect();
+  const tooltipRect = hotelMatrixTooltip.getBoundingClientRect();
+  const viewX = shellRect.left + (cx / 760) * shellRect.width;
+  const viewY = shellRect.top + (cy / 460) * shellRect.height;
+  const gap = 10;
+  const viewportPad = 12;
+
+  let left = viewX - tooltipRect.width / 2;
+  left = Math.max(viewportPad, Math.min(left, window.innerWidth - tooltipRect.width - viewportPad));
+
+  let top = viewY - tooltipRect.height - gap;
+  if (top < viewportPad) {
+    top = viewY + gap;
+  }
+  if (top + tooltipRect.height > window.innerHeight - viewportPad) {
+    top = window.innerHeight - tooltipRect.height - viewportPad;
+  }
+
+  hotelMatrixTooltip.style.left = `${left}px`;
+  hotelMatrixTooltip.style.top = `${top}px`;
+}
+
 function buildHotelDetailsCard(item) {
   const card = document.createElement("article");
   card.className = "hotel-map-detail-card";
@@ -1052,6 +1175,9 @@ function applyHotelMatrixSelection() {
 
   const activeHotel = getHotelById(nextActiveId);
   swapHotelDetails(activeHotel);
+  if (!nextActiveId || hotelMatrixPinnedId) {
+    hideHotelDotTooltip();
+  }
 }
 
 function initHotelMatrix() {
@@ -1064,7 +1190,7 @@ function initHotelMatrix() {
 
   const width = 760;
   const height = 460;
-  const margins = { top: 54, right: 48, bottom: 62, left: 72 };
+  const margins = { top: 42, right: 52, bottom: 84, left: 88 };
   const plotWidth = width - margins.left - margins.right;
   const plotHeight = height - margins.top - margins.bottom;
   hotelMatrixSvg.innerHTML = "";
@@ -1096,25 +1222,6 @@ function initHotelMatrix() {
     createSvgNode("line", { class: "hotel-map-midline", x1: margins.left, x2: margins.left + plotWidth, y1: midY, y2: midY }),
   );
 
-  const labels = [
-    { text: "Lower price", x: margins.left, y: height - 22, anchor: "start" },
-    { text: "Higher price", x: margins.left + plotWidth, y: height - 22, anchor: "end" },
-    { text: "Higher comfort", x: margins.left, y: margins.top - 20, anchor: "start" },
-    { text: "Lower comfort", x: margins.left, y: margins.top + plotHeight + 20, anchor: "start" },
-  ];
-
-  labels.forEach((label) => {
-    const node = createSvgNode("text", {
-      class: "hotel-map-label",
-      x: label.x,
-      y: label.y,
-      "text-anchor": label.anchor,
-      "dominant-baseline": "middle",
-    });
-    node.textContent = label.text;
-    hotelMatrixSvg.appendChild(node);
-  });
-
   const prices = hotelMatrixItems.map((item) => Number(item.metrics.priceUsd)).filter((value) => Number.isFinite(value) && value > 0);
   const ratings = hotelMatrixItems
     .map((item) => Number(item.metrics.comfortRating))
@@ -1135,6 +1242,94 @@ function initHotelMatrix() {
     const ratio = (rating - minRating) / (maxRating - minRating);
     return clamp(0.04 + ratio * 0.92, 0.04, 0.96);
   };
+
+  hotelMatrixSvg.appendChild(
+    createSvgNode("line", {
+      class: "hotel-map-axis",
+      x1: margins.left,
+      x2: margins.left + plotWidth,
+      y1: margins.top + plotHeight,
+      y2: margins.top + plotHeight,
+    }),
+  );
+  hotelMatrixSvg.appendChild(
+    createSvgNode("line", {
+      class: "hotel-map-axis",
+      x1: margins.left,
+      x2: margins.left,
+      y1: margins.top,
+      y2: margins.top + plotHeight,
+    }),
+  );
+
+  ["$", "$$", "$$$", "$$$$"].forEach((label, index, source) => {
+    const ratio = source.length <= 1 ? 0 : index / (source.length - 1);
+    const x = margins.left + ratio * plotWidth;
+
+    hotelMatrixSvg.appendChild(
+      createSvgNode("line", {
+        class: "hotel-map-tick-line",
+        x1: x,
+        x2: x,
+        y1: margins.top + plotHeight,
+        y2: margins.top + plotHeight + 8,
+      }),
+    );
+
+    const node = createSvgNode("text", {
+      class: "hotel-map-tick",
+      x,
+      y: margins.top + plotHeight + 20,
+      "text-anchor": "middle",
+      "dominant-baseline": "hanging",
+    });
+    node.textContent = label;
+    hotelMatrixSvg.appendChild(node);
+  });
+
+  const yTickMin = Math.floor(minRating);
+  const yTickMax = Math.ceil(maxRating);
+  for (let rating = yTickMin; rating <= yTickMax; rating += 1) {
+    const y = margins.top + (1 - mapRating(rating)) * plotHeight;
+    hotelMatrixSvg.appendChild(
+      createSvgNode("line", {
+        class: "hotel-map-tick-line",
+        x1: margins.left - 8,
+        x2: margins.left,
+        y1: y,
+        y2: y,
+      }),
+    );
+
+    const node = createSvgNode("text", {
+      class: "hotel-map-tick",
+      x: margins.left - 14,
+      y,
+      "text-anchor": "end",
+      "dominant-baseline": "middle",
+    });
+    node.textContent = String(rating);
+    hotelMatrixSvg.appendChild(node);
+  }
+
+  const xAxisLabel = createSvgNode("text", {
+    class: "hotel-map-axis-label",
+    x: margins.left + plotWidth / 2,
+    y: height - 12,
+    "text-anchor": "middle",
+  });
+  xAxisLabel.textContent = "Price ($ to $$$$)";
+  hotelMatrixSvg.appendChild(xAxisLabel);
+
+  const yAxisLabel = createSvgNode("text", {
+    class: "hotel-map-axis-label",
+    x: 22,
+    y: margins.top + plotHeight / 2,
+    "text-anchor": "middle",
+    transform: `rotate(-90 22 ${margins.top + plotHeight / 2})`,
+  });
+  yAxisLabel.textContent = "Comfort (guest rating)";
+  hotelMatrixSvg.appendChild(yAxisLabel);
 
   const layer = createSvgNode("g", { class: "hotel-map-points" });
   hotelMatrixSvg.appendChild(layer);
@@ -1182,18 +1377,21 @@ function initHotelMatrix() {
       if (isHotelMatrixMobile() || hotelMatrixPinnedId) return;
       hotelMatrixHoveredId = item.id;
       applyHotelMatrixSelection();
+      showHotelDotTooltip(item, cx, cy);
     });
 
     dot.addEventListener("pointerleave", () => {
       if (isHotelMatrixMobile() || hotelMatrixPinnedId) return;
       hotelMatrixHoveredId = "";
       applyHotelMatrixSelection();
+      hideHotelDotTooltip();
     });
 
     dot.addEventListener("focus", () => {
       if (hotelMatrixPinnedId && hotelMatrixPinnedId !== item.id) return;
       hotelMatrixHoveredId = item.id;
       applyHotelMatrixSelection();
+      showHotelDotTooltip(item, cx, cy);
     });
 
     dot.addEventListener("blur", () => {
@@ -1201,6 +1399,7 @@ function initHotelMatrix() {
         hotelMatrixHoveredId = "";
         applyHotelMatrixSelection();
       }
+      hideHotelDotTooltip();
     });
 
     dot.addEventListener("click", (event) => {
@@ -1213,6 +1412,7 @@ function initHotelMatrix() {
       hotelMatrixPinnedId = item.id;
       hotelMatrixHoveredId = item.id;
       applyHotelMatrixSelection();
+      hideHotelDotTooltip();
 
       if (isHotelMatrixMobile()) {
         openHotelMatrixSheet(item);
@@ -1236,7 +1436,7 @@ function initHotelMatrix() {
     group.appendChild(ring);
     group.appendChild(dot);
     layer.appendChild(group);
-    hotelMatrixMetaById.set(item.id, { group });
+    hotelMatrixMetaById.set(item.id, { group, item, cx, cy });
   });
 
   hotelMatrixSheetCloseControls.forEach((control) => {
@@ -1256,11 +1456,32 @@ function initHotelMatrix() {
       hotelMatrixHoveredId = "";
       applyHotelMatrixSelection();
     }
+    hideHotelDotTooltip();
   });
+
+  document.addEventListener(
+    "pointerdown",
+    (event) => {
+      if (isHotelMatrixMobile() || !hotelMatrixPinnedId) return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (hotelMatrixShell.contains(target) || hotelMatrixDetails.contains(target)) return;
+      clearHotelMatrixSelection();
+    },
+    { passive: true },
+  );
 
   window.addEventListener("resize", () => {
     if (!isHotelMatrixMobile() && hotelSheetOpen) {
       closeHotelMatrixSheet();
+    }
+    if (isHotelMatrixMobile()) {
+      hideHotelDotTooltip();
+      return;
+    }
+    if (hotelMatrixHoveredId && !hotelMatrixPinnedId) {
+      const hoveredMeta = hotelMatrixMetaById.get(hotelMatrixHoveredId);
+      if (hoveredMeta) showHotelDotTooltip(hoveredMeta.item, hoveredMeta.cx, hoveredMeta.cy);
     }
   });
 
@@ -1657,6 +1878,37 @@ function initFaqWearImageDebug() {
       wrap.innerHTML = '<div class="faq-wear-missing">Image not found. Check /photos/faq-photo/what-to-wear.png</div>';
     }
   });
+}
+
+function initFaqAccordionGroups() {
+  const faqSection = document.getElementById("faq");
+  if (!faqSection || faqSection.dataset.accordionBound === "true") return;
+
+  const detailsNodes = Array.from(faqSection.querySelectorAll(".faq-list details"));
+  if (!detailsNodes.length) return;
+
+  const isMobile = () => window.matchMedia("(max-width: 760px)").matches;
+
+  const normalizeOpenState = () => {
+    if (!isMobile()) return;
+    const openNodes = detailsNodes.filter((node) => node.open);
+    openNodes.slice(1).forEach((node) => {
+      node.open = false;
+    });
+  };
+
+  detailsNodes.forEach((node) => {
+    node.addEventListener("toggle", () => {
+      if (!node.open || !isMobile()) return;
+      detailsNodes.forEach((other) => {
+        if (other !== node) other.open = false;
+      });
+    });
+  });
+
+  normalizeOpenState();
+  window.addEventListener("resize", normalizeOpenState);
+  faqSection.dataset.accordionBound = "true";
 }
 
 function normalizeGalleryEntry(entry) {
@@ -2888,12 +3140,13 @@ async function init() {
   initHeroCountdown();
   initSectionObserver();
   initJumpMenu();
-  initThingsDisclosure();
+  initThingsThemes();
   initTravelVisaSection();
   initHotelMatrix();
   initMakanSection();
   initReveals();
   await initStoryMosaicLayout();
+  await initStoryTimeline();
   initRsvpCards();
   initRsvpForm();
 
@@ -2901,6 +3154,7 @@ async function init() {
   applyInviteContext();
   applyStaticPhotoManifest();
   initCutoutParallax();
+  initFaqAccordionGroups();
   initFaqWearImageDebug();
   await initGallery();
 

@@ -437,6 +437,7 @@ a {
 .hero-lockup {
   max-width: 640px;
   display: grid;
+  justify-items: start;
   gap: clamp(20px, 2.4vw, 24px);
 }
 
@@ -534,7 +535,7 @@ a {
 }
 
 .hero-actions {
-  margin-top: 0;
+  margin-top: 6px;
   display: inline-flex;
   align-items: center;
   gap: 12px;
@@ -2091,17 +2092,37 @@ a:focus-visible,
 }
 
 /* FAQ */
-.faq-list {
-  margin-top: 16px;
+.faq-groups {
+  display: grid;
+  gap: 22px;
+}
+
+.faq-group {
   display: grid;
   gap: 10px;
 }
 
+.faq-group-title {
+  margin: 0;
+  font-family: var(--bodyFont);
+  font-size: 0.74rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(75, 15, 23, 0.72);
+}
+
+.faq-list {
+  margin-top: 8px;
+  display: grid;
+  gap: 0;
+}
+
 .faq-list details {
-  border: 1px solid var(--hairline);
-  border-radius: 12px;
-  background: rgba(255, 249, 240, 0.82);
-  overflow: hidden;
+  border: 0;
+  border-bottom: 1px solid rgba(75, 15, 23, 0.18);
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
 }
 
 .faq-list summary::-webkit-details-marker {
@@ -2116,23 +2137,20 @@ a:focus-visible,
   cursor: pointer;
   user-select: none;
   min-height: 48px;
-  padding: 12px 18px;
-  border-radius: 14px;
-  background: rgba(247, 241, 230, 0.92);
-  border: 1px solid rgba(201, 174, 116, 0.16);
-  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+  padding: 12px 0;
+  border-radius: 0;
+  background: transparent;
+  border: 0;
+  transition: color 160ms ease;
   list-style: none;
 }
 
 .faq-summary:hover {
-  background: rgba(247, 241, 230, 0.98);
-  border-color: rgba(201, 174, 116, 0.3);
-  transform: translateY(-1px);
+  color: var(--maroon);
 }
 
 details[open] > .faq-summary {
-  border-color: rgba(201, 174, 116, 0.45);
-  background: rgba(247, 241, 230, 1);
+  color: var(--maroon);
 }
 
 .faq-summary:focus-visible {
@@ -2177,7 +2195,7 @@ details[open] .faq-chevron {
 }
 
 .faq-answer {
-  padding: 14px 18px 18px;
+  padding: 0 0 16px;
   color: rgba(21, 21, 21, 0.92);
   line-height: 1.6;
   font-size: 15px;
@@ -2235,18 +2253,22 @@ details[open] .faq-answer {
 }
 
 #faq.section--dark .faq-list details {
-  background: rgba(255, 249, 240, 0.9);
-  border-color: rgba(201, 174, 116, 0.4);
-  color: var(--ink);
+  border-bottom-color: rgba(201, 174, 116, 0.34);
 }
 
 #faq.section--dark .faq-summary,
-#faq.section--dark .faq-answer p {
-  color: var(--ink);
+#faq.section--dark .faq-answer,
+#faq.section--dark .faq-group-title {
+  color: var(--ivory);
+}
+
+#faq.section--dark .faq-chevron::before {
+  border-right-color: rgba(247, 241, 230, 0.9);
+  border-bottom-color: rgba(247, 241, 230, 0.9);
 }
 
 #faq.section--dark .faq-cta {
-  color: var(--maroon);
+  color: var(--gold);
 }
 
 .faq-cta {
@@ -2332,15 +2354,15 @@ details[open] .faq-answer {
 
 .hotel-map-card {
   margin-top: 22px;
-  background: rgba(247, 241, 230, 0.97);
-  border: 1px solid rgba(201, 174, 116, 0.26);
-  border-radius: 24px;
-  padding: clamp(18px, 2.4vw, 28px);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
   color: var(--ink);
   display: grid;
   grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
   gap: clamp(16px, 2.2vw, 28px);
-  box-shadow: 0 16px 28px rgba(25, 14, 18, 0.14);
+  box-shadow: none;
 }
 
 .hotel-map-heading {
@@ -2363,10 +2385,11 @@ details[open] .faq-answer {
 }
 
 .hotel-map-shell {
-  border-radius: 18px;
+  position: relative;
+  border-radius: 16px;
   border: 1px solid rgba(75, 15, 23, 0.2);
-  background: rgba(255, 252, 246, 0.82);
-  padding: 12px;
+  background: rgba(255, 252, 246, 0.42);
+  padding: 10px;
 }
 
 .hotel-map-svg {
@@ -2393,6 +2416,30 @@ details[open] .faq-answer {
   font-size: 12px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
+}
+
+.hotel-map-axis {
+  stroke: rgba(75, 15, 23, 0.28);
+  stroke-width: 1.5;
+}
+
+.hotel-map-axis-label {
+  fill: rgba(75, 15, 23, 0.78);
+  font-family: var(--bodyFont);
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+}
+
+.hotel-map-tick-line {
+  stroke: rgba(75, 15, 23, 0.24);
+  stroke-width: 1;
+}
+
+.hotel-map-tick {
+  fill: rgba(75, 15, 23, 0.72);
+  font-family: var(--bodyFont);
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
 }
 
 .hotel-map-crosshair {
@@ -2444,10 +2491,11 @@ details[open] .faq-answer {
 }
 
 .hotel-map-details {
-  border-radius: 18px;
-  border: 1px solid rgba(75, 15, 23, 0.16);
-  background: rgba(255, 251, 243, 0.9);
-  padding: 16px;
+  border-radius: 0;
+  border: 0;
+  border-left: 1px solid rgba(75, 15, 23, 0.2);
+  background: transparent;
+  padding: 4px 0 4px 18px;
   min-height: 340px;
   transition: opacity 150ms ease, transform 200ms ease;
 }
@@ -2554,7 +2602,7 @@ details[open] .faq-answer {
   position: absolute;
   inset: 0;
   border: 0;
-  background: rgba(8, 5, 6, 0.52);
+  background: rgba(8, 5, 6, 0.14);
 }
 
 .hotel-map-sheet-panel {
@@ -2569,6 +2617,33 @@ details[open] .faq-answer {
   padding: 14px 16px 16px;
   max-height: min(80vh, 620px);
   overflow: auto;
+}
+
+.hotel-map-dot-tooltip {
+  position: fixed;
+  z-index: 180;
+  width: min(290px, calc(100vw - 24px));
+  border-radius: 14px;
+  border: 1px solid rgba(201, 174, 116, 0.34);
+  background: rgba(255, 251, 243, 0.98);
+  box-shadow: 0 12px 22px rgba(21, 12, 15, 0.16);
+  padding: 9px 11px;
+  color: var(--ink);
+  pointer-events: none;
+}
+
+.hotel-map-dot-tooltip-title {
+  margin: 0;
+  font-size: 0.87rem;
+  font-weight: 620;
+  line-height: 1.35;
+}
+
+.hotel-map-dot-tooltip-body {
+  margin: 3px 0 0;
+  font-size: 0.78rem;
+  opacity: 0.82;
+  line-height: 1.4;
 }
 
 .hotel-map-sheet-close {
@@ -2634,22 +2709,6 @@ details[open] .faq-answer {
   flex-wrap: wrap;
 }
 
-.things-disclosure-wrap {
-  margin-top: 16px;
-  display: flex;
-  justify-content: center;
-}
-
-.things-disclosure-btn {
-  border: 1px solid rgba(201, 174, 116, 0.5);
-  background: rgba(75, 15, 23, 0.1);
-  color: var(--maroon);
-  padding: 10px 16px;
-  font-size: 0.88rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
 @media (max-width: 1080px) {
   .hotel-map-card {
     grid-template-columns: minmax(0, 1fr);
@@ -2684,19 +2743,77 @@ details[open] .faq-answer {
   }
 }
 
-.things-grid {
+.things-theme-list {
   margin-top: 16px;
   display: grid;
+  gap: 10px;
+}
+
+.things-theme {
+  margin: 0;
+  border-top: 1px solid rgba(75, 15, 23, 0.2);
+  border-bottom: 1px solid rgba(75, 15, 23, 0.14);
+}
+
+.things-theme:last-child {
+  border-bottom-color: rgba(75, 15, 23, 0.2);
+}
+
+.things-theme-summary {
+  list-style: none;
+  cursor: pointer;
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 0;
+}
+
+.things-theme-summary::-webkit-details-marker {
+  display: none;
+}
+
+.things-theme-title {
+  font-family: var(--displayFont);
+  font-size: clamp(1.18rem, 2.2vw, 1.5rem);
+  line-height: 1.2;
+  color: var(--maroon);
+}
+
+.things-theme-meta {
+  font-size: 0.84rem;
+  color: rgba(21, 21, 21, 0.7);
+  white-space: nowrap;
+}
+
+.things-theme-chevron {
+  width: 9px;
+  height: 9px;
+  border-right: 1.8px solid rgba(75, 15, 23, 0.74);
+  border-bottom: 1.8px solid rgba(75, 15, 23, 0.74);
+  transform: rotate(45deg);
+  transition: transform 180ms ease;
+  margin-top: -3px;
+}
+
+.things-theme[open] .things-theme-chevron {
+  transform: rotate(-135deg);
+  margin-top: 3px;
+}
+
+.things-theme-panel {
+  padding: 4px 0 16px;
+}
+
+.things-grid {
+  display: grid;
   gap: 24px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.things-grid--more {
-  margin-top: 24px;
-}
-
-.things-more[hidden] {
-  display: none !important;
+.things-grid--theme {
+  margin-top: 0;
 }
 
 @media (max-width: 980px) {
@@ -2711,13 +2828,21 @@ details[open] .faq-answer {
     gap: 24px;
   }
 
-  .things-grid--more {
-    margin-top: 20px;
-  }
-
   #stay.section,
   #things-to-do.section {
     min-height: auto;
+  }
+
+  .things-theme-summary {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 11px 0;
+    row-gap: 6px;
+  }
+
+  .things-theme-meta {
+    grid-column: 1 / -1;
+    white-space: normal;
+    font-size: 0.8rem;
   }
 
   .content-card {
@@ -2780,17 +2905,17 @@ details[open] .faq-answer {
 }
 
 .makan-menu-card {
-  border-radius: 24px;
-  background: var(--paper);
-  border: 1px solid rgba(201, 174, 116, 0.3);
-  padding: clamp(18px, 2.4vw, 30px);
-  box-shadow: 0 16px 28px rgba(25, 13, 17, 0.14);
-  color: var(--ink);
+  position: relative;
+  padding: 0;
+  color: var(--ivory);
+  background: transparent;
+  border: 0;
+  box-shadow: none;
 }
 
 .makan-menu-card .section-title {
-  margin-bottom: 8px;
-  color: var(--maroon);
+  margin-bottom: 10px;
+  color: var(--ivory);
 }
 
 .makan-intro {
@@ -2798,114 +2923,174 @@ details[open] .faq-answer {
   max-width: 74ch;
   line-height: 1.62;
   opacity: 0.92;
+  color: rgba(247, 241, 230, 0.9);
 }
 
-.makan-tip-banner {
+.makan-tip-row {
+  position: relative;
   margin-top: 16px;
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  border-radius: 16px;
-  border: 1px solid rgba(201, 174, 116, 0.3);
-  background: rgba(75, 15, 23, 0.06);
-  padding: 12px 14px;
-}
-
-.makan-tip-icon {
   display: inline-flex;
-  width: 24px;
-  height: 24px;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
+}
+
+.makan-tip-trigger {
+  min-height: 44px;
   border-radius: 999px;
-  border: 1px solid rgba(201, 174, 116, 0.34);
-  background: rgba(255, 255, 255, 0.55);
-  color: var(--maroon);
+  border: 1px solid rgba(201, 174, 116, 0.42);
+  background: rgba(247, 241, 230, 0.08);
+  color: rgba(247, 241, 230, 0.92);
+  padding: 8px 14px;
   font-size: 0.76rem;
-  margin-top: 2px;
-}
-
-.makan-tip-banner p {
-  margin: 0;
-  line-height: 1.62;
-  max-width: 80ch;
-}
-
-.makan-specials,
-.makan-categories {
-  margin-top: 18px;
-}
-
-.makan-menu-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding-bottom: 10px;
-  border-bottom: 1px dashed rgba(75, 15, 23, 0.2);
-}
-
-.makan-menu-head h3 {
-  margin: 0;
-  font-size: clamp(1.28rem, 2.3vw, 1.74rem);
-  font-family: var(--displayFont);
-  color: var(--maroon);
-}
-
-.makan-badge {
-  flex: 0 0 auto;
-  border-radius: 999px;
-  border: 1px solid rgba(201, 174, 116, 0.52);
-  background: rgba(75, 15, 23, 0.08);
-  color: var(--maroon);
-  font-size: 0.72rem;
   font-weight: 600;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.11em;
   text-transform: uppercase;
-  padding: 6px 10px;
 }
 
-.makan-specials-track {
-  margin-top: 14px;
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(270px, 34%);
-  gap: 14px;
-  overflow-x: auto;
-  padding-bottom: 4px;
-  scroll-snap-type: x proximity;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(75, 15, 23, 0.3) transparent;
+.makan-tip-trigger:hover {
+  border-color: rgba(201, 174, 116, 0.72);
+  background: rgba(247, 241, 230, 0.14);
 }
 
-.makan-specials-track::-webkit-scrollbar {
-  height: 8px;
+.makan-tip-popover {
+  position: fixed;
+  z-index: 170;
+  width: min(360px, calc(100vw - 24px));
+  border-radius: 14px;
+  border: 1px solid rgba(201, 174, 116, 0.32);
+  background: rgba(247, 241, 230, 0.98);
+  box-shadow: 0 14px 28px rgba(21, 12, 15, 0.16);
+  padding: 12px 14px;
+  color: var(--ink);
 }
 
-.makan-specials-track::-webkit-scrollbar-thumb {
-  background: rgba(75, 15, 23, 0.28);
-  border-radius: 999px;
-}
-
-.makan-special-card {
-  scroll-snap-align: start;
-  border-radius: 20px;
-  overflow: hidden;
-  border: 1px solid rgba(75, 15, 23, 0.14);
-  background: rgba(75, 15, 23, 0.03);
-  display: grid;
-  grid-template-rows: auto 1fr;
-}
-
-.makan-special-media {
+.makan-tip-popover p {
   margin: 0;
-  aspect-ratio: 4 / 3;
-  overflow: hidden;
-  background: rgba(75, 15, 23, 0.1);
+  line-height: 1.58;
+  font-size: 0.9rem;
 }
 
-.makan-special-media img {
+.makan-menu-table {
+  margin-top: 18px;
+  border-top: 1px solid rgba(201, 174, 116, 0.36);
+  border-bottom: 1px solid rgba(201, 174, 116, 0.2);
+}
+
+.makan-menu-table-head {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(180px, 1.3fr) minmax(0, 2fr);
+  gap: 14px;
+  padding: 12px 0;
+  color: rgba(247, 241, 230, 0.7);
+  font-size: 0.72rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.makan-menu-rows {
+  display: grid;
+}
+
+.makan-menu-row {
+  border-top: 1px solid rgba(201, 174, 116, 0.2);
+}
+
+.makan-menu-row:first-child {
+  border-top: 1px solid rgba(201, 174, 116, 0.2);
+}
+
+.makan-row-toggle {
+  min-height: 52px;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  padding: 12px 0;
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(180px, 1.3fr) minmax(0, 2fr) auto;
+  align-items: start;
+  gap: 14px;
+  text-align: left;
+}
+
+.makan-row-toggle:hover {
+  transform: none;
+}
+
+.makan-row-toggle:focus-visible {
+  outline: 2px solid rgba(201, 174, 116, 0.74);
+  outline-offset: 2px;
+}
+
+.makan-col {
+  min-width: 0;
+  display: block;
+}
+
+.makan-col--type {
+  font-size: 0.84rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(247, 241, 230, 0.82);
+}
+
+.makan-col--restaurant {
+  display: grid;
+  gap: 2px;
+}
+
+.makan-name-en {
+  margin: 0;
+  font-weight: 600;
+  line-height: 1.32;
+  color: rgba(247, 241, 230, 0.96);
+}
+
+.makan-name-cn {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.3;
+  color: rgba(247, 241, 230, 0.78);
+}
+
+.makan-col--blurb {
+  color: rgba(247, 241, 230, 0.88);
+  font-size: 0.93rem;
+  line-height: 1.5;
+}
+
+.makan-row-chevron {
+  width: 10px;
+  height: 10px;
+  border-right: 1.8px solid rgba(201, 174, 116, 0.84);
+  border-bottom: 1.8px solid rgba(201, 174, 116, 0.84);
+  transform: rotate(45deg);
+  margin-top: 6px;
+  transition: transform 170ms ease;
+}
+
+.makan-menu-row.is-open .makan-row-chevron {
+  transform: rotate(-135deg);
+  margin-top: 10px;
+}
+
+.makan-row-details {
+  display: grid;
+  gap: 10px;
+  padding: 0 0 14px;
+}
+
+.makan-row-photo {
+  margin: 0;
+  width: min(260px, 100%);
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(201, 174, 116, 0.3);
+  background: rgba(247, 241, 230, 0.1);
+  aspect-ratio: 4 / 3;
+}
+
+.makan-row-photo img {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -2913,35 +3098,28 @@ details[open] .faq-answer {
   display: block;
 }
 
-.makan-special-body {
-  padding: 12px 12px 14px;
-  display: grid;
-  gap: 8px;
-}
-
-.makan-special-name {
-  margin: 0;
-  font-family: var(--displayFont);
-  font-size: 1.2rem;
-  color: var(--maroonDeep);
-  line-height: 1.2;
-}
-
-.makan-special-name-cn {
+.makan-address {
   margin: 0;
   font-size: 0.86rem;
-  letter-spacing: 0.02em;
-  color: rgba(21, 21, 21, 0.74);
+  color: rgba(247, 241, 230, 0.78);
 }
 
-.makan-special-why {
-  margin: 0;
-  font-size: 0.9rem;
-  line-height: 1.5;
-  color: rgba(21, 21, 21, 0.87);
+.makan-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
-.makan-special-actions,
+.makan-chip {
+  border-radius: 999px;
+  border: 1px solid rgba(201, 174, 116, 0.42);
+  padding: 4px 8px;
+  font-size: 0.69rem;
+  letter-spacing: 0.04em;
+  color: rgba(247, 241, 230, 0.82);
+  background: rgba(247, 241, 230, 0.07);
+}
+
 .makan-row-actions {
   display: flex;
   gap: 10px;
@@ -2955,7 +3133,7 @@ details[open] .faq-answer {
   display: inline-flex;
   align-items: center;
   border-radius: 999px;
-  border: 1px solid rgba(201, 174, 116, 0.46);
+  border: 1px solid rgba(201, 174, 116, 0.52);
   padding: 6px 11px;
   font-size: 0.76rem;
   letter-spacing: 0.04em;
@@ -2966,8 +3144,8 @@ details[open] .faq-answer {
 .makan-copy-btn {
   appearance: none;
   cursor: pointer;
-  background: rgba(255, 255, 255, 0.72);
-  color: var(--maroon);
+  background: rgba(247, 241, 230, 0.08);
+  color: rgba(247, 241, 230, 0.96);
 }
 
 .makan-copy-btn::before {
@@ -2978,21 +3156,21 @@ details[open] .faq-answer {
 
 .makan-copy-btn.is-copied {
   background: rgba(201, 174, 116, 0.28);
-  border-color: rgba(201, 174, 116, 0.7);
+  border-color: rgba(201, 174, 116, 0.82);
 }
 
 .makan-link {
   text-decoration: none;
-  background: rgba(75, 15, 23, 0.08);
-  color: var(--maroon);
+  background: rgba(201, 174, 116, 0.12);
+  color: rgba(247, 241, 230, 0.96);
 }
 
 .makan-link:hover,
 .makan-link:focus-visible,
 .makan-copy-btn:hover,
 .makan-copy-btn:focus-visible {
-  border-color: rgba(201, 174, 116, 0.75);
-  background: rgba(201, 174, 116, 0.16);
+  border-color: rgba(201, 174, 116, 0.8);
+  background: rgba(201, 174, 116, 0.22);
 }
 
 .makan-link:focus-visible,
@@ -3001,181 +3179,90 @@ details[open] .faq-answer {
   outline-offset: 2px;
 }
 
-.makan-category-grid {
-  margin-top: 16px;
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 14px;
-}
-
-.makan-category-card {
-  border-radius: 18px;
-  border: 1px solid rgba(75, 15, 23, 0.14);
-  background: rgba(75, 15, 23, 0.03);
-  padding: 14px;
-}
-
-.makan-category-title {
-  margin: 0 0 12px;
-  font-family: var(--displayFont);
-  font-size: 1.22rem;
-  color: var(--maroonDeep);
-}
-
-.makan-rows {
-  display: grid;
-  gap: 10px;
-}
-
-.makan-menu-row {
-  border-top: 1px solid rgba(75, 15, 23, 0.12);
-  padding-top: 10px;
-}
-
-.makan-menu-row:first-child {
-  border-top: 0;
-  padding-top: 0;
-}
-
-.makan-menu-row-top {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.makan-menu-main {
-  max-width: 44ch;
-}
-
-.makan-name-en {
-  margin: 0;
-  font-weight: 600;
-  line-height: 1.3;
-}
-
-.makan-name-cn {
-  margin: 1px 0 2px;
-  font-size: 0.88rem;
-  color: rgba(21, 21, 21, 0.72);
-}
-
-.makan-row-blurb {
-  margin: 0;
-  font-size: 0.86rem;
-  font-style: italic;
-  line-height: 1.5;
-  color: rgba(21, 21, 21, 0.78);
-}
-
-.makan-row-leader {
-  flex: 1 1 auto;
-  border-bottom: 1px dotted rgba(75, 15, 23, 0.34);
-  transform: translateY(18px);
-}
-
-.makan-chip-group {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 6px;
-  max-width: 45%;
-}
-
-.makan-chip {
-  border-radius: 999px;
-  border: 1px solid rgba(75, 15, 23, 0.16);
-  padding: 4px 8px;
-  font-size: 0.69rem;
-  letter-spacing: 0.04em;
-  color: rgba(21, 21, 21, 0.78);
-  background: rgba(255, 255, 255, 0.62);
-}
-
-.makan-menu-row-foot {
-  margin-top: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.makan-address {
-  margin: 0;
-  font-size: 0.82rem;
-  color: rgba(21, 21, 21, 0.68);
-}
-
-.makan-placeholder-list {
-  margin: 0;
-  padding-left: 1.05rem;
-  list-style: disc;
-  display: grid;
-  gap: 8px;
-}
-
-.makan-placeholder-list li {
-  line-height: 1.55;
-  color: rgba(21, 21, 21, 0.84);
-}
-
 .makan-microcopy {
   margin: 12px 2px 0;
   font-size: 0.87rem;
-  color: rgba(21, 21, 21, 0.68);
-}
-
-@media (min-width: 760px) {
-  .makan-category-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 1120px) {
-  .makan-category-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+  color: rgba(247, 241, 230, 0.72);
 }
 
 @media (max-width: 980px) {
-  .makan-specials-track {
-    grid-auto-columns: minmax(280px, 58%);
-  }
-
-  .makan-row-leader {
+  .makan-menu-table-head {
     display: none;
   }
 
-  .makan-menu-row-top {
-    flex-direction: column;
-    gap: 8px;
+  .makan-row-toggle {
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    padding: 12px 0 10px;
   }
 
-  .makan-chip-group {
-    max-width: 100%;
-    justify-content: flex-start;
+  .makan-col--type {
+    grid-column: 1;
+    font-size: 0.74rem;
+  }
+
+  .makan-col--restaurant {
+    grid-column: 1;
+  }
+
+  .makan-col--blurb {
+    grid-column: 1;
+    font-size: 0.9rem;
+  }
+
+  .makan-row-chevron {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    align-self: center;
+    justify-self: end;
+    margin-top: 0;
   }
 }
 
 @media (max-width: 600px) {
-  .makan-specials-track {
-    grid-auto-columns: 82%;
-    scroll-snap-type: x mandatory;
-  }
-
   .makan-menu-card {
-    padding: 16px;
-    border-radius: 20px;
+    padding: 0;
   }
 
-  .makan-tip-banner {
-    padding: 10px 11px;
-    gap: 10px;
+  .makan-tip-popover {
+    width: min(320px, calc(100vw - 20px));
   }
 
-  .makan-menu-row-foot {
-    flex-direction: column;
-    align-items: flex-start;
+  .makan-row-details {
+    gap: 9px;
   }
+
+  .makan-row-actions {
+    gap: 8px;
+  }
+}
+
+.makan-tip-banner {
+  display: none;
+}
+
+.makan-specials,
+.makan-categories,
+.makan-menu-head,
+.makan-badge,
+.makan-specials-track,
+.makan-special-card,
+.makan-special-media,
+.makan-special-body,
+.makan-special-name,
+.makan-special-name-cn,
+.makan-special-why,
+.makan-category-grid,
+.makan-category-card,
+.makan-category-title,
+.makan-rows,
+.makan-menu-row-top,
+.makan-menu-main,
+.makan-row-blurb,
+.makan-row-leader,
+.makan-menu-row-foot,
+.makan-placeholder-list {
+  display: none !important;
 }
 
 .content-media,
@@ -3509,6 +3596,37 @@ body.modal-open {
   color: rgba(21, 21, 21, 0.75);
 }
 
+.travel-passport-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.travel-passport-pill {
+  min-height: 44px;
+  padding: 8px 13px;
+  border-radius: 999px;
+  border: 1px solid rgba(75, 15, 23, 0.24);
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--bodyFont);
+  font-size: 0.92rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+
+.travel-passport-pill.is-active {
+  border-color: rgba(201, 174, 116, 0.8);
+  background: rgba(201, 174, 116, 0.16);
+  color: var(--maroonDeep);
+}
+
+.travel-passport-pill:focus-visible {
+  outline: 2px solid rgba(201, 174, 116, 0.68);
+  outline-offset: 2px;
+}
+
 .travel-passport-select {
   width: 100%;
   min-height: 46px;
@@ -3517,6 +3635,18 @@ body.modal-open {
   background: rgba(247, 241, 230, 0.9);
   color: var(--ink);
   padding: 10px 12px;
+}
+
+.travel-passport-select--sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  border: 0;
+  padding: 0;
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .travel-selector-hint {
@@ -3711,6 +3841,24 @@ body.modal-open {
 }
 
 @media (max-width: 760px) {
+  .travel-passport-pills {
+    display: none;
+  }
+
+  .travel-passport-select--sr {
+    position: static;
+    width: 100%;
+    height: auto;
+    margin: 0;
+    clip-path: none;
+    overflow: visible;
+    white-space: normal;
+  }
+
+  .travel-selector-hint {
+    margin-top: 10px;
+  }
+
   .travel-source-groups {
     grid-template-columns: 1fr;
     gap: 12px;
@@ -3950,7 +4098,7 @@ body.modal-open {
   }
 
   .hero-group--details {
-    justify-items: center;
+    justify-items: start;
   }
 
   .hero-inner {
@@ -3970,17 +4118,17 @@ body.modal-open {
 
   .hero-subhead {
     font-size: 18px;
-    text-align: center;
+    text-align: left;
   }
 
   .hero-venue-line {
     font-size: 15px;
-    text-align: center;
+    text-align: left;
   }
 
   .hero-countdown {
-    justify-self: center;
-    text-align: center;
+    justify-self: start;
+    text-align: left;
     width: fit-content;
     max-width: min(34ch, calc(100vw - 56px));
   }
