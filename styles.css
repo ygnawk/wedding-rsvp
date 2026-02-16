@@ -4932,19 +4932,23 @@ details[open] .faq-answer {
   }
 
   .gallery-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 999px;
+    width: 10px;
+    height: 10px;
+    flex: 0 0 10px;
+    display: block;
+    border-radius: 50%;
+    appearance: none;
+    -webkit-appearance: none;
     border: 0;
     padding: 0;
     background: rgba(255, 245, 230, 0.42);
     cursor: pointer;
-    transition: transform 180ms ease, background-color 180ms ease;
+    transition: background-color 180ms ease, box-shadow 180ms ease;
   }
 
   .gallery-dot.is-active {
     background: rgba(201, 174, 116, 0.96);
-    transform: scale(1.12);
+    box-shadow: 0 0 0 2px rgba(201, 174, 116, 0.3);
   }
 
   .gallery-dot:focus-visible {
