@@ -4322,6 +4322,46 @@ details[open] .faq-answer {
   transform: scale(1.02);
 }
 
+.gallery-tile--tuning {
+  cursor: crosshair;
+}
+
+.gallery-focal-marker {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 245, 230, 0.92);
+  background: rgba(75, 15, 23, 0.56);
+  box-shadow: 0 0 0 1px rgba(75, 15, 23, 0.34);
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.gallery-focal-marker::before,
+.gallery-focal-marker::after {
+  content: "";
+  position: absolute;
+  background: rgba(255, 245, 230, 0.9);
+}
+
+.gallery-focal-marker::before {
+  left: 50%;
+  top: 2px;
+  bottom: 2px;
+  width: 1px;
+  transform: translateX(-50%);
+}
+
+.gallery-focal-marker::after {
+  top: 50%;
+  left: 2px;
+  right: 2px;
+  height: 1px;
+  transform: translateY(-50%);
+}
+
 @media (max-width: 980px) {
   .gallery-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -362,6 +362,8 @@ const STORY_YEAR_FOCAL_PRESETS = {
 };
 const WEDDING_DATE_SHANGHAI = { year: 2026, month: 9, day: 19 };
 const SHANGHAI_TIMEZONE = "Asia/Shanghai";
+const RECENT_DEFAULT_FOCAL_X = 0.5;
+const RECENT_DEFAULT_FOCAL_Y = 0.45;
 let countdownRefreshTimeoutId = null;
 
 function getShanghaiDateTimeParts(dateValue = new Date()) {
@@ -2748,30 +2750,60 @@ function initFaqAccordionGroups() {
   faqSection.dataset.accordionBound = "true";
 }
 
+function parseFocalFromObjectPosition(positionValue, fallbackX = RECENT_DEFAULT_FOCAL_X, fallbackY = RECENT_DEFAULT_FOCAL_Y) {
+  const match = String(positionValue || "").trim().match(/(-?\d+(?:\.\d+)?)%\s+(-?\d+(?:\.\d+)?)%/);
+  if (!match) return null;
+  return {
+    x: clamp01(Number(match[1]) / 100, fallbackX),
+    y: clamp01(Number(match[2]) / 100, fallbackY),
+  };
+}
+
+function toGalleryObjectPosition(focalX = RECENT_DEFAULT_FOCAL_X, focalY = RECENT_DEFAULT_FOCAL_Y) {
+  return `${(clamp01(focalX, RECENT_DEFAULT_FOCAL_X) * 100).toFixed(2)}% ${(clamp01(focalY, RECENT_DEFAULT_FOCAL_Y) * 100).toFixed(2)}%`;
+}
+
 function normalizeGalleryEntry(entry) {
   if (typeof entry === "string") {
     return {
+      id: entry.trim(),
       file: entry.trim(),
       alt: "",
       cropClass: "img-round",
-      objectPosition: "50% 35%",
+      focalX: RECENT_DEFAULT_FOCAL_X,
+      focalY: RECENT_DEFAULT_FOCAL_Y,
+      objectPosition: toGalleryObjectPosition(RECENT_DEFAULT_FOCAL_X, RECENT_DEFAULT_FOCAL_Y),
     };
   }
 
   if (!entry || typeof entry !== "object") {
     return {
+      id: "",
       file: "",
       alt: "",
       cropClass: "img-round",
-      objectPosition: "50% 35%",
+      focalX: RECENT_DEFAULT_FOCAL_X,
+      focalY: RECENT_DEFAULT_FOCAL_Y,
+      objectPosition: toGalleryObjectPosition(RECENT_DEFAULT_FOCAL_X, RECENT_DEFAULT_FOCAL_Y),
     };
   }
 
+  const parsedPosition = parseFocalFromObjectPosition(entry.objectPosition, RECENT_DEFAULT_FOCAL_X, RECENT_DEFAULT_FOCAL_Y);
+  const focalX = Number.isFinite(Number(entry.focalX))
+    ? clamp01(Number(entry.focalX), RECENT_DEFAULT_FOCAL_X)
+    : parsedPosition?.x ?? RECENT_DEFAULT_FOCAL_X;
+  const focalY = Number.isFinite(Number(entry.focalY))
+    ? clamp01(Number(entry.focalY), RECENT_DEFAULT_FOCAL_Y)
+    : parsedPosition?.y ?? RECENT_DEFAULT_FOCAL_Y;
+
   return {
+    id: String(entry.id || entry.file || entry.src || "").trim(),
     file: String(entry.file || entry.src || "").trim(),
     alt: String(entry.alt || "").trim(),
     cropClass: String(entry.cropClass || "img-round").trim(),
-    objectPosition: String(entry.objectPosition || "50% 35%").trim(),
+    focalX,
+    focalY,
+    objectPosition: toGalleryObjectPosition(focalX, focalY),
   };
 }
 
@@ -2937,10 +2969,36 @@ function bindGalleryLightboxEvents() {
   galleryLightbox.dataset.bound = "true";
 }
 
+function bindGalleryFocalTuner(card, img, entry, index, initialFocalX, initialFocalY) {
+  if (!IS_LOCAL_DEV) return;
+  card.classList.add("gallery-tile--tuning");
+  const marker = document.createElement("span");
+  marker.className = "gallery-focal-marker";
+  marker.setAttribute("aria-hidden", "true");
+  marker.style.left = `${(initialFocalX * 100).toFixed(2)}%`;
+  marker.style.top = `${(initialFocalY * 100).toFixed(2)}%`;
+  card.appendChild(marker);
+
+  card.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = card.getBoundingClientRect();
+    const tunedFocalX = clamp01((event.clientX - rect.left) / Math.max(rect.width, 1), RECENT_DEFAULT_FOCAL_X);
+    const tunedFocalY = clamp01((event.clientY - rect.top) / Math.max(rect.height, 1), RECENT_DEFAULT_FOCAL_Y);
+    const tunedPosition = toGalleryObjectPosition(tunedFocalX, tunedFocalY);
+    img.style.objectPosition = tunedPosition;
+    card.style.setProperty("--objPos", tunedPosition);
+    marker.style.left = `${(tunedFocalX * 100).toFixed(2)}%`;
+    marker.style.top = `${(tunedFocalY * 100).toFixed(2)}%`;
+    console.log(`RECENT tile ${entry.id || entry.file || `slot-${index + 1}`} focalX=${tunedFocalX.toFixed(2)} focalY=${tunedFocalY.toFixed(2)}`);
+  });
+}
+
 function buildGalleryCard(entry, index) {
   const card = document.createElement("button");
   card.type = "button";
   card.className = "gallery-tile";
+  card.dataset.galleryId = entry.id || `slot-${index + 1}`;
   card.classList.add(`gallery-tile--slot-${index + 1}`);
   if (index === 0) card.classList.add("gallery-tile--hero");
   if (index === 1) card.classList.add("gallery-tile--medium-top");
@@ -2954,10 +3012,18 @@ function buildGalleryCard(entry, index) {
   img.loading = "lazy";
   img.decoding = "async";
   img.style.objectFit = "cover";
-  img.style.objectPosition = entry.objectPosition || "50% 35%";
-  card.style.setProperty("--objPos", entry.objectPosition || "50% 35%");
+  const focalX = clamp01(entry.focalX, RECENT_DEFAULT_FOCAL_X);
+  const focalY = clamp01(entry.focalY, RECENT_DEFAULT_FOCAL_Y);
+  const objectPosition = toGalleryObjectPosition(focalX, focalY);
+  img.style.objectPosition = objectPosition;
+  card.style.setProperty("--objPos", objectPosition);
   card.appendChild(img);
-  card.addEventListener("click", () => openLightbox(index));
+
+  if (IS_LOCAL_DEV) {
+    bindGalleryFocalTuner(card, img, entry, index, focalX, focalY);
+  } else {
+    card.addEventListener("click", () => openLightbox(index));
+  }
 
   return card;
 }
@@ -2971,9 +3037,12 @@ async function initGallery() {
 
   galleryImages = selected;
   window.__galleryItems = selected.map((item) => ({
+    id: item.id || item.file,
     src: toPhotoSrc(item.file),
     alt: item.alt || "Miki and Yi Jie",
-    objPos: item.objectPosition || "50% 35%",
+    objPos: item.objectPosition || toGalleryObjectPosition(RECENT_DEFAULT_FOCAL_X, RECENT_DEFAULT_FOCAL_Y),
+    focalX: clamp01(item.focalX, RECENT_DEFAULT_FOCAL_X),
+    focalY: clamp01(item.focalY, RECENT_DEFAULT_FOCAL_Y),
   }));
 
   if (!galleryImages.length) {
