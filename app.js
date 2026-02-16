@@ -1898,7 +1898,7 @@ function applyHotelMatrixSelection() {
       hotelDetailsSwapTimer = window.setTimeout(() => {
         if (!hotelMatrixPinnedId && hotelMatrixDetails) hotelMatrixDetails.replaceChildren();
         hotelDetailsSwapTimer = null;
-      }, 210);
+      }, 560);
     }
   }
   queueHotelMatrixRender();
@@ -2013,6 +2013,19 @@ function renderHotelMatrix() {
   const bestValueZoneX = margins.left;
   const bestValueZoneWidth = plotWidth * 0.5;
   const bestValueZoneHeight = margins.top + plotHeight - bestValueTopY;
+  const pointCoords = hotelMatrixItems.map((item) => {
+    const xNorm = mapPrice(Number(item.metrics.priceUsd));
+    const yNorm = mapDriveMins(Number(item.driveMins));
+    return {
+      item,
+      xNorm,
+      yNorm,
+      cx: margins.left + xNorm * plotWidth,
+      cy: margins.top + (1 - yNorm) * plotHeight,
+      priceBand: priceBucketFromNorm(xNorm),
+      driveBand: metricBandFromNorm(yNorm),
+    };
+  });
 
   hotelMatrixSvg.appendChild(
     createSvgNode("rect", {
@@ -2113,10 +2126,54 @@ function renderHotelMatrix() {
   yAxisLabel.textContent = "Drive time to wedding venue (mins)";
   hotelMatrixSvg.appendChild(yAxisLabel);
 
-  const chipWidth = isCompact ? 188 : 226;
-  const chipHeight = isCompact ? 38 : 46;
-  const chipX = bestValueZoneX + 10;
-  const chipY = Math.min(bestValueTopY + 10, margins.top + plotHeight - chipHeight - 10);
+  const chipWidth = Math.min(isCompact ? 186 : 230, Math.max(146, bestValueZoneWidth - 16));
+  const chipHeight = isCompact ? 42 : 50;
+  const chipPadding = 8;
+  const chipCandidates = [
+    { x: bestValueZoneX + chipPadding, y: bestValueTopY + chipPadding },
+    { x: bestValueZoneX + bestValueZoneWidth - chipWidth - chipPadding, y: bestValueTopY + chipPadding },
+    {
+      x: bestValueZoneX + chipPadding,
+      y: bestValueTopY + bestValueZoneHeight - chipHeight - chipPadding,
+    },
+    {
+      x: bestValueZoneX + bestValueZoneWidth - chipWidth - chipPadding,
+      y: bestValueTopY + bestValueZoneHeight - chipHeight - chipPadding,
+    },
+  ]
+    .map((candidate) => ({
+      x: clamp(candidate.x, bestValueZoneX + 4, bestValueZoneX + bestValueZoneWidth - chipWidth - 4),
+      y: clamp(candidate.y, bestValueTopY + 4, bestValueTopY + bestValueZoneHeight - chipHeight - 4),
+    }))
+    .filter(
+      (candidate, index, array) =>
+        array.findIndex((entry) => Math.abs(entry.x - candidate.x) < 0.5 && Math.abs(entry.y - candidate.y) < 0.5) === index,
+    );
+
+  const pointHitsRect = (point, rect, radius) => {
+    const nearestX = clamp(point.cx, rect.x, rect.x + rect.width);
+    const nearestY = clamp(point.cy, rect.y, rect.y + rect.height);
+    const dx = point.cx - nearestX;
+    const dy = point.cy - nearestY;
+    return dx * dx + dy * dy < radius * radius;
+  };
+
+  const collisionRadius = ringRadius + (isCompact ? 5 : 6);
+  let chipX = bestValueZoneX + chipPadding;
+  let chipY = Math.min(bestValueTopY + chipPadding, margins.top + plotHeight - chipHeight - chipPadding);
+  let lowestCollisions = Number.POSITIVE_INFINITY;
+  chipCandidates.forEach((candidate) => {
+    const rect = { x: candidate.x, y: candidate.y, width: chipWidth, height: chipHeight };
+    const collisions = pointCoords.reduce(
+      (count, point) => count + (pointHitsRect(point, rect, collisionRadius) ? 1 : 0),
+      0,
+    );
+    if (collisions < lowestCollisions) {
+      lowestCollisions = collisions;
+      chipX = candidate.x;
+      chipY = candidate.y;
+    }
+  });
   hotelMatrixSvg.appendChild(
     createSvgNode("rect", {
       class: "hotel-map-best-value-chip",
@@ -2132,7 +2189,7 @@ function renderHotelMatrix() {
   const bestValueLabel = createSvgNode("text", {
     class: "hotel-map-best-value-label",
     x: chipX + 10,
-    y: chipY + (isCompact ? 15 : 18),
+    y: chipY + (isCompact ? 17 : 20),
     "text-anchor": "start",
   });
   bestValueLabel.textContent = "Best value";
@@ -2141,7 +2198,7 @@ function renderHotelMatrix() {
   const bestValueSubtext = createSvgNode("text", {
     class: "hotel-map-best-value-subtext",
     x: chipX + 10,
-    y: chipY + (isCompact ? 28 : 34),
+    y: chipY + (isCompact ? 32 : 38),
     "text-anchor": "start",
   });
   bestValueSubtext.textContent = "Closest + most affordable sweet spot.";
@@ -2150,13 +2207,7 @@ function renderHotelMatrix() {
   const layer = createSvgNode("g", { class: "hotel-map-points", "clip-path": "url(#hotelMatrixPlotClip)" });
   hotelMatrixSvg.appendChild(layer);
 
-  hotelMatrixItems.forEach((item) => {
-    const xNorm = mapPrice(Number(item.metrics.priceUsd));
-    const yNorm = mapDriveMins(Number(item.driveMins));
-    const cx = margins.left + xNorm * plotWidth;
-    const cy = margins.top + (1 - yNorm) * plotHeight;
-    const priceBand = priceBucketFromNorm(xNorm);
-    const driveBand = metricBandFromNorm(yNorm);
+  pointCoords.forEach(({ item, cx, cy, priceBand, driveBand }) => {
 
     const group = createSvgNode("g", {
       class: "hotel-map-point",
@@ -2164,20 +2215,6 @@ function renderHotelMatrix() {
       tabindex: "0",
       role: "button",
       "aria-label": `Hotel: ${item.name}. Price ${priceBand}. Drive time ${Number(item.driveMins)} minutes (${driveBand}).`,
-    });
-    const horizontal = createSvgNode("line", {
-      class: "hotel-map-crosshair",
-      x1: margins.left,
-      x2: margins.left + plotWidth,
-      y1: cy.toFixed(2),
-      y2: cy.toFixed(2),
-    });
-    const vertical = createSvgNode("line", {
-      class: "hotel-map-crosshair",
-      x1: cx.toFixed(2),
-      x2: cx.toFixed(2),
-      y1: margins.top,
-      y2: margins.top + plotHeight,
     });
     const dotAnchor = createSvgNode("g", {
       class: "hotel-map-dot-anchor",
@@ -2230,8 +2267,6 @@ function renderHotelMatrix() {
       group.classList.remove("is-focused");
     });
 
-    group.appendChild(horizontal);
-    group.appendChild(vertical);
     dotAnchor.appendChild(ring);
     dotAnchor.appendChild(dot);
     group.appendChild(dotAnchor);

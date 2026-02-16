@@ -3220,13 +3220,16 @@ details[open] .faq-answer {
 }
 
 .hotel-method-pill {
-  min-height: 34px;
-  padding: 6px 12px;
+  min-height: 32px;
+  min-width: 132px;
+  padding: 4px 10px;
   border-color: rgba(75, 15, 23, 0.32);
-  background: rgba(75, 15, 23, 0.03);
-  color: rgba(75, 15, 23, 0.86);
-  font-size: 0.68rem;
+  background: rgba(247, 241, 230, 0.64);
+  color: rgba(75, 15, 23, 0.98);
+  font-size: 0.72rem;
+  font-weight: 640;
   letter-spacing: 0.1em;
+  opacity: 1;
 }
 
 .hotel-method-pill:hover,
@@ -3365,30 +3368,30 @@ details[open] .faq-answer {
 }
 
 .hotel-map-best-value-zone {
-  fill: rgba(201, 174, 116, 0.08);
-  stroke: rgba(201, 174, 116, 0.28);
+  fill: rgba(191, 152, 80, 0.16);
+  stroke: rgba(191, 152, 80, 0.38);
   stroke-width: 1;
   stroke-dasharray: 4 5;
 }
 
 .hotel-map-best-value-chip {
-  fill: rgba(247, 241, 230, 0.97);
-  stroke: rgba(75, 15, 23, 0.28);
+  fill: rgba(247, 241, 230, 1);
+  stroke: rgba(75, 15, 23, 0.34);
   stroke-width: 1;
 }
 
 .hotel-map-best-value-label {
-  fill: rgba(75, 15, 23, 0.94);
+  fill: rgba(75, 15, 23, 0.98);
   font-family: var(--bodyFont);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 640;
   letter-spacing: 0.04em;
 }
 
 .hotel-map-best-value-subtext {
-  fill: rgba(75, 15, 23, 0.84);
+  fill: rgba(75, 15, 23, 0.9);
   font-family: var(--bodyFont);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.02em;
 }
@@ -3409,9 +3412,9 @@ details[open] .faq-answer {
 .hotel-map-axis-label {
   fill: rgba(75, 15, 23, 0.92);
   font-family: var(--bodyFont);
-  font-size: 13px;
+  font-size: 16px;
   letter-spacing: 0.08em;
-  font-weight: 600;
+  font-weight: 650;
 }
 
 .hotel-map-tick-line {
@@ -3422,7 +3425,7 @@ details[open] .faq-answer {
 .hotel-map-tick {
   fill: rgba(75, 15, 23, 0.88);
   font-family: var(--bodyFont);
-  font-size: 12.5px;
+  font-size: 15px;
   letter-spacing: 0.04em;
 }
 
@@ -3460,7 +3463,7 @@ details[open] .faq-answer {
 }
 
 .hotel-map-point.is-active .hotel-map-crosshair {
-  opacity: 1;
+  opacity: 0;
 }
 
 .hotel-map-point.is-active .hotel-map-dot-ring {
@@ -3503,7 +3506,7 @@ details[open] .faq-answer {
   visibility: hidden;
   pointer-events: none;
   transform: translateY(6px);
-  transition: opacity 320ms ease-out, transform 320ms ease-out, visibility 0ms linear 320ms;
+  transition: opacity 560ms ease-out, transform 560ms ease-out, visibility 0ms linear 560ms;
 }
 
 .hotel-map-details.is-visible {
@@ -3511,7 +3514,7 @@ details[open] .faq-answer {
   visibility: visible;
   pointer-events: auto;
   transform: translateY(0);
-  transition: opacity 320ms ease-out, transform 320ms ease-out, visibility 0ms linear 0ms;
+  transition: opacity 560ms ease-out, transform 560ms ease-out, visibility 0ms linear 0ms;
 }
 
 .hotel-map-empty {
@@ -3748,7 +3751,7 @@ details[open] .faq-answer {
     grid-template-columns: minmax(420px, 1fr) 0fr;
     align-items: start;
     column-gap: 0;
-    transition: grid-template-columns 280ms var(--ease-out), column-gap 280ms var(--ease-out);
+    transition: grid-template-columns 560ms var(--ease-out), column-gap 560ms var(--ease-out);
   }
 
   .hotel-map-card.has-selection {
@@ -3769,13 +3772,13 @@ details[open] .faq-answer {
     overflow: hidden;
     transform: translateY(6px);
     transition:
-      opacity 320ms ease-out,
-      transform 320ms ease-out,
-      visibility 0ms linear 320ms,
-      max-width 340ms var(--ease-out),
-      padding 340ms var(--ease-out),
-      border-color 340ms var(--ease-out),
-      background-color 340ms var(--ease-out);
+      opacity 560ms ease-out,
+      transform 560ms ease-out,
+      visibility 0ms linear 560ms,
+      max-width 560ms var(--ease-out),
+      padding 560ms var(--ease-out),
+      border-color 560ms var(--ease-out),
+      background-color 560ms var(--ease-out);
   }
 
   .hotel-map-card.has-selection .hotel-map-details {
@@ -3788,13 +3791,13 @@ details[open] .faq-answer {
     pointer-events: auto;
     transform: translateY(0);
     transition:
-      opacity 320ms ease-out,
-      transform 320ms ease-out,
+      opacity 560ms ease-out,
+      transform 560ms ease-out,
       visibility 0ms linear 0ms,
-      max-width 340ms var(--ease-out),
-      padding 340ms var(--ease-out),
-      border-color 340ms var(--ease-out),
-      background-color 340ms var(--ease-out);
+      max-width 560ms var(--ease-out),
+      padding 560ms var(--ease-out),
+      border-color 560ms var(--ease-out),
+      background-color 560ms var(--ease-out);
   }
 }
 
