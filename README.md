@@ -15,38 +15,59 @@ npm start
 ```
 Open: `http://localhost:3000`
 
-## Connect Google Sheets
+## RSVP Google Integration (Server-side)
 
-Spreadsheet ID:
-`1yJqJC2q4iRVUFkQ3anFgr_lVHayAGFavo581U_zh3Ec`
+RSVP submissions now go through `POST /api/rsvp` in `/Users/kwangyijie/Desktop/Coding/wedding-rsvp/server.js`.
 
-Expected tab names:
-- `Yes`
-- `Maybe`
-- `No`
+### Required `.env` values
 
-1. Open your Google Sheet.
-2. Go to `Extensions -> Apps Script`.
-3. Paste the full contents of:
-   - `/Users/kwangyijie/Desktop/Coding/wedding-rsvp/google-apps-script-example.gs`
-4. Click `Deploy -> New deployment -> Web app`.
-5. Set:
-   - Execute as: `Me`
-   - Who has access: `Anyone with the link`
-6. Copy the deployed Web App URL.
-7. Open `/Users/kwangyijie/Desktop/Coding/wedding-rsvp/app.js` and set:
-   - `const SHEETS_WEBAPP_URL = "YOUR_WEB_APP_URL_HERE";`
+Copy `.env.example` to `.env` and set:
 
-## RSVP submit behavior
+- `GOOGLE_SPREADSHEET_ID`
+- `GOOGLE_DRIVE_UPLOADS_FOLDER_ID`
+- `GOOGLE_SERVICE_ACCOUNT_EMAIL`
+- `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`
 
-- Front-end sends `POST` JSON as `text/plain;charset=utf-8` to the Apps Script URL.
-- Payload includes:
-  - `status` (`yes` | `maybe` | `no`)
-  - `fullName`, `email`, `phone`
-  - Yes path: `partySize`, `attendeeNames` (up to 6), `dietary`
-  - Maybe path: `potentialPartySize`, `whenWillYouKnow`
-  - No path: `note`
-- If Google Sheets submission fails, the form is not cleared and a clean error is shown.
+Or set:
+- `GOOGLE_SERVICE_ACCOUNT_JSON` (stringified service account JSON)
+
+Do not commit `.env`.
+
+### Google setup
+
+1. Create/share a Google service account with:
+   - Sheets scope (`https://www.googleapis.com/auth/spreadsheets`)
+   - Drive scope (`https://www.googleapis.com/auth/drive`)
+2. Share the target spreadsheet with the service account email (Editor).
+3. Share the target Drive upload folder with the service account email (Editor).
+
+### Required sheet tabs and headers (row 1)
+
+Tab `rsvps`:
+- `submission_id, submitted_at, rsvp_status, full_name, email, phone, party_size, when_will_you_know, dietary_restrictions, message_to_couple, primary_fun_facts, media_count, source, approved`
+
+Tab `guests`:
+- `submission_id, guest_index, guest_name, fun_facts, is_primary, created_at`
+
+Tab `media`:
+- `submission_id, file_index, file_id, file_name, mime_type, file_type, drive_view_url, created_at`
+
+### Submission behavior
+
+- Server generates `submission_id` (UUID) and timestamp.
+- Writes one row to `rsvps`.
+- Always writes a primary row to `guests`; additional `+1` rows are appended when present.
+- Creates a Drive subfolder named `<submission_id>` under `GOOGLE_DRIVE_UPLOADS_FOLDER_ID`.
+- Uploads up to 3 files and writes one row per file to `media`.
+- API response: `{ "ok": true, "submission_id": "<uuid>" }`.
+
+### Manual test checklist
+
+1. Submit `yes` with 0 files.
+2. Submit `yes` with 2 files.
+3. Submit `maybe` with `party_size` + `when_will_you_know`.
+4. Submit `no` with message only.
+5. Verify all 3 tabs (`rsvps`, `guests`, `media`) and Drive subfolder creation per submission.
 
 ## Git init and push
 
