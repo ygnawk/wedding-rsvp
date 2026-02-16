@@ -93,4 +93,40 @@ window.BEIJING_FOOD_PLACES = [
     imageLicenseUrl: "https://creativecommons.org/licenses/by-sa/3.0",
     is_house_special: true,
   },
+  {
+    id: "xinjingxi-cbd",
+    name_en: "Xin Jing Xi (CBD)",
+    name_cn: "新京熹·北京涮肉（CBD店）",
+    restaurantType: "Hotpot & late-night",
+    blurb_en:
+      "The classic Beijing-style shuàn yángròu experience with iconic 铜锅 (tóngguō) copper pot energy—simple, smoky, and very old Beijing.",
+    address_cn: "光华路众秀大厦2层",
+    vibe_tags: ["Classic", "Copper pot"],
+    dianping_url:
+      "https://m.dianping.com/shopinfo/jF49UIPYqdl2RXWQ?msource=Appshare2021&utm_source=shop_share&shoptype=10&shopcategoryid=34277&cityid=2&isoversea=0",
+  },
+  {
+    id: "banu-wangfujing-apm",
+    name_en: "Banu Maodu Hotpot (Wangfujing apm)",
+    name_cn: "巴奴毛肚火锅（王府井apm店）",
+    restaurantType: "Hotpot & late-night",
+    blurb_en:
+      "One of the hottest hotpot chains right now—come for the 毛肚 (máodù) tripe and bold broth, stay for the “this is why we flew to Beijing” energy.",
+    address_cn: "王府井大街apm购物中心6层",
+    vibe_tags: ["Bold broth", "Crowd favorite"],
+    dianping_url:
+      "https://m.dianping.com/shopinfo/k43bWUhL9u47ElMX?msource=Appshare2021&utm_source=shop_share&shoptype=10&shopcategoryid=32733&cityid=2&isoversea=0",
+  },
+  {
+    id: "putien-wfzh",
+    name_en: "PUTIEN (WF Central)",
+    name_cn: "莆田餐厅（王府中环店）",
+    restaurantType: "Fujian cuisine",
+    blurb_en:
+      "Classic, reliable Fujian cuisine that is clean, comforting, and guest-friendly. Must-order: 燕皮扁肉汤 (yànpí biǎnròu tāng)—wonton soup with pork-skin wrappers.",
+    address_cn: "王府井大街269号 王府中环东座4层",
+    vibe_tags: ["Coastal Chinese", "Comforting"],
+    dianping_url:
+      "https://m.dianping.com/shopinfo/ET6aT1WmyhDQeELn?msource=Appshare2021&utm_source=shop_share&shoptype=10&shopcategoryid=34059&cityid=2&isoversea=0",
+  },
 ];
