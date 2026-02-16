@@ -8,7 +8,10 @@
  * @property {string=} address_cn
  * @property {string[]} vibe_tags
  * @property {string=} dianping_url
- * @property {string=} image
+ * @property {string=} imageSrc
+ * @property {string=} imageAlt
+ * @property {string=} imageAttribution
+ * @property {string=} imageLicenseUrl
  * @property {boolean=} is_house_special
  */
 
@@ -24,7 +27,10 @@ window.BEIJING_FOOD_PLACES = [
     address_cn: "北京市东城区前门大街50号",
     vibe_tags: ["Show", "Dress-up", "Experience"],
     dianping_url: "https://m.dianping.com/shop/1489525169",
-    image: "/public/images/makan-placeholder-gongyan.svg",
+    imageSrc: "/public/photos/food/gongyan.jpg",
+    imageAlt: "Chinese banquet dining hall",
+    imageAttribution: "Photo: Ctny (Wikimedia Commons)",
+    imageLicenseUrl: "https://creativecommons.org/licenses/by-sa/3.0",
     is_house_special: true,
   },
   {
@@ -36,7 +42,10 @@ window.BEIJING_FOOD_PLACES = [
       "This is a local legend. Also: it can be very crowded. If you’re into the buzz, the noise, and the “we earned this duck” feeling—do it. Pro tip: go early, or be ready to wait.",
     vibe_tags: ["Crowded", "Local favorite"],
     dianping_url: "https://m.dianping.com/shopinfo/k2IIzyDKxTUsz0lX?msource=Appshare2021&utm_source=shop_share&shoptype=10&shopcategoryid=1785&cityid=2&isoversea=0",
-    image: "/public/images/makan-placeholder-duck.svg",
+    imageSrc: "/public/photos/food/sijiminfu-gugong.jpg",
+    imageAlt: "Peking duck served in a Beijing restaurant",
+    imageAttribution: "Photo: Ellywa (Wikimedia Commons)",
+    imageLicenseUrl: "https://creativecommons.org/licenses/by-sa/4.0",
     is_house_special: true,
   },
   {
@@ -48,7 +57,10 @@ window.BEIJING_FOOD_PLACES = [
       "Prefer something quieter but still excellent? Pick any Xiao Da Dong branch—reliable, easy, and very guest-friendly. Pro tip: perfect for “we want duck but not chaos.”",
     vibe_tags: ["Calmer", "Polished"],
     dianping_url: "https://m.dianping.com/shopinfo/k4wdjfHqmkjKHEuh?msource=Appshare2021&utm_source=shop_share&shoptype=10&shopcategoryid=1785&cityid=2&isoversea=0",
-    image: "/public/images/makan-placeholder-duck.svg",
+    imageSrc: "/public/photos/food/xiaodadong.jpg",
+    imageAlt: "Plated Peking duck slices",
+    imageAttribution: "Photo: Fumikas Sagisavas (Wikimedia Commons)",
+    imageLicenseUrl: "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
     is_house_special: true,
   },
   {
@@ -60,7 +72,10 @@ window.BEIJING_FOOD_PLACES = [
       "Possibly the most legit Cantonese food in Beijing. Also Miki’s parents’ favorite—reportedly a once-a-week situation, which is the highest endorsement possible.",
     vibe_tags: ["Family favorite", "Reliable"],
     dianping_url: "https://m.dianping.com/shopinfo/G87QLl6L25KySZRO?msource=Appshare2021&utm_source=shop_share&shoptype=10&shopcategoryid=205&cityid=2&isoversea=0",
-    image: "/public/images/makan-placeholder-cantonese.svg",
+    imageSrc: "/public/photos/food/tanggong.jpg",
+    imageAlt: "Cantonese dim sum spread",
+    imageAttribution: "Photo: Peachyeung316 (Wikimedia Commons)",
+    imageLicenseUrl: "https://creativecommons.org/licenses/by-sa/4.0",
     is_house_special: true,
   },
   {
@@ -72,7 +87,10 @@ window.BEIJING_FOOD_PLACES = [
       "Craving Shanghainese food? This one is a repeat spot for Miki’s family. Miki’s mom is from Shanghai, so yes—we’re comfortable betting our credibility on this being authentic.",
     vibe_tags: ["Authentic", "Family favorite"],
     dianping_url: "https://m.dianping.com/shopinfo/G90L5clgd2gEKjp0?msource=Appshare2021&utm_source=shop_share&shoptype=10&shopcategoryid=201&cityid=2&isoversea=0",
-    image: "/public/images/makan-placeholder-jiangnan.svg",
+    imageSrc: "/public/photos/food/subangyuan-raffles.jpg",
+    imageAlt: "Huaiyang style braised chicken dish",
+    imageAttribution: "Photo: 猫猫的日记本 (Wikimedia Commons)",
+    imageLicenseUrl: "https://creativecommons.org/licenses/by-sa/3.0",
     is_house_special: true,
   },
 ];

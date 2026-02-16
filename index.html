@@ -130,6 +130,14 @@
             <div id="storyYearScrubber" class="story-year-scrubber reveal" data-delay="95" aria-label="Jump through story years"></div>
           </div>
 
+          <div id="storyMobileStage" class="story-mobile-stage reveal" data-delay="110" hidden>
+            <button id="storyMobileCard" class="story-mobile-card" type="button" aria-label="Open story photo">
+              <img id="storyMobileImg" src="" alt="" loading="lazy" decoding="async" />
+              <span id="storyMobileYear" class="story-mobile-year"></span>
+            </button>
+            <p id="storyMobileBlurb" class="story-mobile-blurb"></p>
+          </div>
+
           <div class="story-mosaic-layout reveal" data-delay="120" id="storyMosaicLayout" aria-label="Our story mosaic"></div>
         </div>
       </section>
@@ -172,27 +180,27 @@
             <div class="schedule-divider reveal" aria-hidden="true"></div>
           </div>
           <div class="schedule-list" role="list" aria-label="Wedding day schedule">
-            <article class="schedule-item reveal reveal-right" role="listitem">
+            <article class="schedule-item scheduleRow reveal reveal-right" role="listitem">
               <span class="schedule-dot" aria-hidden="true"></span>
               <time datetime="15:00">3:00 PM</time>
               <p>Early check-in at venue</p>
             </article>
-            <article class="schedule-item reveal reveal-right" role="listitem">
+            <article class="schedule-item scheduleRow reveal reveal-right" role="listitem">
               <span class="schedule-dot" aria-hidden="true"></span>
               <time datetime="16:00">4:00 PM</time>
               <p>Cocktails</p>
             </article>
-            <article class="schedule-item reveal reveal-right" role="listitem">
+            <article class="schedule-item scheduleRow reveal reveal-right" role="listitem">
               <span class="schedule-dot" aria-hidden="true"></span>
               <time datetime="17:00">5:00 PM</time>
               <p>Ceremony</p>
             </article>
-            <article class="schedule-item reveal reveal-right" role="listitem">
+            <article class="schedule-item scheduleRow reveal reveal-right" role="listitem">
               <span class="schedule-dot" aria-hidden="true"></span>
               <time datetime="18:00">6:00 PM</time>
               <p>Dinner</p>
             </article>
-            <article class="schedule-item reveal reveal-right" role="listitem">
+            <article class="schedule-item scheduleRow reveal reveal-right" role="listitem">
               <span class="schedule-dot" aria-hidden="true"></span>
               <time datetime="20:00">8:00 PM</time>
               <p>Afterparty</p>
@@ -606,8 +614,10 @@
           <div id="hotelMethodTooltip" class="hotel-method-tooltip" role="tooltip" hidden aria-hidden="true">
             <p class="hotel-method-tooltip-title">METHODOLOGY</p>
             <p class="hotel-method-tooltip-body">
-              We had a deluge of hotel tabs. A consultant did what they do: made a matrix. ChatGPT helped with the synthesis. Please don’t ask
-              for the appendix.
+              Comfort uses guest reviews. Price uses a public nightly-rate snapshot.
+              <br />
+              We had a deluge of hotel tabs. A consultant did what they do: made a matrix. ChatGPT helped with the synthesis. Please don’t ask for
+              the appendix.
             </p>
           </div>
 
@@ -615,6 +625,7 @@
             <div class="hotel-map-chart-col">
               <h3 id="hotelMatrixHeading" class="hotel-map-heading">Hotels at a glance</h3>
               <p class="hotel-map-helper">Hover a dot to preview. Click to pin. (Tap a dot on mobile.)</p>
+              <p id="hotelMatrixRatingClaim" class="hotel-map-rating-claim"></p>
 
               <div id="hotelMatrixShell" class="hotel-map-shell">
                 <svg
@@ -624,8 +635,8 @@
                   role="img"
                   aria-labelledby="hotelMatrixTitle hotelMatrixDesc"
                 >
-                  <title id="hotelMatrixTitle">Hotels matrix by price and comfort</title>
-                  <desc id="hotelMatrixDesc">Price increases from left to right, comfort increases from bottom to top.</desc>
+                  <title id="hotelMatrixTitle">Hotels matrix by price and drive time</title>
+                  <desc id="hotelMatrixDesc">Price increases from left to right, and drive time increases from bottom to top.</desc>
                 </svg>
                 <div id="hotelMatrixTooltip" class="hotel-map-dot-tooltip" role="status" aria-live="polite" hidden></div>
               </div>
@@ -658,7 +669,7 @@
           </div>
           <h2 class="reveal reveal-left">Things to do in Beijing</h2>
           <div class="things-theme-list reveal" id="thingsThemeList">
-            <details class="things-theme" open>
+            <details class="things-theme">
               <summary class="things-theme-summary">
                 <span class="things-theme-title">Imperial core</span>
                 <span class="things-theme-chevron" aria-hidden="true"></span>
@@ -846,7 +857,7 @@
             <button id="travelPassportClear" class="travel-passport-clear hidden" type="button">Clear selection</button>
             <p id="travelPassportHint" class="travel-selector-hint">Choose your passport to see a quick summary.</p>
 
-            <article id="travelPassportResult" class="travel-result-card" aria-live="polite" hidden>
+            <article id="travelPassportResult" class="travel-result-card hidden" aria-live="polite" hidden>
               <h3 class="travel-result-title"></h3>
               <p class="travel-result-outcome"></p>
               <p class="travel-result-detail"></p>
@@ -966,9 +977,7 @@
           <span class="site-footer-main-label">Questions?</span>
           <a class="site-footer-email" href="mailto:Kwangyijie@gmail.com">Kwangyijie@gmail.com</a>
         </p>
-        <p class="site-footer-legal">
-          Wedding logistics only — not legal advice. If this site feels a little like a slide deck, blame Yi Jie’s last 6 years in PowerPoint.
-        </p>
+        <p class="site-footer-legal">Built over the Feb 14 weekend as Yi Jie’s creative outlet. If this site feels like a slide deck, blame Yi Jie’s last 6 years in PowerPoint.</p>
         <p class="site-footer-copy">© 2026 Miki &amp; Yi Jie</p>
       </div>
     </footer>

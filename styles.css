@@ -815,7 +815,7 @@ a:focus-visible,
 
 .story-year-scrubber {
   margin-top: 12px;
-  display: flex;
+  display: none;
   align-items: center;
   gap: 8px;
   overflow-x: auto;
@@ -856,6 +856,75 @@ a:focus-visible,
   border-color: rgba(201, 174, 116, 0.8);
   background: rgba(201, 174, 116, 0.18);
   color: var(--maroonDeep);
+}
+
+.story-mobile-stage {
+  display: none;
+  width: 100%;
+  gap: 10px;
+}
+
+.story-mobile-card {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  margin: 0;
+  padding: 0;
+  border: 1px solid rgba(201, 174, 116, 0.24);
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(75, 15, 23, 0.08);
+  isolation: isolate;
+}
+
+.story-mobile-card img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: var(--objPos, 50% 50%);
+  image-orientation: from-image;
+  filter: var(--photoGradeFilter);
+  transform: rotate(var(--storyRotate, 0deg));
+}
+
+.story-mobile-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--photoGradeOverlay);
+  mix-blend-mode: multiply;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.story-mobile-year {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(201, 174, 116, 0.38);
+  background: rgba(247, 241, 230, 0.92);
+  color: rgba(62, 14, 22, 0.92);
+  font-family: var(--bodyFont);
+  font-size: 0.69rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.story-mobile-blurb {
+  margin: 0;
+  font-size: 0.93rem;
+  line-height: 1.5;
+  color: rgba(21, 21, 21, 0.88);
+  max-width: 52ch;
 }
 
 #story.section--dark .ourstory-lede {
@@ -1667,6 +1736,7 @@ a:focus-visible,
   }
 
   .story-year-scrubber {
+    display: flex;
     position: sticky;
     top: calc(var(--headerH) + 8px);
     z-index: 6;
@@ -1687,21 +1757,12 @@ a:focus-visible,
     padding-top: 8px;
   }
 
+  .story-mobile-stage {
+    display: grid;
+  }
+
   .story-mosaic-layout {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-auto-rows: minmax(136px, 1fr);
-    gap: 12px;
-  }
-
-  .story-mosaic-card {
-    grid-column: span 1 !important;
-    grid-row: span 1 !important;
-    min-height: 150px;
-  }
-
-  .story-mosaic-card--hero-a {
-    grid-column: 1 / -1 !important;
-    min-height: 200px;
+    display: none;
   }
 
   .story-year-pill {
@@ -1988,6 +2049,9 @@ a:focus-visible,
   align-items: center;
   padding: 13px 0 13px 6px;
   border-bottom: 1px solid var(--hairline);
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 210ms var(--ease-out), transform 210ms var(--ease-out);
 }
 
 .schedule-dot {
@@ -2001,6 +2065,28 @@ a:focus-visible,
   background: var(--maroonDeep);
   border: 2px solid rgba(247, 241, 230, 0.94);
   box-shadow: 0 0 0 1px rgba(75, 15, 23, 0.2);
+  opacity: 1;
+  transition: transform 210ms var(--ease-out), opacity 210ms var(--ease-out);
+}
+
+.schedule-item.schedule-row-pending {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.schedule-item.schedule-row-pending .schedule-dot {
+  transform: translateY(-50%) scale(0.9);
+  opacity: 0.6;
+}
+
+.schedule-item.schedule-row-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.schedule-item.schedule-row-visible .schedule-dot {
+  transform: translateY(-50%) scale(1);
+  opacity: 1;
 }
 
 .schedule-list time {
@@ -2504,11 +2590,11 @@ details[open] .faq-answer {
   position: fixed;
   z-index: 170;
   width: min(320px, calc(100vw - 24px));
-  border-radius: 14px;
+  border-radius: 12px;
   border: 1px solid rgba(201, 174, 116, 0.3);
-  background: rgba(255, 251, 243, 0.98);
-  box-shadow: 0 14px 28px rgba(21, 12, 15, 0.17);
-  padding: 12px 14px;
+  background: rgba(247, 241, 230, 0.98);
+  box-shadow: none;
+  padding: 11px 12px;
   color: var(--ink);
 }
 
@@ -2534,10 +2620,15 @@ details[open] .faq-answer {
   border-radius: 22px;
   padding: 18px;
   color: var(--ink);
-  display: grid;
-  grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
-  gap: clamp(16px, 2.2vw, 28px);
+  display: block;
+  gap: 0;
   box-shadow: 0 18px 34px rgba(12, 7, 9, 0.18);
+}
+
+.hotel-map-card.is-detail-open {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.95fr);
+  gap: clamp(16px, 2.2vw, 28px);
 }
 
 .hotel-map-heading {
@@ -2553,6 +2644,13 @@ details[open] .faq-answer {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: rgba(21, 21, 21, 0.88);
+}
+
+.hotel-map-rating-claim {
+  margin: -3px 0 12px;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: rgba(21, 21, 21, 0.84);
 }
 
 .hotel-map-helper-mobile {
@@ -2667,12 +2765,17 @@ details[open] .faq-answer {
 }
 
 .hotel-map-details {
+  display: none;
   border-radius: 16px;
   border: 1px solid rgba(75, 15, 23, 0.22);
   background: rgba(255, 255, 255, 0.74);
   padding: 14px;
   min-height: 340px;
   transition: opacity 150ms ease, transform 200ms ease;
+}
+
+.hotel-map-card.is-detail-open .hotel-map-details {
+  display: block;
 }
 
 .hotel-map-details.is-fading {
@@ -2914,7 +3017,7 @@ details[open] .faq-answer {
 }
 
 @media (max-width: 1080px) {
-  .hotel-map-card {
+  .hotel-map-card.is-detail-open {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -4288,6 +4391,21 @@ body.modal-open {
   transform: none;
 }
 
+.reduce-motion .schedule-item,
+.reduce-motion .schedule-item .schedule-dot {
+  transition: none !important;
+}
+
+.reduce-motion .schedule-item {
+  opacity: 1 !important;
+  transform: translateY(0) !important;
+}
+
+.reduce-motion .schedule-item .schedule-dot {
+  opacity: 1 !important;
+  transform: translateY(-50%) scale(1) !important;
+}
+
 @media (max-width: 1099px) {
   .header-rsvp {
     display: none;
@@ -4365,8 +4483,9 @@ body.modal-open {
   }
 
   .hero-venue-line {
-    font-size: clamp(11px, 3.2vw, 14px);
+    font-size: clamp(9.8px, 2.55vw, 13px);
     text-align: left;
+    line-height: 1.3;
     letter-spacing: 0;
   }
 
