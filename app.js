@@ -2958,10 +2958,7 @@ function clearRsvpChoice() {
     fullNameInput.value = inviteState.greetingName;
   }
 
-  if (rsvpConfirmation) {
-    rsvpConfirmation.classList.add("hidden");
-    rsvpConfirmation.textContent = "";
-  }
+  hideRsvpConfirmation();
 }
 
 function setChoice(choice) {
@@ -3188,6 +3185,18 @@ function confirmationMessage(choice) {
   return "Thank you. We’ll miss you in Beijing. We’ll share photos after the wedding.";
 }
 
+function hideRsvpConfirmation() {
+  if (!rsvpConfirmation) return;
+  setHiddenClass(rsvpConfirmation, true);
+  rsvpConfirmation.textContent = "";
+}
+
+function showRsvpConfirmation(message) {
+  if (!rsvpConfirmation) return;
+  rsvpConfirmation.textContent = message;
+  setHiddenClass(rsvpConfirmation, false);
+}
+
 function initRsvpForm() {
   if (!rsvpForm || !attendanceChoice || !rsvpConfirmation) return;
 
@@ -3195,8 +3204,7 @@ function initRsvpForm() {
     event.preventDefault();
 
     if (!attendanceChoice.value) {
-      rsvpConfirmation.textContent = "Please select one RSVP option first.";
-      rsvpConfirmation.classList.remove("hidden");
+      showRsvpConfirmation("Please select one RSVP option first.");
       return;
     }
 
@@ -3205,30 +3213,26 @@ function initRsvpForm() {
     if (attendanceChoice.value === "yes") {
       ensurePrimaryGuestCard();
       if (!validateGuestCards()) {
-        rsvpConfirmation.textContent = "Please enter all guest names.";
-        rsvpConfirmation.classList.remove("hidden");
+        showRsvpConfirmation("Please enter all guest names.");
         return;
       }
     }
 
     if (!validateUploadSlots()) {
-      rsvpConfirmation.textContent = "Please fix the photo upload errors before submitting.";
-      rsvpConfirmation.classList.remove("hidden");
+      showRsvpConfirmation("Please fix the photo upload errors before submitting.");
       return;
     }
 
     const payload = buildPayload();
     const result = await submitRSVP(payload);
     if (!result || result.ok !== true) {
-      rsvpConfirmation.textContent = result && result.error ? result.error : "We couldn’t submit your RSVP right now. Please try again in a moment.";
-      rsvpConfirmation.classList.remove("hidden");
+      showRsvpConfirmation(result && result.error ? result.error : "We couldn’t submit your RSVP right now. Please try again in a moment.");
       return;
     }
 
     rsvpForm.classList.add("hidden");
     const baseMessage = confirmationMessage(attendanceChoice.value);
-    rsvpConfirmation.textContent = result.warning ? `${baseMessage} ${result.warning}` : baseMessage;
-    rsvpConfirmation.classList.remove("hidden");
+    showRsvpConfirmation(result.warning ? `${baseMessage} ${result.warning}` : baseMessage);
   });
 }
 
