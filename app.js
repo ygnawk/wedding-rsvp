@@ -666,6 +666,16 @@ function getScrollBehavior() {
   return reducedMotion ? "auto" : "smooth";
 }
 
+function createExternalAnchor(href, textContent, className = "") {
+  const anchor = document.createElement("a");
+  if (className) anchor.className = className;
+  anchor.href = href;
+  anchor.target = "_blank";
+  anchor.rel = "noopener noreferrer";
+  anchor.textContent = textContent;
+  return anchor;
+}
+
 function setActiveLink(sectionId) {
   document.querySelectorAll("[data-link]").forEach((link) => {
     link.classList.toggle("active", link.getAttribute("data-link") === sectionId);
@@ -1252,12 +1262,7 @@ function buildMakanRestaurantItem(place) {
   const actions = document.createElement("div");
   actions.className = "makan-item-actions";
   if (place.dianping_url) {
-    const link = document.createElement("a");
-    link.className = "makan-link";
-    link.href = place.dianping_url;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    link.textContent = "Open in 大众点评";
+    const link = createExternalAnchor(place.dianping_url, "Open in 大众点评", "makan-link");
     actions.appendChild(link);
   }
   meta.appendChild(actions);
@@ -1815,16 +1820,8 @@ function buildHotelDetailsCard(item) {
 
   const links = document.createElement("p");
   links.className = "hotel-map-detail-links";
-  const book = document.createElement("a");
-  book.href = item.bookUrl;
-  book.target = "_blank";
-  book.rel = "noopener noreferrer";
-  book.textContent = "Book";
-  const directions = document.createElement("a");
-  directions.href = item.directionsUrl;
-  directions.target = "_blank";
-  directions.rel = "noopener noreferrer";
-  directions.textContent = "Directions";
+  const book = createExternalAnchor(item.bookUrl, "Book");
+  const directions = createExternalAnchor(item.directionsUrl, "Directions");
   links.appendChild(book);
   links.appendChild(directions);
   card.appendChild(links);
