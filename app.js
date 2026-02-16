@@ -20,7 +20,7 @@ const UPLOAD_ALLOWED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "heic", "heif"]
 const UPLOAD_ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/heic", "image/heif"]);
 const UPLOAD_SLOT_DEFAULT_META = "JPG/PNG/HEIC • up to 10MB";
 const FUN_FACT_CHIP_COUNT = 6;
-const FUN_FACT_EXAMPLES = [
+const BASE_FUN_FACT_EXAMPLES = [
   "I will travel for noodles.",
   "I can’t handle horror films.",
   "Ask me about my latest hyper-fixation.",
@@ -34,6 +34,142 @@ const FUN_FACT_EXAMPLES = [
   "I’ve cried at a movie on an airplane.",
   "I’m a morning person (unfortunately).",
 ];
+const NEW_FUN_FACT_IDEAS = [
+  "I judge a city by its coffee.",
+  "My superpower is finding the best dish on a menu.",
+  "I’m here for the views and the snacks.",
+  "I can’t pass a bakery without “just looking.”",
+  "I will plan an itinerary, then ignore it.",
+  "If there’s a dumpling, I’m ordering it.",
+  "My love language is sending restaurant pins.",
+  "I came for the wedding, stayed for the street food.",
+  "I can fall asleep before takeoff.",
+  "I treat hotel breakfast like a competitive sport.",
+  "I have strong opinions about noodles.",
+  "I will walk 20,000 steps for one good meal.",
+  "I always pack snacks like it’s survival training.",
+  "I’m the person who brings a tiny pharmacy while traveling.",
+  "I can’t resist a good stationery store.",
+  "I collect fridge magnets like trophies.",
+  "I’m here to romanticize my life in every city.",
+  "I will order “one more” and mean it.",
+  "I’m happiest near water or a noodle shop.",
+  "I’m the friend who knows the best photo spot.",
+  "I will try the weird local soda.",
+  "I believe the best conversations happen after midnight.",
+  "I’m a “one more museum room” person.",
+  "I can’t stop myself from checking dessert menus first.",
+  "I’ve googled “best ____ near me” in 12 countries.",
+  "I have a running list of foods I’d fly back for.",
+  "I’m dangerously good at spotting scams.",
+  "I will befriend the hotel cat if there is one.",
+  "I’m a sucker for old bookstores.",
+  "I treat convenience stores like cultural landmarks.",
+  "I’m here to eat, not to be perceived.",
+  "I will take public transit for fun.",
+  "I can’t leave without buying something small and local.",
+  "I’m the group’s unofficial translator (even when I’m not).",
+  "My camera roll is 70% food, 30% sky.",
+  "I’m always down for a night market.",
+  "I have a talent for finding the quietest corner in a loud place.",
+  "I will try it once. Twice if it’s spicy.",
+  "I’m an early riser… on vacation only.",
+  "I can’t say no to a scenic walk.",
+  "My ideal souvenir is a good story.",
+  "I choose seats based on sunlight.",
+  "I’m the friend who always has a charger.",
+  "I’ve missed my stop because I was staring out the window.",
+  "I’m here for the ceremony and the chaos.",
+  "I will compliment your outfit with full sincerity.",
+  "I make friends in bathrooms and elevator lines.",
+  "I have a playlist for every mood and every city.",
+  "I can eat the same thing five days in a row happily.",
+  "If you want recommendations, I’m ready.",
+];
+const FUN_FACT_REPLACEMENT_IDEAS = [
+  "I keep emergency chili oil in my bag.",
+  "I will always split one more appetizer.",
+  "I’m loyal to window seats and soup dumplings.",
+  "I plan around sunsets and snack breaks.",
+  "I collect menus from trips like postcards.",
+  "I can turn any walk into a food crawl.",
+];
+
+function normalizeFunFactIdea(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201c\u201d]/g, '"')
+    .replace(/[^a-z0-9\s]/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokenizeFunFactIdea(value) {
+  return normalizeFunFactIdea(value)
+    .split(" ")
+    .filter(Boolean);
+}
+
+function isNearDuplicateFunFactIdea(candidate, existingItems) {
+  const candidateTokens = tokenizeFunFactIdea(candidate);
+  if (!candidateTokens.length) return false;
+
+  return existingItems.some((existing) => {
+    const existingTokens = tokenizeFunFactIdea(existing);
+    if (!existingTokens.length) return false;
+
+    const existingTokenSet = new Set(existingTokens);
+    const shared = candidateTokens.filter((token) => existingTokenSet.has(token)).length;
+    const overlap = shared / Math.max(candidateTokens.length, existingTokens.length);
+    return overlap >= 0.86;
+  });
+}
+
+function buildFunFactExamples() {
+  const existingSet = new Set(BASE_FUN_FACT_EXAMPLES.map((item) => normalizeFunFactIdea(item)));
+  const existingIdeaPool = [...BASE_FUN_FACT_EXAMPLES];
+  const seenNew = new Set();
+  const uniqueNew = [];
+
+  NEW_FUN_FACT_IDEAS.forEach((idea) => {
+    const normalized = normalizeFunFactIdea(idea);
+    if (!normalized || existingSet.has(normalized) || seenNew.has(normalized)) return;
+    if (isNearDuplicateFunFactIdea(idea, existingIdeaPool)) return;
+    seenNew.add(normalized);
+    uniqueNew.push(idea);
+    existingIdeaPool.push(idea);
+  });
+
+  if (uniqueNew.length < NEW_FUN_FACT_IDEAS.length) {
+    FUN_FACT_REPLACEMENT_IDEAS.forEach((idea) => {
+      if (uniqueNew.length >= NEW_FUN_FACT_IDEAS.length) return;
+      const normalized = normalizeFunFactIdea(idea);
+      if (!normalized || existingSet.has(normalized) || seenNew.has(normalized)) return;
+      if (isNearDuplicateFunFactIdea(idea, existingIdeaPool)) return;
+      seenNew.add(normalized);
+      uniqueNew.push(idea);
+      existingIdeaPool.push(idea);
+    });
+  }
+
+  if (IS_LOCAL_DEV) {
+    const collisionCount = NEW_FUN_FACT_IDEAS.filter((idea) => existingSet.has(normalizeFunFactIdea(idea))).length;
+    console.debug("[fun-fact-ideas]", {
+      requested: NEW_FUN_FACT_IDEAS.length,
+      collisions: collisionCount,
+      added: uniqueNew.length,
+      check: NEW_FUN_FACT_IDEAS.filter((idea) => existingSet.has(normalizeFunFactIdea(idea))).length === 0,
+    });
+    if (uniqueNew.length < NEW_FUN_FACT_IDEAS.length) {
+      console.warn(`[fun-fact-ideas] expected ${NEW_FUN_FACT_IDEAS.length} new unique ideas, got ${uniqueNew.length}`);
+    }
+  }
+
+  return [...BASE_FUN_FACT_EXAMPLES, ...uniqueNew];
+}
+
+const FUN_FACT_EXAMPLES = buildFunFactExamples();
 
 let photoManifest = null;
 let revealObserver = null;
@@ -99,6 +235,7 @@ const makanMenuRows = document.getElementById("makanMenuRows");
 const makanExpandAll = document.getElementById("makanExpandAll");
 const makanCollapseAll = document.getElementById("makanCollapseAll");
 const hotelMatrixShell = document.getElementById("hotelMatrixShell");
+const hotelMapCard = document.querySelector(".hotel-map-card");
 const hotelMatrixChartCol = document.querySelector(".hotel-map-chart-col");
 const hotelMatrixSvg = document.getElementById("hotelMatrixSvg");
 const hotelMatrixTooltip = document.getElementById("hotelMatrixTooltip");
@@ -756,6 +893,10 @@ function initScheduleReveal() {
   const scheduleRows = Array.from(document.querySelectorAll(".scheduleRow"));
   if (!scheduleRows.length) return;
 
+  scheduleRows.forEach((row, index) => {
+    row.style.setProperty("--schedule-delay", `${index * 80}ms`);
+  });
+
   const reduce = reducedMotion || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (reduce) {
     scheduleRows.forEach((row) => {
@@ -780,8 +921,8 @@ function initScheduleReveal() {
       });
     },
     {
-      rootMargin: "0px 0px -25% 0px",
-      threshold: 0.15,
+      rootMargin: "0px 0px -10% 0px",
+      threshold: 0.2,
     },
   );
 
@@ -1335,11 +1476,11 @@ function ensureHotelMethodOverlay() {
   hotelMethodTooltip.setAttribute("aria-hidden", "true");
   hotelMethodTooltip.innerHTML = `
     <p class="hotel-method-tooltip-title">METHODOLOGY</p>
-    <p class="hotel-method-tooltip-body">
-      Comfort uses guest reviews. Price uses a public nightly-rate snapshot.
-      <br />
-      We had a deluge of hotel tabs. A consultant did what they do: made a matrix. ChatGPT helped with the synthesis. Please don’t ask for the appendix.
-    </p>
+    <ul class="hotel-method-tooltip-list">
+      <li>Y-axis: estimated drive time (mins) to the wedding venue (traffic dependent).</li>
+      <li>X-axis: price level ($ = budget, $$$$ = splurge).</li>
+      <li>Only hotels rated ≥ 9.0 on Expedia are shown.</li>
+    </ul>
   `;
 
   document.body.appendChild(hotelMethodBackdrop);
@@ -1615,9 +1756,11 @@ function applyHotelMatrixSelection() {
 
   const pinnedHotel = getHotelById(selectedId);
   if (pinnedHotel) {
+    if (hotelMapCard) hotelMapCard.classList.add("has-selection");
     swapHotelDetails(pinnedHotel);
     hotelMatrixDetails.classList.add("is-visible");
   } else if (hotelMatrixDetails) {
+    if (hotelMapCard) hotelMapCard.classList.remove("has-selection");
     hotelMatrixDetails.classList.remove("is-visible");
     hotelMatrixDetails.dataset.hotelId = "";
     if (hotelDetailsSwapTimer) {
@@ -1633,6 +1776,7 @@ function applyHotelMatrixSelection() {
       }, 210);
     }
   }
+  queueHotelMatrixRender();
   hideHotelDotTooltip();
 }
 
@@ -1678,7 +1822,7 @@ function renderHotelMatrix() {
   const title = createSvgNode("title", { id: "hotelMatrixTitle" });
   title.textContent = "Hotels matrix by price and drive time";
   const desc = createSvgNode("desc", { id: "hotelMatrixDesc" });
-  desc.textContent = "Price increases from left to right. Drive time to Mandarin Oriental increases from bottom to top.";
+  desc.textContent = "Price increases from left to right. Drive time to the wedding venue increases from bottom to top.";
   hotelMatrixSvg.appendChild(title);
   hotelMatrixSvg.appendChild(desc);
 
@@ -1822,7 +1966,7 @@ function renderHotelMatrix() {
     "text-anchor": "middle",
     transform: `rotate(-90 ${yAxisLabelX} ${margins.top + plotHeight / 2})`,
   });
-  yAxisLabel.textContent = "Drive time to Mandarin Oriental (mins)";
+  yAxisLabel.textContent = "Drive time to wedding venue (mins)";
   hotelMatrixSvg.appendChild(yAxisLabel);
 
   const layer = createSvgNode("g", { class: "hotel-map-points", "clip-path": "url(#hotelMatrixPlotClip)" });
@@ -1836,7 +1980,13 @@ function renderHotelMatrix() {
     const priceBand = priceBucketFromNorm(xNorm);
     const driveBand = metricBandFromNorm(yNorm);
 
-    const group = createSvgNode("g", { class: "hotel-map-point", "data-id": item.id });
+    const group = createSvgNode("g", {
+      class: "hotel-map-point",
+      "data-id": item.id,
+      tabindex: "0",
+      role: "button",
+      "aria-label": `Hotel: ${item.name}. Price ${priceBand}. Drive time ${Number(item.driveMins)} minutes (${driveBand}).`,
+    });
     const horizontal = createSvgNode("line", {
       class: "hotel-map-crosshair",
       x1: margins.left,
@@ -1851,20 +2001,21 @@ function renderHotelMatrix() {
       y1: margins.top,
       y2: margins.top + plotHeight,
     });
+    const dotAnchor = createSvgNode("g", {
+      class: "hotel-map-dot-anchor",
+      transform: `translate(${cx.toFixed(2)} ${cy.toFixed(2)})`,
+    });
     const ring = createSvgNode("circle", {
       class: "hotel-map-dot-ring",
-      cx: cx.toFixed(2),
-      cy: cy.toFixed(2),
+      cx: "0",
+      cy: "0",
       r: ringRadius.toFixed(2),
     });
     const dot = createSvgNode("circle", {
       class: "hotel-map-dot",
-      cx: cx.toFixed(2),
-      cy: cy.toFixed(2),
+      cx: "0",
+      cy: "0",
       r: dotRadius.toFixed(2),
-      tabindex: "0",
-      role: "button",
-      "aria-label": `Hotel: ${item.name}. Price ${priceBand}. Drive time ${Number(item.driveMins)} minutes (${driveBand}).`,
     });
 
     const handleSelect = (event) => {
@@ -1882,10 +2033,8 @@ function renderHotelMatrix() {
       }
     };
 
-    dot.addEventListener("click", handleSelect);
-    ring.addEventListener("click", handleSelect);
-
-    dot.addEventListener("keydown", (event) => {
+    group.addEventListener("click", handleSelect);
+    group.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
         handleSelect(event);
@@ -1896,11 +2045,18 @@ function renderHotelMatrix() {
         clearHotelMatrixSelection();
       }
     });
+    group.addEventListener("focus", () => {
+      group.classList.add("is-focused");
+    });
+    group.addEventListener("blur", () => {
+      group.classList.remove("is-focused");
+    });
 
     group.appendChild(horizontal);
     group.appendChild(vertical);
-    group.appendChild(ring);
-    group.appendChild(dot);
+    dotAnchor.appendChild(ring);
+    dotAnchor.appendChild(dot);
+    group.appendChild(dotAnchor);
     layer.appendChild(group);
     hotelMatrixMetaById.set(item.id, { group, item, cx, cy, priceBand });
   });
@@ -1937,6 +2093,7 @@ function initHotelMatrix() {
   }
 
   if (hotelMatrixTooltip) hideHotelDotTooltip();
+  if (hotelMapCard) hotelMapCard.classList.remove("has-selection");
   hotelMatrixDetails.classList.remove("is-visible");
   hotelMatrixDetails.replaceChildren();
   hotelMatrixDetails.dataset.hotelId = "";
@@ -2250,7 +2407,7 @@ function buildGuestCard(index, name = "", funFact = "") {
   factField.className = "field form-field";
   const factLabel = document.createElement("label");
   factLabel.setAttribute("for", `guestFunFact${index + 1}`);
-  factLabel.textContent = "Fun fact (we may print this on your name card)";
+  factLabel.textContent = "Fun fact (we will print this on your name card to help break the ice)";
   const factInput = document.createElement("textarea");
   factInput.id = `guestFunFact${index + 1}`;
   factInput.rows = 2;
