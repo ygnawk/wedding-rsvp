@@ -2003,11 +2003,12 @@ a:focus-visible,
   .story-mobile-card {
     aspect-ratio: 4 / 3;
     max-height: min(56svh, 460px);
+    background: linear-gradient(180deg, rgba(247, 241, 230, 0.98) 0%, rgba(236, 226, 210, 0.92) 100%);
   }
 
   .story-mobile-card img {
-    object-fit: cover !important;
-    object-position: var(--objPos, 50% 50%) !important;
+    object-fit: contain !important;
+    object-position: center !important;
     background: transparent;
   }
 

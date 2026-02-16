@@ -4261,9 +4261,9 @@ function setStoryMobileSlide(index, options = {}) {
   storyMobileImg.src = imageSrc;
   attachStoryFallback(storyMobileImg, imageSources.fallback);
   storyMobileImg.alt = item.alt || `Story photo ${item.yearLabel}`;
-  storyMobileImg.style.objectPosition = item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
+  storyMobileImg.style.objectPosition = "50% 50%";
   storyMobileImg.style.imageOrientation = "from-image";
-  storyMobileImg.style.objectFit = "cover";
+  storyMobileImg.style.objectFit = "contain";
   storyMobileImg.style.transformOrigin = "50% 50%";
   storyMobileImg.style.setProperty("--storyRotate", "0deg");
   storyMobileImg.style.transform = "none";
