@@ -362,21 +362,50 @@ const STORY_YEAR_FOCAL_PRESETS = {
 };
 const WEDDING_DATE_SHANGHAI = { year: 2026, month: 9, day: 19 };
 const SHANGHAI_TIMEZONE = "Asia/Shanghai";
-let countdownIntervalId = null;
+let countdownRefreshTimeoutId = null;
 
-function getShanghaiDateParts(dateValue = new Date()) {
+function getShanghaiDateTimeParts(dateValue = new Date()) {
   const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: SHANGHAI_TIMEZONE,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
   });
 
   const parts = formatter.formatToParts(dateValue);
   const year = Number(parts.find((part) => part.type === "year")?.value || 0);
   const month = Number(parts.find((part) => part.type === "month")?.value || 0);
   const day = Number(parts.find((part) => part.type === "day")?.value || 0);
+  const hour = Number(parts.find((part) => part.type === "hour")?.value || 0);
+  const minute = Number(parts.find((part) => part.type === "minute")?.value || 0);
+  const second = Number(parts.find((part) => part.type === "second")?.value || 0);
+  return { year, month, day, hour, minute, second };
+}
+
+function getShanghaiDateParts(dateValue = new Date()) {
+  const { year, month, day } = getShanghaiDateTimeParts(dateValue);
   return { year, month, day };
+}
+
+function getMillisecondsUntilNextShanghaiMidnight(now = new Date()) {
+  const { hour, minute, second } = getShanghaiDateTimeParts(now);
+  const elapsedMs = ((hour * 60 + minute) * 60 + second) * 1000 + now.getMilliseconds();
+  return Math.max(1000, 86400000 - elapsedMs);
+}
+
+function formatShanghaiDebugStamp(now = new Date()) {
+  const { year, month, day, hour, minute, second } = getShanghaiDateTimeParts(now);
+  const yyyy = String(year).padStart(4, "0");
+  const mm = String(month).padStart(2, "0");
+  const dd = String(day).padStart(2, "0");
+  const hh = String(hour).padStart(2, "0");
+  const min = String(minute).padStart(2, "0");
+  const ss = String(second).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}T${hh}:${min}:${ss}+08:00`;
 }
 
 function getDaysUntilWeddingShanghai(now = new Date()) {
@@ -389,7 +418,15 @@ function getDaysUntilWeddingShanghai(now = new Date()) {
 function renderHeroCountdown() {
   if (!heroCountdown) return;
 
-  const daysRemaining = getDaysUntilWeddingShanghai(new Date());
+  const now = new Date();
+  const daysRemaining = getDaysUntilWeddingShanghai(now);
+  if (IS_LOCAL_DEV) {
+    console.debug("[countdown:asia-shanghai]", {
+      nowBeijing: formatShanghaiDebugStamp(now),
+      daysToGo: daysRemaining,
+    });
+  }
+
   if (daysRemaining > 0) {
     const unit = daysRemaining === 1 ? "day" : "days";
     heroCountdown.textContent = `${daysRemaining} ${unit} to go`;
@@ -404,11 +441,19 @@ function renderHeroCountdown() {
   heroCountdown.textContent = "Married!";
 }
 
+function scheduleHeroCountdownMidnightRefresh() {
+  if (countdownRefreshTimeoutId) window.clearTimeout(countdownRefreshTimeoutId);
+  const delay = getMillisecondsUntilNextShanghaiMidnight(new Date());
+  countdownRefreshTimeoutId = window.setTimeout(() => {
+    renderHeroCountdown();
+    scheduleHeroCountdownMidnightRefresh();
+  }, delay);
+}
+
 function initHeroCountdown() {
   if (!heroCountdown) return;
   renderHeroCountdown();
-  if (countdownIntervalId) window.clearInterval(countdownIntervalId);
-  countdownIntervalId = window.setInterval(renderHeroCountdown, 60 * 60 * 1000);
+  scheduleHeroCountdownMidnightRefresh();
 }
 
 function withBasePath(pathValue) {
