@@ -1,6 +1,9 @@
 const SHEETS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwpfLq3hB_mRiKKgiwMv1bvZUUtcoUZP7ifjKpnLpcK0HgaOKHwm_LRsPPCahWWQ67U/exec";
 const RSVP_LOCAL_FALLBACK_KEY = "wedding_rsvp_fallback";
 const BASE_PATH = window.location.hostname === "ygnawk.github.io" ? "/wedding-rsvp" : "";
+const IS_LOCAL_DEV = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
+const DEBUG_FOCAL_PARAM = String(new URLSearchParams(window.location.search).get("debugFocal") || "").toLowerCase();
+const ENABLE_FOCAL_TUNER = IS_LOCAL_DEV && ["1", "true", "yes", "on"].includes(DEBUG_FOCAL_PARAM);
 
 const SECTION_IDS = ["top", "interlude", "story", "venue", "schedule", "rsvp", "faq", "stay", "things-to-do", "makan", "travel-visa", "gallery"];
 
@@ -10,13 +13,186 @@ const inviteState = {
   maxPartySize: 6,
 };
 
+const MAX_GUESTS = 4;
+const MAX_PLUS_ONES = MAX_GUESTS - 1;
+const MAX_UPLOAD_FILES = 3;
+const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
+const UPLOAD_ALLOWED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "heic", "heif", "mp4", "mov", "webm"]);
+const UPLOAD_ALLOWED_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/heic",
+  "image/heif",
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
+]);
+const UPLOAD_SLOT_DEFAULT_META = "JPG/PNG/HEIC/MP4/MOV • up to 10MB";
+const FUN_FACT_CHIP_COUNT = 6;
+const BASE_FUN_FACT_EXAMPLES = [
+  "I will travel for noodles.",
+  "I can’t handle horror films.",
+  "Ask me about my latest hyper-fixation.",
+  "I judge cities by their coffee.",
+  "I have strong opinions about dumplings.",
+  "My toxic trait is planning trips like a spreadsheet.",
+  "I’ll cross a city for good hot pot.",
+  "Char kway teow has my loyalty.",
+  "I’m here for the dance floor.",
+  "I will always order dessert.",
+  "I’ve cried at a movie on an airplane.",
+  "I’m a morning person (unfortunately).",
+];
+const NEW_FUN_FACT_IDEAS = [
+  "I judge a city by its coffee.",
+  "My superpower is finding the best dish on a menu.",
+  "I’m here for the views and the snacks.",
+  "I can’t pass a bakery without “just looking.”",
+  "I will plan an itinerary, then ignore it.",
+  "If there’s a dumpling, I’m ordering it.",
+  "My love language is sending restaurant pins.",
+  "I came for the wedding, stayed for the street food.",
+  "I can fall asleep before takeoff.",
+  "I treat hotel breakfast like a competitive sport.",
+  "I have strong opinions about noodles.",
+  "I will walk 20,000 steps for one good meal.",
+  "I always pack snacks like it’s survival training.",
+  "I’m the person who brings a tiny pharmacy while traveling.",
+  "I can’t resist a good stationery store.",
+  "I collect fridge magnets like trophies.",
+  "I’m here to romanticize my life in every city.",
+  "I will order “one more” and mean it.",
+  "I’m happiest near water or a noodle shop.",
+  "I’m the friend who knows the best photo spot.",
+  "I will try the weird local soda.",
+  "I believe the best conversations happen after midnight.",
+  "I’m a “one more museum room” person.",
+  "I can’t stop myself from checking dessert menus first.",
+  "I’ve googled “best ____ near me” in 12 countries.",
+  "I have a running list of foods I’d fly back for.",
+  "I’m dangerously good at spotting scams.",
+  "I will befriend the hotel cat if there is one.",
+  "I’m a sucker for old bookstores.",
+  "I treat convenience stores like cultural landmarks.",
+  "I’m here to eat, not to be perceived.",
+  "I will take public transit for fun.",
+  "I can’t leave without buying something small and local.",
+  "I’m the group’s unofficial translator (even when I’m not).",
+  "My camera roll is 70% food, 30% sky.",
+  "I’m always down for a night market.",
+  "I have a talent for finding the quietest corner in a loud place.",
+  "I will try it once. Twice if it’s spicy.",
+  "I’m an early riser… on vacation only.",
+  "I can’t say no to a scenic walk.",
+  "My ideal souvenir is a good story.",
+  "I choose seats based on sunlight.",
+  "I’m the friend who always has a charger.",
+  "I’ve missed my stop because I was staring out the window.",
+  "I’m here for the ceremony and the chaos.",
+  "I will compliment your outfit with full sincerity.",
+  "I make friends in bathrooms and elevator lines.",
+  "I have a playlist for every mood and every city.",
+  "I can eat the same thing five days in a row happily.",
+  "If you want recommendations, I’m ready.",
+];
+const FUN_FACT_REPLACEMENT_IDEAS = [
+  "I keep emergency chili oil in my bag.",
+  "I will always split one more appetizer.",
+  "I’m loyal to window seats and soup dumplings.",
+  "I plan around sunsets and snack breaks.",
+  "I collect menus from trips like postcards.",
+  "I can turn any walk into a food crawl.",
+];
+
+function normalizeFunFactIdea(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201c\u201d]/g, '"')
+    .replace(/[^a-z0-9\s]/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokenizeFunFactIdea(value) {
+  return normalizeFunFactIdea(value)
+    .split(" ")
+    .filter(Boolean);
+}
+
+function isNearDuplicateFunFactIdea(candidate, existingItems) {
+  const candidateTokens = tokenizeFunFactIdea(candidate);
+  if (!candidateTokens.length) return false;
+
+  return existingItems.some((existing) => {
+    const existingTokens = tokenizeFunFactIdea(existing);
+    if (!existingTokens.length) return false;
+
+    const existingTokenSet = new Set(existingTokens);
+    const shared = candidateTokens.filter((token) => existingTokenSet.has(token)).length;
+    const overlap = shared / Math.max(candidateTokens.length, existingTokens.length);
+    return overlap >= 0.86;
+  });
+}
+
+function buildFunFactExamples() {
+  const existingSet = new Set(BASE_FUN_FACT_EXAMPLES.map((item) => normalizeFunFactIdea(item)));
+  const existingIdeaPool = [...BASE_FUN_FACT_EXAMPLES];
+  const seenNew = new Set();
+  const uniqueNew = [];
+
+  NEW_FUN_FACT_IDEAS.forEach((idea) => {
+    const normalized = normalizeFunFactIdea(idea);
+    if (!normalized || existingSet.has(normalized) || seenNew.has(normalized)) return;
+    if (isNearDuplicateFunFactIdea(idea, existingIdeaPool)) return;
+    seenNew.add(normalized);
+    uniqueNew.push(idea);
+    existingIdeaPool.push(idea);
+  });
+
+  if (uniqueNew.length < NEW_FUN_FACT_IDEAS.length) {
+    FUN_FACT_REPLACEMENT_IDEAS.forEach((idea) => {
+      if (uniqueNew.length >= NEW_FUN_FACT_IDEAS.length) return;
+      const normalized = normalizeFunFactIdea(idea);
+      if (!normalized || existingSet.has(normalized) || seenNew.has(normalized)) return;
+      if (isNearDuplicateFunFactIdea(idea, existingIdeaPool)) return;
+      seenNew.add(normalized);
+      uniqueNew.push(idea);
+      existingIdeaPool.push(idea);
+    });
+  }
+
+  if (IS_LOCAL_DEV) {
+    const collisionCount = NEW_FUN_FACT_IDEAS.filter((idea) => existingSet.has(normalizeFunFactIdea(idea))).length;
+    console.debug("[fun-fact-ideas]", {
+      requested: NEW_FUN_FACT_IDEAS.length,
+      collisions: collisionCount,
+      added: uniqueNew.length,
+      check: NEW_FUN_FACT_IDEAS.filter((idea) => existingSet.has(normalizeFunFactIdea(idea))).length === 0,
+    });
+    if (uniqueNew.length < NEW_FUN_FACT_IDEAS.length) {
+      console.warn(`[fun-fact-ideas] expected ${NEW_FUN_FACT_IDEAS.length} new unique ideas, got ${uniqueNew.length}`);
+    }
+  }
+
+  return [...BASE_FUN_FACT_EXAMPLES, ...uniqueNew];
+}
+
+const FUN_FACT_EXAMPLES = buildFunFactExamples();
+
 let photoManifest = null;
 let revealObserver = null;
 let reducedMotion = false;
+let selectedUploadFiles = Array.from({ length: MAX_UPLOAD_FILES }, () => null);
+let selectedUploadPreviewUrls = Array.from({ length: MAX_UPLOAD_FILES }, () => "");
 
 const floatingHeader = document.getElementById("floatingHeader");
 const menuToggle = document.getElementById("menuToggle");
 const mobileNavSheet = document.getElementById("mobileNavSheet");
+const desktopNavMore = document.getElementById("desktopNavMore");
+const desktopMoreToggle = document.getElementById("desktopMoreToggle");
+const desktopMoreMenu = document.getElementById("desktopMoreMenu");
+const desktopMoreLinks = desktopMoreMenu ? Array.from(desktopMoreMenu.querySelectorAll("a[data-link]")) : [];
 
 const heroGreeting = document.getElementById("heroGreeting");
 const heroCountdown = document.getElementById("heroCountdown");
@@ -31,10 +207,14 @@ const rsvpConfirmation = document.getElementById("rsvpConfirmation");
 const fullNameInput = document.getElementById("fullName");
 const emailInput = document.getElementById("email");
 const phoneInput = document.getElementById("phone");
+const messageInput = document.getElementById("message");
 
 const yesFields = document.getElementById("yesFields");
-const yesCount = document.getElementById("yesCount");
-const attendeeNamesWrap = document.getElementById("attendeeNamesWrap");
+const youFunFactsFields = document.getElementById("youFunFactsFields");
+const youGuestCardWrap = document.getElementById("youGuestCardWrap");
+const guestCardsWrap = document.getElementById("guestCardsWrap");
+const addGuestButton = document.getElementById("addGuestButton");
+const guestLimitError = document.getElementById("guestLimitError");
 const dietary = document.getElementById("dietary");
 
 const workingFields = document.getElementById("workingFields");
@@ -42,12 +222,36 @@ const workingCount = document.getElementById("workingCount");
 const workingConfirm = document.getElementById("workingConfirm");
 
 const noFields = document.getElementById("noFields");
-const noNote = document.getElementById("noNote");
+const photoUploadSlots = Array.from(document.querySelectorAll("[data-upload-slot]"));
+const photoUploadSlotRefs = photoUploadSlots.map((slotNode, fallbackIndex) => {
+  const slot = Number(slotNode.dataset.uploadSlot || fallbackIndex + 1);
+  return {
+    slot,
+    slotNode,
+    input: document.getElementById(`photoUpload${slot}`),
+    trigger: slotNode.querySelector(`[data-upload-trigger='${slot}']`),
+    meta: slotNode.querySelector(`[data-upload-meta='${slot}']`),
+    previewWrap: slotNode.querySelector(`[data-upload-preview-wrap='${slot}']`),
+    preview: slotNode.querySelector(`[data-upload-preview='${slot}']`),
+    previewText: slotNode.querySelector(`[data-upload-preview-text='${slot}']`),
+    actions: slotNode.querySelector(`[data-upload-actions='${slot}']`),
+    replaceButton: slotNode.querySelector(`[data-upload-replace='${slot}']`),
+    removeButton: slotNode.querySelector(`[data-upload-remove='${slot}']`),
+    errorNode: slotNode.querySelector(`[data-upload-error='${slot}']`),
+  };
+});
 const thingsThemeList = document.getElementById("thingsThemeList");
 const makanTipTrigger = document.getElementById("makanTipTrigger");
 const makanTipPopover = document.getElementById("makanTipPopover");
 const makanMenuRows = document.getElementById("makanMenuRows");
+const makanExpandAll = document.getElementById("makanExpandAll");
+const makanCollapseAll = document.getElementById("makanCollapseAll");
+const makanLegalTrigger = document.getElementById("makanLegalTrigger");
+const makanLegalPopover = document.getElementById("makanLegalPopover");
+const makanLegalClose = document.getElementById("makanLegalClose");
 const hotelMatrixShell = document.getElementById("hotelMatrixShell");
+const hotelMapCard = document.querySelector(".hotel-map-card");
+const hotelMatrixChartCol = document.querySelector(".hotel-map-chart-col");
 const hotelMatrixSvg = document.getElementById("hotelMatrixSvg");
 const hotelMatrixTooltip = document.getElementById("hotelMatrixTooltip");
 const hotelMatrixDetails = document.getElementById("hotelMatrixDetails");
@@ -55,8 +259,9 @@ const hotelMatrixSheet = document.getElementById("hotelMatrixSheet");
 const hotelMatrixSheetContent = document.getElementById("hotelMatrixSheetContent");
 const hotelMatrixSheetClose = document.getElementById("hotelMatrixSheetClose");
 const hotelMatrixSheetCloseControls = hotelMatrixSheet ? Array.from(hotelMatrixSheet.querySelectorAll("[data-sheet-close], #hotelMatrixSheetClose")) : [];
+const hotelMatrixRatingClaim = document.getElementById("hotelMatrixRatingClaim");
 const hotelMethodTrigger = document.getElementById("hotelMethodTrigger");
-const hotelMethodTooltip = document.getElementById("hotelMethodTooltip");
+let hotelMethodTooltip = null;
 
 const galleryGrid = document.getElementById("galleryGrid");
 const galleryLightbox = document.getElementById("lightbox");
@@ -81,7 +286,17 @@ const storyNext = document.getElementById("storyNext");
 const storyDots = document.getElementById("storyDots");
 const storyHint = document.getElementById("storyHint");
 const storyYearScrubber = document.getElementById("storyYearScrubber");
+const storySkipLink = document.querySelector(".story-skip-link");
+const storyMosaicShell = document.getElementById("storyMosaicShell");
 const storyMosaicLayout = document.getElementById("storyMosaicLayout");
+const storyChronologyPath = document.getElementById("storyChronologyPath");
+const storyChronologyStart = document.getElementById("storyChronologyStart");
+const storyChronologyNow = document.getElementById("storyChronologyNow");
+const storyMobileStage = document.getElementById("storyMobileStage");
+const storyMobileCard = document.getElementById("storyMobileCard");
+const storyMobileImg = document.getElementById("storyMobileImg");
+const storyMobileYear = document.getElementById("storyMobileYear");
+const storyMobileBlurb = document.getElementById("storyMobileBlurb");
 const storyScrollyTrack = document.getElementById("storyScrollyTrack");
 const storyStage = document.getElementById("storyStage");
 const storyMosaicGrid = document.getElementById("storyMosaicGrid");
@@ -90,7 +305,6 @@ const storyFocusImage = document.getElementById("storyFocusImage");
 const storyCaption = document.getElementById("storyCaption");
 const storyCaptionTitle = document.getElementById("storyCaptionTitle");
 const storyCaptionBlurb = document.getElementById("storyCaptionBlurb");
-const storySkip = document.querySelector(".story-skip");
 const storyLightbox = document.getElementById("storyLightbox");
 const storyLightboxImg = document.getElementById("storyLightboxImg");
 const storyLightboxTitle = document.getElementById("storyLightboxTitle");
@@ -113,16 +327,29 @@ let storyTileElements = [];
 let storyResizeRaf = null;
 let storyYearButtons = [];
 let storyYearObserver = null;
+let storyMobileIndex = 0;
+let storyMobileTouchStartX = null;
+let storyPathTargets = [];
+let storyPathRaf = null;
+let storyPathResizeBound = false;
+let storyPathResizeObserver = null;
 let hotelMatrixItems = [];
-let hotelMatrixHoveredId = "";
 let hotelMatrixPinnedId = "";
 let activeHotelMatrixId = "";
 let hotelDetailsSwapTimer = null;
-let hotelHoverSwapTimer = null;
 let hotelSheetOpen = false;
 let hotelMatrixMetaById = new Map();
+let hotelMatrixResizeObserver = null;
+let hotelMatrixResizeRaf = null;
+let hotelMatrixWidth = 760;
+let hotelMatrixHeight = 460;
 let hotelMethodOpen = false;
+let hotelMethodCloseTimer = null;
+let hotelMethodPinned = false;
 let makanTipOpen = false;
+let makanLegalOpen = false;
+let makanTypeAccordions = [];
+let makanBulkToggle = false;
 
 const jumpMenuWrap = document.getElementById("jumpMenuWrap");
 const jumpMenuToggle = document.getElementById("jumpMenuToggle");
@@ -245,8 +472,9 @@ const MAKAN_TYPE_ORDER = [
   "Peking duck",
   "Imperial / Banquet experience",
   "Cantonese dining",
+  "Fujian cuisine",
   "Jiangnan / Shanghainese",
-  "Hot pot",
+  "Hotpot & late-night",
   "Noodles + dumplings",
   "Street snacks",
   "Modern Beijing / creative Chinese",
@@ -271,12 +499,14 @@ const MAKAN_PLACEHOLDER_COPY = {
     "Send us your favorite spot and we’ll add it.",
   ],
 };
-const STORY_ASSET_VERSION = "20260215-1310";
+const STORY_ASSET_VERSION = "20260216-0915";
+const STORY_DEFAULT_FOCAL_X = 0.5;
+const STORY_DEFAULT_FOCAL_Y = 0.28;
 const STORY_OVERRIDES = {
-  // Lock problematic files so orientation and year placement stay stable.
-  "2008-miki-moves-beijing-upright.jpg": { rotate: -90, yearTop: 72, objPos: "50% 36%" },
-  "2020-covid-upright.jpg": { rotate: 180, yearTop: 72, objPos: "50% 36%" },
-  "2024-proposal-upright.jpg": { rotate: -90, yearTop: 72, objPos: "50% 40%" },
+  // Upright files should remain upright.
+  "2008-miki-moves-beijing-upright.jpg": { rotate: 0, objPos: "50% 44%" },
+  "2020-covid-upright.jpg": { rotate: 0, objPos: "50% 42%" },
+  "2024-proposal-upright.jpg": { rotate: 0, objPos: "50% 44%" },
   // Legacy names (kept in case old files are reintroduced).
   "2008-miki-moves-beijing.jpg": { rotate: -90, yearTop: 72, objPos: "50% 36%" },
   "2008-miki-moves-beijing-v2.jpg": { rotate: -90, yearTop: 72, objPos: "50% 36%" },
@@ -289,23 +519,68 @@ const STORY_OVERRIDES = {
   "2024-proposal-v2.jpg": { rotate: -90, yearTop: 72, objPos: "50% 40%" },
   "2024 - She said yes.JPG": { rotate: -90, yearTop: 72, objPos: "50% 40%" },
 };
+const STORY_YEAR_FOCAL_PRESETS = {
+  1995: { focalX: 0.5, focalY: 0.42, cropMode: "cover" },
+  1998: { focalX: 0.45, focalY: 0.46, cropMode: "cover" },
+  2001: { focalX: 0.5, focalY: 0.48, cropMode: "cover" },
+  2008: { focalX: 0.5, focalY: 0.44, cropMode: "cover" },
+  2013: { focalX: 0.5, focalY: 0.26, cropMode: "cover" },
+  2016: { focalX: 0.55, focalY: 0.44, cropMode: "cover" },
+  2020: { focalX: 0.5, focalY: 0.42, cropMode: "cover" },
+  2021: { focalX: 0.5, focalY: 0.44, cropMode: "cover" },
+  2023: { focalX: 0.5, focalY: 0.48, cropMode: "cover" },
+  2024: { focalX: 0.5, focalY: 0.44, cropMode: "cover" },
+  2025: { focalX: 0.5, focalY: 0.4, cropMode: "cover" },
+  2027: { focalX: 0.5, focalY: 0.5, cropMode: "cover" },
+};
 const WEDDING_DATE_SHANGHAI = { year: 2026, month: 9, day: 19 };
 const SHANGHAI_TIMEZONE = "Asia/Shanghai";
-let countdownIntervalId = null;
+const RECENT_DEFAULT_FOCAL_X = 0.5;
+const RECENT_DEFAULT_FOCAL_Y = 0.45;
+let countdownRefreshTimeoutId = null;
 
-function getShanghaiDateParts(dateValue = new Date()) {
+function getShanghaiDateTimeParts(dateValue = new Date()) {
   const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: SHANGHAI_TIMEZONE,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
   });
 
   const parts = formatter.formatToParts(dateValue);
   const year = Number(parts.find((part) => part.type === "year")?.value || 0);
   const month = Number(parts.find((part) => part.type === "month")?.value || 0);
   const day = Number(parts.find((part) => part.type === "day")?.value || 0);
+  const hour = Number(parts.find((part) => part.type === "hour")?.value || 0);
+  const minute = Number(parts.find((part) => part.type === "minute")?.value || 0);
+  const second = Number(parts.find((part) => part.type === "second")?.value || 0);
+  return { year, month, day, hour, minute, second };
+}
+
+function getShanghaiDateParts(dateValue = new Date()) {
+  const { year, month, day } = getShanghaiDateTimeParts(dateValue);
   return { year, month, day };
+}
+
+function getMillisecondsUntilNextShanghaiMidnight(now = new Date()) {
+  const { hour, minute, second } = getShanghaiDateTimeParts(now);
+  const elapsedMs = ((hour * 60 + minute) * 60 + second) * 1000 + now.getMilliseconds();
+  return Math.max(1000, 86400000 - elapsedMs);
+}
+
+function formatShanghaiDebugStamp(now = new Date()) {
+  const { year, month, day, hour, minute, second } = getShanghaiDateTimeParts(now);
+  const yyyy = String(year).padStart(4, "0");
+  const mm = String(month).padStart(2, "0");
+  const dd = String(day).padStart(2, "0");
+  const hh = String(hour).padStart(2, "0");
+  const min = String(minute).padStart(2, "0");
+  const ss = String(second).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}T${hh}:${min}:${ss}+08:00`;
 }
 
 function getDaysUntilWeddingShanghai(now = new Date()) {
@@ -318,7 +593,15 @@ function getDaysUntilWeddingShanghai(now = new Date()) {
 function renderHeroCountdown() {
   if (!heroCountdown) return;
 
-  const daysRemaining = getDaysUntilWeddingShanghai(new Date());
+  const now = new Date();
+  const daysRemaining = getDaysUntilWeddingShanghai(now);
+  if (IS_LOCAL_DEV) {
+    console.debug("[countdown:asia-shanghai]", {
+      nowBeijing: formatShanghaiDebugStamp(now),
+      daysToGo: daysRemaining,
+    });
+  }
+
   if (daysRemaining > 0) {
     const unit = daysRemaining === 1 ? "day" : "days";
     heroCountdown.textContent = `${daysRemaining} ${unit} to go`;
@@ -333,11 +616,19 @@ function renderHeroCountdown() {
   heroCountdown.textContent = "Married!";
 }
 
+function scheduleHeroCountdownMidnightRefresh() {
+  if (countdownRefreshTimeoutId) window.clearTimeout(countdownRefreshTimeoutId);
+  const delay = getMillisecondsUntilNextShanghaiMidnight(new Date());
+  countdownRefreshTimeoutId = window.setTimeout(() => {
+    renderHeroCountdown();
+    scheduleHeroCountdownMidnightRefresh();
+  }, delay);
+}
+
 function initHeroCountdown() {
   if (!heroCountdown) return;
   renderHeroCountdown();
-  if (countdownIntervalId) window.clearInterval(countdownIntervalId);
-  countdownIntervalId = window.setInterval(renderHeroCountdown, 60 * 60 * 1000);
+  scheduleHeroCountdownMidnightRefresh();
 }
 
 function withBasePath(pathValue) {
@@ -377,6 +668,11 @@ function setActiveLink(sectionId) {
   document.querySelectorAll("[data-link]").forEach((link) => {
     link.classList.toggle("active", link.getAttribute("data-link") === sectionId);
   });
+
+  if (desktopMoreToggle) {
+    const hasOverflowActive = desktopMoreLinks.some((link) => link.getAttribute("data-link") === sectionId);
+    desktopMoreToggle.classList.toggle("active", hasOverflowActive);
+  }
 }
 
 function initSectionObserver() {
@@ -403,6 +699,25 @@ function closeMobileMenu() {
   menuToggle.setAttribute("aria-expanded", "false");
 }
 
+function closeDesktopMoreMenu() {
+  if (!desktopMoreToggle || !desktopMoreMenu) return;
+  desktopMoreToggle.setAttribute("aria-expanded", "false");
+  desktopMoreMenu.hidden = true;
+}
+
+function openDesktopMoreMenu() {
+  if (!desktopMoreToggle || !desktopMoreMenu) return;
+  desktopMoreToggle.setAttribute("aria-expanded", "true");
+  desktopMoreMenu.hidden = false;
+}
+
+function toggleDesktopMoreMenu() {
+  if (!desktopMoreToggle || !desktopMoreMenu) return;
+  const expanded = desktopMoreToggle.getAttribute("aria-expanded") === "true";
+  if (expanded) closeDesktopMoreMenu();
+  else openDesktopMoreMenu();
+}
+
 function initHeader() {
   if (menuToggle && mobileNavSheet) {
     menuToggle.addEventListener("click", () => {
@@ -412,11 +727,46 @@ function initHeader() {
 
     window.addEventListener("resize", () => {
       if (window.innerWidth >= 1100) closeMobileMenu();
+      if (window.innerWidth < 1100) closeDesktopMoreMenu();
     });
   }
 
-  document.querySelectorAll(".desktop-nav a, .mobile-nav a, .header-rsvp, .brand").forEach((link) => {
-    link.addEventListener("click", closeMobileMenu);
+  if (desktopMoreToggle && desktopMoreMenu && desktopNavMore) {
+    closeDesktopMoreMenu();
+
+    desktopMoreToggle.addEventListener("click", (event) => {
+      event.preventDefault();
+      toggleDesktopMoreMenu();
+    });
+
+    desktopMoreLinks.forEach((link) => {
+      link.addEventListener("click", () => {
+        closeDesktopMoreMenu();
+      });
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      closeDesktopMoreMenu();
+    });
+
+    document.addEventListener(
+      "pointerdown",
+      (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        if (desktopNavMore.contains(target)) return;
+        closeDesktopMoreMenu();
+      },
+      { passive: true },
+    );
+  }
+
+  document.querySelectorAll(".desktop-nav a, .desktop-nav-more-toggle, .mobile-nav a, .header-rsvp, .brand").forEach((link) => {
+    link.addEventListener("click", () => {
+      closeMobileMenu();
+      if (!desktopNavMore || !desktopNavMore.contains(link)) closeDesktopMoreMenu();
+    });
   });
 }
 
@@ -441,8 +791,11 @@ function toggleJumpMenu() {
 
 function syncJumpMenuVisibility() {
   if (!jumpMenuWrap) return;
-  const visible = window.scrollY > Math.max(240, window.innerHeight * 0.9);
+  const isMobileViewport = window.matchMedia("(max-width: 760px)").matches;
+  const revealThreshold = isMobileViewport ? Math.max(880, window.innerHeight * 1.65) : Math.max(240, window.innerHeight * 0.9);
+  const visible = window.scrollY > revealThreshold;
   jumpMenuWrap.classList.toggle("is-visible", visible);
+  if (!visible) closeJumpMenu();
 }
 
 function initJumpMenu() {
@@ -496,25 +849,9 @@ function initThingsThemes() {
   const detailsNodes = Array.from(thingsThemeList.querySelectorAll("details.things-theme"));
   if (!detailsNodes.length) return;
 
-  const isMobile = () => window.matchMedia("(max-width: 760px)").matches;
-  let currentMode = "";
-
-  const applyDefaults = () => {
-    const nextMode = isMobile() ? "mobile" : "desktop";
-    if (nextMode === currentMode) return;
-    currentMode = nextMode;
-
-    if (nextMode === "mobile") {
-      detailsNodes.forEach((node) => {
-        node.open = false;
-      });
-      return;
-    }
-
-    if (!detailsNodes.some((node) => node.open)) {
-      detailsNodes[0].open = true;
-    }
-  };
+  detailsNodes.forEach((node) => {
+    node.open = false;
+  });
 
   detailsNodes.forEach((node) => {
     node.addEventListener("toggle", () => {
@@ -525,15 +862,29 @@ function initThingsThemes() {
     });
   });
 
-  applyDefaults();
-  window.addEventListener("resize", applyDefaults);
   thingsThemeList.dataset.bound = "true";
+}
+
+function initStorySkipLink() {
+  if (!storySkipLink || storySkipLink.dataset.bound === "true") return;
+
+  storySkipLink.addEventListener("click", (event) => {
+    event.preventDefault();
+    const href = storySkipLink.getAttribute("href") || "#venue";
+    const targetId = href.startsWith("#") ? href.slice(1) : href;
+    const target = targetId ? document.getElementById(targetId) : null;
+    if (!target) return;
+    target.scrollIntoView({ behavior: getScrollBehavior(), block: "start" });
+  });
+
+  storySkipLink.dataset.bound = "true";
 }
 
 function renderTravelPassportResult(key) {
   if (!travelPassportResult) return;
   const rule = TRAVEL_PASSPORT_RULES[String(key || "")];
   if (!rule) {
+    travelPassportResult.classList.add("hidden");
     travelPassportResult.hidden = true;
     return;
   }
@@ -549,7 +900,125 @@ function renderTravelPassportResult(key) {
   strong.textContent = rule.outcome;
   outcome.appendChild(strong);
   detail.textContent = rule.detail;
+  travelPassportResult.classList.remove("hidden");
   travelPassportResult.hidden = false;
+}
+
+function initScheduleReveal() {
+  const sectionRef = document.getElementById("schedule");
+  if (!sectionRef) return;
+  const timelineRef = sectionRef.querySelector(".schedule-list");
+  if (!(timelineRef instanceof HTMLElement)) return;
+
+  const rowRefs = Array.from(timelineRef.querySelectorAll(".scheduleRow"));
+  if (!rowRefs.length) return;
+  const dotRefs = rowRefs.map((row) => row.querySelector(".schedule-dot"));
+
+  const reduce = reducedMotion || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduce) {
+    timelineRef.style.setProperty("--schedule-line-progress", "1");
+    rowRefs.forEach((row) => {
+      row.style.opacity = "1";
+      row.style.transform = "translateY(0)";
+    });
+    dotRefs.forEach((dot) => {
+      if (!(dot instanceof HTMLElement)) return;
+      dot.style.opacity = "1";
+      dot.style.transform = "translateY(-50%) scale(1)";
+    });
+    return;
+  }
+
+  sectionRef.classList.add("schedule-scrub-ready");
+  timelineRef.style.setProperty("--schedule-line-progress", "0");
+
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+  const getProgress = () => {
+    const rect = sectionRef.getBoundingClientRect();
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+    const start = viewportHeight * 0.85;
+    const end = viewportHeight * 0.15;
+    const raw = (start - rect.top) / Math.max(1, start - end);
+    return clamp(raw, 0, 1);
+  };
+
+  const renderProgress = (progressValue) => {
+    const p = clamp(progressValue, 0, 1);
+    timelineRef.style.setProperty("--schedule-line-progress", `${p}`);
+
+    const count = rowRefs.length;
+    rowRefs.forEach((row, index) => {
+      const revealStart = (index / Math.max(1, count)) * 0.9;
+      const revealEnd = revealStart + 0.18;
+      const t = clamp((p - revealStart) / Math.max(0.001, revealEnd - revealStart), 0, 1);
+      row.style.opacity = `${t}`;
+      row.style.transform = `translateY(${((1 - t) * 10).toFixed(3)}px)`;
+
+      const dot = dotRefs[index];
+      if (!(dot instanceof HTMLElement)) return;
+      const dotScale = 0.96 + 0.04 * t;
+      dot.style.opacity = `${t}`;
+      dot.style.transform = `translateY(-50%) scale(${dotScale.toFixed(4)})`;
+    });
+  };
+
+  renderProgress(0);
+
+  let active = false;
+  let rafId = null;
+
+  const apply = () => {
+    rafId = null;
+    renderProgress(getProgress());
+  };
+
+  const requestApply = () => {
+    if (!active) return;
+    if (rafId !== null) return;
+    rafId = window.requestAnimationFrame(apply);
+  };
+
+  const onScroll = () => {
+    requestApply();
+  };
+
+  const onResize = () => {
+    requestApply();
+  };
+
+  const attach = () => {
+    if (active) return;
+    active = true;
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onResize);
+    requestApply();
+  };
+
+  const detach = () => {
+    if (!active) return;
+    active = false;
+    window.removeEventListener("scroll", onScroll);
+    window.removeEventListener("resize", onResize);
+    if (rafId !== null) {
+      window.cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+    renderProgress(getProgress());
+  };
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      const inView = entries.some((entry) => entry.isIntersecting);
+      if (inView) attach();
+      else detach();
+    },
+    {
+      threshold: 0.05,
+      rootMargin: "20% 0px 20% 0px",
+    },
+  );
+
+  observer.observe(sectionRef);
 }
 
 function initTravelVisaSection() {
@@ -638,103 +1107,148 @@ async function copyTextToClipboard(value) {
   return copied;
 }
 
-function createFoodCopyButton(nameCn) {
+function createFoodCopyButton(copyValueInput, options = {}) {
+  const copyValue = String(copyValueInput || "").trim();
+  const label = String(options.label || "Copy name");
+  const copiedLabel = String(options.copiedLabel || "Copied!");
+  const failedLabel = String(options.failedLabel || "Copy failed");
+  const ariaLabel = String(options.ariaLabel || `Copy ${label.toLowerCase()}`);
+  const className = String(options.className || "makan-copy-btn");
+  const title = String(options.title || "Copy");
+  const iconOnly = Boolean(options.iconOnly);
+  const resetDelay = Number.isFinite(options.resetDelay) ? Math.max(300, Number(options.resetDelay)) : 600;
   const button = document.createElement("button");
   button.type = "button";
-  button.className = "makan-copy-btn";
-  button.setAttribute("aria-label", `Copy Chinese name ${nameCn}`);
-  button.textContent = "Copy 中文名";
-  button.dataset.defaultText = button.textContent;
+  button.className = className;
+  button.setAttribute("aria-label", ariaLabel);
+  button.title = title;
+  if (iconOnly) {
+    button.textContent = "⧉";
+    button.dataset.defaultText = "⧉";
+  } else {
+    button.textContent = label;
+    button.dataset.defaultText = button.textContent;
+  }
 
   button.addEventListener("click", async () => {
-    const copied = await copyTextToClipboard(nameCn);
-    button.textContent = copied ? "Copied" : "Copy failed";
-    button.classList.toggle("is-copied", copied);
+    if (button.disabled) return;
+    button.disabled = true;
+    const copied = await copyTextToClipboard(copyValue);
+    if (iconOnly) {
+      showToast(copied ? copiedLabel : failedLabel);
+      button.classList.toggle("is-copied", copied);
+    } else {
+      button.textContent = copied ? copiedLabel : failedLabel;
+      button.classList.toggle("is-copied", copied);
+    }
 
     window.setTimeout(() => {
-      button.textContent = button.dataset.defaultText || "Copy 中文名";
+      button.textContent = button.dataset.defaultText || (iconOnly ? "⧉" : label);
       button.classList.remove("is-copied");
-    }, 1300);
+      button.disabled = false;
+    }, resetDelay);
   });
 
   return button;
 }
 
-function buildMakanRow(place, rowIndex) {
-  const row = document.createElement("article");
-  row.className = "makan-menu-row";
+function dedupeMakanDescription(rawText) {
+  const normalized = String(rawText || "").replace(/\r\n/g, "\n").trim();
+  if (!normalized) return "";
 
-  const detailsId = `makanRowDetails${rowIndex + 1}`;
-  const toggle = document.createElement("button");
-  toggle.type = "button";
-  toggle.className = "makan-row-toggle";
-  toggle.setAttribute("aria-expanded", "false");
-  toggle.setAttribute("aria-controls", detailsId);
-  toggle.setAttribute("aria-label", `Show details for ${place.name_en}`);
+  const unique = [];
+  const seen = new Set();
+  normalized
+    .split(/\n{2,}/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .forEach((part) => {
+      const key = part.replace(/\s+/g, " ").trim().toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      unique.push(part.replace(/\s+/g, " ").trim());
+    });
 
-  const colType = document.createElement("span");
-  colType.className = "makan-col makan-col--type";
-  colType.textContent = place.restaurantType || place.category || "Restaurant";
+  return unique.join("\n\n");
+}
 
-  const colRestaurant = document.createElement("span");
-  colRestaurant.className = "makan-col makan-col--restaurant";
-  const nameEn = document.createElement("span");
-  nameEn.className = "makan-name-en";
-  nameEn.textContent = place.name_en;
-  const nameCn = document.createElement("span");
-  nameCn.className = "makan-name-cn";
-  nameCn.textContent = place.name_cn;
-  colRestaurant.appendChild(nameEn);
-  colRestaurant.appendChild(nameCn);
+function buildMakanRestaurantItem(place) {
+  const row = document.createElement("div");
+  row.className = "makan-item";
+  const rawNameEn = String(place.name_en || "").trim();
+  const nameParts = rawNameEn.split(/\s+—\s+/);
+  const nameOnly = nameParts.shift() || rawNameEn;
+  const movedTagline = nameParts.join(" — ").trim();
+  const taglineLead = movedTagline ? (/[.!?]$/.test(movedTagline) ? movedTagline : `${movedTagline}.`) : "";
+  const baseBlurb = String(place.blurb_en || "").trim();
+  const mergedBlurb = [taglineLead, baseBlurb].filter(Boolean).join(" ").trim();
+  const blurbText = dedupeMakanDescription(mergedBlurb);
 
-  const colBlurb = document.createElement("span");
-  colBlurb.className = "makan-col makan-col--blurb";
-  colBlurb.textContent = place.blurb_en;
+  const meta = document.createElement("div");
+  meta.className = "makan-item-main";
 
-  const chevron = document.createElement("span");
-  chevron.className = "makan-row-chevron";
-  chevron.setAttribute("aria-hidden", "true");
+  const createMetaRow = ({ label, value, copyValue, valueClass, rowClass }) => {
+    if (!value) return null;
+    const rowEl = document.createElement("div");
+    rowEl.className = `makan-meta-row ${rowClass || ""}`.trim();
+    rowEl.dataset.metaType = String(label || "").toLowerCase();
 
-  toggle.appendChild(colType);
-  toggle.appendChild(colRestaurant);
-  toggle.appendChild(colBlurb);
-  toggle.appendChild(chevron);
+    const metaValue = document.createElement("span");
+    metaValue.className = `makan-meta-value ${valueClass || ""}`.trim();
+    metaValue.textContent = value;
+    rowEl.appendChild(metaValue);
 
-  const details = document.createElement("div");
-  details.id = detailsId;
-  details.className = "makan-row-details";
-  details.hidden = true;
+    if (copyValue) {
+      rowEl.appendChild(
+        createFoodCopyButton(copyValue, {
+          className: "makan-copy-icon-btn",
+          ariaLabel: `Copy ${label} for ${nameOnly}`,
+          copiedLabel: "Copied!",
+          failedLabel: "Copy failed",
+          resetDelay: 600,
+          iconOnly: true,
+          title: "Copy",
+        }),
+      );
+    }
+    return rowEl;
+  };
 
-  if (place.image) {
-    const media = document.createElement("figure");
-    media.className = "makan-row-photo";
-    const img = document.createElement("img");
-    img.src = toPhotoSrc(place.image);
-    img.alt = place.name_en;
-    img.loading = "lazy";
-    img.decoding = "async";
-    media.appendChild(img);
-    details.appendChild(media);
+  const canonicalName = [nameOnly, place.name_cn].filter(Boolean).join(" / ");
+  meta.appendChild(
+    createMetaRow({
+      label: "EN",
+      value: nameOnly,
+      copyValue: canonicalName,
+      valueClass: "makan-name-en",
+      rowClass: "makan-meta-name-row",
+    }),
+  );
+
+  if (place.name_cn) {
+    meta.appendChild(
+      createMetaRow({
+        label: "中文",
+        value: place.name_cn,
+        copyValue: place.name_cn,
+        valueClass: "makan-name-cn",
+      }),
+    );
   }
 
-  const address = document.createElement("p");
-  address.className = "makan-address";
-  address.textContent = place.address_cn ? `📍 ${place.address_cn}` : "📍 Beijing";
-  details.appendChild(address);
-
-  const tagWrap = document.createElement("div");
-  tagWrap.className = "makan-chip-group";
-  (place.vibe_tags || []).slice(0, 3).forEach((tag) => {
-    const chip = document.createElement("span");
-    chip.className = "makan-chip";
-    chip.textContent = tag;
-    tagWrap.appendChild(chip);
-  });
-  if (tagWrap.childElementCount) details.appendChild(tagWrap);
+  if (place.address_cn) {
+    meta.appendChild(
+      createMetaRow({
+        label: "地址",
+        value: place.address_cn,
+        copyValue: place.address_cn,
+        valueClass: "makan-address-text",
+      }),
+    );
+  }
 
   const actions = document.createElement("div");
-  actions.className = "makan-row-actions";
-  actions.appendChild(createFoodCopyButton(place.name_cn));
+  actions.className = "makan-row-actions makan-item-actions";
   if (place.dianping_url) {
     const link = document.createElement("a");
     link.className = "makan-link";
@@ -744,16 +1258,64 @@ function buildMakanRow(place, rowIndex) {
     link.textContent = "Open in 大众点评";
     actions.appendChild(link);
   }
-  details.appendChild(actions);
 
-  row.appendChild(toggle);
-  row.appendChild(details);
-  return { row, toggle, details };
+  const panel = document.createElement("div");
+  panel.className = "makan-item-panel";
+
+  const fullDescription = document.createElement("p");
+  fullDescription.className = "makan-item-description";
+  fullDescription.textContent = blurbText;
+  panel.appendChild(fullDescription);
+  row.appendChild(meta);
+  row.appendChild(panel);
+  row.appendChild(actions);
+  return row;
+}
+
+function updateMakanTypeControls() {
+  if (!makanTypeAccordions.length) return;
+  const openCount = makanTypeAccordions.reduce((count, accordion) => (accordion.open ? count + 1 : count), 0);
+  if (makanExpandAll) makanExpandAll.disabled = openCount === makanTypeAccordions.length;
+  if (makanCollapseAll) makanCollapseAll.disabled = openCount === 0;
+}
+
+function setMakanTypeAccordionState(shouldOpen) {
+  if (!makanTypeAccordions.length) return;
+  makanBulkToggle = true;
+  makanTypeAccordions.forEach((accordion) => {
+    accordion.open = Boolean(shouldOpen);
+  });
+  makanBulkToggle = false;
+  updateMakanTypeControls();
+}
+
+function initMakanTypeControls() {
+  if ((!makanExpandAll && !makanCollapseAll) || (makanExpandAll && makanExpandAll.dataset.bound === "true")) {
+    updateMakanTypeControls();
+    return;
+  }
+
+  if (makanExpandAll) {
+    makanExpandAll.addEventListener("click", () => {
+      setMakanTypeAccordionState(true);
+    });
+    makanExpandAll.dataset.bound = "true";
+  }
+
+  if (makanCollapseAll) {
+    makanCollapseAll.addEventListener("click", () => {
+      setMakanTypeAccordionState(false);
+    });
+    makanCollapseAll.dataset.bound = "true";
+  }
+
+  updateMakanTypeControls();
 }
 
 function renderMakanMenuRows() {
   if (!makanMenuRows) return;
   makanMenuRows.innerHTML = "";
+  makanTypeAccordions = [];
 
   const sorted = [...BEIJING_FOOD_PLACES].sort((a, b) => {
     const aType = String(a.restaurantType || a.category || "");
@@ -765,37 +1327,63 @@ function renderMakanMenuRows() {
     return a.name_en.localeCompare(b.name_en, undefined, { sensitivity: "base" });
   });
 
-  const rowBindings = [];
-  let currentType = "";
-  sorted.forEach((place, index) => {
+  const grouped = new Map();
+  sorted.forEach((place) => {
     const nextType = String(place.restaurantType || place.category || "Restaurant");
-    if (nextType !== currentType) {
-      currentType = nextType;
-      const heading = document.createElement("div");
-      heading.className = "makan-group-heading";
-      heading.textContent = currentType;
-      makanMenuRows.appendChild(heading);
+    if (!grouped.has(nextType)) {
+      grouped.set(nextType, []);
     }
-
-    const { row, toggle, details } = buildMakanRow(place, index);
-    makanMenuRows.appendChild(row);
-    rowBindings.push({ toggle, details, row });
+    grouped.get(nextType)?.push(place);
   });
 
-  rowBindings.forEach((binding) => {
-    binding.toggle.addEventListener("click", () => {
-      const willOpen = binding.toggle.getAttribute("aria-expanded") !== "true";
-      rowBindings.forEach((candidate) => {
-        candidate.toggle.setAttribute("aria-expanded", "false");
-        candidate.details.hidden = true;
-        candidate.row.classList.remove("is-open");
+  Array.from(grouped.entries()).forEach(([typeName, places], groupIndex) => {
+    const accordion = document.createElement("details");
+    accordion.className = "makan-type";
+
+    const summary = document.createElement("summary");
+    summary.className = "makan-type-summary";
+    summary.setAttribute("aria-label", `Toggle ${typeName}`);
+
+    const title = document.createElement("span");
+    title.className = "makan-type-title";
+    title.textContent = typeName;
+
+    const chevron = document.createElement("span");
+    chevron.className = "makan-type-chevron";
+    chevron.setAttribute("aria-hidden", "true");
+
+    summary.appendChild(title);
+    summary.appendChild(chevron);
+
+    const panel = document.createElement("div");
+    panel.className = "makan-type-panel";
+    panel.id = `makanTypePanel${groupIndex + 1}`;
+
+    const itemsWrap = document.createElement("div");
+    itemsWrap.className = "makan-type-items";
+    places.forEach((place) => {
+      itemsWrap.appendChild(buildMakanRestaurantItem(place));
+    });
+    panel.appendChild(itemsWrap);
+
+    accordion.appendChild(summary);
+    accordion.appendChild(panel);
+    makanMenuRows.appendChild(accordion);
+    makanTypeAccordions.push(accordion);
+
+    accordion.addEventListener("toggle", () => {
+      if (!accordion.open || makanBulkToggle) {
+        updateMakanTypeControls();
+        return;
+      }
+      makanTypeAccordions.forEach((peer) => {
+        if (peer !== accordion && peer.open) peer.open = false;
       });
-      if (!willOpen) return;
-      binding.toggle.setAttribute("aria-expanded", "true");
-      binding.details.hidden = false;
-      binding.row.classList.add("is-open");
+      updateMakanTypeControls();
     });
   });
+
+  updateMakanTypeControls();
 }
 
 function closeMakanTipPopover() {
@@ -883,9 +1471,68 @@ function initMakanTipPopover() {
   makanTipTrigger.dataset.bound = "true";
 }
 
+function closeMakanLegalModal({ restoreFocus = true } = {}) {
+  if (!makanLegalPopover || !makanLegalTrigger) return;
+  makanLegalPopover.hidden = true;
+  makanLegalPopover.classList.remove("open");
+  makanLegalPopover.setAttribute("aria-hidden", "true");
+  makanLegalTrigger.setAttribute("aria-expanded", "false");
+  makanLegalOpen = false;
+  if (restoreFocus) {
+    makanLegalTrigger.focus({ preventScroll: true });
+  }
+}
+
+function openMakanLegalModal() {
+  if (!makanLegalPopover || !makanLegalTrigger) return;
+  makanLegalPopover.hidden = false;
+  makanLegalPopover.classList.add("open");
+  makanLegalPopover.setAttribute("aria-hidden", "false");
+  makanLegalTrigger.setAttribute("aria-expanded", "true");
+  makanLegalOpen = true;
+  if (makanLegalClose instanceof HTMLElement) {
+    window.requestAnimationFrame(() => makanLegalClose.focus({ preventScroll: true }));
+  }
+}
+
+function initMakanLegalModal() {
+  if (!makanLegalTrigger || !makanLegalPopover) return;
+  if (makanLegalTrigger.dataset.boundLegal === "true") return;
+
+  closeMakanLegalModal({ restoreFocus: false });
+
+  makanLegalTrigger.addEventListener("click", (event) => {
+    event.preventDefault();
+    if (makanLegalOpen) closeMakanLegalModal();
+    else openMakanLegalModal();
+  });
+
+  if (makanLegalClose) {
+    makanLegalClose.addEventListener("click", () => closeMakanLegalModal());
+  }
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && makanLegalOpen) {
+      closeMakanLegalModal();
+    }
+  });
+
+  document.addEventListener("pointerdown", (event) => {
+    if (!makanLegalOpen) return;
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (makanLegalPopover.contains(target) || makanLegalTrigger.contains(target)) return;
+    closeMakanLegalModal({ restoreFocus: false });
+  });
+
+  makanLegalTrigger.dataset.boundLegal = "true";
+}
+
 function initMakanSection() {
   renderMakanMenuRows();
+  initMakanTypeControls();
   initMakanTipPopover();
+  initMakanLegalModal();
 }
 
 function createSvgNode(tagName, attributes = {}) {
@@ -902,6 +1549,30 @@ function metricBandFromNorm(value) {
   return "high";
 }
 
+function priceBucketFromNorm(normValue) {
+  if (normValue < 0.25) return "$";
+  if (normValue < 0.5) return "$$";
+  if (normValue < 0.75) return "$$$";
+  return "$$$$";
+}
+
+function buildHotelRatingClaim(items) {
+  if (!Array.isArray(items) || !items.length) return "";
+  const ratings = items.map((item) => Number(item.metrics && item.metrics.comfortRating)).filter((value) => Number.isFinite(value));
+  if (!ratings.length) return "";
+
+  const minRating = Math.min(...ratings);
+  const labels = [
+    ...new Set(
+      items
+        .map((item) => String((item.metrics && item.metrics.sourceLabel) || "").trim())
+        .filter(Boolean),
+    ),
+  ];
+  const source = labels.length === 1 ? labels[0] : labels.length ? labels.join(", ") : "listed sources";
+  return `All hotels shown are rated ≥ ${minRating.toFixed(1)} on ${source}.`;
+}
+
 function isHotelMatrixMobile() {
   return window.matchMedia("(max-width: 860px)").matches || isCoarsePointer();
 }
@@ -912,7 +1583,30 @@ function getHotelById(hotelId) {
 }
 
 function getActiveHotelMatrixId() {
-  return hotelMatrixPinnedId || hotelMatrixHoveredId || "";
+  return hotelMatrixPinnedId || "";
+}
+
+function ensureHotelMethodOverlay() {
+  if (hotelMethodTooltip) return;
+
+  hotelMethodTooltip = document.createElement("div");
+  hotelMethodTooltip.id = "hotelMethodOverlay";
+  hotelMethodTooltip.className = "hotel-method-tooltip";
+  hotelMethodTooltip.setAttribute("role", "tooltip");
+  hotelMethodTooltip.hidden = true;
+  hotelMethodTooltip.setAttribute("aria-hidden", "true");
+  hotelMethodTooltip.innerHTML = `
+    <p class="hotel-method-tooltip-title">METHODOLOGY</p>
+    <ul class="hotel-method-tooltip-list">
+      <li>Y-axis: estimated drive time (mins) to the wedding venue (traffic dependent).</li>
+      <li>X-axis: nightly price bands in USD ($: under 150, $$: 150–300, $$$: 301–500, $$$$: 500+).</li>
+      <li>Only hotels rated ≥ 9.0 on Expedia are shown.</li>
+      <li>Shaded area = best value zone (lower price + shorter drive time).</li>
+      <li>No footnotes, no appendix — our AI analyst “Chat” ran the numbers. I already did my six-year consultant sentence.</li>
+    </ul>
+  `;
+
+  document.body.appendChild(hotelMethodTooltip);
 }
 
 function positionHotelMethodTooltip() {
@@ -936,16 +1630,24 @@ function positionHotelMethodTooltip() {
   hotelMethodTooltip.style.top = `${top}px`;
 }
 
-function closeHotelMethodologyTooltip() {
+function closeHotelMethodologyTooltip(resetPinned = true) {
   if (!hotelMethodTooltip || !hotelMethodTrigger) return;
+  if (hotelMethodCloseTimer) {
+    window.clearTimeout(hotelMethodCloseTimer);
+    hotelMethodCloseTimer = null;
+  }
   hotelMethodTooltip.hidden = true;
   hotelMethodTooltip.setAttribute("aria-hidden", "true");
   hotelMethodTrigger.setAttribute("aria-expanded", "false");
   hotelMethodOpen = false;
+  if (resetPinned) hotelMethodPinned = false;
 }
 
-function openHotelMethodologyTooltip() {
-  if (!hotelMethodTooltip || !hotelMethodTrigger) return;
+function openHotelMethodologyTooltip({ pinned = false } = {}) {
+  if (!hotelMethodTrigger) return;
+  ensureHotelMethodOverlay();
+  if (!hotelMethodTooltip) return;
+  hotelMethodPinned = pinned;
   hotelMethodTooltip.hidden = false;
   hotelMethodTooltip.setAttribute("aria-hidden", "false");
   hotelMethodTrigger.setAttribute("aria-expanded", "true");
@@ -953,23 +1655,55 @@ function openHotelMethodologyTooltip() {
   positionHotelMethodTooltip();
 }
 
-function toggleHotelMethodologyTooltip() {
-  if (hotelMethodOpen) {
-    closeHotelMethodologyTooltip();
-  } else {
-    openHotelMethodologyTooltip();
-  }
-}
-
 function initHotelMethodology() {
-  if (!hotelMethodTrigger || !hotelMethodTooltip) return;
+  if (!hotelMethodTrigger) return;
   if (hotelMethodTrigger.dataset.bound === "true") return;
+  ensureHotelMethodOverlay();
+  if (!hotelMethodTooltip) return;
 
   closeHotelMethodologyTooltip();
 
+  const openIfDesktop = () => {
+    if (isCoarsePointer()) return;
+    if (hotelMethodPinned) return;
+    openHotelMethodologyTooltip({ pinned: false });
+  };
+
+  const closeIfDesktop = () => {
+    if (isCoarsePointer()) return;
+    if (hotelMethodPinned) return;
+    if (hotelMethodCloseTimer) window.clearTimeout(hotelMethodCloseTimer);
+    hotelMethodCloseTimer = window.setTimeout(() => {
+      closeHotelMethodologyTooltip();
+      hotelMethodCloseTimer = null;
+    }, 90);
+  };
+
+  hotelMethodTrigger.addEventListener("pointerenter", openIfDesktop);
+  hotelMethodTrigger.addEventListener("pointerleave", (event) => {
+    const related = event.relatedTarget;
+    if (related instanceof Node && hotelMethodTooltip.contains(related)) return;
+    closeIfDesktop();
+  });
+  hotelMethodTooltip.addEventListener("pointerenter", openIfDesktop);
+  hotelMethodTooltip.addEventListener("pointerleave", (event) => {
+    const related = event.relatedTarget;
+    if (related instanceof Node && hotelMethodTrigger.contains(related)) return;
+    closeIfDesktop();
+  });
+  hotelMethodTrigger.addEventListener("focus", openIfDesktop);
+  hotelMethodTrigger.addEventListener("blur", () => {
+    window.setTimeout(() => {
+      const active = document.activeElement;
+      if (active instanceof Node && (hotelMethodTrigger.contains(active) || hotelMethodTooltip.contains(active))) return;
+      closeHotelMethodologyTooltip();
+    }, 0);
+  });
+
   hotelMethodTrigger.addEventListener("click", (event) => {
     event.preventDefault();
-    toggleHotelMethodologyTooltip();
+    if (hotelMethodOpen && hotelMethodPinned) closeHotelMethodologyTooltip();
+    else openHotelMethodologyTooltip({ pinned: true });
   });
 
   document.addEventListener("keydown", (event) => {
@@ -1004,60 +1738,10 @@ function initHotelMethodology() {
   hotelMethodTrigger.dataset.bound = "true";
 }
 
-function buildHotelEmptyState() {
-  const empty = document.createElement("div");
-  empty.className = "hotel-map-empty";
-  const title = document.createElement("p");
-  title.className = "hotel-map-empty-title";
-  title.textContent = "Hover a dot to see details.";
-  const body = document.createElement("p");
-  body.textContent = "Yes, this is a framework. Old habits. ChatGPT made it faster.";
-  empty.appendChild(title);
-  empty.appendChild(body);
-  return empty;
-}
-
 function hideHotelDotTooltip() {
   if (!hotelMatrixTooltip) return;
   hotelMatrixTooltip.hidden = true;
   hotelMatrixTooltip.setAttribute("aria-hidden", "true");
-}
-
-function showHotelDotTooltip(item, cx, cy) {
-  if (!hotelMatrixTooltip || !hotelMatrixShell || !item) return;
-  if (isHotelMatrixMobile() || hotelMatrixPinnedId) {
-    hideHotelDotTooltip();
-    return;
-  }
-
-  hotelMatrixTooltip.innerHTML = `
-    <p class="hotel-map-dot-tooltip-title">${item.name}</p>
-    <p class="hotel-map-dot-tooltip-body">${Number(item.metrics.comfortRating).toFixed(1)}/10 comfort · $${item.metrics.priceUsd}/night snapshot</p>
-  `;
-
-  hotelMatrixTooltip.hidden = false;
-  hotelMatrixTooltip.setAttribute("aria-hidden", "false");
-
-  const shellRect = hotelMatrixShell.getBoundingClientRect();
-  const tooltipRect = hotelMatrixTooltip.getBoundingClientRect();
-  const viewX = shellRect.left + (cx / 760) * shellRect.width;
-  const viewY = shellRect.top + (cy / 460) * shellRect.height;
-  const gap = 10;
-  const viewportPad = 12;
-
-  let left = viewX - tooltipRect.width / 2;
-  left = Math.max(viewportPad, Math.min(left, window.innerWidth - tooltipRect.width - viewportPad));
-
-  let top = viewY - tooltipRect.height - gap;
-  if (top < viewportPad) {
-    top = viewY + gap;
-  }
-  if (top + tooltipRect.height > window.innerHeight - viewportPad) {
-    top = window.innerHeight - tooltipRect.height - viewportPad;
-  }
-
-  hotelMatrixTooltip.style.left = `${left}px`;
-  hotelMatrixTooltip.style.top = `${top}px`;
 }
 
 function buildHotelDetailsCard(item) {
@@ -1146,33 +1830,17 @@ function buildHotelDetailsCard(item) {
 }
 
 function swapHotelDetails(item) {
-  if (!hotelMatrixDetails) return;
-  const nextNode = item ? buildHotelDetailsCard(item) : buildHotelEmptyState();
-  const nextId = item ? item.id : "";
-
-  if (hotelMatrixDetails.dataset.hotelId === nextId && nextId) return;
-
+  if (!hotelMatrixDetails || !item) return;
   if (hotelDetailsSwapTimer) {
     window.clearTimeout(hotelDetailsSwapTimer);
     hotelDetailsSwapTimer = null;
   }
 
-  if (reducedMotion || hotelMatrixDetails.dataset.ready !== "true") {
-    hotelMatrixDetails.replaceChildren(nextNode);
-    hotelMatrixDetails.dataset.hotelId = nextId;
-    hotelMatrixDetails.dataset.ready = "true";
-    return;
-  }
+  const nextId = item.id;
+  if (hotelMatrixDetails.dataset.hotelId === nextId) return;
 
-  hotelMatrixDetails.classList.add("is-fading");
-  hotelDetailsSwapTimer = window.setTimeout(() => {
-    hotelMatrixDetails.replaceChildren(nextNode);
-    hotelMatrixDetails.dataset.hotelId = nextId;
-    hotelMatrixDetails.classList.remove("is-fading");
-    hotelMatrixDetails.classList.add("is-entering");
-    window.requestAnimationFrame(() => hotelMatrixDetails.classList.remove("is-entering"));
-    hotelDetailsSwapTimer = null;
-  }, 150);
+  hotelMatrixDetails.replaceChildren(buildHotelDetailsCard(item));
+  hotelMatrixDetails.dataset.hotelId = nextId;
 }
 
 function openHotelMatrixSheet(item) {
@@ -1192,60 +1860,115 @@ function closeHotelMatrixSheet() {
 }
 
 function clearHotelMatrixSelection() {
-  hotelMatrixHoveredId = "";
   hotelMatrixPinnedId = "";
   closeHotelMatrixSheet();
   applyHotelMatrixSelection();
 }
 
 function applyHotelMatrixSelection() {
-  const nextActiveId = getActiveHotelMatrixId();
-  activeHotelMatrixId = nextActiveId;
+  const selectedId = getActiveHotelMatrixId();
+  activeHotelMatrixId = selectedId;
 
   hotelMatrixMetaById.forEach((meta, hotelId) => {
-    const isActive = hotelId === nextActiveId;
+    const isActive = hotelId === selectedId;
     if (meta.group) meta.group.classList.toggle("is-active", isActive);
   });
 
-  const activeHotel = getHotelById(nextActiveId);
-  swapHotelDetails(activeHotel);
-  if (!nextActiveId || hotelMatrixPinnedId) {
-    hideHotelDotTooltip();
+  const pinnedHotel = getHotelById(selectedId);
+  if (pinnedHotel) {
+    if (hotelMapCard) hotelMapCard.classList.add("has-selection");
+    swapHotelDetails(pinnedHotel);
+    hotelMatrixDetails.classList.add("is-visible");
+  } else if (hotelMatrixDetails) {
+    if (hotelMapCard) hotelMapCard.classList.remove("has-selection");
+    hotelMatrixDetails.classList.remove("is-visible");
+    hotelMatrixDetails.dataset.hotelId = "";
+    if (hotelDetailsSwapTimer) {
+      window.clearTimeout(hotelDetailsSwapTimer);
+      hotelDetailsSwapTimer = null;
+    }
+    if (reducedMotion) {
+      hotelMatrixDetails.replaceChildren();
+    } else {
+      hotelDetailsSwapTimer = window.setTimeout(() => {
+        if (!hotelMatrixPinnedId && hotelMatrixDetails) hotelMatrixDetails.replaceChildren();
+        hotelDetailsSwapTimer = null;
+      }, 560);
+    }
   }
+  queueHotelMatrixRender();
+  hideHotelDotTooltip();
 }
 
-function initHotelMatrix() {
-  if (!hotelMatrixShell || !hotelMatrixSvg || !hotelMatrixDetails) return;
-  if (hotelMatrixShell.dataset.initialized === "true") return;
-  initHotelMethodology();
+function getHotelMatrixDimensions() {
+  if (!hotelMatrixShell) {
+    return { width: hotelMatrixWidth, height: hotelMatrixHeight };
+  }
 
-  hotelMatrixItems = HOTELS_DATA.slice(0, 6);
-  if (!hotelMatrixItems.length) return;
+  const shellRect = hotelMatrixShell.getBoundingClientRect();
+  const shellStyle = window.getComputedStyle(hotelMatrixShell);
+  const innerWidth =
+    shellRect.width -
+    (Number.parseFloat(shellStyle.paddingLeft) || 0) -
+    (Number.parseFloat(shellStyle.paddingRight) || 0);
+  if (!(innerWidth > 0)) {
+    return { width: hotelMatrixWidth, height: hotelMatrixHeight };
+  }
 
-  const width = 760;
-  const height = 460;
-  const margins = { top: 42, right: 52, bottom: 84, left: 88 };
-  const plotWidth = width - margins.left - margins.right;
-  const plotHeight = height - margins.top - margins.bottom;
+  const width = Math.max(300, Math.round(innerWidth));
+  const compact = width < 560;
+  const aspect = compact ? 1 : 760 / 460;
+  const height = compact ? Math.max(320, Math.round(width / aspect)) : Math.max(280, Math.round(width / aspect));
+  return { width, height };
+}
+
+function renderHotelMatrix() {
+  if (!hotelMatrixSvg || !hotelMatrixItems.length) return;
+
+  const width = hotelMatrixWidth;
+  const height = hotelMatrixHeight;
+  const isCompact = width < 560;
+  const margins = isCompact ? { top: 24, right: 18, bottom: 54, left: 54 } : { top: 42, right: 52, bottom: 84, left: 88 };
+  const plotWidth = Math.max(180, width - margins.left - margins.right);
+  const plotHeight = Math.max(170, height - margins.top - margins.bottom);
+  const ringRadius = isCompact ? 10.8 : 12;
+  const dotRadius = isCompact ? 6.6 : 7.4;
+
+  hotelMatrixSvg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  hotelMatrixSvg.setAttribute("preserveAspectRatio", "xMidYMid meet");
   hotelMatrixSvg.innerHTML = "";
   hotelMatrixMetaById = new Map();
 
   const title = createSvgNode("title", { id: "hotelMatrixTitle" });
-  title.textContent = "Hotels matrix by price and comfort";
+  title.textContent = "Hotels matrix by price and drive time";
   const desc = createSvgNode("desc", { id: "hotelMatrixDesc" });
-  desc.textContent = "Price increases from left to right. Comfort increases from bottom to top.";
+  desc.textContent = "Price increases from left to right. Drive time to the wedding venue increases from bottom to top.";
   hotelMatrixSvg.appendChild(title);
   hotelMatrixSvg.appendChild(desc);
 
-  const plotFrame = createSvgNode("rect", {
-    class: "hotel-map-frame",
-    x: margins.left,
-    y: margins.top,
-    width: plotWidth,
-    height: plotHeight,
-    fill: "none",
-  });
-  hotelMatrixSvg.appendChild(plotFrame);
+  const defs = createSvgNode("defs");
+  const clipPath = createSvgNode("clipPath", { id: "hotelMatrixPlotClip" });
+  clipPath.appendChild(
+    createSvgNode("rect", {
+      x: margins.left,
+      y: margins.top,
+      width: plotWidth,
+      height: plotHeight,
+    }),
+  );
+  defs.appendChild(clipPath);
+  hotelMatrixSvg.appendChild(defs);
+
+  hotelMatrixSvg.appendChild(
+    createSvgNode("rect", {
+      class: "hotel-map-frame",
+      x: margins.left,
+      y: margins.top,
+      width: plotWidth,
+      height: plotHeight,
+      fill: "none",
+    }),
+  );
 
   const midX = margins.left + plotWidth / 2;
   const midY = margins.top + plotHeight / 2;
@@ -1257,25 +1980,59 @@ function initHotelMatrix() {
   );
 
   const prices = hotelMatrixItems.map((item) => Number(item.metrics.priceUsd)).filter((value) => Number.isFinite(value) && value > 0);
-  const ratings = hotelMatrixItems
-    .map((item) => Number(item.metrics.comfortRating))
-    .filter((value) => Number.isFinite(value) && value > 0);
-
+  const driveTimes = hotelMatrixItems.map((item) => Number(item.driveMins)).filter((value) => Number.isFinite(value) && value >= 0);
   const minPrice = Math.min(...prices);
   const maxPrice = Math.max(...prices);
-  const minRating = Math.min(...ratings) - 0.2;
-  const maxRating = Math.max(...ratings) + 0.2;
+  const minDrive = Math.min(...driveTimes);
+  const maxDrive = Math.max(...driveTimes);
+  const drivePadding = Math.max(1, Math.round((maxDrive - minDrive) * 0.08));
+  const driveDomainMin = Math.max(0, minDrive - drivePadding);
+  const driveDomainMax = maxDrive + drivePadding;
+  const driveTicks = [...new Set(driveTimes.map((value) => Math.round(value)))].sort((a, b) => a - b);
+
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
   const mapPrice = (price) => {
     if (!(minPrice > 0) || !(maxPrice > 0) || minPrice === maxPrice) return 0.5;
     const ratio = (Math.log(price) - Math.log(minPrice)) / (Math.log(maxPrice) - Math.log(minPrice));
     return clamp(0.04 + ratio * 0.92, 0.04, 0.96);
   };
-  const mapRating = (rating) => {
-    if (minRating === maxRating) return 0.5;
-    const ratio = (rating - minRating) / (maxRating - minRating);
+  const mapDriveMins = (minutes) => {
+    if (driveDomainMin === driveDomainMax) return 0.5;
+    const ratio = (minutes - driveDomainMin) / (driveDomainMax - driveDomainMin);
     return clamp(0.04 + ratio * 0.92, 0.04, 0.96);
   };
+
+  const bestValueDriveCutoff = Math.min(15, driveDomainMax);
+  const bestValueYNorm = mapDriveMins(bestValueDriveCutoff);
+  const bestValueTopY = margins.top + (1 - bestValueYNorm) * plotHeight;
+  const bestValueZoneX = margins.left;
+  const bestValueZoneWidth = plotWidth * 0.5;
+  const bestValueZoneHeight = margins.top + plotHeight - bestValueTopY;
+  const pointCoords = hotelMatrixItems.map((item) => {
+    const xNorm = mapPrice(Number(item.metrics.priceUsd));
+    const yNorm = mapDriveMins(Number(item.driveMins));
+    return {
+      item,
+      xNorm,
+      yNorm,
+      cx: margins.left + xNorm * plotWidth,
+      cy: margins.top + (1 - yNorm) * plotHeight,
+      priceBand: priceBucketFromNorm(xNorm),
+      driveBand: metricBandFromNorm(yNorm),
+    };
+  });
+
+  hotelMatrixSvg.appendChild(
+    createSvgNode("rect", {
+      class: "hotel-map-best-value-zone",
+      x: bestValueZoneX,
+      y: bestValueTopY,
+      width: bestValueZoneWidth,
+      height: bestValueZoneHeight,
+      rx: 10,
+      ry: 10,
+    }),
+  );
 
   hotelMatrixSvg.appendChild(
     createSvgNode("line", {
@@ -1321,10 +2078,8 @@ function initHotelMatrix() {
     hotelMatrixSvg.appendChild(node);
   });
 
-  const yTickMin = Math.floor(minRating);
-  const yTickMax = Math.ceil(maxRating);
-  for (let rating = yTickMin; rating <= yTickMax; rating += 1) {
-    const y = margins.top + (1 - mapRating(rating)) * plotHeight;
+  driveTicks.forEach((minutes) => {
+    const y = margins.top + (1 - mapDriveMins(minutes)) * plotHeight;
     hotelMatrixSvg.appendChild(
       createSvgNode("line", {
         class: "hotel-map-tick-line",
@@ -1342,9 +2097,9 @@ function initHotelMatrix() {
       "text-anchor": "end",
       "dominant-baseline": "middle",
     });
-    node.textContent = String(rating);
+    node.textContent = String(minutes);
     hotelMatrixSvg.appendChild(node);
-  }
+  });
 
   const xAxisLabel = createSvgNode("text", {
     class: "hotel-map-axis-label",
@@ -1355,115 +2110,144 @@ function initHotelMatrix() {
   xAxisLabel.textContent = "Price ($ to $$$$)";
   hotelMatrixSvg.appendChild(xAxisLabel);
 
+  const yAxisLabelX = isCompact ? 18 : 22;
   const yAxisLabel = createSvgNode("text", {
     class: "hotel-map-axis-label",
-    x: 22,
+    x: yAxisLabelX,
     y: margins.top + plotHeight / 2,
     "text-anchor": "middle",
-    transform: `rotate(-90 22 ${margins.top + plotHeight / 2})`,
+    transform: `rotate(-90 ${yAxisLabelX} ${margins.top + plotHeight / 2})`,
   });
-  yAxisLabel.textContent = "Comfort (guest rating)";
+  yAxisLabel.textContent = "Drive time to wedding venue (mins)";
   hotelMatrixSvg.appendChild(yAxisLabel);
 
-  const layer = createSvgNode("g", { class: "hotel-map-points" });
+  const chipWidth = Math.min(isCompact ? 186 : 230, Math.max(146, bestValueZoneWidth - 16));
+  const chipHeight = isCompact ? 42 : 50;
+  const chipPadding = 8;
+  const chipCandidates = [
+    { x: bestValueZoneX + chipPadding, y: bestValueTopY + chipPadding },
+    { x: bestValueZoneX + bestValueZoneWidth - chipWidth - chipPadding, y: bestValueTopY + chipPadding },
+    {
+      x: bestValueZoneX + chipPadding,
+      y: bestValueTopY + bestValueZoneHeight - chipHeight - chipPadding,
+    },
+    {
+      x: bestValueZoneX + bestValueZoneWidth - chipWidth - chipPadding,
+      y: bestValueTopY + bestValueZoneHeight - chipHeight - chipPadding,
+    },
+  ]
+    .map((candidate) => ({
+      x: clamp(candidate.x, bestValueZoneX + 4, bestValueZoneX + bestValueZoneWidth - chipWidth - 4),
+      y: clamp(candidate.y, bestValueTopY + 4, bestValueTopY + bestValueZoneHeight - chipHeight - 4),
+    }))
+    .filter(
+      (candidate, index, array) =>
+        array.findIndex((entry) => Math.abs(entry.x - candidate.x) < 0.5 && Math.abs(entry.y - candidate.y) < 0.5) === index,
+    );
+
+  const pointHitsRect = (point, rect, radius) => {
+    const nearestX = clamp(point.cx, rect.x, rect.x + rect.width);
+    const nearestY = clamp(point.cy, rect.y, rect.y + rect.height);
+    const dx = point.cx - nearestX;
+    const dy = point.cy - nearestY;
+    return dx * dx + dy * dy < radius * radius;
+  };
+
+  const collisionRadius = ringRadius + (isCompact ? 5 : 6);
+  let chipX = bestValueZoneX + chipPadding;
+  let chipY = Math.min(bestValueTopY + chipPadding, margins.top + plotHeight - chipHeight - chipPadding);
+  let lowestCollisions = Number.POSITIVE_INFINITY;
+  chipCandidates.forEach((candidate) => {
+    const rect = { x: candidate.x, y: candidate.y, width: chipWidth, height: chipHeight };
+    const collisions = pointCoords.reduce(
+      (count, point) => count + (pointHitsRect(point, rect, collisionRadius) ? 1 : 0),
+      0,
+    );
+    if (collisions < lowestCollisions) {
+      lowestCollisions = collisions;
+      chipX = candidate.x;
+      chipY = candidate.y;
+    }
+  });
+  hotelMatrixSvg.appendChild(
+    createSvgNode("rect", {
+      class: "hotel-map-best-value-chip",
+      x: chipX,
+      y: chipY,
+      width: chipWidth,
+      height: chipHeight,
+      rx: 9,
+      ry: 9,
+    }),
+  );
+
+  const bestValueLabel = createSvgNode("text", {
+    class: "hotel-map-best-value-label",
+    x: chipX + 10,
+    y: chipY + (isCompact ? 17 : 20),
+    "text-anchor": "start",
+  });
+  bestValueLabel.textContent = "Best value";
+  hotelMatrixSvg.appendChild(bestValueLabel);
+
+  const bestValueSubtext = createSvgNode("text", {
+    class: "hotel-map-best-value-subtext",
+    x: chipX + 10,
+    y: chipY + (isCompact ? 32 : 38),
+    "text-anchor": "start",
+  });
+  bestValueSubtext.textContent = "Closest + most affordable sweet spot.";
+  hotelMatrixSvg.appendChild(bestValueSubtext);
+
+  const layer = createSvgNode("g", { class: "hotel-map-points", "clip-path": "url(#hotelMatrixPlotClip)" });
   hotelMatrixSvg.appendChild(layer);
 
-  hotelMatrixItems.forEach((item) => {
-    const xNorm = mapPrice(Number(item.metrics.priceUsd));
-    const yNorm = mapRating(Number(item.metrics.comfortRating));
-    const cx = margins.left + xNorm * plotWidth;
-    const cy = margins.top + (1 - yNorm) * plotHeight;
-    const priceBand = metricBandFromNorm(xNorm);
-    const comfortBand = metricBandFromNorm(yNorm);
+  pointCoords.forEach(({ item, cx, cy, priceBand, driveBand }) => {
 
-    const group = createSvgNode("g", { class: "hotel-map-point", "data-id": item.id });
-    const horizontal = createSvgNode("line", {
-      class: "hotel-map-crosshair",
-      x1: margins.left,
-      x2: margins.left + plotWidth,
-      y1: cy.toFixed(2),
-      y2: cy.toFixed(2),
+    const group = createSvgNode("g", {
+      class: "hotel-map-point",
+      "data-id": item.id,
+      tabindex: "0",
+      role: "button",
+      "aria-label": `Hotel: ${item.name}. Price ${priceBand}. Drive time ${Number(item.driveMins)} minutes (${driveBand}).`,
     });
-    const vertical = createSvgNode("line", {
-      class: "hotel-map-crosshair",
-      x1: cx.toFixed(2),
-      x2: cx.toFixed(2),
-      y1: margins.top,
-      y2: margins.top + plotHeight,
+    const dotAnchor = createSvgNode("g", {
+      class: "hotel-map-dot-anchor",
+      transform: `translate(${cx.toFixed(2)} ${cy.toFixed(2)})`,
     });
     const ring = createSvgNode("circle", {
       class: "hotel-map-dot-ring",
-      cx: cx.toFixed(2),
-      cy: cy.toFixed(2),
-      r: "12",
+      cx: "0",
+      cy: "0",
+      r: ringRadius.toFixed(2),
     });
     const dot = createSvgNode("circle", {
       class: "hotel-map-dot",
-      cx: cx.toFixed(2),
-      cy: cy.toFixed(2),
-      r: "7.4",
-      tabindex: "0",
-      role: "button",
-      "aria-label": `Hotel: ${item.name}. Price ${priceBand}. Comfort ${comfortBand}.`,
+      cx: "0",
+      cy: "0",
+      r: dotRadius.toFixed(2),
     });
 
-    dot.addEventListener("pointerenter", () => {
-      if (isHotelMatrixMobile() || hotelMatrixPinnedId) return;
-      if (hotelHoverSwapTimer) window.clearTimeout(hotelHoverSwapTimer);
-      hotelHoverSwapTimer = window.setTimeout(() => {
-        hotelMatrixHoveredId = item.id;
-        applyHotelMatrixSelection();
-        showHotelDotTooltip(item, cx, cy);
-      }, 90);
-    });
-
-    dot.addEventListener("pointerleave", () => {
-      if (isHotelMatrixMobile() || hotelMatrixPinnedId) return;
-      if (hotelHoverSwapTimer) {
-        window.clearTimeout(hotelHoverSwapTimer);
-        hotelHoverSwapTimer = null;
-      }
-      hotelMatrixHoveredId = "";
-      applyHotelMatrixSelection();
-      hideHotelDotTooltip();
-    });
-
-    dot.addEventListener("focus", () => {
-      if (hotelMatrixPinnedId && hotelMatrixPinnedId !== item.id) return;
-      hotelMatrixHoveredId = item.id;
-      applyHotelMatrixSelection();
-      showHotelDotTooltip(item, cx, cy);
-    });
-
-    dot.addEventListener("blur", () => {
-      if (!hotelMatrixPinnedId) {
-        hotelMatrixHoveredId = "";
-        applyHotelMatrixSelection();
-      }
-      hideHotelDotTooltip();
-    });
-
-    dot.addEventListener("click", (event) => {
+    const handleSelect = (event) => {
       event.preventDefault();
-      if (hotelMatrixPinnedId === item.id) {
-        clearHotelMatrixSelection();
-        return;
-      }
-
-      hotelMatrixPinnedId = item.id;
-      hotelMatrixHoveredId = item.id;
+      event.stopPropagation();
+      const isSameSelection = hotelMatrixPinnedId === item.id;
+      hotelMatrixPinnedId = isSameSelection ? "" : item.id;
       applyHotelMatrixSelection();
-      hideHotelDotTooltip();
 
       if (isHotelMatrixMobile()) {
-        openHotelMatrixSheet(item);
+        if (hotelMatrixPinnedId) openHotelMatrixSheet(item);
+        else closeHotelMatrixSheet();
+      } else {
+        closeHotelMatrixSheet();
       }
-    });
+    };
 
-    dot.addEventListener("keydown", (event) => {
+    group.addEventListener("click", handleSelect);
+    group.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-        dot.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        handleSelect(event);
         return;
       }
       if (event.key === "Escape") {
@@ -1471,20 +2255,71 @@ function initHotelMatrix() {
         clearHotelMatrixSelection();
       }
     });
+    group.addEventListener("focus", () => {
+      group.classList.add("is-focused");
+    });
+    group.addEventListener("blur", () => {
+      group.classList.remove("is-focused");
+    });
 
-    group.appendChild(horizontal);
-    group.appendChild(vertical);
-    group.appendChild(ring);
-    group.appendChild(dot);
+    dotAnchor.appendChild(ring);
+    dotAnchor.appendChild(dot);
+    group.appendChild(dotAnchor);
     layer.appendChild(group);
-    hotelMatrixMetaById.set(item.id, { group, item, cx, cy });
+    hotelMatrixMetaById.set(item.id, { group, item, cx, cy, priceBand });
   });
+
+  applyHotelMatrixSelection();
+}
+
+function queueHotelMatrixRender(force = false) {
+  if (hotelMatrixResizeRaf) return;
+  hotelMatrixResizeRaf = window.requestAnimationFrame(() => {
+    hotelMatrixResizeRaf = null;
+    const next = getHotelMatrixDimensions();
+    const changed =
+      force ||
+      Math.abs(next.width - hotelMatrixWidth) > 1 ||
+      Math.abs(next.height - hotelMatrixHeight) > 1;
+    if (!changed) return;
+    hotelMatrixWidth = next.width;
+    hotelMatrixHeight = next.height;
+    renderHotelMatrix();
+  });
+}
+
+function initHotelMatrix() {
+  if (!hotelMatrixShell || !hotelMatrixSvg || !hotelMatrixDetails || !hotelMatrixChartCol) return;
+  if (hotelMatrixShell.dataset.initialized === "true") return;
+  initHotelMethodology();
+
+  hotelMatrixItems = HOTELS_DATA.slice(0, 6);
+  if (!hotelMatrixItems.length) return;
+
+  if (hotelMatrixRatingClaim) {
+    hotelMatrixRatingClaim.textContent = buildHotelRatingClaim(hotelMatrixItems);
+  }
+
+  if (hotelMatrixTooltip) hideHotelDotTooltip();
+  if (hotelMapCard) hotelMapCard.classList.remove("has-selection");
+  hotelMatrixDetails.classList.remove("is-visible");
+  hotelMatrixDetails.replaceChildren();
+  hotelMatrixDetails.dataset.hotelId = "";
+
+  if (hotelMatrixSvg.dataset.bound !== "true") {
+    hotelMatrixSvg.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest(".hotel-map-point")) return;
+      if (hotelMatrixPinnedId) clearHotelMatrixSelection();
+    });
+    hotelMatrixSvg.dataset.bound = "true";
+  }
 
   hotelMatrixSheetCloseControls.forEach((control) => {
     control.addEventListener("click", () => {
       closeHotelMatrixSheet();
       hotelMatrixPinnedId = "";
-      hotelMatrixHoveredId = "";
       applyHotelMatrixSelection();
     });
   });
@@ -1492,9 +2327,8 @@ function initHotelMatrix() {
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
     if (hotelSheetOpen) closeHotelMatrixSheet();
-    if (hotelMatrixPinnedId || hotelMatrixHoveredId) {
+    if (hotelMatrixPinnedId) {
       hotelMatrixPinnedId = "";
-      hotelMatrixHoveredId = "";
       applyHotelMatrixSelection();
     }
     hideHotelDotTooltip();
@@ -1516,17 +2350,17 @@ function initHotelMatrix() {
     if (!isHotelMatrixMobile() && hotelSheetOpen) {
       closeHotelMatrixSheet();
     }
-    if (isHotelMatrixMobile()) {
-      hideHotelDotTooltip();
-      return;
-    }
-    if (hotelMatrixHoveredId && !hotelMatrixPinnedId) {
-      const hoveredMeta = hotelMatrixMetaById.get(hotelMatrixHoveredId);
-      if (hoveredMeta) showHotelDotTooltip(hoveredMeta.item, hoveredMeta.cx, hoveredMeta.cy);
-    }
+    queueHotelMatrixRender();
   });
 
-  swapHotelDetails(null);
+  if ("ResizeObserver" in window) {
+    hotelMatrixResizeObserver = new ResizeObserver(() => {
+      queueHotelMatrixRender();
+    });
+    hotelMatrixResizeObserver.observe(hotelMatrixChartCol);
+  }
+
+  queueHotelMatrixRender(true);
   hotelMatrixShell.dataset.initialized = "true";
 }
 
@@ -1580,7 +2414,6 @@ function applyInviteContext() {
     }
   }
 
-  populatePartySizeOptions(yesCount, inviteState.maxPartySize);
   populatePartySizeOptions(workingCount, inviteState.maxPartySize);
 
   if (fullNameInput && inviteState.greetingName && !fullNameInput.value.trim()) {
@@ -1623,45 +2456,596 @@ function populatePartySizeOptions(selectEl, maxParty) {
   if (current && Number(current) <= max) selectEl.value = current;
 }
 
-function renderAttendeeFields(count) {
-  if (!attendeeNamesWrap) return;
-  attendeeNamesWrap.innerHTML = "";
+function hideGuestLimitError() {
+  if (!guestLimitError) return;
+  guestLimitError.textContent = "";
+  guestLimitError.classList.add("hidden");
+}
 
-  const safeCount = Math.max(0, Math.min(clampPartySize(inviteState.maxPartySize), Number(count) || 0));
-  for (let i = 1; i <= safeCount; i += 1) {
-    const field = document.createElement("div");
-    field.className = "field form-field";
+function showGuestLimitError(message) {
+  if (!guestLimitError) return;
+  guestLimitError.textContent = message;
+  guestLimitError.classList.remove("hidden");
+}
 
-    const label = document.createElement("label");
-    label.setAttribute("for", `attendeeName${i}`);
-    label.textContent = `Attendee ${i} name`;
+function pickRandomFunFactExamples(limit = FUN_FACT_CHIP_COUNT) {
+  const pool = [...FUN_FACT_EXAMPLES];
+  for (let i = pool.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, Math.min(limit, pool.length));
+}
 
-    const input = document.createElement("input");
-    input.id = `attendeeName${i}`;
-    input.type = "text";
-    input.required = attendanceChoice && attendanceChoice.value === "yes";
-    input.dataset.attendeeName = String(i);
+function buildFunFactExamplesPopover(input) {
+  const wrap = document.createElement("div");
+  wrap.className = "fun-fact-ideas";
 
-    if (i === 1) {
-      const preferred = (fullNameInput && fullNameInput.value.trim()) || inviteState.greetingName;
-      if (preferred) input.value = preferred;
+  const controls = document.createElement("div");
+  controls.className = "fun-fact-ideas-controls";
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "fun-fact-ideas-toggle";
+  toggle.textContent = "See ideas";
+  toggle.setAttribute("aria-expanded", "false");
+
+  const shuffle = document.createElement("button");
+  shuffle.type = "button";
+  shuffle.className = "fun-fact-ideas-shuffle hidden";
+  shuffle.textContent = "Shuffle ideas";
+
+  const chipsWrap = document.createElement("div");
+  chipsWrap.className = "fun-fact-ideas-chips hidden";
+
+  const usedExamples = new Set();
+  let displayedExamples = pickRandomFunFactExamples();
+
+  function openIdeas() {
+    chipsWrap.classList.remove("hidden");
+    shuffle.classList.remove("hidden");
+    toggle.setAttribute("aria-expanded", "true");
+    toggle.textContent = "Hide ideas";
+  }
+
+  function closeIdeas() {
+    chipsWrap.classList.add("hidden");
+    shuffle.classList.add("hidden");
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.textContent = "See ideas";
+  }
+
+  function insertExampleText(example) {
+    const existing = input.value.trim();
+    input.value = existing ? `${existing} / ${example}` : example;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.focus();
+  }
+
+  function renderChips() {
+    chipsWrap.innerHTML = "";
+    displayedExamples.forEach((example) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "fun-fact-chip";
+      chip.textContent = example;
+      if (usedExamples.has(example)) chip.classList.add("is-used");
+      chip.addEventListener("click", () => {
+        insertExampleText(example);
+        usedExamples.add(example);
+        chip.classList.add("is-used");
+      });
+      chipsWrap.appendChild(chip);
+    });
+  }
+
+  toggle.addEventListener("click", () => {
+    const isOpen = !chipsWrap.classList.contains("hidden");
+    if (isOpen) {
+      closeIdeas();
+      return;
     }
+    openIdeas();
+    renderChips();
+  });
 
-    field.appendChild(label);
-    field.appendChild(input);
-    attendeeNamesWrap.appendChild(field);
+  shuffle.addEventListener("click", () => {
+    displayedExamples = pickRandomFunFactExamples();
+    renderChips();
+  });
+
+  input.addEventListener("focus", () => {
+    if (!chipsWrap.classList.contains("hidden")) return;
+    openIdeas();
+    renderChips();
+  });
+
+  controls.appendChild(toggle);
+  controls.appendChild(shuffle);
+  wrap.appendChild(controls);
+  wrap.appendChild(chipsWrap);
+  return wrap;
+}
+
+function getGuestCardTitle(index) {
+  if (index === 0) return "You";
+  return `+${index}`;
+}
+
+function getGuestNameLabel(index) {
+  return `+${index} name`;
+}
+
+function buildPrimaryGuestCard(name = "", funFact = "") {
+  const card = document.createElement("article");
+  card.className = "guest-card";
+  card.dataset.guestIndex = "0";
+
+  const header = document.createElement("div");
+  header.className = "guest-card-header";
+  const title = document.createElement("h4");
+  title.textContent = "You";
+  header.appendChild(title);
+
+  const nameInput = document.createElement("input");
+  nameInput.id = "guestName1";
+  nameInput.type = "hidden";
+  nameInput.value = name;
+  nameInput.dataset.guestName = "true";
+  nameInput.dataset.primaryGuest = "true";
+  nameInput.dataset.autoSync = "true";
+
+  const factField = document.createElement("div");
+  factField.className = "field form-field";
+  const factLabel = document.createElement("label");
+  factLabel.setAttribute("for", "guestFunFact1");
+  factLabel.textContent = "Fun facts (we will print this on your name card to help break the ice)";
+  const factInput = document.createElement("textarea");
+  factInput.id = "guestFunFact1";
+  factInput.rows = 2;
+  factInput.placeholder = "Example: I will travel for noodles.";
+  factInput.value = funFact;
+  factInput.dataset.guestFunFact = "true";
+  const helper = document.createElement("p");
+  helper.className = "field-helper";
+  helper.textContent = "Short + specific is best.";
+  factField.appendChild(factLabel);
+  factField.appendChild(factInput);
+  factField.appendChild(helper);
+  factField.appendChild(buildFunFactExamplesPopover(factInput));
+
+  card.appendChild(header);
+  card.appendChild(nameInput);
+  card.appendChild(factField);
+  return card;
+}
+
+function buildGuestCard(index, name = "", funFact = "") {
+  const card = document.createElement("article");
+  card.className = "guest-card";
+  card.dataset.guestIndex = String(index);
+
+  const header = document.createElement("div");
+  header.className = "guest-card-header";
+
+  const title = document.createElement("h4");
+  title.textContent = getGuestCardTitle(index);
+  header.appendChild(title);
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "guest-remove";
+  remove.textContent = "Remove";
+  remove.addEventListener("click", () => {
+    card.remove();
+    resequenceGuestCards();
+    hideGuestLimitError();
+    updateAddGuestButtonState();
+  });
+  header.appendChild(remove);
+
+  const nameInput = document.createElement("input");
+  nameInput.id = `guestName${index + 1}`;
+  nameInput.required = true;
+  nameInput.value = name;
+  nameInput.dataset.guestName = "true";
+  nameInput.type = "text";
+  const nameField = document.createElement("div");
+  nameField.className = "field form-field";
+  const nameLabel = document.createElement("label");
+  nameLabel.setAttribute("for", `guestName${index + 1}`);
+  nameLabel.textContent = getGuestNameLabel(index);
+  nameField.appendChild(nameLabel);
+  const error = document.createElement("p");
+  error.className = "field-error hidden";
+  error.textContent = "Please enter a name.";
+  error.dataset.guestNameError = "true";
+  nameField.appendChild(nameInput);
+  nameField.appendChild(error);
+  card.appendChild(nameField);
+
+  const factField = document.createElement("div");
+  factField.className = "field form-field";
+  const factLabel = document.createElement("label");
+  factLabel.setAttribute("for", `guestFunFact${index + 1}`);
+  factLabel.textContent = "Fun facts (we will print this on your name card to help break the ice)";
+  const factInput = document.createElement("textarea");
+  factInput.id = `guestFunFact${index + 1}`;
+  factInput.rows = 2;
+  factInput.placeholder = "Example: I will travel for noodles.";
+  factInput.value = funFact;
+  factInput.dataset.guestFunFact = "true";
+  const helper = document.createElement("p");
+  helper.className = "field-helper";
+  helper.textContent = "Short + specific is best.";
+  factField.appendChild(factLabel);
+  factField.appendChild(factInput);
+  factField.appendChild(helper);
+  factField.appendChild(buildFunFactExamplesPopover(factInput));
+
+  card.appendChild(header);
+  card.appendChild(factField);
+  return card;
+}
+
+function resequenceGuestCards() {
+  if (!guestCardsWrap) return;
+  const cards = Array.from(guestCardsWrap.querySelectorAll(".guest-card"));
+  cards.forEach((card, index) => {
+    const guestIndex = index + 1;
+    card.dataset.guestIndex = String(guestIndex);
+    const title = card.querySelector(".guest-card-header h4");
+    if (title) title.textContent = getGuestCardTitle(guestIndex);
+    const nameInput = card.querySelector("input[data-guest-name]");
+    const factInput = card.querySelector("textarea[data-guest-fun-fact]");
+    if (nameInput) nameInput.id = `guestName${guestIndex + 1}`;
+    if (factInput) factInput.id = `guestFunFact${guestIndex + 1}`;
+    const nameLabel = card.querySelector("label[for^='guestName']");
+    const factLabel = card.querySelector("label[for^='guestFunFact']");
+    if (nameLabel) {
+      nameLabel.setAttribute("for", `guestName${guestIndex + 1}`);
+      nameLabel.textContent = getGuestNameLabel(guestIndex);
+    }
+    if (factLabel) factLabel.setAttribute("for", `guestFunFact${guestIndex + 1}`);
+  });
+}
+
+function ensurePrimaryGuestCard() {
+  if (!youGuestCardWrap) return;
+  const existing = youGuestCardWrap.querySelector(".guest-card");
+  if (existing) return;
+  const preferredName = (fullNameInput && fullNameInput.value.trim()) || inviteState.greetingName;
+  youGuestCardWrap.appendChild(buildPrimaryGuestCard(preferredName, ""));
+  syncPrimaryGuestName(true);
+}
+
+function syncPrimaryGuestName(force = false) {
+  if (!youGuestCardWrap || !fullNameInput) return;
+  const primaryGuestInput =
+    youGuestCardWrap.querySelector("input[data-primary-guest='true']") || youGuestCardWrap.querySelector("input[data-guest-name]");
+  if (!(primaryGuestInput instanceof HTMLInputElement)) return;
+
+  const fullName = fullNameInput.value.trim();
+  const canSync = force || primaryGuestInput.dataset.autoSync === "true" || !primaryGuestInput.value.trim();
+  if (!canSync) return;
+
+  primaryGuestInput.value = fullName;
+  primaryGuestInput.dataset.autoSync = "true";
+}
+
+function collectGuests() {
+  const cards = [];
+  if (youGuestCardWrap) {
+    const primaryCard = youGuestCardWrap.querySelector(".guest-card");
+    if (primaryCard) cards.push(primaryCard);
+  }
+  if (guestCardsWrap) cards.push(...Array.from(guestCardsWrap.querySelectorAll(".guest-card")));
+  const fullName = (fullNameInput && fullNameInput.value.trim()) || inviteState.greetingName;
+  return cards.map((card) => {
+    const nameInput = card.querySelector("input[data-guest-name]");
+    const factInput = card.querySelector("textarea[data-guest-fun-fact]");
+    const isPrimary = nameInput instanceof HTMLInputElement && nameInput.dataset.primaryGuest === "true";
+    return {
+      name: isPrimary ? fullName : nameInput instanceof HTMLInputElement ? nameInput.value.trim() : "",
+      funFact: factInput ? factInput.value.trim() : "",
+      nameInput,
+      errorNode: card.querySelector("[data-guest-name-error]"),
+      isPrimary,
+    };
+  });
+}
+
+function validateGuestCards() {
+  const guests = collectGuests();
+  const fullName = (fullNameInput && fullNameInput.value.trim()) || "";
+  let valid = true;
+  guests.forEach((guest) => {
+    const hasName = guest.isPrimary ? Boolean(fullName) : Boolean(guest.name);
+    if (guest.errorNode) guest.errorNode.classList.toggle("hidden", hasName);
+    if (guest.nameInput instanceof HTMLInputElement) {
+      guest.nameInput.setCustomValidity(hasName ? "" : "Please enter a name.");
+    }
+    if (!hasName) valid = false;
+  });
+  return valid;
+}
+
+function getPlusOneCount() {
+  if (!guestCardsWrap) return 0;
+  return guestCardsWrap.querySelectorAll(".guest-card").length;
+}
+
+function updateAddGuestButtonState() {
+  if (!addGuestButton) return;
+  const plusOneCount = getPlusOneCount();
+  const atLimit = plusOneCount >= MAX_PLUS_ONES;
+  addGuestButton.disabled = atLimit;
+  addGuestButton.setAttribute("aria-disabled", String(atLimit));
+}
+
+function getUploadFileExtension(fileName) {
+  const value = String(fileName || "");
+  const dotIndex = value.lastIndexOf(".");
+  if (dotIndex < 0) return "";
+  return value.slice(dotIndex + 1).toLowerCase();
+}
+
+function isUploadFileTypeAllowed(file) {
+  const extension = getUploadFileExtension(file && file.name ? file.name : "");
+  const mime = String(file && file.type ? file.type : "").toLowerCase();
+  const hasAllowedExtension = extension ? UPLOAD_ALLOWED_EXTENSIONS.has(extension) : false;
+  const hasAllowedMime = mime ? UPLOAD_ALLOWED_MIME_TYPES.has(mime) : false;
+  return hasAllowedExtension || hasAllowedMime;
+}
+
+function validateUploadFile(file) {
+  if (!file) return "";
+  if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+    return `${file.name} is larger than 10MB.`;
+  }
+  if (!isUploadFileTypeAllowed(file)) {
+    return `${file.name} must be JPG, PNG, HEIC, MP4, MOV, or WEBM.`;
+  }
+  return "";
+}
+
+function getUploadSlotRef(index) {
+  return photoUploadSlotRefs[index] || null;
+}
+
+function clearUploadSlotError(index) {
+  const ref = getUploadSlotRef(index);
+  if (!ref || !ref.errorNode) return;
+  ref.errorNode.textContent = "";
+  ref.errorNode.classList.add("hidden");
+}
+
+function setUploadSlotError(index, message) {
+  const ref = getUploadSlotRef(index);
+  if (!ref || !ref.errorNode) return;
+  ref.errorNode.textContent = message;
+  ref.errorNode.classList.remove("hidden");
+}
+
+function clearUploadSlotPreview(index) {
+  const ref = getUploadSlotRef(index);
+  if (!ref) return;
+
+  const previewUrl = selectedUploadPreviewUrls[index];
+  if (previewUrl) {
+    URL.revokeObjectURL(previewUrl);
+    selectedUploadPreviewUrls[index] = "";
+  }
+
+  if (ref.preview) {
+    ref.preview.src = "";
+    ref.preview.classList.add("hidden");
+  }
+
+  if (ref.previewWrap) {
+    ref.previewWrap.classList.add("hidden");
+  }
+
+  if (ref.previewText) {
+    ref.previewText.textContent = "";
+    ref.previewText.classList.add("hidden");
   }
 }
 
-function collectAttendeeNames() {
-  if (!attendeeNamesWrap) return [];
-  return Array.from(attendeeNamesWrap.querySelectorAll("input[data-attendee-name]"))
-    .map((input) => input.value.trim())
-    .filter(Boolean);
+function updateUploadSlotUi(index) {
+  const ref = getUploadSlotRef(index);
+  if (!ref) return;
+
+  const file = selectedUploadFiles[index];
+  const hasFile = Boolean(file);
+  ref.slotNode.classList.toggle("has-file", hasFile);
+
+  if (ref.meta) {
+    ref.meta.textContent = hasFile ? file.name : UPLOAD_SLOT_DEFAULT_META;
+  }
+
+  if (ref.actions) {
+    ref.actions.classList.toggle("hidden", !hasFile);
+  }
+
+  clearUploadSlotPreview(index);
+
+  if (!hasFile || !ref.preview || !ref.previewWrap) return;
+
+  const extension = getUploadFileExtension(file.name);
+  const isImagePreview = file.type.startsWith("image/") && extension !== "heic" && extension !== "heif";
+  if (isImagePreview) {
+    const previewUrl = URL.createObjectURL(file);
+    selectedUploadPreviewUrls[index] = previewUrl;
+    ref.preview.src = previewUrl;
+    ref.preview.classList.remove("hidden");
+    ref.previewWrap.classList.remove("hidden");
+    return;
+  }
+
+  const isVideo = file.type.startsWith("video/") || ["mp4", "mov", "webm"].includes(extension);
+  if (isVideo && ref.previewText && ref.previewWrap) {
+    ref.previewText.textContent = `Video selected: ${file.name}`;
+    ref.previewText.classList.remove("hidden");
+    ref.previewWrap.classList.remove("hidden");
+  }
+}
+
+function setUploadSlotFile(index, file) {
+  const ref = getUploadSlotRef(index);
+  if (!ref || !ref.input) return false;
+
+  clearUploadSlotError(index);
+
+  if (!file) {
+    selectedUploadFiles[index] = null;
+    updateUploadSlotUi(index);
+    return true;
+  }
+
+  const errorMessage = validateUploadFile(file);
+  if (errorMessage) {
+    selectedUploadFiles[index] = null;
+    ref.input.value = "";
+    setUploadSlotError(index, errorMessage);
+    updateUploadSlotUi(index);
+    return false;
+  }
+
+  selectedUploadFiles[index] = file;
+  updateUploadSlotUi(index);
+  return true;
+}
+
+function clearUploadSlots() {
+  selectedUploadFiles = Array.from({ length: MAX_UPLOAD_FILES }, () => null);
+  selectedUploadPreviewUrls.forEach((previewUrl) => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+  });
+  selectedUploadPreviewUrls = Array.from({ length: MAX_UPLOAD_FILES }, () => "");
+
+  photoUploadSlotRefs.forEach((ref, index) => {
+    if (ref && ref.input) ref.input.value = "";
+    clearUploadSlotError(index);
+    updateUploadSlotUi(index);
+  });
+}
+
+function validateUploadSlots() {
+  let valid = true;
+  photoUploadSlotRefs.forEach((ref, index) => {
+    if (!ref) return;
+    const file = selectedUploadFiles[index];
+    clearUploadSlotError(index);
+    if (!file) return;
+    const errorMessage = validateUploadFile(file);
+    if (!errorMessage) return;
+    valid = false;
+    setUploadSlotError(index, errorMessage);
+  });
+  return valid;
+}
+
+function initUploadSlots() {
+  if (!photoUploadSlotRefs.length) return;
+
+  photoUploadSlotRefs.forEach((ref, index) => {
+    if (!ref || !ref.slotNode || ref.slotNode.dataset.bound === "true") return;
+    const { input, trigger, replaceButton, removeButton } = ref;
+    if (!input || !trigger) return;
+
+    trigger.addEventListener("click", () => {
+      input.click();
+    });
+
+    input.addEventListener("change", () => {
+      const nextFile = input.files && input.files[0] ? input.files[0] : null;
+      setUploadSlotFile(index, nextFile);
+    });
+
+    if (replaceButton) {
+      replaceButton.addEventListener("click", () => {
+        input.click();
+      });
+    }
+
+    if (removeButton) {
+      removeButton.addEventListener("click", () => {
+        input.value = "";
+        setUploadSlotFile(index, null);
+      });
+    }
+
+    ref.slotNode.dataset.bound = "true";
+  });
+
+  photoUploadSlotRefs.forEach((_ref, index) => {
+    updateUploadSlotUi(index);
+  });
+}
+
+function clearRsvpChoice() {
+  if (!attendanceChoice || !rsvpFields || !submitButton || !yesFields || !workingFields || !noFields || !youFunFactsFields) return;
+
+  if (rsvpForm) rsvpForm.reset();
+
+  attendanceChoice.value = "";
+  rsvpFields.classList.add("hidden");
+
+  choiceCards.forEach((card) => {
+    card.classList.remove("selected");
+    card.setAttribute("aria-pressed", "false");
+  });
+
+  yesFields.classList.add("hidden");
+  youFunFactsFields.classList.add("hidden");
+  workingFields.classList.add("hidden");
+  noFields.classList.add("hidden");
+
+  if (guestCardsWrap) {
+    guestCardsWrap.innerHTML = "";
+  }
+  if (youGuestCardWrap) {
+    youGuestCardWrap.innerHTML = "";
+  }
+
+  if (workingCount) {
+    workingCount.required = false;
+    workingCount.setCustomValidity("");
+  }
+
+  if (workingConfirm) {
+    workingConfirm.required = false;
+    workingConfirm.setCustomValidity("");
+  }
+
+  clearUploadSlots();
+  hideGuestLimitError();
+  updateAddGuestButtonState();
+
+  submitButton.textContent = "Send reply";
+
+  if (fullNameInput && inviteState.greetingName) {
+    fullNameInput.value = inviteState.greetingName;
+  }
+
+  if (rsvpConfirmation) {
+    rsvpConfirmation.classList.add("hidden");
+    rsvpConfirmation.textContent = "";
+  }
 }
 
 function setChoice(choice) {
-  if (!attendanceChoice || !rsvpFields || !submitButton || !yesFields || !workingFields || !noFields) return;
+  if (!attendanceChoice || !rsvpFields || !submitButton || !yesFields || !workingFields || !noFields || !youFunFactsFields) return;
+  if (!choice) {
+    clearRsvpChoice();
+    return;
+  }
+
+  if (attendanceChoice.value === choice) {
+    clearRsvpChoice();
+    return;
+  }
 
   attendanceChoice.value = choice;
   rsvpFields.classList.remove("hidden");
@@ -1673,27 +3057,42 @@ function setChoice(choice) {
   });
 
   yesFields.classList.toggle("hidden", choice !== "yes");
+  youFunFactsFields.classList.toggle("hidden", choice !== "yes");
   workingFields.classList.toggle("hidden", choice !== "working");
   noFields.classList.toggle("hidden", choice !== "no");
+  if (youGuestCardWrap) {
+    youGuestCardWrap.querySelectorAll("input[data-guest-name]").forEach((input) => {
+      input.required = false;
+      if (choice !== "yes") input.setCustomValidity("");
+    });
+  }
+  if (guestCardsWrap) {
+    guestCardsWrap.querySelectorAll("input[data-guest-name]").forEach((input) => {
+      input.required = choice === "yes";
+      if (choice !== "yes") input.setCustomValidity("");
+    });
+  }
 
-  if (yesCount) yesCount.required = choice === "yes";
   if (workingCount) workingCount.required = choice === "working";
   if (workingConfirm) workingConfirm.required = choice === "working";
 
   if (choice === "yes") {
-    if (yesCount && !yesCount.value) yesCount.value = "1";
-    renderAttendeeFields(Number((yesCount && yesCount.value) || 1));
+    ensurePrimaryGuestCard();
+    syncPrimaryGuestName(true);
+    updateAddGuestButtonState();
     submitButton.textContent = "Confirm attendance";
   }
 
   if (choice === "working") {
+    updateAddGuestButtonState();
     submitButton.textContent = "Add me to the list";
-    if (attendeeNamesWrap) attendeeNamesWrap.innerHTML = "";
+    hideGuestLimitError();
   }
 
   if (choice === "no") {
+    updateAddGuestButtonState();
     submitButton.textContent = "Send reply";
-    if (attendeeNamesWrap) attendeeNamesWrap.innerHTML = "";
+    hideGuestLimitError();
   }
 }
 
@@ -1711,33 +3110,41 @@ function initRsvpCards() {
     });
   });
 
-  if (yesCount) {
-    yesCount.addEventListener("change", () => {
-      if (attendanceChoice && attendanceChoice.value === "yes") {
-        renderAttendeeFields(Number(yesCount.value));
+  if (addGuestButton) {
+    addGuestButton.addEventListener("click", () => {
+      if (!guestCardsWrap) return;
+      const cards = Array.from(guestCardsWrap.querySelectorAll(".guest-card"));
+      if (cards.length >= MAX_PLUS_ONES) {
+        showGuestLimitError("Max 3 +1 guests.");
+        updateAddGuestButtonState();
+        return;
       }
+      guestCardsWrap.appendChild(buildGuestCard(cards.length + 1));
+      resequenceGuestCards();
+      hideGuestLimitError();
+      updateAddGuestButtonState();
     });
   }
+
+  updateAddGuestButtonState();
 
   if (fullNameInput) {
     fullNameInput.addEventListener("input", () => {
-      const first = attendeeNamesWrap && attendeeNamesWrap.querySelector('input[data-attendee-name="1"]');
-      if (first && !first.value.trim()) first.value = fullNameInput.value.trim();
+      syncPrimaryGuestName();
     });
   }
+
+  initUploadSlots();
 }
 
 function buildPayload() {
-  const attendeeNamesRaw = collectAttendeeNames();
   const choice = attendanceChoice ? attendanceChoice.value : "";
   const status = choice === "yes" ? "yes" : choice === "working" ? "maybe" : "no";
   const fullName = (fullNameInput && fullNameInput.value.trim()) || inviteState.greetingName;
 
-  const yesPartySize = choice === "yes" ? Number((yesCount && yesCount.value) || attendeeNamesRaw.length || 0) : 0;
+  const guests = choice === "yes" ? collectGuests().map((guest) => ({ name: guest.name, funFact: guest.funFact })) : [];
+  const yesPartySize = choice === "yes" ? guests.length : 0;
   const potentialPartySize = choice === "working" ? Number((workingCount && workingCount.value) || 0) : 0;
-
-  const attendeeNames = [...attendeeNamesRaw].slice(0, 6);
-  while (attendeeNames.length < 6) attendeeNames.push("");
 
   return {
     token: inviteState.token,
@@ -1746,41 +3153,89 @@ function buildPayload() {
     guestName: fullName,
     email: emailInput ? emailInput.value.trim() : "",
     phone: phoneInput ? phoneInput.value.trim() : "",
+    message: messageInput ? messageInput.value.trim() : "",
     partySize: status === "yes" ? yesPartySize : potentialPartySize,
     potentialPartySize,
-    attendeeNames,
+    guests,
     dietary: status === "yes" && dietary ? dietary.value.trim() : "",
     whenWillYouKnow: status === "maybe" && workingConfirm ? workingConfirm.value : "",
     followupChoice: status === "maybe" && workingConfirm ? workingConfirm.value : "",
-    note: status === "no" && noNote ? noNote.value.trim() : "",
+    photoFiles: selectedUploadFiles
+      .map((file, index) => {
+        if (!file) return null;
+        return {
+          slot: index + 1,
+          name: file.name,
+          size: file.size,
+          type: file.type || "",
+        };
+      })
+      .filter(Boolean),
     userAgent: navigator.userAgent || "",
   };
 }
 
-async function submitToSheets(payload) {
-  const res = await fetch(`${SHEETS_WEBAPP_URL}`, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify(payload),
+function buildRsvpFormData(payload) {
+  const formData = new FormData();
+  formData.append("token", payload.token || "");
+  formData.append("status", payload.status || "");
+  formData.append("fullName", payload.fullName || "");
+  formData.append("guestName", payload.guestName || "");
+  formData.append("email", payload.email || "");
+  formData.append("phone", payload.phone || "");
+  formData.append("message", payload.message || "");
+  formData.append("partySize", String(payload.partySize || 0));
+  formData.append("potentialPartySize", String(payload.potentialPartySize || 0));
+  formData.append("guests_json", JSON.stringify(Array.isArray(payload.guests) ? payload.guests : []));
+  formData.append("dietary", payload.dietary || "");
+  formData.append("whenWillYouKnow", payload.whenWillYouKnow || "");
+  formData.append("followupChoice", payload.followupChoice || "");
+  formData.append("userAgent", payload.userAgent || "");
+
+  selectedUploadFiles.forEach((file, index) => {
+    if (!file) return;
+    formData.append(`photo${index + 1}`, file, file.name);
   });
 
-  const text = await res.text();
+  return formData;
+}
+
+async function submitToRsvpApi(payload) {
+  const response = await fetch(withBasePath("/api/rsvp"), {
+    method: "POST",
+    body: buildRsvpFormData(payload),
+  });
+  const text = await response.text();
+  let data;
+
   try {
-    return JSON.parse(text);
-  } catch {
-    return { ok: false, raw: text };
+    data = text ? JSON.parse(text) : {};
+  } catch (_error) {
+    data = null;
   }
+
+  if (!data || typeof data !== "object") {
+    return {
+      ok: false,
+      error: response.ok ? "Unexpected RSVP response from server." : "RSVP request failed.",
+    };
+  }
+
+  if (!response.ok && data.ok !== true) {
+    return {
+      ok: false,
+      error: data.error || "RSVP request failed.",
+    };
+  }
+
+  return data;
 }
 
 async function submitRSVP(payload) {
-  if (!isSheetsConfigured()) {
-    return { ok: false, error: "RSVP submission is not configured yet. Please contact Yi Jie." };
-  }
-
   try {
-    const data = await submitToSheets(payload);
+    const data = await submitToRsvpApi(payload);
     if (!data || data.ok !== true) throw new Error(data && data.error ? String(data.error) : "Sheets submit failed");
-    return { ok: true };
+    return data;
   } catch (error) {
     // Keep a local backup copy, but report failure to the UI.
     try {
@@ -1819,13 +3274,18 @@ function initRsvpForm() {
     if (!rsvpForm.reportValidity()) return;
 
     if (attendanceChoice.value === "yes") {
-      const required = Number((yesCount && yesCount.value) || 0);
-      const names = collectAttendeeNames();
-      if (names.length < required) {
-        rsvpConfirmation.textContent = "Please enter all attendee names for your party.";
+      ensurePrimaryGuestCard();
+      if (!validateGuestCards()) {
+        rsvpConfirmation.textContent = "Please enter all guest names.";
         rsvpConfirmation.classList.remove("hidden");
         return;
       }
+    }
+
+    if (!validateUploadSlots()) {
+      rsvpConfirmation.textContent = "Please fix the photo upload errors before submitting.";
+      rsvpConfirmation.classList.remove("hidden");
+      return;
     }
 
     const payload = buildPayload();
@@ -1837,7 +3297,8 @@ function initRsvpForm() {
     }
 
     rsvpForm.classList.add("hidden");
-    rsvpConfirmation.textContent = confirmationMessage(attendanceChoice.value);
+    const baseMessage = confirmationMessage(attendanceChoice.value);
+    rsvpConfirmation.textContent = result.warning ? `${baseMessage} ${result.warning}` : baseMessage;
     rsvpConfirmation.classList.remove("hidden");
   });
 }
@@ -1975,30 +3436,60 @@ function initFaqAccordionGroups() {
   faqSection.dataset.accordionBound = "true";
 }
 
+function parseFocalFromObjectPosition(positionValue, fallbackX = RECENT_DEFAULT_FOCAL_X, fallbackY = RECENT_DEFAULT_FOCAL_Y) {
+  const match = String(positionValue || "").trim().match(/(-?\d+(?:\.\d+)?)%\s+(-?\d+(?:\.\d+)?)%/);
+  if (!match) return null;
+  return {
+    x: clamp01(Number(match[1]) / 100, fallbackX),
+    y: clamp01(Number(match[2]) / 100, fallbackY),
+  };
+}
+
+function toGalleryObjectPosition(focalX = RECENT_DEFAULT_FOCAL_X, focalY = RECENT_DEFAULT_FOCAL_Y) {
+  return `${(clamp01(focalX, RECENT_DEFAULT_FOCAL_X) * 100).toFixed(2)}% ${(clamp01(focalY, RECENT_DEFAULT_FOCAL_Y) * 100).toFixed(2)}%`;
+}
+
 function normalizeGalleryEntry(entry) {
   if (typeof entry === "string") {
     return {
+      id: entry.trim(),
       file: entry.trim(),
       alt: "",
       cropClass: "img-round",
-      objectPosition: "50% 35%",
+      focalX: RECENT_DEFAULT_FOCAL_X,
+      focalY: RECENT_DEFAULT_FOCAL_Y,
+      objectPosition: toGalleryObjectPosition(RECENT_DEFAULT_FOCAL_X, RECENT_DEFAULT_FOCAL_Y),
     };
   }
 
   if (!entry || typeof entry !== "object") {
     return {
+      id: "",
       file: "",
       alt: "",
       cropClass: "img-round",
-      objectPosition: "50% 35%",
+      focalX: RECENT_DEFAULT_FOCAL_X,
+      focalY: RECENT_DEFAULT_FOCAL_Y,
+      objectPosition: toGalleryObjectPosition(RECENT_DEFAULT_FOCAL_X, RECENT_DEFAULT_FOCAL_Y),
     };
   }
 
+  const parsedPosition = parseFocalFromObjectPosition(entry.objectPosition, RECENT_DEFAULT_FOCAL_X, RECENT_DEFAULT_FOCAL_Y);
+  const focalX = Number.isFinite(Number(entry.focalX))
+    ? clamp01(Number(entry.focalX), RECENT_DEFAULT_FOCAL_X)
+    : parsedPosition?.x ?? RECENT_DEFAULT_FOCAL_X;
+  const focalY = Number.isFinite(Number(entry.focalY))
+    ? clamp01(Number(entry.focalY), RECENT_DEFAULT_FOCAL_Y)
+    : parsedPosition?.y ?? RECENT_DEFAULT_FOCAL_Y;
+
   return {
+    id: String(entry.id || entry.file || entry.src || "").trim(),
     file: String(entry.file || entry.src || "").trim(),
     alt: String(entry.alt || "").trim(),
     cropClass: String(entry.cropClass || "img-round").trim(),
-    objectPosition: String(entry.objectPosition || "50% 35%").trim(),
+    focalX,
+    focalY,
+    objectPosition: toGalleryObjectPosition(focalX, focalY),
   };
 }
 
@@ -2164,10 +3655,36 @@ function bindGalleryLightboxEvents() {
   galleryLightbox.dataset.bound = "true";
 }
 
+function bindGalleryFocalTuner(card, img, entry, index, initialFocalX, initialFocalY) {
+  if (!ENABLE_FOCAL_TUNER) return;
+  card.classList.add("gallery-tile--tuning");
+  const marker = document.createElement("span");
+  marker.className = "gallery-focal-marker";
+  marker.setAttribute("aria-hidden", "true");
+  marker.style.left = `${(initialFocalX * 100).toFixed(2)}%`;
+  marker.style.top = `${(initialFocalY * 100).toFixed(2)}%`;
+  card.appendChild(marker);
+
+  card.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = card.getBoundingClientRect();
+    const tunedFocalX = clamp01((event.clientX - rect.left) / Math.max(rect.width, 1), RECENT_DEFAULT_FOCAL_X);
+    const tunedFocalY = clamp01((event.clientY - rect.top) / Math.max(rect.height, 1), RECENT_DEFAULT_FOCAL_Y);
+    const tunedPosition = toGalleryObjectPosition(tunedFocalX, tunedFocalY);
+    img.style.objectPosition = tunedPosition;
+    card.style.setProperty("--objPos", tunedPosition);
+    marker.style.left = `${(tunedFocalX * 100).toFixed(2)}%`;
+    marker.style.top = `${(tunedFocalY * 100).toFixed(2)}%`;
+    console.log(`RECENT tile ${entry.id || entry.file || `slot-${index + 1}`} focalX=${tunedFocalX.toFixed(2)} focalY=${tunedFocalY.toFixed(2)}`);
+  });
+}
+
 function buildGalleryCard(entry, index) {
   const card = document.createElement("button");
   card.type = "button";
   card.className = "gallery-tile";
+  card.dataset.galleryId = entry.id || `slot-${index + 1}`;
   card.classList.add(`gallery-tile--slot-${index + 1}`);
   if (index === 0) card.classList.add("gallery-tile--hero");
   if (index === 1) card.classList.add("gallery-tile--medium-top");
@@ -2181,10 +3698,18 @@ function buildGalleryCard(entry, index) {
   img.loading = "lazy";
   img.decoding = "async";
   img.style.objectFit = "cover";
-  img.style.objectPosition = entry.objectPosition || "50% 35%";
-  card.style.setProperty("--objPos", entry.objectPosition || "50% 35%");
+  const focalX = clamp01(entry.focalX, RECENT_DEFAULT_FOCAL_X);
+  const focalY = clamp01(entry.focalY, RECENT_DEFAULT_FOCAL_Y);
+  const objectPosition = toGalleryObjectPosition(focalX, focalY);
+  img.style.objectPosition = objectPosition;
+  card.style.setProperty("--objPos", objectPosition);
   card.appendChild(img);
-  card.addEventListener("click", () => openLightbox(index));
+
+  if (ENABLE_FOCAL_TUNER) {
+    bindGalleryFocalTuner(card, img, entry, index, focalX, focalY);
+  } else {
+    card.addEventListener("click", () => openLightbox(index));
+  }
 
   return card;
 }
@@ -2198,9 +3723,12 @@ async function initGallery() {
 
   galleryImages = selected;
   window.__galleryItems = selected.map((item) => ({
+    id: item.id || item.file,
     src: toPhotoSrc(item.file),
     alt: item.alt || "Miki and Yi Jie",
-    objPos: item.objectPosition || "50% 35%",
+    objPos: item.objectPosition || toGalleryObjectPosition(RECENT_DEFAULT_FOCAL_X, RECENT_DEFAULT_FOCAL_Y),
+    focalX: clamp01(item.focalX, RECENT_DEFAULT_FOCAL_X),
+    focalY: clamp01(item.focalY, RECENT_DEFAULT_FOCAL_Y),
   }));
 
   if (!galleryImages.length) {
@@ -2223,27 +3751,79 @@ function extractStoryYear(value) {
   return match ? Number(match[1]) : NaN;
 }
 
+function clamp01(value, fallback = 0.5) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  if (numeric < 0) return 0;
+  if (numeric > 1) return 1;
+  return numeric;
+}
+
+function normalizeCropMode(modeValue) {
+  const mode = String(modeValue || "").toLowerCase();
+  if (mode === "contain") return "contain";
+  if (mode === "cover") return "cover";
+  return "";
+}
+
+function parseStoryObjectPosition(positionValue) {
+  const match = String(positionValue || "").trim().match(/(-?\d+(?:\.\d+)?)%\s+(-?\d+(?:\.\d+)?)%/);
+  if (!match) return null;
+  return {
+    x: clamp01(Number(match[1]) / 100, STORY_DEFAULT_FOCAL_X),
+    y: clamp01(Number(match[2]) / 100, STORY_DEFAULT_FOCAL_Y),
+  };
+}
+
+function toObjectPosition(focalX = STORY_DEFAULT_FOCAL_X, focalY = STORY_DEFAULT_FOCAL_Y) {
+  return `${(clamp01(focalX, STORY_DEFAULT_FOCAL_X) * 100).toFixed(2)}% ${(clamp01(focalY, STORY_DEFAULT_FOCAL_Y) * 100).toFixed(2)}%`;
+}
+
 function normalizeStoryEntry(entry) {
   if (typeof entry === "string") {
-    return { file: entry.trim(), objectPosition: "", alt: "", year: NaN };
+    return {
+      file: entry.trim(),
+      mosaicFile: "",
+      objectPosition: "",
+      alt: "",
+      year: NaN,
+      focalX: NaN,
+      focalY: NaN,
+      cropMode: "",
+      allowNoFace: false,
+    };
   }
 
   if (!entry || typeof entry !== "object") {
-    return { file: "", objectPosition: "", alt: "", year: NaN };
+    return {
+      file: "",
+      mosaicFile: "",
+      objectPosition: "",
+      alt: "",
+      year: NaN,
+      focalX: NaN,
+      focalY: NaN,
+      cropMode: "",
+      allowNoFace: false,
+    };
   }
 
   return {
     file: String(entry.file || "").trim(),
+    mosaicFile: String(entry.mosaicFile || "").trim(),
     objectPosition: String(entry.objectPosition || "").trim(),
     fit: String(entry.fit || "").trim(),
+    cropMode: normalizeCropMode(entry.cropMode || entry.fit),
     rotation: Number.isFinite(Number(entry.rotation)) ? Number(entry.rotation) : 0,
     year: Number.isFinite(Number(entry.year)) ? Number(entry.year) : NaN,
+    focalX: Number.isFinite(Number(entry.focalX)) ? clamp01(Number(entry.focalX)) : NaN,
+    focalY: Number.isFinite(Number(entry.focalY)) ? clamp01(Number(entry.focalY), STORY_DEFAULT_FOCAL_Y) : NaN,
+    allowNoFace: Boolean(entry.allowNoFace),
     alt: String(entry.alt || "").trim(),
   };
 }
 
 function sortStoryEntries(entries) {
-  const isLocalDev = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
   const normalized = (entries || []).map(normalizeStoryEntry).filter((entry) => entry.file);
   const byFile = new Map();
 
@@ -2255,14 +3835,19 @@ function sortStoryEntries(entries) {
     .map((entry) => ({
       file: entry.file,
       objectPosition: entry.objectPosition,
+      mosaicFile: entry.mosaicFile,
       fit: entry.fit,
+      cropMode: entry.cropMode,
       rotation: entry.rotation,
       alt: entry.alt,
+      focalX: entry.focalX,
+      focalY: entry.focalY,
+      allowNoFace: entry.allowNoFace,
       year: Number.isFinite(entry.year) ? entry.year : extractStoryYear(entry.file),
     }))
     .filter((entry) => {
       if (Number.isFinite(entry.year)) return true;
-      if (isLocalDev) {
+      if (IS_LOCAL_DEV) {
         console.warn(`[story] missing year/date for timeline item: ${entry.file}`);
       }
       return false;
@@ -2295,6 +3880,11 @@ async function loadStoryEntriesFromManifest() {
         file: entry.file.startsWith("/")
           ? withBasePath(entry.file)
           : withBasePath(`/photos/timeline-photos/${encodeURIComponent(entry.file)}`),
+        mosaicFile: entry.mosaicFile
+          ? entry.mosaicFile.startsWith("/")
+            ? withBasePath(entry.mosaicFile)
+            : withBasePath(`/public/images/story-crops/${entry.mosaicFile}`)
+          : withBasePath(`/public/images/story-crops/${Number.isFinite(entry.year) ? entry.year : extractStoryYear(entry.file)}.jpg`),
       }));
   } catch (_error) {
     return [];
@@ -2315,6 +3905,38 @@ function storyYearLabel(year) {
   return Number(year) === 2027 ? "Future..." : String(year);
 }
 
+function withStoryVersion(srcValue) {
+  const src = String(srcValue || "").trim();
+  if (!src) return "";
+  return `${src}${src.includes("?") ? "&" : "?"}v=${STORY_ASSET_VERSION}`;
+}
+
+function storyImageSources(item, preferMosaic = false) {
+  const originalBase = toPhotoSrc(item?.file || "");
+  const mosaicBase = toPhotoSrc(item?.mosaicFile || "");
+  const preferredBase = preferMosaic && mosaicBase ? mosaicBase : originalBase;
+  const fallbackBase = preferredBase === originalBase ? "" : originalBase;
+
+  return {
+    preferred: withStoryVersion(preferredBase),
+    fallback: withStoryVersion(fallbackBase),
+    original: withStoryVersion(originalBase),
+  };
+}
+
+function attachStoryFallback(img, fallbackSrc) {
+  if (!(img instanceof HTMLImageElement)) return;
+  const fallback = String(fallbackSrc || "").trim();
+  img.dataset.fallbackSrc = fallback;
+  img.dataset.fallbackUsed = "false";
+  img.onerror = () => {
+    const nextSrc = String(img.dataset.fallbackSrc || "").trim();
+    if (!nextSrc || img.dataset.fallbackUsed === "true") return;
+    img.dataset.fallbackUsed = "true";
+    img.src = nextSrc;
+  };
+}
+
 function buildStoryTimelineSlide(item, index) {
   const slide = document.createElement("article");
   slide.className = "story-slide";
@@ -2324,13 +3946,14 @@ function buildStoryTimelineSlide(item, index) {
   media.className = "story-slide-media";
 
   const img = document.createElement("img");
-  img.src = `${toPhotoSrc(item.file)}${String(item.file).includes("?") ? "&" : "?"}v=${STORY_ASSET_VERSION}`;
+  const imageSources = storyImageSources(item, false);
+  img.src = imageSources.preferred;
   img.alt = item.alt || `Story photo ${item.yearLabel}`;
   img.loading = "lazy";
   img.decoding = "async";
-  img.style.objectPosition = item.objectPosition || "50% 50%";
+  img.style.objectPosition = item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
   img.style.imageOrientation = "from-image";
-  if (item.fit === "contain") img.style.objectFit = "contain";
+  img.style.objectFit = item.cropMode === "contain" || item.fit === "contain" ? "contain" : "cover";
 
   if (item.rotation === 90) {
     img.style.setProperty("--storyRotate", "90deg");
@@ -2402,7 +4025,33 @@ function setActiveStoryScrubberIndex(index) {
   });
 }
 
-function renderStoryYearScrubber(items, yearTargets = []) {
+function highlightStoryMosaicTile(target) {
+  if (!(target instanceof HTMLElement)) return;
+  target.classList.remove("is-jump-highlight");
+  window.requestAnimationFrame(() => {
+    target.classList.add("is-jump-highlight");
+  });
+  window.setTimeout(() => {
+    target.classList.remove("is-jump-highlight");
+  }, 820);
+}
+
+function highlightStoryMobileCard() {
+  if (!storyMobileCard) return;
+  storyMobileCard.classList.remove("is-jump-highlight");
+  window.requestAnimationFrame(() => {
+    storyMobileCard.classList.add("is-jump-highlight");
+  });
+  window.setTimeout(() => {
+    storyMobileCard.classList.remove("is-jump-highlight");
+  }, 780);
+}
+
+function isStoryMobileView() {
+  return window.matchMedia("(max-width: 760px)").matches;
+}
+
+function renderStoryYearScrubber(items, yearTargets = [], onSelect = null) {
   if (!storyYearScrubber) return;
   storyYearScrubber.innerHTML = "";
   storyYearButtons = [];
@@ -2427,9 +4076,18 @@ function renderStoryYearScrubber(items, yearTargets = []) {
     button.dataset.index = String(index);
 
     button.addEventListener("click", () => {
+      if (typeof onSelect === "function") onSelect(index);
+
+      if (isStoryMobileView()) {
+        setActiveStoryScrubberIndex(index);
+        highlightStoryMobileCard();
+        return;
+      }
+
       const target = targetsByIndex.get(index);
       if (target instanceof HTMLElement) {
         target.scrollIntoView({ behavior: getScrollBehavior(), block: "center" });
+        highlightStoryMosaicTile(target);
       }
       setActiveStoryScrubberIndex(index);
     });
@@ -2439,7 +4097,7 @@ function renderStoryYearScrubber(items, yearTargets = []) {
   });
 
   setActiveStoryScrubberIndex(0);
-  storyYearScrubber.classList.remove("hidden");
+  storyYearScrubber.classList.toggle("hidden", !isStoryMobileView());
 }
 
 function bindStoryYearObserver(yearTargets = []) {
@@ -2469,6 +4127,188 @@ function bindStoryYearObserver(yearTargets = []) {
     if (!(entry.element instanceof Element)) return;
     storyYearObserver.observe(entry.element);
   });
+}
+
+function clearStoryChronologyPath() {
+  if (storyChronologyPath) storyChronologyPath.innerHTML = "";
+  if (storyChronologyStart) storyChronologyStart.style.display = "none";
+  if (storyChronologyNow) storyChronologyNow.style.display = "none";
+}
+
+function drawStoryChronologyPath(yearTargets = []) {
+  if (!storyMosaicShell || !storyChronologyPath || isStoryMobileView()) {
+    clearStoryChronologyPath();
+    return;
+  }
+
+  const shellRect = storyMosaicShell.getBoundingClientRect();
+  const width = Math.max(1, shellRect.width);
+  const height = Math.max(1, shellRect.height);
+
+  const points = yearTargets
+    .filter((entry) => entry && entry.element instanceof HTMLElement)
+    .sort((a, b) => a.index - b.index)
+    .map((entry) => {
+      const tileRect = entry.element.getBoundingClientRect();
+      const x = tileRect.left - shellRect.left + Math.min(tileRect.width * 0.24, 44);
+      const y = tileRect.top - shellRect.top + Math.min(tileRect.height * 0.24, 40);
+      return {
+        index: entry.index,
+        x: Math.max(0, Math.min(width, x)),
+        y: Math.max(0, Math.min(height, y)),
+      };
+    });
+
+  if (points.length < 2) {
+    clearStoryChronologyPath();
+    return;
+  }
+
+  const pathD = points.map((point, pointIndex) => `${pointIndex === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(" ");
+  const circles = points
+    .map((point) => `<circle class="story-chronology-dot" cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="2.7"></circle>`)
+    .join("");
+
+  storyChronologyPath.setAttribute("viewBox", `0 0 ${width.toFixed(2)} ${height.toFixed(2)}`);
+  storyChronologyPath.innerHTML = `<path class="story-chronology-line" d="${pathD}"></path>${circles}`;
+
+  const placeEdgeLabel = (node, point, offsetX = 8) => {
+    if (!node || !point) return;
+    const labelWidth = 58;
+    const x = Math.max(8, Math.min(width - labelWidth, point.x + offsetX));
+    const y = Math.max(6, Math.min(height - 24, point.y - 16));
+    node.style.display = "inline-flex";
+    node.style.left = `${x.toFixed(2)}px`;
+    node.style.top = `${y.toFixed(2)}px`;
+  };
+
+  placeEdgeLabel(storyChronologyStart, points[0], 8);
+  placeEdgeLabel(storyChronologyNow, points[points.length - 1], 10);
+}
+
+function queueStoryChronologyPathRender() {
+  if (storyPathRaf) return;
+  storyPathRaf = window.requestAnimationFrame(() => {
+    storyPathRaf = null;
+    drawStoryChronologyPath(storyPathTargets);
+  });
+}
+
+function bindStoryChronologyResize() {
+  if (storyPathResizeBound) return;
+  window.addEventListener("resize", queueStoryChronologyPathRender, { passive: true });
+  storyPathResizeBound = true;
+
+  if (storyMosaicShell && "ResizeObserver" in window) {
+    if (storyPathResizeObserver) {
+      storyPathResizeObserver.disconnect();
+    }
+    storyPathResizeObserver = new ResizeObserver(() => {
+      queueStoryChronologyPathRender();
+    });
+    storyPathResizeObserver.observe(storyMosaicShell);
+  }
+}
+
+function setStoryMobileSlide(index, options = {}) {
+  if (!storyItems.length || !storyMobileImg || !storyMobileYear) return;
+
+  const { scrollPill = true } = options;
+  const total = storyItems.length;
+  const safeIndex = ((Number(index) || 0) % total + total) % total;
+  const item = storyItems[safeIndex];
+  storyMobileIndex = safeIndex;
+  const imageSources = storyImageSources(item, true);
+  const imageSrc = imageSources.preferred || imageSources.original;
+
+  storyMobileImg.src = imageSrc;
+  attachStoryFallback(storyMobileImg, imageSources.fallback);
+  storyMobileImg.alt = item.alt || `Story photo ${item.yearLabel}`;
+  storyMobileImg.style.objectPosition = item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
+  storyMobileImg.style.imageOrientation = "from-image";
+  storyMobileImg.style.objectFit = item.cropMode === "contain" ? "contain" : "cover";
+  if (storyMobileCard) {
+    storyMobileCard.classList.toggle("is-contain", item.cropMode === "contain");
+    storyMobileCard.style.setProperty("--storyMobileBgImage", item.cropMode === "contain" ? `url("${imageSrc}")` : "none");
+  }
+
+  if (item.rotation === 90) storyMobileImg.style.setProperty("--storyRotate", "90deg");
+  else if (item.rotation === -90) storyMobileImg.style.setProperty("--storyRotate", "-90deg");
+  else if (item.rotation === 180) storyMobileImg.style.setProperty("--storyRotate", "180deg");
+  else storyMobileImg.style.setProperty("--storyRotate", "0deg");
+
+  storyMobileYear.textContent = item.yearLabel;
+  if (storyMobileBlurb) storyMobileBlurb.textContent = item.blurb || "";
+  setActiveStoryScrubberIndex(safeIndex);
+
+  if (scrollPill && storyYearButtons[safeIndex]) {
+    storyYearButtons[safeIndex].scrollIntoView({
+      behavior: reducedMotion ? "auto" : "smooth",
+      inline: "center",
+      block: "nearest",
+    });
+  }
+}
+
+function syncStoryResponsiveMode() {
+  if (!storyMosaicLayout || !storyMobileStage) return;
+  const isMobile = isStoryMobileView();
+  if (storyYearScrubber) {
+    storyYearScrubber.classList.toggle("hidden", !storyItems.length || !isMobile);
+    if (!storyYearButtons.length && storyItems.length) {
+      renderStoryYearScrubber(storyItems, storyPathTargets, (index) => {
+        if (!isStoryMobileView()) return;
+        setStoryMobileSlide(index);
+      });
+    }
+  }
+  storyMobileStage.hidden = !isMobile;
+  storyMobileStage.setAttribute("aria-hidden", String(!isMobile));
+  if (storyMosaicShell) storyMosaicShell.setAttribute("aria-hidden", String(isMobile));
+  storyMosaicLayout.setAttribute("aria-hidden", String(isMobile));
+  bindStoryYearObserver(isMobile ? [] : storyPathTargets);
+
+  if (isMobile && storyItems.length) {
+    setStoryMobileSlide(storyMobileIndex, { scrollPill: false });
+    clearStoryChronologyPath();
+    return;
+  }
+
+  queueStoryChronologyPathRender();
+}
+
+function bindStoryMobileStage() {
+  if (!storyMobileCard || storyMobileCard.dataset.bound === "true") return;
+
+  storyMobileCard.addEventListener("click", () => {
+    if (!storyItems.length) return;
+    openStoryLightbox(storyMobileIndex);
+  });
+
+  storyMobileCard.addEventListener(
+    "touchstart",
+    (event) => {
+      storyMobileTouchStartX = event.changedTouches && event.changedTouches[0] ? event.changedTouches[0].clientX : null;
+    },
+    { passive: true },
+  );
+
+  storyMobileCard.addEventListener(
+    "touchend",
+    (event) => {
+      const endX = event.changedTouches && event.changedTouches[0] ? event.changedTouches[0].clientX : null;
+      if (storyMobileTouchStartX === null || endX === null) return;
+      const delta = endX - storyMobileTouchStartX;
+      storyMobileTouchStartX = null;
+      if (Math.abs(delta) < 48) return;
+      if (delta < 0) setStoryMobileSlide(storyMobileIndex + 1);
+      else setStoryMobileSlide(storyMobileIndex - 1);
+    },
+    { passive: true },
+  );
+
+  window.addEventListener("resize", syncStoryResponsiveMode);
+  storyMobileCard.dataset.bound = "true";
 }
 
 function getNearestStoryTimelineIndex() {
@@ -2536,16 +4376,6 @@ function bindStoryTimelineEvents() {
     storyNext.addEventListener("click", () => {
       scrollStoryTimelineTo(storyTimelineIndex + 1);
     });
-  }
-
-  if (storySkip && storySkip.dataset.bound !== "true") {
-    storySkip.addEventListener("click", (event) => {
-      event.preventDefault();
-      const target = document.getElementById("schedule");
-      if (!target) return;
-      target.scrollIntoView({ behavior: getScrollBehavior(), block: "start" });
-    });
-    storySkip.dataset.bound = "true";
   }
 
   storyViewport.addEventListener(
@@ -2638,17 +4468,36 @@ function buildStoryMosaicCard(item, slot, index) {
   const card = document.createElement("button");
   card.type = "button";
   card.className = `story-mosaic-card story-mosaic-card--${slot}`;
+  if (item.cropMode === "contain") card.classList.add("story-mosaic-card--contain");
   card.id = `story-${item.year}-${index}`;
   card.dataset.year = String(item.year);
   card.dataset.yearIndex = String(index);
+  card.style.setProperty("--objPos", item.objectPosition || "50% 50%");
   card.setAttribute("aria-label", `Open story from ${item.yearLabel}`);
 
+  const imageSources = storyImageSources(item, true);
+  const imageSrc = imageSources.preferred || imageSources.original;
+
+  if (item.cropMode === "contain") {
+    const bgImg = document.createElement("img");
+    bgImg.className = "story-mosaic-bg";
+    bgImg.src = imageSrc;
+    bgImg.alt = "";
+    bgImg.loading = "lazy";
+    bgImg.decoding = "async";
+    bgImg.setAttribute("aria-hidden", "true");
+    card.appendChild(bgImg);
+  }
+
   const img = document.createElement("img");
-  img.src = `${toPhotoSrc(item.file)}${String(item.file).includes("?") ? "&" : "?"}v=${STORY_ASSET_VERSION}`;
+  img.className = "story-mosaic-image";
+  img.src = imageSrc;
+  attachStoryFallback(img, imageSources.fallback);
   img.alt = item.alt || `Story photo ${item.yearLabel}`;
   img.loading = "lazy";
   img.decoding = "async";
-  img.style.objectPosition = item.objectPosition || "50% 50%";
+  img.style.objectPosition = item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
+  img.style.objectFit = item.cropMode === "contain" ? "contain" : "cover";
   img.style.imageOrientation = "from-image";
   if (item.rotation === 90) img.style.setProperty("--storyRotate", "90deg");
   else if (item.rotation === -90) img.style.setProperty("--storyRotate", "-90deg");
@@ -2666,6 +4515,26 @@ function buildStoryMosaicCard(item, slot, index) {
   card.appendChild(img);
   card.appendChild(overlay);
   card.appendChild(yearPill);
+
+  if (ENABLE_FOCAL_TUNER) {
+    const marker = document.createElement("span");
+    marker.className = "story-focal-marker";
+    marker.style.left = `${(item.focalX * 100).toFixed(2)}%`;
+    marker.style.top = `${(item.focalY * 100).toFixed(2)}%`;
+    card.appendChild(marker);
+
+    img.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const rect = img.getBoundingClientRect();
+      const focalX = clamp01((event.clientX - rect.left) / Math.max(rect.width, 1));
+      const focalY = clamp01((event.clientY - rect.top) / Math.max(rect.height, 1), 0.3);
+      marker.style.left = `${(focalX * 100).toFixed(2)}%`;
+      marker.style.top = `${(focalY * 100).toFixed(2)}%`;
+      console.log(`year ${item.year} focalX=${focalX.toFixed(2)} focalY=${focalY.toFixed(2)}`);
+    });
+  }
 
   const lightboxIndex = storyItems.findIndex((storyItem) => storyItem.file === item.file);
   card.addEventListener("click", () => {
@@ -2734,8 +4603,11 @@ async function initStoryMosaicLayout() {
     empty.className = "story-mosaic-empty";
     empty.textContent = "Story photos coming soon.";
     storyMosaicLayout.appendChild(empty);
+    storyPathTargets = [];
+    clearStoryChronologyPath();
     renderStoryYearScrubber([], []);
     bindStoryYearObserver([]);
+    syncStoryResponsiveMode();
     return;
   }
 
@@ -2756,9 +4628,24 @@ async function initStoryMosaicLayout() {
     yearTargets.push({ index, element: card });
   });
 
-  renderStoryYearScrubber(orderedItems, yearTargets);
-  bindStoryYearObserver(yearTargets);
+  storyPathTargets = yearTargets;
+
+  renderStoryYearScrubber(orderedItems, yearTargets, (index) => {
+    if (!isStoryMobileView()) return;
+    setStoryMobileSlide(index);
+  });
+  bindStoryYearObserver(isStoryMobileView() ? [] : yearTargets);
   applyStoryMosaicReveal(cards);
+  bindStoryMobileStage();
+  bindStoryChronologyResize();
+  const preferredIndex = Math.max(
+    0,
+    orderedItems.findIndex((item) => Number(item.year) === 2016),
+  );
+  storyMobileIndex = preferredIndex;
+  setStoryMobileSlide(preferredIndex, { scrollPill: false });
+  syncStoryResponsiveMode();
+  queueStoryChronologyPathRender();
 }
 
 function isCoarsePointer() {
@@ -2781,7 +4668,7 @@ function isStoryLightboxOpen() {
 function updateStoryLightboxView() {
   if (!storyLightboxImg || !storyItems.length) return;
   const item = storyItems[currentStoryIndex];
-  storyLightboxImg.src = `${toPhotoSrc(item.file)}${String(item.file).includes("?") ? "&" : "?"}v=${STORY_ASSET_VERSION}`;
+  storyLightboxImg.src = storyImageSources(item, false).original;
   storyLightboxImg.alt = item.alt || `Story photo ${item.year}`;
   if (item.rotation === 90) storyLightboxImg.style.transform = "rotate(90deg) scale(0.95)";
   else if (item.rotation === -90) storyLightboxImg.style.transform = "rotate(-90deg) scale(0.95)";
@@ -2894,13 +4781,25 @@ function bindStoryLightboxEvents() {
 function buildStoryItem(entry) {
   const filename = decodeURIComponent((String(entry.file || "").split("?")[0].split("/").pop() || "").trim());
   const override = STORY_OVERRIDES[filename] || {};
+  const yearPreset = STORY_YEAR_FOCAL_PRESETS[entry.year] || {};
   const copy = storyCopyForYear(entry.year);
   const rotation = Number.isFinite(Number(override.rotate))
     ? Number(override.rotate)
     : Number.isFinite(Number(entry.rotation))
       ? Number(entry.rotation)
       : 0;
-  const objectPosition = override.objPos || entry.objectPosition || "50% 50%";
+  const parsedEntryPosition = parseStoryObjectPosition(entry.objectPosition);
+  const focalX = Number.isFinite(Number(entry.focalX))
+    ? clamp01(Number(entry.focalX), STORY_DEFAULT_FOCAL_X)
+    : parsedEntryPosition?.x ?? yearPreset.focalX ?? STORY_DEFAULT_FOCAL_X;
+  const focalY = Number.isFinite(Number(entry.focalY))
+    ? clamp01(Number(entry.focalY), STORY_DEFAULT_FOCAL_Y)
+    : parsedEntryPosition?.y ?? yearPreset.focalY ?? STORY_DEFAULT_FOCAL_Y;
+  const cropMode = normalizeCropMode(entry.cropMode || yearPreset.cropMode || entry.fit || "cover") || "cover";
+  const parsedOverridePosition = parseStoryObjectPosition(override.objPos);
+  const objectPosition = parsedOverridePosition
+    ? toObjectPosition(parsedOverridePosition.x, parsedOverridePosition.y)
+    : toObjectPosition(focalX, focalY);
 
   return {
     ...entry,
@@ -2908,6 +4807,10 @@ function buildStoryItem(entry) {
     blurb: copy.blurb,
     longCaption: copy.longCaption,
     rotation,
+    focalX,
+    focalY,
+    cropMode,
+    allowNoFace: Boolean(entry.allowNoFace),
     objectPosition,
     yearLabel: storyYearLabel(entry.year),
   };
@@ -2927,11 +4830,13 @@ function createStoryMosaicTile(item, index, totalCount) {
   }
 
   const img = document.createElement("img");
-  img.src = `${toPhotoSrc(item.file)}${String(item.file).includes("?") ? "&" : "?"}v=${STORY_ASSET_VERSION}`;
+  const imageSources = storyImageSources(item, true);
+  img.src = imageSources.preferred || imageSources.original;
+  attachStoryFallback(img, imageSources.fallback);
   img.alt = item.alt || `Story photo ${item.yearLabel}`;
   img.loading = "lazy";
   img.decoding = "async";
-  img.style.objectPosition = item.objectPosition || "50% 50%";
+  img.style.objectPosition = item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
   img.style.imageOrientation = "from-image";
   if (item.rotation === 90) img.style.setProperty("--storyRotate", "90deg");
   else if (item.rotation === -90) img.style.setProperty("--storyRotate", "-90deg");
@@ -3004,9 +4909,11 @@ function setStoryOverlayRect(rect) {
 
 function applyStoryOverlayImage(item) {
   if (!storyFocusImage || !item) return;
-  storyFocusImage.src = `${toPhotoSrc(item.file)}${String(item.file).includes("?") ? "&" : "?"}v=${STORY_ASSET_VERSION}`;
+  const imageSources = storyImageSources(item, true);
+  storyFocusImage.src = imageSources.preferred || imageSources.original;
+  attachStoryFallback(storyFocusImage, imageSources.fallback);
   storyFocusImage.alt = item.alt || `Story photo ${item.yearLabel}`;
-  storyFocusImage.style.objectPosition = item.objectPosition || "50% 50%";
+  storyFocusImage.style.objectPosition = item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
 
   if (item.rotation === 90) {
     storyFocusImage.style.setProperty("--storyRotate", "90deg");
@@ -3140,21 +5047,13 @@ function bindStoryScrollyEvents() {
     });
   }
 
-  if (storySkip) {
-    storySkip.addEventListener("click", (event) => {
-      event.preventDefault();
-      const target = document.getElementById("schedule");
-      if (!target) return;
-      target.scrollIntoView({ behavior: getScrollBehavior(), block: "start" });
-    });
-  }
-
   window.addEventListener("scroll", requestStoryStepSync, { passive: true });
 
   window.addEventListener("resize", () => {
     if (storyResizeRaf) window.cancelAnimationFrame(storyResizeRaf);
     storyResizeRaf = window.requestAnimationFrame(() => {
       storyResizeRaf = null;
+      syncStoryResponsiveMode();
       if (storyActiveStep >= 0) {
         showStoryFocus(storyActiveStep, false);
       } else {
@@ -3202,102 +5101,129 @@ async function initStoryScrolly() {
 }
 
 function initCutoutParallax() {
-  const blocks = Array.from(document.querySelectorAll(".cutout-parallax"));
-  if (!blocks.length) return;
+  const venueSection = document.getElementById("venue");
+  if (!venueSection) return;
 
-  const entries = blocks
-    .map((block, index) => ({
-      block,
-      img: block.querySelector(".cutout-parallax__media img"),
-      speed: Number(block.getAttribute("data-parallax-speed") || 0.12),
-      index,
-    }))
-    .filter((entry) => entry.img);
+  const block = venueSection.querySelector(".cutout-parallax");
+  const media = block ? block.querySelector(".cutout-parallax__media") : null;
+  const img = media ? media.querySelector("img") : null;
+  const scene = venueSection.querySelector(".venue-scene-scroll") || venueSection;
+  if (!(block instanceof HTMLElement) || !(media instanceof HTMLElement) || !(img instanceof HTMLElement) || !(scene instanceof HTMLElement)) return;
 
-  if (!entries.length) return;
-
-  entries.forEach((entry) => {
-    const img = entry.img;
-    if (!img) return;
-    if (img.dataset.cutoutBound === "true") return;
+  if (img.dataset.cutoutBound !== "true") {
     img.addEventListener("load", () => {
-      entry.block.classList.remove("is-image-missing");
+      block.classList.remove("is-image-missing");
     });
     img.addEventListener("error", () => {
-      entry.block.classList.add("is-image-missing");
+      block.classList.add("is-image-missing");
     });
     img.dataset.cutoutBound = "true";
-  });
+  }
 
-  const setStatic = (scale = 1.01) => {
-    entries.forEach((entry) => {
-      entry.img.style.transform = `translate3d(0, 0, 0) scale(${scale})`;
-    });
+  const clamp01 = (value) => Math.max(0, Math.min(1, value));
+
+  let sceneTop = 0;
+  let sceneHeight = 0;
+  let viewportHeight = window.innerHeight;
+  let panPx = 0;
+  let overscanFactor = 1.45;
+  let startPx = 0;
+  let endPx = 0;
+  let lastPanX = Number.NaN;
+  let ticking = false;
+  let inViewport = true;
+  let resizeRaf = null;
+
+  const setStaticCrop = () => {
+    img.style.width = "100%";
+    img.style.maxWidth = "100%";
+    img.style.setProperty("--venue-pan", "0px");
+    img.style.setProperty("--venue-pan-x", "0px");
+    img.style.setProperty("--venue-scale", "1");
+    img.style.transform = "translate3d(0, 0, 0) scale(1)";
   };
 
-  if (reducedMotion) {
-    setStatic(1);
+  const prefersReduced = reducedMotion || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (prefersReduced) {
+    setStaticCrop();
     return;
   }
 
-  const active = new Set();
-  let ticking = false;
+  const measure = () => {
+    viewportHeight = window.innerHeight;
+    const sceneRect = scene.getBoundingClientRect();
+    sceneTop = window.scrollY + sceneRect.top;
+    sceneHeight = sceneRect.height;
 
-  const update = () => {
+    const frameWidth = media.clientWidth || 0;
+    const isMobile = window.innerWidth <= 760;
+    overscanFactor = isMobile ? 1.3 : 1.45;
+    panPx = Math.max(0, frameWidth * (overscanFactor - 1));
+    startPx = 0;
+    endPx = -panPx;
+
+    img.style.width = `calc(100% + ${panPx.toFixed(2)}px)`;
+    img.style.maxWidth = "none";
+    img.style.setProperty("--venue-pan", `${panPx.toFixed(2)}px`);
+    lastPanX = Number.NaN;
+  };
+
+  const getProgress = () => {
+    const denominator = sceneHeight - viewportHeight;
+    if (denominator > 1) {
+      return clamp01((window.scrollY - sceneTop) / denominator);
+    }
+
+    const rect = scene.getBoundingClientRect();
+    const travel = Math.max(1, rect.height + viewportHeight);
+    return clamp01((viewportHeight - rect.top) / travel);
+  };
+
+  const apply = () => {
     ticking = false;
-    const isMobile = window.innerWidth <= 900;
+    if (!inViewport) return;
 
-    entries.forEach((entry) => {
-      if (!active.has(entry.block)) return;
+    const progress = getProgress();
+    const nextPanXRaw = startPx + (endPx - startPx) * progress;
+    const nextPanX = Math.max(-panPx, Math.min(0, nextPanXRaw));
+    if (Number.isFinite(lastPanX) && Math.abs(nextPanX - lastPanX) < 0.08) return;
 
-      if (isMobile) {
-        entry.img.style.transform = "translate3d(0, 0, 0) scale(1.01)";
-        return;
-      }
-
-      const rect = entry.block.getBoundingClientRect();
-      const viewportCenter = window.innerHeight / 2;
-      const blockCenter = rect.top + rect.height / 2;
-      const delta = viewportCenter - blockCenter;
-      const strength = entry.speed * 0.3;
-      const maxShift = 24;
-      const translateY = Math.max(-maxShift, Math.min(maxShift, delta * strength));
-      entry.img.style.transform = `translate3d(0, ${translateY.toFixed(2)}px, 0) scale(1.03)`;
-    });
+    lastPanX = nextPanX;
+    const scale = window.innerWidth <= 760 ? 1.01 : 1.02;
+    img.style.setProperty("--venue-pan-x", `${nextPanX.toFixed(2)}px`);
+    img.style.setProperty("--venue-scale", `${scale}`);
+    img.style.transform = `translate3d(${nextPanX.toFixed(2)}px, 0, 0) scale(${scale})`;
   };
 
   const requestTick = () => {
     if (ticking) return;
     ticking = true;
-    window.requestAnimationFrame(update);
+    window.requestAnimationFrame(apply);
   };
 
   const observer = new IntersectionObserver(
-    (observerEntries) => {
-      observerEntries.forEach((entry) => {
-        if (entry.isIntersecting) active.add(entry.target);
-        else active.delete(entry.target);
-      });
-      requestTick();
+    (entries) => {
+      inViewport = entries.some((entry) => entry.isIntersecting);
+      if (inViewport) requestTick();
     },
     {
-      threshold: [0, 0.15, 0.35, 0.6],
-      rootMargin: "120px 0px 120px 0px",
+      threshold: [0, 0.1, 0.35, 0.65],
+      rootMargin: "140px 0px 140px 0px",
     },
   );
+  observer.observe(scene);
 
-  entries.forEach((entry) => observer.observe(entry.block));
   window.addEventListener("scroll", requestTick, { passive: true });
   window.addEventListener("resize", () => {
-    if (window.innerWidth <= 900) {
-      setStatic(1.01);
-      return;
-    }
-    requestTick();
+    if (resizeRaf !== null) window.cancelAnimationFrame(resizeRaf);
+    resizeRaf = window.requestAnimationFrame(() => {
+      measure();
+      requestTick();
+      resizeRaf = null;
+    });
   });
-  if (window.innerWidth <= 900) {
-    setStatic(1.01);
-  }
+
+  measure();
   requestTick();
 }
 
@@ -3312,7 +5238,9 @@ async function init() {
   initTravelVisaSection();
   initHotelMatrix();
   initMakanSection();
+  initStorySkipLink();
   initReveals();
+  initScheduleReveal();
   await initStoryMosaicLayout();
   initRsvpCards();
   initRsvpForm();

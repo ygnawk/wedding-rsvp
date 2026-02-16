@@ -31,13 +31,26 @@
           <a href="#story" data-link="story">Our story</a>
           <a href="#venue" data-link="venue">Venue</a>
           <a href="#schedule" data-link="schedule">Schedule</a>
-          <a href="#rsvp" data-link="rsvp">RSVP</a>
-          <a href="#faq" data-link="faq">FAQ</a>
-          <a href="#stay" data-link="stay">Where to stay</a>
-          <a href="#things-to-do" data-link="things-to-do">Things to do</a>
-          <a href="#makan" data-link="makan">What to eat</a>
-          <a href="#travel-visa" data-link="travel-visa">Travel &amp; Visa</a>
-          <a href="#gallery" data-link="gallery">Recent moments</a>
+          <div id="desktopNavMore" class="desktop-nav-more">
+            <button
+              id="desktopMoreToggle"
+              class="desktop-nav-more-toggle"
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="desktopMoreMenu"
+            >
+              More
+            </button>
+            <div id="desktopMoreMenu" class="desktop-nav-more-menu" role="menu" hidden>
+              <a href="#faq" data-link="faq" role="menuitem">FAQ</a>
+              <a href="#stay" data-link="stay" role="menuitem">Where to stay</a>
+              <a href="#things-to-do" data-link="things-to-do" role="menuitem">Things to do</a>
+              <a href="#makan" data-link="makan" role="menuitem">What to eat</a>
+              <a href="#travel-visa" data-link="travel-visa" role="menuitem">Travel &amp; Visa</a>
+              <a href="#gallery" data-link="gallery" role="menuitem">Recent moments</a>
+            </div>
+          </div>
         </nav>
 
         <a class="header-rsvp" href="#rsvp">RSVP</a>
@@ -98,7 +111,7 @@
         <div class="interlude-shell interlude-bleed">
           <div class="interlude-band">
             <figure class="interlude-photo-half reveal reveal-scale">
-              <img src="photos/LMN_2546.jpg" alt="Miki and Yi Jie" loading="lazy" decoding="async" />
+              <img src="photos/interlude1.jpg" alt="Miki and Yi Jie" loading="lazy" decoding="async" />
             </figure>
             <div class="interlude-color-half">
               <div class="motif-layer motif-layer--maroon motif-layer--both" aria-hidden="true">
@@ -121,42 +134,57 @@
           <div class="story-timeline-head">
             <div class="story-head-row">
               <h2 class="section-title reveal reveal-left settle">Our story</h2>
-              <a class="story-skip" href="#schedule">Skip to logistics</a>
             </div>
             <p class="ourstory-lede reveal settle" data-delay="70">
               We met on orientation day at Wesleyan University in 2016. Since then, life has taken us across cities and continents—and many of
               you have been part of that journey. We’d love to celebrate this milestone together with you in Beijing.
             </p>
-            <div id="storyYearScrubber" class="story-year-scrubber reveal" data-delay="95" aria-label="Jump through story years"></div>
+            <div id="storyYearScrubber" class="story-year-scrubber reveal hidden" data-delay="95" aria-label="Jump through story years"></div>
           </div>
 
-          <div class="story-mosaic-layout reveal" data-delay="120" id="storyMosaicLayout" aria-label="Our story mosaic"></div>
+          <div id="storyMobileStage" class="story-mobile-stage reveal" data-delay="110" hidden>
+            <button id="storyMobileCard" class="story-mobile-card" type="button" aria-label="Open story photo">
+              <img id="storyMobileImg" src="" alt="" loading="lazy" decoding="async" />
+              <span id="storyMobileYear" class="story-mobile-year"></span>
+            </button>
+            <p id="storyMobileBlurb" class="story-mobile-blurb"></p>
+          </div>
+
+          <div class="story-mosaic-shell reveal" data-delay="120" id="storyMosaicShell">
+            <div class="story-mosaic-layout" id="storyMosaicLayout" aria-label="Our story mosaic"></div>
+          </div>
         </div>
       </section>
 
-      <section id="venue" class="section section--dark motif-host" data-title="Venue">
-        <div class="section-inner content venue-layout">
-          <div class="motif-layer motif-layer--section motif-layer--maroon motif-layer--both" aria-hidden="true">
-            <img class="motif-layer__item motif-layer__item--topRight" src="public/motifs/peony-branch.svg" alt="" />
-            <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/peony-bud.svg" alt="" />
-          </div>
+      <section id="venue" class="section section--dark motif-host venue-scene" data-title="Venue">
+        <div class="venue-scene-scroll">
+          <div class="venue-sticky">
+            <div class="venue-container">
+              <div class="venue-layout">
+                <div class="motif-layer motif-layer--section motif-layer--maroon motif-layer--both" aria-hidden="true">
+                  <img class="motif-layer__item motif-layer__item--topRight" src="public/motifs/peony-branch.svg" alt="" />
+                  <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/peony-bud.svg" alt="" />
+                </div>
 
-          <figure class="cutout-parallax venue-hero reveal reveal-scale" data-parallax-speed="0.18">
-            <div class="cutout-parallax__media cutout-parallax__media--arch">
-              <img data-photo-key="venueMain" src="photos/Location-main.jpg" alt="Zhengyang Mansion, Mandarin Oriental Qianmen" loading="lazy" />
+                <article class="venue-copy">
+                  <h2 class="reveal reveal-left settle">Venue</h2>
+                  <p class="reveal">
+                    We picked Mandarin Oriental Qianmen for its classic siheyuan-style courtyard homes and hutong neighborhood — a setting Miki
+                    spent time around growing up. It’s in central Beijing, a short drive from the Forbidden City.
+                  </p>
+                  <p class="reveal">
+                    Beijing is also where Miki spent many of her formative years after moving from Japan, before heading to the U.S.
+                  </p>
+                </article>
+
+                <figure class="cutout-parallax venue-hero reveal reveal-scale" data-parallax-speed="0.18">
+                  <div class="cutout-parallax__media cutout-parallax__media--arch">
+                    <img data-photo-key="venueMain" src="photos/Location-main.jpg" alt="Zhengyang Mansion, Mandarin Oriental Qianmen" loading="lazy" />
+                  </div>
+                </figure>
+              </div>
             </div>
-          </figure>
-
-          <article class="venue-copy">
-            <h2 class="reveal reveal-left settle">Venue</h2>
-            <p class="reveal">
-              We picked Mandarin Oriental Qianmen for its classic siheyuan-style courtyard homes and hutong neighborhood — a setting Miki spent
-              time around growing up. It’s in central Beijing, a short drive from the Forbidden City.
-            </p>
-            <p class="reveal">
-              Beijing is also where Miki spent many of her formative years after moving from Japan, before heading to the U.S.
-            </p>
-          </article>
+          </div>
         </div>
       </section>
 
@@ -172,27 +200,27 @@
             <div class="schedule-divider reveal" aria-hidden="true"></div>
           </div>
           <div class="schedule-list" role="list" aria-label="Wedding day schedule">
-            <article class="schedule-item reveal reveal-right" role="listitem">
+            <article class="schedule-item scheduleRow reveal reveal-right" role="listitem">
               <span class="schedule-dot" aria-hidden="true"></span>
               <time datetime="15:00">3:00 PM</time>
               <p>Early check-in at venue</p>
             </article>
-            <article class="schedule-item reveal reveal-right" role="listitem">
+            <article class="schedule-item scheduleRow reveal reveal-right" role="listitem">
               <span class="schedule-dot" aria-hidden="true"></span>
               <time datetime="16:00">4:00 PM</time>
               <p>Cocktails</p>
             </article>
-            <article class="schedule-item reveal reveal-right" role="listitem">
+            <article class="schedule-item scheduleRow reveal reveal-right" role="listitem">
               <span class="schedule-dot" aria-hidden="true"></span>
               <time datetime="17:00">5:00 PM</time>
               <p>Ceremony</p>
             </article>
-            <article class="schedule-item reveal reveal-right" role="listitem">
+            <article class="schedule-item scheduleRow reveal reveal-right" role="listitem">
               <span class="schedule-dot" aria-hidden="true"></span>
               <time datetime="18:00">6:00 PM</time>
               <p>Dinner</p>
             </article>
-            <article class="schedule-item reveal reveal-right" role="listitem">
+            <article class="schedule-item scheduleRow reveal reveal-right" role="listitem">
               <span class="schedule-dot" aria-hidden="true"></span>
               <time datetime="20:00">8:00 PM</time>
               <p>Afterparty</p>
@@ -213,8 +241,6 @@
               We’re hosting the celebration in an intimate setting so we can share the evening closely with our guests.
               <br />
               We have space for about 50 people. Please RSVP by the end of February.
-              <br />
-              If you’re not sure yet, choose Maybe—don’t save us a seat, and we’ll check in next month.
             </p>
 
             <form id="rsvpForm" class="rsvp-form reveal" novalidate>
@@ -226,12 +252,12 @@
                 </button>
                 <button type="button" class="choice-card" data-choice="working">
                   <span class="checkmark" aria-hidden="true">✓</span>
-                  <span class="choice-title">Maybe — we need a month</span>
+                  <span class="choice-title">Maybe — need a month</span>
                   <span class="choice-subtext">Don’t save us a seat yet. We’ll confirm next month.</span>
                 </button>
                 <button type="button" class="choice-card" data-choice="no">
                   <span class="checkmark" aria-hidden="true">✓</span>
-                  <span class="choice-title">No — we can’t make it</span>
+                  <span class="choice-title">No — can’t make it</span>
                   <span class="choice-subtext">Thank you for replying. It means a lot.</span>
                 </button>
               </div>
@@ -252,23 +278,28 @@
 
                 <div class="field-grid form-row two-col">
                   <div class="field form-field">
-                    <label for="phone">Phone, optional</label>
-                    <input id="phone" name="phone" type="text" />
+                    <label for="phone">Phone (optional)</label>
+                    <input id="phone" name="phone" type="text" placeholder="+1 212 555 1234" />
+                    <p class="field-helper">Include country code (e.g., +1, +65, +81).</p>
                   </div>
                 </div>
 
+                <div id="youFunFactsFields" class="conditional form-row hidden" aria-live="polite">
+                  <div id="youGuestCardWrap" class="guest-cards-wrap"></div>
+                </div>
+
                 <div id="yesFields" class="conditional form-row hidden" aria-live="polite">
-                  <div class="field-grid form-row two-col">
-                    <div class="field form-field">
-                      <label for="yesCount">Party size</label>
-                      <select id="yesCount" name="yesCount">
-                        <option value="">Select</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div id="attendeeNamesWrap" class="field-grid form-row two-col"></div>
                   <div class="field form-field">
-                    <label for="dietary">Dietary restrictions, optional</label>
+                    <label>Who else is coming?</label>
+                    <p class="field-helper">Bringing someone? Add up to 3.</p>
+                  </div>
+                  <div id="guestCardsWrap" class="guest-cards-wrap"></div>
+                  <div class="form-row">
+                    <button id="addGuestButton" type="button" class="btn btn-outline">+ Add a +1</button>
+                    <p id="guestLimitError" class="field-error hidden" role="alert"></p>
+                  </div>
+                  <div class="field form-field">
+                    <label for="dietary">Dietary restrictions (optional)</label>
                     <textarea id="dietary" name="dietary"></textarea>
                   </div>
                 </div>
@@ -293,10 +324,92 @@
                 </div>
 
                 <div id="noFields" class="conditional form-row hidden" aria-live="polite">
-                  <div class="field form-field">
-                    <label for="noNote">Optional note</label>
-                    <textarea id="noNote" name="noNote"></textarea>
+                </div>
+
+                <div class="field form-field form-row">
+                  <label>Upload photos or videos (optional)</label>
+                  <p class="field-helper">Up to 3 files. Zero is totally fine.</p>
+                  <div class="upload-slot-grid" id="photoUploadSlots">
+                    <div class="upload-slot" data-upload-slot="1">
+                      <label for="photoUpload1">Photo 1 (optional)</label>
+                      <input
+                        id="photoUpload1"
+                        name="photo1"
+                        class="upload-slot-input"
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.heic,.heif,.mp4,.mov,.webm,image/jpeg,image/png,image/heic,image/heif,video/mp4,video/quicktime,video/webm"
+                      />
+                      <button type="button" class="upload-slot-card" data-upload-trigger="1">
+                        <span class="upload-slot-icon" aria-hidden="true">+</span>
+                        <span class="upload-slot-title">Upload media</span>
+                        <span class="upload-slot-meta" data-upload-meta="1">JPG/PNG/HEIC/MP4/MOV • up to 10MB</span>
+                      </button>
+                      <div class="upload-slot-preview hidden" data-upload-preview-wrap="1">
+                        <img class="hidden" data-upload-preview="1" alt="" loading="lazy" decoding="async" />
+                        <span class="upload-slot-preview-text hidden" data-upload-preview-text="1"></span>
+                      </div>
+                      <div class="upload-slot-actions hidden" data-upload-actions="1">
+                        <button type="button" class="upload-slot-action" data-upload-replace="1">Replace</button>
+                        <button type="button" class="upload-slot-action" data-upload-remove="1">Remove</button>
+                      </div>
+                      <p class="field-error hidden" role="alert" data-upload-error="1"></p>
+                    </div>
+
+                    <div class="upload-slot" data-upload-slot="2">
+                      <label for="photoUpload2">Photo 2 (optional)</label>
+                      <input
+                        id="photoUpload2"
+                        name="photo2"
+                        class="upload-slot-input"
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.heic,.heif,.mp4,.mov,.webm,image/jpeg,image/png,image/heic,image/heif,video/mp4,video/quicktime,video/webm"
+                      />
+                      <button type="button" class="upload-slot-card" data-upload-trigger="2">
+                        <span class="upload-slot-icon" aria-hidden="true">+</span>
+                        <span class="upload-slot-title">Upload media</span>
+                        <span class="upload-slot-meta" data-upload-meta="2">JPG/PNG/HEIC/MP4/MOV • up to 10MB</span>
+                      </button>
+                      <div class="upload-slot-preview hidden" data-upload-preview-wrap="2">
+                        <img class="hidden" data-upload-preview="2" alt="" loading="lazy" decoding="async" />
+                        <span class="upload-slot-preview-text hidden" data-upload-preview-text="2"></span>
+                      </div>
+                      <div class="upload-slot-actions hidden" data-upload-actions="2">
+                        <button type="button" class="upload-slot-action" data-upload-replace="2">Replace</button>
+                        <button type="button" class="upload-slot-action" data-upload-remove="2">Remove</button>
+                      </div>
+                      <p class="field-error hidden" role="alert" data-upload-error="2"></p>
+                    </div>
+
+                    <div class="upload-slot" data-upload-slot="3">
+                      <label for="photoUpload3">Photo 3 (optional)</label>
+                      <input
+                        id="photoUpload3"
+                        name="photo3"
+                        class="upload-slot-input"
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.heic,.heif,.mp4,.mov,.webm,image/jpeg,image/png,image/heic,image/heif,video/mp4,video/quicktime,video/webm"
+                      />
+                      <button type="button" class="upload-slot-card" data-upload-trigger="3">
+                        <span class="upload-slot-icon" aria-hidden="true">+</span>
+                        <span class="upload-slot-title">Upload media</span>
+                        <span class="upload-slot-meta" data-upload-meta="3">JPG/PNG/HEIC/MP4/MOV • up to 10MB</span>
+                      </button>
+                      <div class="upload-slot-preview hidden" data-upload-preview-wrap="3">
+                        <img class="hidden" data-upload-preview="3" alt="" loading="lazy" decoding="async" />
+                        <span class="upload-slot-preview-text hidden" data-upload-preview-text="3"></span>
+                      </div>
+                      <div class="upload-slot-actions hidden" data-upload-actions="3">
+                        <button type="button" class="upload-slot-action" data-upload-replace="3">Replace</button>
+                        <button type="button" class="upload-slot-action" data-upload-remove="3">Remove</button>
+                      </div>
+                      <p class="field-error hidden" role="alert" data-upload-error="3"></p>
+                    </div>
                   </div>
+                </div>
+
+                <div class="field form-field form-row">
+                  <label for="message">Message for the couple (optional)</label>
+                  <textarea id="message" name="message" placeholder="Write a quick note…"></textarea>
                 </div>
 
                 <div class="form-actions">
@@ -367,17 +480,29 @@
                 </details>
                 <details>
                   <summary class="faq-summary">
+                    <span class="faq-q">Should we bring a gift?</span>
+                    <span class="faq-chevron" aria-hidden="true"></span>
+                  </summary>
+                  <div class="faq-answer">
+                    <p>
+                      Your presence is the gift—especially since Beijing is a real trip. Truly, no gifts expected. If you insist anyway, we’ll
+                      accept with gratitude, but please don’t feel you have to.
+                    </p>
+                  </div>
+                </details>
+                <details>
+                  <summary class="faq-summary">
                     <span class="faq-q">How will seating work at the venue? (Yes, it’s a little different.)</span>
                     <span class="faq-chevron" aria-hidden="true"></span>
                   </summary>
                   <div class="faq-answer">
                     <p>
-                      We’re getting married at the Mandarin Oriental Qianmen Mansion. It’s beautiful, meaningful… and has two separate dining
-                      areas with a courtyard in the middle. (<em>Miki chose meaning over convenience. I chose acceptance.</em>)
+                      We’re getting married at the Mandarin Oriental Qianmen. It’s beautiful, meaningful… and has two separate dining areas with
+                      a courtyard in the middle. That complicates seating ... but Miki has her reasons for choosing meaning over practicality.
                     </p>
                     <p>
                       Here’s the flow: we’ll do the ceremony all together in the central courtyard. After that, dinner will be in two rooms—one
-                      more English-leaning (friends) and one more Chinese-leaning (family).
+                      more English-leaning (friends) and one more Chinese-leaning (family). Subject to some changes to balance both rooms
                     </p>
                   </div>
                 </details>
@@ -487,18 +612,6 @@
                 <div class="faq-list">
                 <details>
                   <summary class="faq-summary">
-                    <span class="faq-q">Should we bring a gift?</span>
-                    <span class="faq-chevron" aria-hidden="true"></span>
-                  </summary>
-                  <div class="faq-answer">
-                    <p>
-                      We don’t expect anything—Beijing is already a big ask, and your time means the world. If you insist, we’ll accept with
-                      gratitude. But please don’t feel you have to.
-                    </p>
-                  </div>
-                </details>
-                <details>
-                  <summary class="faq-summary">
                     <span class="faq-q">Where should I stay?</span>
                     <span class="faq-chevron" aria-hidden="true"></span>
                   </summary>
@@ -515,6 +628,15 @@
                   <div class="faq-answer">
                     <p>We picked a few favorites with photos and maps if you’re staying longer.</p>
                     <p><a class="faq-cta" href="#things-to-do">See section →</a></p>
+                  </div>
+                </details>
+                <details>
+                  <summary class="faq-summary">
+                    <span class="faq-q">Are these hotel recommendations vetted?</span>
+                    <span class="faq-chevron" aria-hidden="true"></span>
+                  </summary>
+                  <div class="faq-answer">
+                    <p>Absolutely* (*vetted by ChatGPT at 1:00am. We have not personally stayed at any of them.)</p>
                   </div>
                 </details>
                 <details>
@@ -565,15 +687,6 @@
                     </p>
                   </div>
                 </details>
-                <details>
-                  <summary class="faq-summary">
-                    <span class="faq-q">Are these hotel recommendations vetted?</span>
-                    <span class="faq-chevron" aria-hidden="true"></span>
-                  </summary>
-                  <div class="faq-answer">
-                    <p>Absolutely* (*vetted by ChatGPT at 1:00am. We have not personally stayed at any of them.)</p>
-                  </div>
-                </details>
                 </div>
               </details>
             </section>
@@ -588,33 +701,26 @@
             <img class="motif-layer__item motif-layer__item--topRight" src="public/motifs/chrysanthemum-branch.svg" alt="" />
             <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/peony-bud.svg" alt="" />
           </div>
-          <p class="stay-eyebrow reveal">Where to stay</p>
-          <h2 class="reveal reveal-left">Hotels near the venue — mapped by comfort and price</h2>
-          <p class="stay-subtitle reveal">
-            Comfort uses guest reviews. Price uses a public nightly-rate snapshot.
-            <button
-              id="hotelMethodTrigger"
-              class="stay-method-trigger"
-              type="button"
-              aria-expanded="false"
-              aria-controls="hotelMethodTooltip"
-              aria-label="Show methodology notes"
-            >
-              ⓘ
-            </button>
-          </p>
-          <div id="hotelMethodTooltip" class="hotel-method-tooltip" role="tooltip" hidden aria-hidden="true">
-            <p class="hotel-method-tooltip-title">METHODOLOGY</p>
-            <p class="hotel-method-tooltip-body">
-              We had a deluge of hotel tabs. A consultant did what they do: made a matrix. ChatGPT helped with the synthesis. Please don’t ask
-              for the appendix.
-            </p>
-          </div>
+          <h2 id="stayHeading" class="reveal reveal-left">Where to stay</h2>
 
-          <div class="hotel-map-card reveal" aria-labelledby="hotelMatrixHeading">
+          <div class="hotel-map-card reveal" aria-labelledby="stayHeading">
             <div class="hotel-map-chart-col">
-              <h3 id="hotelMatrixHeading" class="hotel-map-heading">Hotels at a glance</h3>
-              <p class="hotel-map-helper">Hover a dot to preview. Click to pin. (Tap a dot on mobile.)</p>
+              <div class="hotel-map-title-row">
+                <h3 id="stayChartHeading" class="hotel-map-heading">Top rated hotels mapped by price and distance</h3>
+                <button
+                  id="hotelMethodTrigger"
+                  class="makan-tip-trigger hotel-method-pill"
+                  type="button"
+                  aria-expanded="false"
+                  aria-controls="hotelMethodOverlay"
+                >
+                  ⓘ Methodology
+                </button>
+              </div>
+              <p class="hotel-map-helper">
+                Click a dot for hotel details.
+                <span id="hotelMatrixRatingClaim" class="hotel-map-rating-claim">All hotels shown are rated ≥ 9.0 on Expedia.</span>
+              </p>
 
               <div id="hotelMatrixShell" class="hotel-map-shell">
                 <svg
@@ -624,19 +730,14 @@
                   role="img"
                   aria-labelledby="hotelMatrixTitle hotelMatrixDesc"
                 >
-                  <title id="hotelMatrixTitle">Hotels matrix by price and comfort</title>
-                  <desc id="hotelMatrixDesc">Price increases from left to right, comfort increases from bottom to top.</desc>
+                  <title id="hotelMatrixTitle">Hotels matrix by price and drive time</title>
+                  <desc id="hotelMatrixDesc">Price increases from left to right, and drive time to the wedding venue increases from bottom to top.</desc>
                 </svg>
                 <div id="hotelMatrixTooltip" class="hotel-map-dot-tooltip" role="status" aria-live="polite" hidden></div>
               </div>
             </div>
 
-            <aside id="hotelMatrixDetails" class="hotel-map-details" aria-live="polite">
-              <div class="hotel-map-empty">
-                <p class="hotel-map-empty-title">Hover a dot to see details.</p>
-                <p>Yes, this is a framework. Old habits. ChatGPT made it faster.</p>
-              </div>
-            </aside>
+            <aside id="hotelMatrixDetails" class="hotel-map-details" aria-live="polite"></aside>
           </div>
         </div>
 
@@ -658,33 +759,86 @@
           </div>
           <h2 class="reveal reveal-left">Things to do in Beijing</h2>
           <div class="things-theme-list reveal" id="thingsThemeList">
-            <details class="things-theme" open>
+            <details class="things-theme">
               <summary class="things-theme-summary">
-                <span class="things-theme-title">Imperial core</span>
+                <span class="things-theme-title">Imperial history</span>
                 <span class="things-theme-chevron" aria-hidden="true"></span>
               </summary>
               <div class="things-theme-panel">
                 <div class="things-grid things-grid--theme">
                   <article class="content-card thing-card reveal">
                     <figure class="content-media thing-img">
-                      <img data-photo-key="thingForbiddenCity" src="photos/things/forbidden-city.jpg" alt="Forbidden City" loading="lazy" />
+                      <img src="photos/things/forbidden-city.jpg" alt="Forbidden City (Palace Museum)" loading="lazy" />
                     </figure>
-                    <h3>Forbidden City</h3>
-                    <p>Explore the former imperial palace complex and its iconic ceremonial halls.</p>
+                    <h3>Forbidden City (Palace Museum) / 故宫博物院</h3>
+                    <p>
+                      For history nerds and literally everyone who visits Beijing. The scale is ridiculous (in a good way). Go for imperial power
+                      vibes, tiny dragon details, and the feeling you’ve walked into the world’s most serious courtyard collection.
+                    </p>
+                    <p class="thing-address">北京市东城区景山前街4号</p>
                     <p class="thing-links">
-                      <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Forbidden+City+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                      <a href="https://www.google.com/maps/search/?api=1&query=Forbidden+City+Palace+Museum+%E5%8C%97%E4%BA%AC%E5%B8%82%E4%B8%9C%E5%9F%8E%E5%8C%BA%E6%99%AF%E5%B1%B1%E5%89%8D%E8%A1%974%E5%8F%B7" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
                       <a href="https://en.dpm.org.cn/" target="_blank" rel="noopener noreferrer">Website</a>
                     </p>
                   </article>
                   <article class="content-card thing-card reveal">
                     <figure class="content-media thing-img">
-                      <img data-photo-key="thingJingshan" src="photos/things/jingshan-park.jpg" alt="Jingshan Park" loading="lazy" />
+                      <img src="photos/things/summer-palace.jpg" alt="Summer Palace" loading="lazy" />
                     </figure>
-                    <h3>Jingshan Park</h3>
-                    <p>A short climb with one of the best panoramic views over old Beijing.</p>
+                    <h3>Summer Palace / 颐和园</h3>
+                    <p>
+                      Beijing’s prettiest ‘escape the city’ move—lake, bridges, pavilions, and long scenic walks that feel like a period drama.
+                      Great when you want beauty + history, but in a relaxing way.
+                    </p>
+                    <p class="thing-address">北京市海淀区新建宫门路19号</p>
                     <p class="thing-links">
-                      <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Jingshan+Park+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
-                      <a href="https://en.wikipedia.org/wiki/Jingshan_Park" target="_blank" rel="noopener noreferrer">Website</a>
+                      <a href="https://www.google.com/maps/search/?api=1&query=Summer+Palace+%E5%8C%97%E4%BA%AC%E5%B8%82%E6%B5%B7%E6%B7%80%E5%8C%BA%E6%96%B0%E5%BB%BA%E5%AE%AB%E9%97%A8%E8%B7%AF19%E5%8F%B7" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                      <a href="https://whc.unesco.org/en/list/880/" target="_blank" rel="noopener noreferrer">Website</a>
+                    </p>
+                  </article>
+                  <article class="content-card thing-card reveal">
+                    <figure class="content-media thing-img">
+                      <img src="photos/things/old-summer-palace.jpg" alt="Old Summer Palace ruins park" loading="lazy" />
+                    </figure>
+                    <h3>Old Summer Palace (Yuanmingyuan Ruins Park) / 圆明园遗址公园</h3>
+                    <p>
+                      A different kind of imperial visit—more reflective, less glossy. You’re walking through the remains of a once-massive garden
+                      complex, so it’s equal parts ‘wow’ and ‘oh.’
+                    </p>
+                    <p class="thing-address">北京市海淀区清华西路28号</p>
+                    <p class="thing-links">
+                      <a href="https://www.google.com/maps/search/?api=1&query=Yuanmingyuan+Ruins+Park+%E5%8C%97%E4%BA%AC%E5%B8%82%E6%B5%B7%E6%B7%80%E5%8C%BA%E6%B8%85%E5%8D%8E%E8%A5%BF%E8%B7%AF28%E5%8F%B7" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                      <a href="https://en.wikipedia.org/wiki/Old_Summer_Palace" target="_blank" rel="noopener noreferrer">Website</a>
+                    </p>
+                  </article>
+                  <article class="content-card thing-card reveal">
+                    <figure class="content-media thing-img">
+                      <img src="photos/things/great-wall-mutianyu.jpg" alt="Great Wall at Mutianyu section" loading="lazy" />
+                    </figure>
+                    <h3>Great Wall (Mutianyu section) / 慕田峪长城</h3>
+                    <p>
+                      The ‘I can’t believe this is real’ day trip. Mutianyu is scenic and well-preserved, with easier logistics than some
+                      sections. You’ll take 200 photos and still think none of them capture it.
+                    </p>
+                    <p class="thing-address">北京市怀柔区渤海镇慕田峪村</p>
+                    <p class="thing-links">
+                      <a href="https://www.google.com/maps/search/?api=1&query=Mutianyu+Great+Wall+%E5%8C%97%E4%BA%AC%E5%B8%82%E6%80%80%E6%9F%94%E5%8C%BA%E6%B8%A4%E6%B5%B7%E9%95%87%E6%85%95%E7%94%B0%E5%B3%AA%E6%9D%91" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                      <a href="https://www.mutianyugreatwall.com/" target="_blank" rel="noopener noreferrer">Website</a>
+                    </p>
+                  </article>
+                  <article class="content-card thing-card reveal">
+                    <figure class="content-media thing-img">
+                      <img src="photos/things/national-museum-of-china.jpg" alt="National Museum of China" loading="lazy" />
+                    </figure>
+                    <h3>National Museum of China / 中国国家博物馆</h3>
+                    <p>
+                      The ‘big timeline’ museum—Chinese civilization at full scale. It’s huge, so pick a few exhibits and act like you’re being
+                      intentional, not overwhelmed.
+                    </p>
+                    <p class="thing-address">北京市东城区东长安街16号</p>
+                    <p class="thing-links">
+                      <a href="https://www.google.com/maps/search/?api=1&query=National+Museum+of+China+%E5%8C%97%E4%BA%AC%E5%B8%82%E4%B8%9C%E5%9F%8E%E5%8C%BA%E4%B8%9C%E9%95%BF%E5%AE%89%E8%A1%9716%E5%8F%B7" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                      <a href="https://en.chnmuseum.cn/" target="_blank" rel="noopener noreferrer">Website</a>
                     </p>
                   </article>
                 </div>
@@ -693,31 +847,83 @@
 
             <details class="things-theme">
               <summary class="things-theme-summary">
-                <span class="things-theme-title">Iconic parks/temples</span>
+                <span class="things-theme-title">Nature / parks</span>
                 <span class="things-theme-chevron" aria-hidden="true"></span>
               </summary>
               <div class="things-theme-panel">
                 <div class="things-grid things-grid--theme">
                   <article class="content-card thing-card reveal">
                     <figure class="content-media thing-img">
-                      <img data-photo-key="thingTempleHeaven" src="photos/things/temple-of-heaven.jpg" alt="Temple of Heaven" loading="lazy" />
+                      <img src="photos/things/beihai-park.jpg" alt="Beihai Park" loading="lazy" />
                     </figure>
-                    <h3>Temple of Heaven</h3>
-                    <p>A landmark of Ming architecture and expansive gardens in central Beijing.</p>
+                    <h3>Beihai Park / 北海公园</h3>
+                    <p>
+                      Classic imperial-garden calm—lake views, temples, and a very scenic ‘slow stroll.’ Ideal when you want something beautiful
+                      without needing a full-day plan.
+                    </p>
+                    <p class="thing-address">北京市西城区文津街1号</p>
                     <p class="thing-links">
-                      <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Temple+of+Heaven+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                      <a href="https://www.google.com/maps/search/?api=1&query=Beihai+Park+%E5%8C%97%E4%BA%AC%E5%B8%82%E8%A5%BF%E5%9F%8E%E5%8C%BA%E6%96%87%E6%B4%A5%E8%A1%971%E5%8F%B7" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                      <a href="https://en.wikipedia.org/wiki/Beihai_Park" target="_blank" rel="noopener noreferrer">Website</a>
+                    </p>
+                  </article>
+                  <article class="content-card thing-card reveal">
+                    <figure class="content-media thing-img">
+                      <img src="photos/things/shichahai.jpg" alt="Shichahai scenic area" loading="lazy" />
+                    </figure>
+                    <h3>Shichahai Scenic Area / 什刹海</h3>
+                    <p>
+                      Lakes + hutongs + old-Beijing atmosphere. Great for wandering, snacks, and evening lights—basically a
+                      choose-your-own-adventure walk, but with better carbs.
+                    </p>
+                    <p class="thing-address">北京市西城区羊房胡同甲23号（靠近湖区的方便起点）</p>
+                    <p class="thing-links">
+                      <a href="https://www.google.com/maps/search/?api=1&query=Shichahai+Scenic+Area+%E5%8C%97%E4%BA%AC%E5%B8%82%E8%A5%BF%E5%9F%8E%E5%8C%BA%E7%BE%8A%E6%88%BF%E8%83%A1%E5%90%8C%E7%94%B223%E5%8F%B7" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                      <a href="https://en.wikipedia.org/wiki/Shichahai" target="_blank" rel="noopener noreferrer">Website</a>
+                    </p>
+                  </article>
+                  <article class="content-card thing-card reveal">
+                    <figure class="content-media thing-img">
+                      <img src="photos/things/jingshan-park.jpg" alt="Jingshan Park view" loading="lazy" />
+                    </figure>
+                    <h3>Jingshan Park / 景山公园</h3>
+                    <p>
+                      The best ‘high effort-to-reward ratio’ in Beijing (meaning: little effort, huge reward). A short climb gets you the iconic
+                      panoramic view over the Forbidden City.
+                    </p>
+                    <p class="thing-address">北京市西城区景山西街44号</p>
+                    <p class="thing-links">
+                      <a href="https://www.google.com/maps/search/?api=1&query=Jingshan+Park+%E5%8C%97%E4%BA%AC%E5%B8%82%E8%A5%BF%E5%9F%8E%E5%8C%BA%E6%99%AF%E5%B1%B1%E8%A5%BF%E8%A1%9744%E5%8F%B7" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                      <a href="https://en.wikipedia.org/wiki/Jingshan_Park" target="_blank" rel="noopener noreferrer">Website</a>
+                    </p>
+                  </article>
+                  <article class="content-card thing-card reveal">
+                    <figure class="content-media thing-img">
+                      <img src="photos/things/temple-of-heaven.jpg" alt="Temple of Heaven Park" loading="lazy" />
+                    </figure>
+                    <h3>Temple of Heaven Park / 天坛公园</h3>
+                    <p>
+                      Iconic architecture plus a massive park where locals do tai chi, dancing, and other main-character activities. Go in the
+                      morning for peak vibes.
+                    </p>
+                    <p class="thing-address">北京市东城区天坛内东里7号</p>
+                    <p class="thing-links">
+                      <a href="https://www.google.com/maps/search/?api=1&query=Temple+of+Heaven+Park+%E5%8C%97%E4%BA%AC%E5%B8%82%E4%B8%9C%E5%9F%8E%E5%8C%BA%E5%A4%A9%E5%9D%9B%E5%86%85%E4%B8%9C%E9%87%8C7%E5%8F%B7" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
                       <a href="https://whc.unesco.org/en/list/881/" target="_blank" rel="noopener noreferrer">Website</a>
                     </p>
                   </article>
                   <article class="content-card thing-card reveal">
                     <figure class="content-media thing-img">
-                      <img data-photo-key="thingSummerPalace" src="photos/things/summer-palace.jpg" alt="Summer Palace" loading="lazy" />
+                      <img src="photos/things/taoranting-park.jpg" alt="Taoranting Park" loading="lazy" />
                     </figure>
-                    <h3>Summer Palace</h3>
-                    <p>Lake views, painted corridors, and one of Beijing’s most scenic royal parks.</p>
+                    <h3>Taoranting Park / 陶然亭公园</h3>
+                    <p>
+                      A real neighborhood park—less touristy, more everyday Beijing. Perfect when you want greenery, lakes, and a calm reset.
+                    </p>
+                    <p class="thing-address">北京市西城区太平街19号</p>
                     <p class="thing-links">
-                      <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Summer+Palace+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
-                      <a href="https://whc.unesco.org/en/list/880/" target="_blank" rel="noopener noreferrer">Website</a>
+                      <a href="https://www.google.com/maps/search/?api=1&query=Taoranting+Park+%E5%8C%97%E4%BA%AC%E5%B8%82%E8%A5%BF%E5%9F%8E%E5%8C%BA%E5%A4%AA%E5%B9%B3%E8%A1%9719%E5%8F%B7" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                      <a href="https://en.wikipedia.org/wiki/Taoranting_Park" target="_blank" rel="noopener noreferrer">Website</a>
                     </p>
                   </article>
                 </div>
@@ -726,31 +932,95 @@
 
             <details class="things-theme">
               <summary class="things-theme-summary">
-                <span class="things-theme-title">Modern + day trip</span>
+                <span class="things-theme-title">Modern China</span>
                 <span class="things-theme-chevron" aria-hidden="true"></span>
               </summary>
               <div class="things-theme-panel">
                 <div class="things-grid things-grid--theme">
                   <article class="content-card thing-card reveal">
                     <figure class="content-media thing-img">
-                      <img data-photo-key="thingSanlitun" src="photos/things/sanlitun-taikooli.jpg" alt="Sanlitun Taikoo Li" loading="lazy" />
+                      <img src="photos/things/universal-beijing-resort.jpg" alt="Universal Beijing Resort" loading="lazy" />
                     </figure>
-                    <h3>Sanlitun (Taikoo Li)</h3>
-                    <p>Modern shopping, cafes, and nightlife—one of Beijing’s most energetic neighborhoods.</p>
+                    <h3>Universal Beijing Resort / 北京环球度假区</h3>
+                    <p>
+                      Full theme-park spectacle: rides, big sets, big crowds, big energy. Worth it if you want a very ‘new Beijing’ day and don’t
+                      mind trading peace for adrenaline.
+                    </p>
+                    <p class="thing-address">北京市通州区梨园镇（北京环球度假区）</p>
                     <p class="thing-links">
-                      <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Taikoo+Li+Sanlitun+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                      <a href="https://www.google.com/maps/search/?api=1&query=Universal+Beijing+Resort+%E5%8C%97%E4%BA%AC%E5%B8%82%E9%80%9A%E5%B7%9E%E5%8C%BA%E6%A2%A8%E5%9B%AD%E9%95%87" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                      <a href="https://www.universalbeijingresort.com/en" target="_blank" rel="noopener noreferrer">Website</a>
+                    </p>
+                  </article>
+                  <article class="content-card thing-card reveal">
+                    <figure class="content-media thing-img">
+                      <img src="photos/things/sanlitun-taikooli.jpg" alt="Sanlitun Taikoo Li" loading="lazy" />
+                    </figure>
+                    <h3>Sanlitun (Taikoo Li Sanlitun) / 三里屯（太古里）</h3>
+                    <p>
+                      Beijing’s stylish hangout zone: shopping, cafes, bars, and elite people-watching. Come for one store, leave three hours
+                      later with a new personality.
+                    </p>
+                    <p class="thing-address">北京市朝阳区三里屯路19号</p>
+                    <p class="thing-links">
+                      <a href="https://www.google.com/maps/search/?api=1&query=Taikoo+Li+Sanlitun+%E5%8C%97%E4%BA%AC%E5%B8%82%E6%9C%9D%E9%98%B3%E5%8C%BA%E4%B8%89%E9%87%8C%E5%B1%AF%E8%B7%AF19%E5%8F%B7" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
                       <a href="https://taikoolisanlitun.com" target="_blank" rel="noopener noreferrer">Website</a>
                     </p>
                   </article>
                   <article class="content-card thing-card reveal">
                     <figure class="content-media thing-img">
-                      <img data-photo-key="thingMutianyu" src="photos/things/great-wall-mutianyu.jpg" alt="Great Wall at Mutianyu" loading="lazy" />
+                      <img src="photos/things/wf-central.jpg" alt="WF CENTRAL" loading="lazy" />
                     </figure>
-                    <h3>Great Wall (Mutianyu)</h3>
-                    <p>A scenic section of the Wall with mountain panoramas and restored watchtowers.</p>
+                    <h3>WF CENTRAL / 王府中环</h3>
+                    <p>
+                      A polished, design-y mall right by Wangfujing. Great for luxury browsing, coffee, and an air-conditioned break when Beijing
+                      weather is being dramatic.
+                    </p>
+                    <p class="thing-address">北京市东城区王府井大街269号</p>
                     <p class="thing-links">
-                      <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Mutianyu+Great+Wall&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
-                      <a href="https://www.mutianyugreatwall.com/" target="_blank" rel="noopener noreferrer">Website</a>
+                      <a href="https://www.google.com/maps/search/?api=1&query=WF+CENTRAL+%E5%8C%97%E4%BA%AC%E5%B8%82%E4%B8%9C%E5%9F%8E%E5%8C%BA%E7%8E%8B%E5%BA%9C%E4%BA%95%E5%A4%A7%E8%A1%97269%E5%8F%B7" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                      <a href="https://www.wfcentral.cn/" target="_blank" rel="noopener noreferrer">Website</a>
+                    </p>
+                  </article>
+                  <article class="content-card thing-card reveal">
+                    <figure class="content-media thing-img">
+                      <img src="photos/things/hopson-one.jpg" alt="Chaoyang Hopson One" loading="lazy" />
+                    </figure>
+                    <h3>Chaoyang Hopson One (Heshenghui) / 北京朝阳合生汇</h3>
+                    <p>
+                      Peak ‘local modern mall’ experience—tons of food, entertainment, and that very Beijing feeling of: ‘Wait… why is this mall
+                      the size of a small country?’ Perfect when your group can’t agree on a plan.
+                    </p>
+                    <p class="thing-address">北京市朝阳区西大望路甲22号</p>
+                    <p class="thing-links">
+                      <a href="https://www.google.com/maps/search/?api=1&query=Hopson+One+Beijing+%E5%8C%97%E4%BA%AC%E5%B8%82%E6%9C%9D%E9%98%B3%E5%8C%BA%E8%A5%BF%E5%A4%A7%E6%9C%9B%E8%B7%AF%E7%94%B222%E5%8F%B7" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                    </p>
+                  </article>
+                </div>
+              </div>
+            </details>
+
+            <details class="things-theme">
+              <summary class="things-theme-summary">
+                <span class="things-theme-title">Relaxation &amp; spa</span>
+                <span class="things-theme-chevron" aria-hidden="true"></span>
+              </summary>
+              <div class="things-theme-panel">
+                <div class="things-grid things-grid--theme">
+                  <article class="content-card thing-card thing-card--text reveal">
+                    <h3>愈舍YUSPA (三里屯店)</h3>
+                    <p>Spotless, reasonably priced, and known for gentle oil massages.</p>
+                    <p class="thing-links">
+                      <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=%E6%84%88%E8%88%8DYUSPA+%E4%B8%89%E9%87%8C%E5%B1%AF+%E5%8C%97%E4%BA%AC&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                      <a href="https://www.ihg.com/intercontinental/hotels/us/en/beijing/bjsfa/hoteldetail" target="_blank" rel="noopener noreferrer">Website</a>
+                    </p>
+                  </article>
+                  <article class="content-card thing-card thing-card--text reveal">
+                    <h3>iSpa (华贸JW万豪店）</h3>
+                    <p>A well-established chain with Thai, oil, and deep tissue options.</p>
+                    <p class="thing-links">
+                      <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=iSpa+%E5%8D%8E%E8%B4%B8JW%E4%B8%87%E8%B1%AA%E5%BA%97+%E5%8C%97%E4%BA%AC&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                      <a href="https://www.marriott.com/en-us/hotels/bjsdt-jw-marriott-hotel-beijing/overview/" target="_blank" rel="noopener noreferrer">Website</a>
                     </p>
                   </article>
                 </div>
@@ -767,36 +1037,52 @@
             <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/peony-bud.svg" alt="" />
           </div>
           <div class="makan-menu-card reveal reveal-scale">
-            <h2 class="section-title reveal reveal-left">Beijing Makan Menu</h2>
+            <h2 class="section-title reveal reveal-left">Beijing Food Menu</h2>
             <p class="makan-intro">
-              Beijing food is loud, proud, and extremely good. Here are a few favorites—mix of ‘only in Beijing’ experiences and reliable
-              classics.
+              Beijing food is loud, proud, and extremely good — basically 3,000 years of culinary history condensed into a food court (but you
+              don't need a imperial budget). Here are a few favorites: a mix of ‘only in Beijing’ experiences and reliable classics.
             </p>
 
-            <div class="makan-tip-row">
-              <button id="makanTipTrigger" class="makan-tip-trigger" type="button" aria-expanded="false" aria-controls="makanTipPopover">
-                ⓘ Tip
-              </button>
-              <div id="makanTipPopover" class="makan-tip-popover" role="tooltip" hidden aria-hidden="true">
-                <p>
-                  One Beijing tip: download 大众点评 (Dàzhòng Diǎnpíng). Most restaurants here don’t show their full vibe on Google Maps. For
-                  photos, menus, and real reviews, locals use 大众点评—think Yelp + Google Reviews in one. If you want to see what a place actually
-                  looks like (and what to order), it’s the best app for it.
-                </p>
+            <div class="makan-controls-row">
+              <div class="makan-tip-row">
+                <button id="makanTipTrigger" class="makan-tip-trigger" type="button" aria-expanded="false" aria-controls="makanTipPopover">
+                  ⓘ Tip
+                </button>
+                <div id="makanTipPopover" class="makan-tip-popover" role="tooltip" hidden aria-hidden="true">
+                  <p>
+                    One Beijing tip: download 大众点评 (Dàzhòng Diǎnpíng). Most restaurants here don’t show their full vibe on Google Maps. For
+                    photos, menus, and real reviews, locals use 大众点评—think Yelp + Google Reviews in one. If you want to see what a place actually
+                    looks like (and what to order), it’s the best app for it.
+                  </p>
+                </div>
+              </div>
+              <div class="makan-controls" aria-label="Food category controls">
+                <button id="makanExpandAll" class="makan-control-btn" type="button">Expand all</button>
+                <button id="makanCollapseAll" class="makan-control-btn" type="button">Collapse all</button>
               </div>
             </div>
 
-            <div class="makan-menu-table" aria-label="Beijing makan table">
-              <div class="makan-menu-table-head" aria-hidden="true">
-                <span>Restaurant type</span>
-                <span>Restaurant</span>
-                <span>Short description</span>
+            <div class="makan-menu-table" aria-label="Beijing food categories">
+              <div id="makanMenuRows" class="makan-type-list" aria-label="Beijing food categories"></div>
+            </div>
+
+            <div class="makan-legal-row">
+              <button id="makanLegalTrigger" class="makan-legal-link" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="makanLegalPopover">
+                ⚖️ Legal-ish note
+              </button>
+              <div id="makanLegalPopover" class="makan-legal-popover" role="dialog" aria-modal="false" aria-labelledby="makanLegalTitle" hidden aria-hidden="true">
+                <span class="makan-legal-popover-arrow" aria-hidden="true"></span>
+                <div class="makan-legal-card" role="document">
+                  <h3 id="makanLegalTitle">Legal-ish note (said with love)</h3>
+                  <p>
+                    We are not responsible for food comas, spice-induced tears, or any dumpling-related life choices. Please consult your stomach and/or actual counsel.
+                  </p>
+                  <button id="makanLegalClose" class="makan-legal-close" type="button">Got it</button>
+                </div>
               </div>
-              <div id="makanMenuRows" class="makan-menu-rows" aria-label="Beijing makan rows"></div>
             </div>
           </div>
 
-          <p class="makan-microcopy reveal">Have a must-eat spot? Send it to us and we’ll add it.</p>
         </div>
       </section>
 
@@ -808,7 +1094,7 @@
           <h2 class="section-title">Travel &amp; Visa</h2>
 
           <p class="travel-intro">
-            As of today, entry rules depend on passport and can change. Please check official sources before booking.
+            As of Feb 15, 2026, entry rules depend on passport and can change. Please check official sources before booking.
           </p>
 
           <div class="travel-selector reveal">
@@ -846,7 +1132,7 @@
             <button id="travelPassportClear" class="travel-passport-clear hidden" type="button">Clear selection</button>
             <p id="travelPassportHint" class="travel-selector-hint">Choose your passport to see a quick summary.</p>
 
-            <article id="travelPassportResult" class="travel-result-card" aria-live="polite" hidden>
+            <article id="travelPassportResult" class="travel-result-card hidden" aria-live="polite" hidden>
               <h3 class="travel-result-title"></h3>
               <p class="travel-result-outcome"></p>
               <p class="travel-result-detail"></p>
@@ -858,9 +1144,6 @@
             <p>
               240-hour visa-free transit may apply only for eligible travelers transiting to a third country or region with a confirmed onward
               ticket; eligibility depends on passport and itinerary.
-            </p>
-            <p>
-              <a href="https://en.nia.gov.cn/n147413/c178106/content.html" target="_blank" rel="noopener">Official transit update</a>
             </p>
           </article>
 
@@ -964,10 +1247,7 @@
       <div class="site-footer-inner">
         <p class="site-footer-main">
           <span class="site-footer-main-label">Questions?</span>
-          <a class="site-footer-email" href="mailto:Kwangyijie@gmail.com">Kwangyijie@gmail.com</a>
-        </p>
-        <p class="site-footer-legal">
-          Wedding logistics only — not legal advice. If this site feels a little like a slide deck, blame Yi Jie’s last 6 years in PowerPoint.
+          <a class="site-footer-email" href="mailto:sub.kyj123@gmail.com">sub.kyj123@gmail.com</a>
         </p>
         <p class="site-footer-copy">© 2026 Miki &amp; Yi Jie</p>
       </div>

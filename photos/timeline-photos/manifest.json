@@ -4,74 +4,133 @@
       "file": "1995-yi-jie-born.png",
       "year": 1995,
       "alt": "Yi Jie as a child in 1995",
-      "objectPosition": "50% 34%"
+      "objectPosition": "50% 42%",
+      "focalX": 0.5,
+      "focalY": 0.42,
+      "cropMode": "cover",
+      "allowNoFace": false,
+      "mosaicFile": "/public/images/story-crops/1995.jpg"
     },
     {
       "file": "1998-miki-born.jpg",
       "year": 1998,
       "alt": "Miki as a child in 1998",
-      "objectPosition": "50% 47%"
+      "objectPosition": "50% 46%",
+      "focalX": 0.45,
+      "focalY": 0.46,
+      "cropMode": "cover",
+      "allowNoFace": false,
+      "mosaicFile": "/public/images/story-crops/1998.jpg"
     },
     {
       "file": "2001-stools.jpg",
       "year": 2001,
       "alt": "Yi Jie and siblings on tiny stools in 2001",
-      "objectPosition": "50% 45%"
+      "objectPosition": "50% 48%",
+      "focalX": 0.5,
+      "focalY": 0.48,
+      "cropMode": "cover",
+      "allowNoFace": false,
+      "mosaicFile": "/public/images/story-crops/2001.jpg"
     },
     {
       "file": "2008-miki-moves-beijing-upright.jpg",
       "year": 2008,
       "alt": "Miki in 2008",
-      "objectPosition": "50% 36%"
+      "objectPosition": "50% 44%",
+      "focalX": 0.5,
+      "focalY": 0.44,
+      "cropMode": "cover",
+      "allowNoFace": false,
+      "mosaicFile": "/public/images/story-crops/2008.jpg"
     },
     {
       "file": "2013-army.jpg",
       "year": 2013,
       "alt": "Yi Jie in military uniform in 2013",
-      "objectPosition": "50% 16%"
+      "objectPosition": "50% 26%",
+      "focalX": 0.5,
+      "focalY": 0.26,
+      "cropMode": "cover",
+      "allowNoFace": false,
+      "mosaicFile": "/public/images/story-crops/2013.jpg"
     },
     {
       "file": "2016-wesleyan.jpg",
       "year": 2016,
       "alt": "Miki and Yi Jie at Wesleyan in 2016",
-      "objectPosition": "50% 40%"
+      "objectPosition": "50% 44%",
+      "focalX": 0.55,
+      "focalY": 0.44,
+      "cropMode": "cover",
+      "allowNoFace": false,
+      "mosaicFile": "/public/images/story-crops/2016.jpg"
     },
     {
       "file": "2020-covid-upright.jpg",
       "year": 2020,
       "alt": "Miki and Yi Jie in masks in 2020",
-      "objectPosition": "50% 34%"
+      "objectPosition": "50% 42%",
+      "focalX": 0.5,
+      "focalY": 0.42,
+      "cropMode": "cover",
+      "allowNoFace": false,
+      "mosaicFile": "/public/images/story-crops/2020.jpg"
     },
     {
       "file": "2021-sf.jpg",
       "year": 2021,
       "alt": "Miki and Yi Jie in San Francisco in 2021",
-      "fit": "contain",
-      "objectPosition": "50% 50%"
+      "objectPosition": "50% 44%",
+      "focalX": 0.5,
+      "focalY": 0.44,
+      "cropMode": "cover",
+      "allowNoFace": false,
+      "mosaicFile": "/public/images/story-crops/2021.jpg"
     },
     {
       "file": "2023-japan.jpg",
       "year": 2023,
       "alt": "Miki and Yi Jie in 2023",
-      "objectPosition": "50% 42%"
+      "objectPosition": "50% 48%",
+      "focalX": 0.5,
+      "focalY": 0.48,
+      "cropMode": "cover",
+      "allowNoFace": false,
+      "mosaicFile": "/public/images/story-crops/2023.jpg"
     },
     {
       "file": "2024-proposal-upright.jpg",
       "year": 2024,
       "alt": "Proposal moment in 2024",
-      "objectPosition": "50% 36%"
+      "objectPosition": "50% 44%",
+      "focalX": 0.5,
+      "focalY": 0.44,
+      "cropMode": "cover",
+      "allowNoFace": false,
+      "mosaicFile": "/public/images/story-crops/2024.jpg"
     },
     {
       "file": "2025-cats.jpg",
       "year": 2025,
       "alt": "Miki and Yi Jie with Leo and Luna in 2025",
-      "objectPosition": "50% 42%"
+      "objectPosition": "50% 40%",
+      "focalX": 0.5,
+      "focalY": 0.4,
+      "cropMode": "cover",
+      "allowNoFace": false,
+      "mosaicFile": "/public/images/story-crops/2025.jpg"
     },
     {
       "file": "2027-whats-next.png",
       "year": 2027,
       "alt": "2027 what is next illustration with Miki, Yi Jie, and two cats",
-      "objectPosition": "50% 44%"
+      "objectPosition": "50% 44%",
+      "focalX": 0.5,
+      "focalY": 0.5,
+      "cropMode": "cover",
+      "allowNoFace": true,
+      "mosaicFile": "/public/images/story-crops/2027.jpg"
     }
   ]
 }

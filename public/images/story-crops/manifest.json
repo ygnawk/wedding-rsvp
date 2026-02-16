@@ -1,0 +1,250 @@
+{
+  "generatedAt": "2026-02-16T05:12:45.517Z",
+  "defaults": {
+    "focalX": 0.5,
+    "focalY": 0.28,
+    "colToRowRatio": 0.78
+  },
+  "entries": [
+    {
+      "year": 1995,
+      "sourceFile": "1995-yi-jie-born.png",
+      "outputFile": "/public/images/story-crops/1995.jpg",
+      "sourceWidth": 1024,
+      "sourceHeight": 1536,
+      "focalX": 0.5,
+      "focalY": 0.42,
+      "targetAspect": 2.34,
+      "cropRect": {
+        "left": 0,
+        "top": 426,
+        "width": 1024,
+        "height": 438
+      },
+      "outputWidth": 1600,
+      "outputHeight": 684,
+      "allowNoFace": false,
+      "facesDetected": 1
+    },
+    {
+      "year": 1998,
+      "sourceFile": "1998-miki-born.jpg",
+      "outputFile": "/public/images/story-crops/1998.jpg",
+      "sourceWidth": 2953,
+      "sourceHeight": 2743,
+      "focalX": 0.45,
+      "focalY": 0.46,
+      "targetAspect": 2.34,
+      "cropRect": {
+        "left": 0,
+        "top": 631,
+        "width": 2953,
+        "height": 1262
+      },
+      "outputWidth": 1600,
+      "outputHeight": 684,
+      "allowNoFace": false,
+      "facesDetected": 1
+    },
+    {
+      "year": 2001,
+      "sourceFile": "2001-stools.jpg",
+      "outputFile": "/public/images/story-crops/2001.jpg",
+      "sourceWidth": 640,
+      "sourceHeight": 480,
+      "focalX": 0.5,
+      "focalY": 0.48,
+      "targetAspect": 2.34,
+      "cropRect": {
+        "left": 0,
+        "top": 93,
+        "width": 640,
+        "height": 274
+      },
+      "outputWidth": 1600,
+      "outputHeight": 684,
+      "allowNoFace": false,
+      "facesDetected": 1
+    },
+    {
+      "year": 2008,
+      "sourceFile": "2008-miki-moves-beijing-upright.jpg",
+      "outputFile": "/public/images/story-crops/2008.jpg",
+      "sourceWidth": 3024,
+      "sourceHeight": 4032,
+      "focalX": 0.5,
+      "focalY": 0.44,
+      "targetAspect": 2.34,
+      "cropRect": {
+        "left": 0,
+        "top": 1128,
+        "width": 3024,
+        "height": 1292
+      },
+      "outputWidth": 1600,
+      "outputHeight": 684,
+      "allowNoFace": false,
+      "facesDetected": 1
+    },
+    {
+      "year": 2013,
+      "sourceFile": "2013-army.jpg",
+      "outputFile": "/public/images/story-crops/2013.jpg",
+      "sourceWidth": 1836,
+      "sourceHeight": 3264,
+      "focalX": 0.5,
+      "focalY": 0.26,
+      "targetAspect": 2.34,
+      "cropRect": {
+        "left": 0,
+        "top": 456,
+        "width": 1836,
+        "height": 785
+      },
+      "outputWidth": 1600,
+      "outputHeight": 684,
+      "allowNoFace": false,
+      "facesDetected": 1
+    },
+    {
+      "year": 2016,
+      "sourceFile": "2016-wesleyan.jpg",
+      "outputFile": "/public/images/story-crops/2016.jpg",
+      "sourceWidth": 960,
+      "sourceHeight": 720,
+      "focalX": 0.55,
+      "focalY": 0.44,
+      "targetAspect": 1.56,
+      "cropRect": {
+        "left": 0,
+        "top": 9,
+        "width": 960,
+        "height": 615
+      },
+      "outputWidth": 1600,
+      "outputHeight": 1026,
+      "allowNoFace": false,
+      "facesDetected": 1
+    },
+    {
+      "year": 2020,
+      "sourceFile": "2020-covid-upright.jpg",
+      "outputFile": "/public/images/story-crops/2020.jpg",
+      "sourceWidth": 3088,
+      "sourceHeight": 2320,
+      "focalX": 0.5,
+      "focalY": 0.42,
+      "targetAspect": 3,
+      "cropRect": {
+        "left": 0,
+        "top": 460,
+        "width": 3088,
+        "height": 1029
+      },
+      "outputWidth": 1600,
+      "outputHeight": 533,
+      "allowNoFace": false,
+      "facesDetected": 1
+    },
+    {
+      "year": 2021,
+      "sourceFile": "2021-sf.jpg",
+      "outputFile": "/public/images/story-crops/2021.jpg",
+      "sourceWidth": 2320,
+      "sourceHeight": 3088,
+      "focalX": 0.5,
+      "focalY": 0.44,
+      "targetAspect": 1.56,
+      "cropRect": {
+        "left": 0,
+        "top": 615,
+        "width": 2320,
+        "height": 1487
+      },
+      "outputWidth": 1600,
+      "outputHeight": 1026,
+      "allowNoFace": false,
+      "facesDetected": 1
+    },
+    {
+      "year": 2023,
+      "sourceFile": "2023-japan.jpg",
+      "outputFile": "/public/images/story-crops/2023.jpg",
+      "sourceWidth": 1920,
+      "sourceHeight": 1280,
+      "focalX": 0.5,
+      "focalY": 0.48,
+      "targetAspect": 3,
+      "cropRect": {
+        "left": 0,
+        "top": 294,
+        "width": 1920,
+        "height": 640
+      },
+      "outputWidth": 1600,
+      "outputHeight": 533,
+      "allowNoFace": false,
+      "facesDetected": 1
+    },
+    {
+      "year": 2024,
+      "sourceFile": "2024-proposal-upright.jpg",
+      "outputFile": "/public/images/story-crops/2024.jpg",
+      "sourceWidth": 3024,
+      "sourceHeight": 4032,
+      "focalX": 0.5,
+      "focalY": 0.44,
+      "targetAspect": 2.34,
+      "cropRect": {
+        "left": 0,
+        "top": 1128,
+        "width": 3024,
+        "height": 1292
+      },
+      "outputWidth": 1600,
+      "outputHeight": 684,
+      "allowNoFace": false,
+      "facesDetected": 1
+    },
+    {
+      "year": 2025,
+      "sourceFile": "2025-cats.jpg",
+      "outputFile": "/public/images/story-crops/2025.jpg",
+      "sourceWidth": 1024,
+      "sourceHeight": 682,
+      "focalX": 0.5,
+      "focalY": 0.4,
+      "targetAspect": 1.17,
+      "cropRect": {
+        "left": 113,
+        "top": 0,
+        "width": 798,
+        "height": 682
+      },
+      "outputWidth": 1600,
+      "outputHeight": 1368,
+      "allowNoFace": false,
+      "facesDetected": 1
+    },
+    {
+      "year": 2027,
+      "sourceFile": "2027-whats-next.png",
+      "outputFile": "/public/images/story-crops/2027.jpg",
+      "sourceWidth": 1024,
+      "sourceHeight": 1024,
+      "focalX": 0.5,
+      "focalY": 0.5,
+      "targetAspect": 1.17,
+      "cropRect": {
+        "left": 0,
+        "top": 75,
+        "width": 1024,
+        "height": 875
+      },
+      "outputWidth": 1600,
+      "outputHeight": 1368,
+      "allowNoFace": true,
+      "facesDetected": 0
+    }
+  ]
+}

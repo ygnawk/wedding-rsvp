@@ -20,33 +20,52 @@ Open: `http://localhost:3000`
 Spreadsheet ID:
 `1yJqJC2q4iRVUFkQ3anFgr_lVHayAGFavo581U_zh3Ec`
 
-Expected tab names:
+Expected tab names for RSVP writes:
 - `Yes`
 - `Maybe`
 - `No`
 
-1. Open your Google Sheet.
-2. Go to `Extensions -> Apps Script`.
-3. Paste the full contents of:
-   - `/Users/kwangyijie/Desktop/Coding/wedding-rsvp/google-apps-script-example.gs`
-4. Click `Deploy -> New deployment -> Web app`.
-5. Set:
-   - Execute as: `Me`
-   - Who has access: `Anyone with the link`
-6. Copy the deployed Web App URL.
-7. Open `/Users/kwangyijie/Desktop/Coding/wedding-rsvp/app.js` and set:
-   - `const SHEETS_WEBAPP_URL = "YOUR_WEB_APP_URL_HERE";`
+## Configure Google Drive + Sheets (RSVP submit)
+
+RSVP submissions are handled by `/api/rsvp` in `server.js`.
+Photos upload to Google Drive, and metadata writes to Google Sheets.
+
+### 1) Share the Drive folder with your service account
+
+Destination folder ID:
+`1My_SJoxtThb-ZhRbKgBkf1Y4viDqATsS`
+
+In Google Drive, share that folder with your service-account email as **Editor**.
+If not shared, uploads will fail with Drive permission errors.
+
+### 2) Set server env vars
+
+```bash
+export GOOGLE_DRIVE_FOLDER_ID="1My_SJoxtThb-ZhRbKgBkf1Y4viDqATsS"
+export GOOGLE_SHEETS_SPREADSHEET_ID="1yJqJC2q4iRVUFkQ3anFgr_lVHayAGFavo581U_zh3Ec"
+export GOOGLE_SERVICE_ACCOUNT_JSON_BASE64="$(base64 < /path/to/service-account.json | tr -d '\n')"
+```
+
+Notes:
+- The service account key is server-side only. Do not expose it in client code.
+- Uploads are stored under Drive subfolders created automatically:
+  - `Coming`
+  - `Maybe`
+  - `No`
 
 ## RSVP submit behavior
 
-- Front-end sends `POST` JSON as `text/plain;charset=utf-8` to the Apps Script URL.
-- Payload includes:
-  - `status` (`yes` | `maybe` | `no`)
-  - `fullName`, `email`, `phone`
-  - Yes path: `partySize`, `attendeeNames` (up to 6), `dietary`
-  - Maybe path: `potentialPartySize`, `whenWillYouKnow`
-  - No path: `note`
-- If Google Sheets submission fails, the form is not cleared and a clean error is shown.
+- Front-end sends `POST` multipart form data to `/api/rsvp`.
+- Photos are optional and use three slots:
+  - `photo1`
+  - `photo2`
+  - `photo3`
+- Allowed formats: JPG/PNG/HEIC, max 10MB each.
+- Server writes one row to Sheets with:
+  - `rsvp_id`, `status`, `primary_name`, `primary_email`, `guests_json`, `message`
+  - `photo_file_ids`, `photo_urls`, `photo_filenames`
+  - per-slot columns (`photo_1_*`, `photo_2_*`, `photo_3_*`)
+- If Drive upload fails but Sheets write succeeds, RSVP still saves and returns a friendly warning.
 
 ## Git init and push
 
