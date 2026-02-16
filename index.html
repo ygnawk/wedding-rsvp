@@ -252,12 +252,12 @@
                 </button>
                 <button type="button" class="choice-card" data-choice="working">
                   <span class="checkmark" aria-hidden="true">✓</span>
-                  <span class="choice-title">Maybe — we need a month</span>
+                  <span class="choice-title">Maybe — need a month</span>
                   <span class="choice-subtext">Don’t save us a seat yet. We’ll confirm next month.</span>
                 </button>
                 <button type="button" class="choice-card" data-choice="no">
                   <span class="checkmark" aria-hidden="true">✓</span>
-                  <span class="choice-title">No — we can’t make it</span>
+                  <span class="choice-title">No — can’t make it</span>
                   <span class="choice-subtext">Thank you for replying. It means a lot.</span>
                 </button>
               </div>
@@ -286,12 +286,12 @@
 
                 <div id="yesFields" class="conditional form-row hidden" aria-live="polite">
                   <div class="field form-field">
-                    <label>Guests attending</label>
-                    <p class="field-helper">Add up to 4 guests total.</p>
+                    <label>Who’s coming</label>
+                    <p class="field-helper">Coming with someone? Add your +1 here. (Up to 3 additional guests.)</p>
                   </div>
                   <div id="guestCardsWrap" class="guest-cards-wrap"></div>
                   <div class="form-row">
-                    <button id="addGuestButton" type="button" class="btn btn-outline">+ Add guest</button>
+                    <button id="addGuestButton" type="button" class="btn btn-outline">+ Add a +1</button>
                     <p id="guestLimitError" class="field-error hidden" role="alert"></p>
                   </div>
                   <div class="field form-field">
@@ -323,8 +323,8 @@
                 </div>
 
                 <div class="field form-field form-row">
-                  <label>Upload a photo (optional)</label>
-                  <p class="field-helper">Up to 3 photos. Zero is totally fine.</p>
+                  <label>Upload photos or videos (optional)</label>
+                  <p class="field-helper">Up to 3 files. Zero is totally fine.</p>
                   <div class="upload-slot-grid" id="photoUploadSlots">
                     <div class="upload-slot" data-upload-slot="1">
                       <label for="photoUpload1">Photo 1 (optional)</label>
@@ -333,15 +333,16 @@
                         name="photo1"
                         class="upload-slot-input"
                         type="file"
-                        accept=".jpg,.jpeg,.png,.heic,image/jpeg,image/png,image/heic,image/heif"
+                        accept=".jpg,.jpeg,.png,.heic,.heif,.mp4,.mov,.webm,image/jpeg,image/png,image/heic,image/heif,video/mp4,video/quicktime,video/webm"
                       />
                       <button type="button" class="upload-slot-card" data-upload-trigger="1">
                         <span class="upload-slot-icon" aria-hidden="true">+</span>
-                        <span class="upload-slot-title">Upload a photo</span>
-                        <span class="upload-slot-meta" data-upload-meta="1">JPG/PNG/HEIC • up to 10MB</span>
+                        <span class="upload-slot-title">Upload media</span>
+                        <span class="upload-slot-meta" data-upload-meta="1">JPG/PNG/HEIC/MP4/MOV • up to 10MB</span>
                       </button>
                       <div class="upload-slot-preview hidden" data-upload-preview-wrap="1">
                         <img class="hidden" data-upload-preview="1" alt="" loading="lazy" decoding="async" />
+                        <span class="upload-slot-preview-text hidden" data-upload-preview-text="1"></span>
                       </div>
                       <div class="upload-slot-actions hidden" data-upload-actions="1">
                         <button type="button" class="upload-slot-action" data-upload-replace="1">Replace</button>
@@ -357,15 +358,16 @@
                         name="photo2"
                         class="upload-slot-input"
                         type="file"
-                        accept=".jpg,.jpeg,.png,.heic,image/jpeg,image/png,image/heic,image/heif"
+                        accept=".jpg,.jpeg,.png,.heic,.heif,.mp4,.mov,.webm,image/jpeg,image/png,image/heic,image/heif,video/mp4,video/quicktime,video/webm"
                       />
                       <button type="button" class="upload-slot-card" data-upload-trigger="2">
                         <span class="upload-slot-icon" aria-hidden="true">+</span>
-                        <span class="upload-slot-title">Upload a photo</span>
-                        <span class="upload-slot-meta" data-upload-meta="2">JPG/PNG/HEIC • up to 10MB</span>
+                        <span class="upload-slot-title">Upload media</span>
+                        <span class="upload-slot-meta" data-upload-meta="2">JPG/PNG/HEIC/MP4/MOV • up to 10MB</span>
                       </button>
                       <div class="upload-slot-preview hidden" data-upload-preview-wrap="2">
                         <img class="hidden" data-upload-preview="2" alt="" loading="lazy" decoding="async" />
+                        <span class="upload-slot-preview-text hidden" data-upload-preview-text="2"></span>
                       </div>
                       <div class="upload-slot-actions hidden" data-upload-actions="2">
                         <button type="button" class="upload-slot-action" data-upload-replace="2">Replace</button>
@@ -381,15 +383,16 @@
                         name="photo3"
                         class="upload-slot-input"
                         type="file"
-                        accept=".jpg,.jpeg,.png,.heic,image/jpeg,image/png,image/heic,image/heif"
+                        accept=".jpg,.jpeg,.png,.heic,.heif,.mp4,.mov,.webm,image/jpeg,image/png,image/heic,image/heif,video/mp4,video/quicktime,video/webm"
                       />
                       <button type="button" class="upload-slot-card" data-upload-trigger="3">
                         <span class="upload-slot-icon" aria-hidden="true">+</span>
-                        <span class="upload-slot-title">Upload a photo</span>
-                        <span class="upload-slot-meta" data-upload-meta="3">JPG/PNG/HEIC • up to 10MB</span>
+                        <span class="upload-slot-title">Upload media</span>
+                        <span class="upload-slot-meta" data-upload-meta="3">JPG/PNG/HEIC/MP4/MOV • up to 10MB</span>
                       </button>
                       <div class="upload-slot-preview hidden" data-upload-preview-wrap="3">
                         <img class="hidden" data-upload-preview="3" alt="" loading="lazy" decoding="async" />
+                        <span class="upload-slot-preview-text hidden" data-upload-preview-text="3"></span>
                       </div>
                       <div class="upload-slot-actions hidden" data-upload-actions="3">
                         <button type="button" class="upload-slot-action" data-upload-replace="3">Replace</button>
@@ -702,13 +705,12 @@
                 <h3 id="stayChartHeading" class="hotel-map-heading">Top rated hotels mapped by price and distance</h3>
                 <button
                   id="hotelMethodTrigger"
-                  class="stay-method-trigger"
+                  class="makan-tip-trigger hotel-method-pill"
                   type="button"
                   aria-expanded="false"
                   aria-controls="hotelMethodOverlay"
-                  aria-label="Show methodology notes"
                 >
-                  i
+                  ⓘ Methodology
                 </button>
               </div>
               <p class="hotel-map-helper">
@@ -1058,10 +1060,27 @@
             <div class="makan-menu-table" aria-label="Beijing food categories">
               <div id="makanMenuRows" class="makan-type-list" aria-label="Beijing food categories"></div>
             </div>
+
+            <div class="makan-legal-row">
+              <button id="makanLegalTrigger" class="makan-legal-link" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="makanLegalModal">
+                ⚖️ Legal-ish note
+              </button>
+            </div>
           </div>
 
         </div>
       </section>
+
+      <div id="makanLegalModal" class="makan-legal-modal hidden" role="dialog" aria-modal="true" aria-labelledby="makanLegalTitle">
+        <button id="makanLegalBackdrop" class="makan-legal-backdrop" type="button" tabindex="-1" aria-label="Close legal note"></button>
+        <div class="makan-legal-card" role="document">
+          <h3 id="makanLegalTitle">Legal-ish note (said with love)</h3>
+          <p>
+            We are not responsible for food comas, spice-induced tears, or any dumpling-related life choices. Please consult your stomach and/or actual counsel.
+          </p>
+          <button id="makanLegalClose" class="makan-legal-close" type="button">Got it</button>
+        </div>
+      </div>
 
       <section id="travel-visa" class="section section--light motif-host" data-title="Travel &amp; Visa">
         <div class="content travel-wrap">

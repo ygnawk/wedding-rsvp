@@ -4181,20 +4181,21 @@ details[open] .faq-answer {
 .makan-type-items {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
 }
 
 .makan-item {
   border-radius: 16px;
   border: 1px solid rgba(201, 174, 116, 0.24);
   background: #4b0f17;
-  padding: 16px;
+  padding: 16px 18px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
   grid-template-areas:
     "meta desc"
     "actions desc";
-  gap: 24px;
+  column-gap: 16px;
+  row-gap: 10px;
   align-items: start;
 }
 
@@ -4202,7 +4203,7 @@ details[open] .faq-answer {
   grid-area: meta;
   min-width: 0;
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .makan-meta-row {
@@ -4250,7 +4251,7 @@ details[open] .faq-answer {
   margin: 0;
   color: rgba(247, 241, 230, 0.88);
   font-size: 0.94rem;
-  line-height: 1.68;
+  line-height: 1.5;
 }
 
 .makan-address-text {
@@ -4269,17 +4270,18 @@ details[open] .faq-answer {
 
 .makan-item-actions {
   grid-area: actions;
+  margin-top: 2px;
 }
 
 .makan-link {
-  min-height: 38px;
+  min-height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
   border: 1px solid rgba(201, 174, 116, 0.52);
-  padding: 6px 11px;
-  font-size: 0.76rem;
+  padding: 5px 10px;
+  font-size: 0.74rem;
   letter-spacing: 0.04em;
   line-height: 1;
   white-space: nowrap;
@@ -4328,6 +4330,103 @@ details[open] .faq-answer {
   height: 28px;
 }
 
+.makan-legal-row {
+  margin-top: 12px;
+}
+
+.makan-legal-link {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: rgba(247, 241, 230, 0.78);
+  font-size: 0.83rem;
+  line-height: 1.35;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.makan-legal-link:hover,
+.makan-legal-link:focus-visible {
+  color: rgba(247, 241, 230, 0.95);
+}
+
+.makan-legal-link:focus-visible {
+  outline: 2px solid rgba(201, 174, 116, 0.65);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+.makan-legal-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 180;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+
+.makan-legal-modal.hidden {
+  display: none;
+}
+
+.makan-legal-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  background: rgba(18, 9, 11, 0.18);
+}
+
+.makan-legal-card {
+  position: relative;
+  width: min(460px, calc(100vw - 28px));
+  border-radius: 16px;
+  border: 1px solid rgba(201, 174, 116, 0.36);
+  background: rgba(247, 241, 230, 0.98);
+  padding: 18px 18px 16px;
+  color: var(--ink);
+}
+
+.makan-legal-card h3 {
+  margin: 0 0 8px;
+  font-family: var(--displayFont);
+  font-size: 1.28rem;
+  line-height: 1.2;
+}
+
+.makan-legal-card p {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.58;
+}
+
+.makan-legal-close {
+  margin-top: 14px;
+  min-height: 38px;
+  border-radius: 999px;
+  border: 1px solid rgba(117, 24, 39, 0.28);
+  background: rgba(117, 24, 39, 0.08);
+  color: var(--maroonDeep);
+  padding: 7px 14px;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.makan-legal-close:hover,
+.makan-legal-close:focus-visible {
+  background: rgba(117, 24, 39, 0.16);
+  border-color: rgba(117, 24, 39, 0.44);
+}
+
+.makan-legal-close:focus-visible {
+  outline: 2px solid rgba(117, 24, 39, 0.4);
+  outline-offset: 2px;
+}
+
 .makan-copy-icon-btn.is-copied {
   background: rgba(201, 174, 116, 0.28);
   border-color: rgba(201, 174, 116, 0.82);
@@ -4341,7 +4440,9 @@ details[open] .faq-answer {
 
 @media (max-width: 980px) {
   .makan-item {
-    gap: 16px;
+    grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+    column-gap: 14px;
+    row-gap: 10px;
   }
 }
 
@@ -4374,7 +4475,7 @@ details[open] .faq-answer {
       "meta"
       "desc"
       "actions";
-    gap: 12px;
+    gap: 10px;
     padding: 14px;
   }
 
@@ -4391,6 +4492,18 @@ details[open] .faq-answer {
 
   .makan-meta-row {
     grid-template-columns: 42px minmax(0, 1fr) 28px;
+  }
+
+  .makan-legal-modal {
+    align-items: end;
+    padding: 10px;
+  }
+
+  .makan-legal-card {
+    width: 100%;
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+    padding: 16px 14px 14px;
   }
 }
 

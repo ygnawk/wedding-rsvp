@@ -243,6 +243,10 @@ const makanTipPopover = document.getElementById("makanTipPopover");
 const makanMenuRows = document.getElementById("makanMenuRows");
 const makanExpandAll = document.getElementById("makanExpandAll");
 const makanCollapseAll = document.getElementById("makanCollapseAll");
+const makanLegalTrigger = document.getElementById("makanLegalTrigger");
+const makanLegalModal = document.getElementById("makanLegalModal");
+const makanLegalBackdrop = document.getElementById("makanLegalBackdrop");
+const makanLegalClose = document.getElementById("makanLegalClose");
 const hotelMatrixShell = document.getElementById("hotelMatrixShell");
 const hotelMapCard = document.querySelector(".hotel-map-card");
 const hotelMatrixChartCol = document.querySelector(".hotel-map-chart-col");
@@ -341,6 +345,7 @@ let hotelMethodOpen = false;
 let hotelMethodCloseTimer = null;
 let hotelMethodPinned = false;
 let makanTipOpen = false;
+let makanLegalOpen = false;
 let makanTypeAccordions = [];
 let makanBulkToggle = false;
 
@@ -1472,10 +1477,66 @@ function initMakanTipPopover() {
   makanTipTrigger.dataset.bound = "true";
 }
 
+function closeMakanLegalModal({ restoreFocus = true } = {}) {
+  if (!makanLegalModal || !makanLegalTrigger) return;
+  makanLegalModal.classList.add("hidden");
+  makanLegalModal.classList.remove("open");
+  makanLegalModal.setAttribute("aria-hidden", "true");
+  makanLegalTrigger.setAttribute("aria-expanded", "false");
+  document.body.classList.remove("modal-open");
+  makanLegalOpen = false;
+  if (restoreFocus) {
+    makanLegalTrigger.focus({ preventScroll: true });
+  }
+}
+
+function openMakanLegalModal() {
+  if (!makanLegalModal || !makanLegalTrigger) return;
+  makanLegalModal.classList.remove("hidden");
+  makanLegalModal.classList.add("open");
+  makanLegalModal.setAttribute("aria-hidden", "false");
+  makanLegalTrigger.setAttribute("aria-expanded", "true");
+  document.body.classList.add("modal-open");
+  makanLegalOpen = true;
+  if (makanLegalClose instanceof HTMLElement) {
+    window.requestAnimationFrame(() => makanLegalClose.focus({ preventScroll: true }));
+  }
+}
+
+function initMakanLegalModal() {
+  if (!makanLegalTrigger || !makanLegalModal) return;
+  if (makanLegalTrigger.dataset.boundLegal === "true") return;
+
+  closeMakanLegalModal({ restoreFocus: false });
+
+  makanLegalTrigger.addEventListener("click", (event) => {
+    event.preventDefault();
+    if (makanLegalOpen) closeMakanLegalModal();
+    else openMakanLegalModal();
+  });
+
+  if (makanLegalClose) {
+    makanLegalClose.addEventListener("click", () => closeMakanLegalModal());
+  }
+
+  if (makanLegalBackdrop) {
+    makanLegalBackdrop.addEventListener("click", () => closeMakanLegalModal({ restoreFocus: false }));
+  }
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && makanLegalOpen) {
+      closeMakanLegalModal();
+    }
+  });
+
+  makanLegalTrigger.dataset.boundLegal = "true";
+}
+
 function initMakanSection() {
   renderMakanMenuRows();
   initMakanTypeControls();
   initMakanTipPopover();
+  initMakanLegalModal();
 }
 
 function createSvgNode(tagName, attributes = {}) {
