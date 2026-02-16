@@ -674,6 +674,10 @@ function setAriaExpanded(node, expanded) {
   node.setAttribute("aria-expanded", String(expanded));
 }
 
+function setHiddenClass(node, hidden) {
+  node.classList.toggle("hidden", Boolean(hidden));
+}
+
 function createExternalAnchor(href, textContent, className = "") {
   const anchor = document.createElement("a");
   if (className) anchor.className = className;
@@ -904,7 +908,7 @@ function renderTravelPassportResult(key) {
   if (!travelPassportResult) return;
   const rule = TRAVEL_PASSPORT_RULES[String(key || "")];
   if (!rule) {
-    travelPassportResult.classList.add("hidden");
+    setHiddenClass(travelPassportResult, true);
     travelPassportResult.hidden = true;
     return;
   }
@@ -920,7 +924,7 @@ function renderTravelPassportResult(key) {
   strong.textContent = rule.outcome;
   outcome.appendChild(strong);
   detail.textContent = rule.detail;
-  travelPassportResult.classList.remove("hidden");
+  setHiddenClass(travelPassportResult, false);
   travelPassportResult.hidden = false;
 }
 
@@ -2743,14 +2747,14 @@ function clearUploadSlotError(index) {
   const ref = getUploadSlotRef(index);
   if (!ref || !ref.errorNode) return;
   ref.errorNode.textContent = "";
-  ref.errorNode.classList.add("hidden");
+  setHiddenClass(ref.errorNode, true);
 }
 
 function setUploadSlotError(index, message) {
   const ref = getUploadSlotRef(index);
   if (!ref || !ref.errorNode) return;
   ref.errorNode.textContent = message;
-  ref.errorNode.classList.remove("hidden");
+  setHiddenClass(ref.errorNode, false);
 }
 
 function clearUploadSlotPreview(index) {
@@ -2765,16 +2769,16 @@ function clearUploadSlotPreview(index) {
 
   if (ref.preview) {
     ref.preview.src = "";
-    ref.preview.classList.add("hidden");
+    setHiddenClass(ref.preview, true);
   }
 
   if (ref.previewWrap) {
-    ref.previewWrap.classList.add("hidden");
+    setHiddenClass(ref.previewWrap, true);
   }
 
   if (ref.previewText) {
     ref.previewText.textContent = "";
-    ref.previewText.classList.add("hidden");
+    setHiddenClass(ref.previewText, true);
   }
 }
 
@@ -2804,16 +2808,16 @@ function updateUploadSlotUi(index) {
     const previewUrl = URL.createObjectURL(file);
     selectedUploadPreviewUrls[index] = previewUrl;
     ref.preview.src = previewUrl;
-    ref.preview.classList.remove("hidden");
-    ref.previewWrap.classList.remove("hidden");
+    setHiddenClass(ref.preview, false);
+    setHiddenClass(ref.previewWrap, false);
     return;
   }
 
   const isVideo = file.type.startsWith("video/") || ["mp4", "mov", "webm"].includes(extension);
   if (isVideo && ref.previewText && ref.previewWrap) {
     ref.previewText.textContent = `Video selected: ${file.name}`;
-    ref.previewText.classList.remove("hidden");
-    ref.previewWrap.classList.remove("hidden");
+    setHiddenClass(ref.previewText, false);
+    setHiddenClass(ref.previewWrap, false);
   }
 }
 
