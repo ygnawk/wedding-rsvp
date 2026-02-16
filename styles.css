@@ -3136,15 +3136,18 @@ details[open] .faq-answer {
   border: 1px solid rgba(75, 15, 23, 0.38);
   background: rgba(247, 241, 230, 0.64);
   border-radius: 999px;
-  min-width: 40px;
-  min-height: 40px;
-  padding: 0 8px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   margin: 0;
   font: inherit;
   font-style: normal;
   font-weight: 620;
-  font-size: 1.02rem;
+  font-size: 0.9rem;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: rgba(75, 15, 23, 0.9);
   cursor: pointer;
   opacity: 0.88;
@@ -3728,8 +3731,9 @@ details[open] .faq-answer {
   }
 
   .stay-method-trigger {
-    min-width: 44px;
-    min-height: 44px;
+    width: 28px;
+    height: 28px;
+    font-size: 0.84rem;
   }
 
   .hotel-map-helper {

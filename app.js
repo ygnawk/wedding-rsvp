@@ -1478,8 +1478,9 @@ function ensureHotelMethodOverlay() {
     <p class="hotel-method-tooltip-title">METHODOLOGY</p>
     <ul class="hotel-method-tooltip-list">
       <li>Y-axis: estimated drive time (mins) to the wedding venue (traffic dependent).</li>
-      <li>X-axis: price level ($ = budget, $$$$ = splurge).</li>
+      <li>X-axis: nightly price bands in USD ($: under 150, $$: 150–300, $$$: 301–500, $$$$: 500+).</li>
       <li>Only hotels rated ≥ 9.0 on Expedia are shown.</li>
+      <li>No footnotes, no appendix — our AI analyst “Chat” ran the numbers. I already did my six-year consultant sentence.</li>
     </ul>
   `;
 
