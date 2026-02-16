@@ -14,6 +14,7 @@ const inviteState = {
 const MAX_GUESTS = 4;
 const MAX_UPLOAD_FILES = 3;
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
+const FUN_FACT_CHIP_COUNT = 6;
 const FUN_FACT_EXAMPLES = [
   "I will travel for noodles.",
   "I can’t handle horror films.",
@@ -2030,53 +2031,102 @@ function showGuestLimitError(message) {
   guestLimitError.classList.remove("hidden");
 }
 
+function pickRandomFunFactExamples(limit = FUN_FACT_CHIP_COUNT) {
+  const pool = [...FUN_FACT_EXAMPLES];
+  for (let i = pool.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, Math.min(limit, pool.length));
+}
+
 function buildFunFactExamplesPopover(input) {
   const wrap = document.createElement("div");
-  wrap.className = "fun-fact-examples";
+  wrap.className = "fun-fact-ideas";
 
-  const trigger = document.createElement("button");
-  trigger.type = "button";
-  trigger.className = "fun-fact-examples-toggle";
-  trigger.textContent = "See examples";
+  const controls = document.createElement("div");
+  controls.className = "fun-fact-ideas-controls";
 
-  const popover = document.createElement("div");
-  popover.className = "fun-fact-examples-popover hidden";
-  popover.setAttribute("role", "dialog");
-  popover.setAttribute("aria-label", "Fun fact examples");
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "fun-fact-ideas-toggle";
+  toggle.textContent = "See ideas";
+  toggle.setAttribute("aria-expanded", "false");
 
-  const list = document.createElement("ul");
-  FUN_FACT_EXAMPLES.forEach((example) => {
-    const item = document.createElement("li");
-    const exampleButton = document.createElement("button");
-    exampleButton.type = "button";
-    exampleButton.textContent = example;
-    exampleButton.addEventListener("click", () => {
-      input.value = example;
-      popover.classList.add("hidden");
-      trigger.setAttribute("aria-expanded", "false");
-      input.focus();
+  const shuffle = document.createElement("button");
+  shuffle.type = "button";
+  shuffle.className = "fun-fact-ideas-shuffle hidden";
+  shuffle.textContent = "Shuffle ideas";
+
+  const chipsWrap = document.createElement("div");
+  chipsWrap.className = "fun-fact-ideas-chips hidden";
+
+  const usedExamples = new Set();
+  let displayedExamples = pickRandomFunFactExamples();
+
+  function openIdeas() {
+    chipsWrap.classList.remove("hidden");
+    shuffle.classList.remove("hidden");
+    toggle.setAttribute("aria-expanded", "true");
+    toggle.textContent = "Hide ideas";
+  }
+
+  function closeIdeas() {
+    chipsWrap.classList.add("hidden");
+    shuffle.classList.add("hidden");
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.textContent = "See ideas";
+  }
+
+  function insertExampleText(example) {
+    const existing = input.value.trim();
+    input.value = existing ? `${existing} / ${example}` : example;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.focus();
+  }
+
+  function renderChips() {
+    chipsWrap.innerHTML = "";
+    displayedExamples.forEach((example) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "fun-fact-chip";
+      chip.textContent = example;
+      if (usedExamples.has(example)) chip.classList.add("is-used");
+      chip.addEventListener("click", () => {
+        insertExampleText(example);
+        usedExamples.add(example);
+        chip.classList.add("is-used");
+      });
+      chipsWrap.appendChild(chip);
     });
-    item.appendChild(exampleButton);
-    list.appendChild(item);
-  });
-  popover.appendChild(list);
+  }
 
-  trigger.setAttribute("aria-expanded", "false");
-  trigger.addEventListener("click", () => {
-    const isOpen = !popover.classList.contains("hidden");
-    popover.classList.toggle("hidden", isOpen);
-    trigger.setAttribute("aria-expanded", String(!isOpen));
-  });
-
-  document.addEventListener("pointerdown", (event) => {
-    if (!(event.target instanceof Node)) return;
-    if (wrap.contains(event.target)) return;
-    popover.classList.add("hidden");
-    trigger.setAttribute("aria-expanded", "false");
+  toggle.addEventListener("click", () => {
+    const isOpen = !chipsWrap.classList.contains("hidden");
+    if (isOpen) {
+      closeIdeas();
+      return;
+    }
+    openIdeas();
+    renderChips();
   });
 
-  wrap.appendChild(trigger);
-  wrap.appendChild(popover);
+  shuffle.addEventListener("click", () => {
+    displayedExamples = pickRandomFunFactExamples();
+    renderChips();
+  });
+
+  input.addEventListener("focus", () => {
+    if (!chipsWrap.classList.contains("hidden")) return;
+    openIdeas();
+    renderChips();
+  });
+
+  controls.appendChild(toggle);
+  controls.appendChild(shuffle);
+  wrap.appendChild(controls);
+  wrap.appendChild(chipsWrap);
   return wrap;
 }
 
