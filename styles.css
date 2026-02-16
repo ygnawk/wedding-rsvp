@@ -3797,10 +3797,10 @@ details[open] .faq-answer {
 }
 
 .thing-address {
-  margin-top: 4px;
-  margin-bottom: 2px;
-  font-size: 0.9rem;
-  color: rgba(21, 21, 21, 0.76);
+  margin: -2px 0 0;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: rgba(247, 241, 230, 0.8);
 }
 
 .thing-links a:hover,
