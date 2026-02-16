@@ -2025,26 +2025,6 @@ function renderHotelMatrix() {
     }),
   );
 
-  const bestValueLabel = createSvgNode("text", {
-    class: "hotel-map-best-value-label",
-    x: bestValueZoneX + 12,
-    y: bestValueTopY + 14,
-    "text-anchor": "start",
-  });
-  bestValueLabel.textContent = "Best value";
-  hotelMatrixSvg.appendChild(bestValueLabel);
-
-  if (!isCompact) {
-    const bestValueSubtext = createSvgNode("text", {
-      class: "hotel-map-best-value-subtext",
-      x: bestValueZoneX + 12,
-      y: bestValueTopY + 30,
-      "text-anchor": "start",
-    });
-    bestValueSubtext.textContent = "Closest + most affordable sweet spot.";
-    hotelMatrixSvg.appendChild(bestValueSubtext);
-  }
-
   hotelMatrixSvg.appendChild(
     createSvgNode("line", {
       class: "hotel-map-axis",
@@ -2131,6 +2111,40 @@ function renderHotelMatrix() {
   });
   yAxisLabel.textContent = "Drive time to wedding venue (mins)";
   hotelMatrixSvg.appendChild(yAxisLabel);
+
+  const chipWidth = isCompact ? 188 : 226;
+  const chipHeight = isCompact ? 38 : 46;
+  const chipX = bestValueZoneX + 10;
+  const chipY = Math.min(bestValueTopY + 10, margins.top + plotHeight - chipHeight - 10);
+  hotelMatrixSvg.appendChild(
+    createSvgNode("rect", {
+      class: "hotel-map-best-value-chip",
+      x: chipX,
+      y: chipY,
+      width: chipWidth,
+      height: chipHeight,
+      rx: 9,
+      ry: 9,
+    }),
+  );
+
+  const bestValueLabel = createSvgNode("text", {
+    class: "hotel-map-best-value-label",
+    x: chipX + 10,
+    y: chipY + (isCompact ? 15 : 18),
+    "text-anchor": "start",
+  });
+  bestValueLabel.textContent = "Best value";
+  hotelMatrixSvg.appendChild(bestValueLabel);
+
+  const bestValueSubtext = createSvgNode("text", {
+    class: "hotel-map-best-value-subtext",
+    x: chipX + 10,
+    y: chipY + (isCompact ? 28 : 34),
+    "text-anchor": "start",
+  });
+  bestValueSubtext.textContent = "Closest + most affordable sweet spot.";
+  hotelMatrixSvg.appendChild(bestValueSubtext);
 
   const layer = createSvgNode("g", { class: "hotel-map-points", "clip-path": "url(#hotelMatrixPlotClip)" });
   hotelMatrixSvg.appendChild(layer);
