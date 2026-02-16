@@ -3754,13 +3754,19 @@ details[open] .faq-answer {
   position: absolute;
   top: 10px;
   right: 10px;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 999px;
   border: 1px solid rgba(201, 174, 116, 0.45);
   background: rgba(75, 15, 23, 0.08);
   color: var(--maroon);
-  font-size: 1.5rem;
+  font-size: 1.35rem;
   line-height: 1;
 }
 
