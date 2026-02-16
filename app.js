@@ -351,6 +351,7 @@ let hotelMatrixHeight = 460;
 let hotelMethodOpen = false;
 let hotelMethodCloseTimer = null;
 let hotelMethodPinned = false;
+let hotelTouchSelectionLockUntil = 0;
 let makanTipOpen = false;
 let makanLegalOpen = false;
 let makanTypeAccordions = [];
@@ -1958,8 +1959,8 @@ function renderHotelMatrix() {
   const margins = isCompact ? { top: 24, right: 18, bottom: 92, left: 72 } : { top: 42, right: 56, bottom: 104, left: 122 };
   const plotWidth = Math.max(180, width - margins.left - margins.right);
   const plotHeight = Math.max(170, height - margins.top - margins.bottom);
-  const ringRadius = isCompact ? 10.8 : 12;
-  const dotRadius = isCompact ? 6.6 : 7.4;
+  const ringRadius = isCompact ? 9.6 : 12;
+  const dotRadius = isCompact ? 5.8 : 7.4;
 
   hotelMatrixSvg.setAttribute("viewBox", `0 0 ${width} ${height}`);
   hotelMatrixSvg.setAttribute("preserveAspectRatio", "xMidYMid meet");
@@ -2198,7 +2199,15 @@ function renderHotelMatrix() {
       }
     };
 
-    group.addEventListener("click", handleSelect);
+    group.addEventListener("pointerup", (event) => {
+      if (event.pointerType !== "touch") return;
+      hotelTouchSelectionLockUntil = Date.now() + 700;
+      handleSelect(event);
+    });
+    group.addEventListener("click", (event) => {
+      if (Date.now() < hotelTouchSelectionLockUntil) return;
+      handleSelect(event);
+    });
     group.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
