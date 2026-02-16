@@ -130,20 +130,7 @@
             <div id="storyYearScrubber" class="story-year-scrubber reveal" data-delay="95" aria-label="Jump through story years"></div>
           </div>
 
-          <div class="story-mosaic-layout" id="storyMosaicLayout" aria-label="Our story mosaic">
-            <div class="story-mosaic-column story-mosaic-column--left" id="storyMosaicLeft"></div>
-            <div class="story-mosaic-column story-mosaic-column--right" id="storyMosaicRight"></div>
-          </div>
-
-          <div class="story-timeline-wrap reveal" data-delay="120">
-            <button id="storyPrev" class="story-timeline-nav" type="button" aria-label="Previous story moment">‹</button>
-            <div id="storyViewport" class="story-timeline-viewport" tabindex="0" aria-label="Our story timeline">
-              <div id="storyTrack" class="story-timeline-track"></div>
-            </div>
-            <button id="storyNext" class="story-timeline-nav" type="button" aria-label="Next story moment">›</button>
-          </div>
-          <p id="storyHint" class="story-timeline-hint reveal" data-delay="140">Swipe timeline →</p>
-          <div id="storyDots" class="story-timeline-dots reveal" data-delay="160" aria-label="Story timeline dots"></div>
+          <div class="story-mosaic-layout reveal" data-delay="120" id="storyMosaicLayout" aria-label="Our story mosaic"></div>
         </div>
       </section>
 
@@ -331,9 +318,13 @@
           </div>
           <h2 class="reveal reveal-left">FAQ</h2>
           <div class="faq-groups reveal">
-            <section class="faq-group" aria-labelledby="faqGroupBasics">
-              <h3 id="faqGroupBasics" class="faq-group-title">Wedding basics</h3>
-              <div class="faq-list">
+            <section class="faq-group">
+              <details class="faq-group-disclosure">
+                <summary class="faq-group-summary">
+                  <span class="faq-group-title">Wedding basics</span>
+                  <span class="faq-group-chevron" aria-hidden="true"></span>
+                </summary>
+                <div class="faq-list">
                 <details>
                   <summary class="faq-summary">
                     <span class="faq-q">What to wear?</span>
@@ -390,12 +381,17 @@
                     </p>
                   </div>
                 </details>
-              </div>
+                </div>
+              </details>
             </section>
 
-            <section class="faq-group" aria-labelledby="faqGroupLogistics">
-              <h3 id="faqGroupLogistics" class="faq-group-title">Beijing logistics</h3>
-              <div class="faq-list">
+            <section class="faq-group">
+              <details class="faq-group-disclosure">
+                <summary class="faq-group-summary">
+                  <span class="faq-group-title">Beijing logistics</span>
+                  <span class="faq-group-chevron" aria-hidden="true"></span>
+                </summary>
+                <div class="faq-list">
                 <details>
                   <summary class="faq-summary">
                     <span class="faq-q">How do we get around in Beijing?</span>
@@ -428,12 +424,17 @@
                     </ul>
                   </div>
                 </details>
-              </div>
+                </div>
+              </details>
             </section>
 
-            <section class="faq-group" aria-labelledby="faqGroupPractical">
-              <h3 id="faqGroupPractical" class="faq-group-title">Practical China</h3>
-              <div class="faq-list">
+            <section class="faq-group">
+              <details class="faq-group-disclosure">
+                <summary class="faq-group-summary">
+                  <span class="faq-group-title">Practical China</span>
+                  <span class="faq-group-chevron" aria-hidden="true"></span>
+                </summary>
+                <div class="faq-list">
                 <details>
                   <summary class="faq-summary">
                     <span class="faq-q">How do we pay in China?</span>
@@ -473,12 +474,17 @@
                     </p>
                   </div>
                 </details>
-              </div>
+                </div>
+              </details>
             </section>
 
-            <section class="faq-group" aria-labelledby="faqGroupPlanning">
-              <h3 id="faqGroupPlanning" class="faq-group-title">Planning</h3>
-              <div class="faq-list">
+            <section class="faq-group">
+              <details class="faq-group-disclosure">
+                <summary class="faq-group-summary">
+                  <span class="faq-group-title">Planning</span>
+                  <span class="faq-group-chevron" aria-hidden="true"></span>
+                </summary>
+                <div class="faq-list">
                 <details>
                   <summary class="faq-summary">
                     <span class="faq-q">Should we bring a gift?</span>
@@ -524,12 +530,17 @@
                     <p><a class="faq-cta" href="#travel-visa">See section →</a></p>
                   </div>
                 </details>
-              </div>
+                </div>
+              </details>
             </section>
 
-            <section class="faq-group" aria-labelledby="faqGroupSite">
-              <h3 id="faqGroupSite" class="faq-group-title">Site issues</h3>
-              <div class="faq-list">
+            <section class="faq-group">
+              <details class="faq-group-disclosure">
+                <summary class="faq-group-summary">
+                  <span class="faq-group-title">Site issues</span>
+                  <span class="faq-group-chevron" aria-hidden="true"></span>
+                </summary>
+                <div class="faq-list">
                 <details>
                   <summary class="faq-summary">
                     <span class="faq-q">Found a bug on this site?</span>
@@ -563,7 +574,8 @@
                     <p>Absolutely* (*vetted by ChatGPT at 1:00am. We have not personally stayed at any of them.)</p>
                   </div>
                 </details>
-              </div>
+                </div>
+              </details>
             </section>
           </div>
         </div>
@@ -649,7 +661,6 @@
             <details class="things-theme" open>
               <summary class="things-theme-summary">
                 <span class="things-theme-title">Imperial core</span>
-                <span class="things-theme-meta">Forbidden City + Jingshan Park</span>
                 <span class="things-theme-chevron" aria-hidden="true"></span>
               </summary>
               <div class="things-theme-panel">
@@ -683,7 +694,6 @@
             <details class="things-theme">
               <summary class="things-theme-summary">
                 <span class="things-theme-title">Iconic parks/temples</span>
-                <span class="things-theme-meta">Temple of Heaven + Summer Palace</span>
                 <span class="things-theme-chevron" aria-hidden="true"></span>
               </summary>
               <div class="things-theme-panel">
@@ -717,7 +727,6 @@
             <details class="things-theme">
               <summary class="things-theme-summary">
                 <span class="things-theme-title">Modern + day trip</span>
-                <span class="things-theme-meta">Sanlitun + Great Wall (Mutianyu)</span>
                 <span class="things-theme-chevron" aria-hidden="true"></span>
               </summary>
               <div class="things-theme-panel">
@@ -779,7 +788,7 @@
 
             <div class="makan-menu-table" aria-label="Beijing makan table">
               <div class="makan-menu-table-head" aria-hidden="true">
-                <span>Type of food</span>
+                <span>Restaurant type</span>
                 <span>Restaurant</span>
                 <span>Short description</span>
               </div>

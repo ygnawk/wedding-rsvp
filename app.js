@@ -82,8 +82,6 @@ const storyDots = document.getElementById("storyDots");
 const storyHint = document.getElementById("storyHint");
 const storyYearScrubber = document.getElementById("storyYearScrubber");
 const storyMosaicLayout = document.getElementById("storyMosaicLayout");
-const storyMosaicLeft = document.getElementById("storyMosaicLeft");
-const storyMosaicRight = document.getElementById("storyMosaicRight");
 const storyScrollyTrack = document.getElementById("storyScrollyTrack");
 const storyStage = document.getElementById("storyStage");
 const storyMosaicGrid = document.getElementById("storyMosaicGrid");
@@ -120,6 +118,7 @@ let hotelMatrixHoveredId = "";
 let hotelMatrixPinnedId = "";
 let activeHotelMatrixId = "";
 let hotelDetailsSwapTimer = null;
+let hotelHoverSwapTimer = null;
 let hotelSheetOpen = false;
 let hotelMatrixMetaById = new Map();
 let hotelMethodOpen = false;
@@ -242,13 +241,17 @@ const STORY_COPY = {
   },
 };
 
-const MAKAN_CATEGORY_ORDER = [
-  "Duck & roasts",
-  "Cantonese & seafood",
-  "Jiangnan (Shanghai / Huaiyang)",
-  "Breakfast & street snacks",
-  "Hotpot & late-night",
-  "Desserts, tea & coffee",
+const MAKAN_TYPE_ORDER = [
+  "Peking duck",
+  "Imperial / Banquet experience",
+  "Cantonese dining",
+  "Jiangnan / Shanghainese",
+  "Hot pot",
+  "Noodles + dumplings",
+  "Street snacks",
+  "Modern Beijing / creative Chinese",
+  "Breakfast",
+  "Dessert / tea / coffee",
 ];
 
 const MAKAN_PLACEHOLDER_COPY = {
@@ -671,7 +674,7 @@ function buildMakanRow(place, rowIndex) {
 
   const colType = document.createElement("span");
   colType.className = "makan-col makan-col--type";
-  colType.textContent = place.category;
+  colType.textContent = place.restaurantType || place.category || "Restaurant";
 
   const colRestaurant = document.createElement("span");
   colRestaurant.className = "makan-col makan-col--restaurant";
@@ -753,13 +756,27 @@ function renderMakanMenuRows() {
   makanMenuRows.innerHTML = "";
 
   const sorted = [...BEIJING_FOOD_PLACES].sort((a, b) => {
-    const categoryDelta = MAKAN_CATEGORY_ORDER.indexOf(a.category) - MAKAN_CATEGORY_ORDER.indexOf(b.category);
+    const aType = String(a.restaurantType || a.category || "");
+    const bType = String(b.restaurantType || b.category || "");
+    const aOrder = MAKAN_TYPE_ORDER.indexOf(aType);
+    const bOrder = MAKAN_TYPE_ORDER.indexOf(bType);
+    const categoryDelta = (aOrder < 0 ? Number.MAX_SAFE_INTEGER : aOrder) - (bOrder < 0 ? Number.MAX_SAFE_INTEGER : bOrder);
     if (categoryDelta !== 0) return categoryDelta;
     return a.name_en.localeCompare(b.name_en, undefined, { sensitivity: "base" });
   });
 
   const rowBindings = [];
+  let currentType = "";
   sorted.forEach((place, index) => {
+    const nextType = String(place.restaurantType || place.category || "Restaurant");
+    if (nextType !== currentType) {
+      currentType = nextType;
+      const heading = document.createElement("div");
+      heading.className = "makan-group-heading";
+      heading.textContent = currentType;
+      makanMenuRows.appendChild(heading);
+    }
+
     const { row, toggle, details } = buildMakanRow(place, index);
     makanMenuRows.appendChild(row);
     rowBindings.push({ toggle, details, row });
@@ -1067,15 +1084,39 @@ function buildHotelDetailsCard(item) {
   blurb.textContent = item.shortBlurb;
   card.appendChild(blurb);
 
-  const distanceLine = document.createElement("p");
-  distanceLine.className = "hotel-map-detail-distance";
-  distanceLine.textContent = `${Number(item.distanceKm).toFixed(1)} km • ${item.driveMins} min by car`;
-  card.appendChild(distanceLine);
+  const statsGrid = document.createElement("div");
+  statsGrid.className = "hotel-map-detail-stats";
 
-  const metrics = document.createElement("p");
-  metrics.className = "hotel-map-detail-metrics";
-  metrics.textContent = `Comfort: ${Number(item.metrics.comfortRating).toFixed(1)}/10 (${item.metrics.reviewCount} reviews) · Price snapshot: $${item.metrics.priceUsd}/night`;
-  card.appendChild(metrics);
+  const distanceStat = document.createElement("div");
+  distanceStat.className = "hotel-map-detail-stat";
+  const distanceLabel = document.createElement("span");
+  distanceLabel.className = "hotel-map-detail-stat-label";
+  distanceLabel.textContent = "Distance";
+  const distanceValue = document.createElement("span");
+  distanceValue.className = "hotel-map-detail-stat-value";
+  distanceValue.textContent = `${Number(item.distanceKm).toFixed(1)} km • ${item.driveMins} min`;
+  distanceStat.appendChild(distanceLabel);
+  distanceStat.appendChild(distanceValue);
+
+  const priceStat = document.createElement("div");
+  priceStat.className = "hotel-map-detail-stat";
+  const priceLabel = document.createElement("span");
+  priceLabel.className = "hotel-map-detail-stat-label";
+  priceLabel.textContent = "Price snapshot";
+  const priceValue = document.createElement("span");
+  priceValue.className = "hotel-map-detail-stat-value";
+  priceValue.textContent = `$${item.metrics.priceUsd}/night`;
+  priceStat.appendChild(priceLabel);
+  priceStat.appendChild(priceValue);
+
+  statsGrid.appendChild(distanceStat);
+  statsGrid.appendChild(priceStat);
+  card.appendChild(statsGrid);
+
+  const comfortLine = document.createElement("p");
+  comfortLine.className = "hotel-map-detail-metrics";
+  comfortLine.textContent = `Comfort: ${Number(item.metrics.comfortRating).toFixed(1)}/10 (${item.metrics.reviewCount} reviews)`;
+  card.appendChild(comfortLine);
 
   const source = document.createElement("p");
   source.className = "hotel-map-detail-source";
@@ -1354,13 +1395,13 @@ function initHotelMatrix() {
       class: "hotel-map-dot-ring",
       cx: cx.toFixed(2),
       cy: cy.toFixed(2),
-      r: "8",
+      r: "12",
     });
     const dot = createSvgNode("circle", {
       class: "hotel-map-dot",
       cx: cx.toFixed(2),
       cy: cy.toFixed(2),
-      r: "5.7",
+      r: "7.4",
       tabindex: "0",
       role: "button",
       "aria-label": `Hotel: ${item.name}. Price ${priceBand}. Comfort ${comfortBand}.`,
@@ -1368,13 +1409,20 @@ function initHotelMatrix() {
 
     dot.addEventListener("pointerenter", () => {
       if (isHotelMatrixMobile() || hotelMatrixPinnedId) return;
-      hotelMatrixHoveredId = item.id;
-      applyHotelMatrixSelection();
-      showHotelDotTooltip(item, cx, cy);
+      if (hotelHoverSwapTimer) window.clearTimeout(hotelHoverSwapTimer);
+      hotelHoverSwapTimer = window.setTimeout(() => {
+        hotelMatrixHoveredId = item.id;
+        applyHotelMatrixSelection();
+        showHotelDotTooltip(item, cx, cy);
+      }, 90);
     });
 
     dot.addEventListener("pointerleave", () => {
       if (isHotelMatrixMobile() || hotelMatrixPinnedId) return;
+      if (hotelHoverSwapTimer) {
+        window.clearTimeout(hotelHoverSwapTimer);
+        hotelHoverSwapTimer = null;
+      }
       hotelMatrixHoveredId = "";
       applyHotelMatrixSelection();
       hideHotelDotTooltip();
@@ -1877,28 +1925,51 @@ function initFaqAccordionGroups() {
   const faqSection = document.getElementById("faq");
   if (!faqSection || faqSection.dataset.accordionBound === "true") return;
 
+  const groupNodes = Array.from(faqSection.querySelectorAll(".faq-group-disclosure"));
+  if (!groupNodes.length) return;
+
   const detailsNodes = Array.from(faqSection.querySelectorAll(".faq-list details"));
-  if (!detailsNodes.length) return;
 
   const isMobile = () => window.matchMedia("(max-width: 760px)").matches;
 
+  const collapseAllGroups = () => {
+    groupNodes.forEach((node) => {
+      node.open = false;
+    });
+  };
+
+  groupNodes.forEach((group) => {
+    group.addEventListener("toggle", () => {
+      if (!group.open) return;
+      groupNodes.forEach((other) => {
+        if (other !== group) other.open = false;
+      });
+    });
+  });
+
   const normalizeOpenState = () => {
     if (!isMobile()) return;
-    const openNodes = detailsNodes.filter((node) => node.open);
-    openNodes.slice(1).forEach((node) => {
-      node.open = false;
+    groupNodes.forEach((group) => {
+      const openNodes = Array.from(group.querySelectorAll(".faq-list details")).filter((node) => node.open);
+      openNodes.slice(1).forEach((node) => {
+        node.open = false;
+      });
     });
   };
 
   detailsNodes.forEach((node) => {
     node.addEventListener("toggle", () => {
-      if (!node.open || !isMobile()) return;
-      detailsNodes.forEach((other) => {
+      if (!node.open) return;
+      const parentGroup = node.closest(".faq-group-disclosure");
+      if (!parentGroup) return;
+      const siblings = Array.from(parentGroup.querySelectorAll(".faq-list details"));
+      siblings.forEach((other) => {
         if (other !== node) other.open = false;
       });
     });
   });
 
+  collapseAllGroups();
   normalizeOpenState();
   window.addEventListener("resize", normalizeOpenState);
   faqSection.dataset.accordionBound = "true";
@@ -2360,7 +2431,6 @@ function renderStoryYearScrubber(items, yearTargets = []) {
       if (target instanceof HTMLElement) {
         target.scrollIntoView({ behavior: getScrollBehavior(), block: "center" });
       }
-      scrollStoryTimelineTo(index, getScrollBehavior());
       setActiveStoryScrubberIndex(index);
     });
 
@@ -2630,21 +2700,33 @@ function applyStoryMosaicReveal(cards) {
   cards.forEach((card) => observer.observe(card));
 }
 
-function getStoryMosaicSlot(positionInColumn) {
-  if (positionInColumn === 0) return "hero";
-  if (positionInColumn === 1) return "feature";
-  if (positionInColumn <= 3) return "half";
-  return "small";
+const STORY_MOSAIC_SLOTS_BY_YEAR = {
+  1998: "hero-a",
+  1995: "top-mid",
+  2001: "top-right",
+  2008: "mid-mid",
+  2013: "mid-right",
+  2024: "hero-b",
+  2016: "low-mid",
+  2020: "low-right",
+  2021: "row4-mid",
+  2023: "row4-right",
+  2025: "row5-left",
+  2027: "row5-right",
+};
+
+function getStoryMosaicSlot(item, index) {
+  const yearSlot = STORY_MOSAIC_SLOTS_BY_YEAR[item.year];
+  if (yearSlot) return yearSlot;
+  return index === 0 ? "hero-a" : "auto";
 }
 
 async function initStoryMosaicLayout() {
-  if (!storyMosaicLayout || !storyMosaicLeft || !storyMosaicRight) return;
+  if (!storyMosaicLayout) return;
 
   const entries = sortStoryEntries(await loadStoryEntriesFromManifest());
   storyItems = entries.map((entry) => buildStoryItem(entry));
-  storyMosaicLeft.innerHTML = "";
-  storyMosaicRight.innerHTML = "";
-  storyMosaicLayout.querySelectorAll(".story-mosaic-empty").forEach((node) => node.remove());
+  storyMosaicLayout.innerHTML = "";
   bindStoryLightboxEvents();
 
   if (!storyItems.length) {
@@ -2662,18 +2744,13 @@ async function initStoryMosaicLayout() {
     return a.file.localeCompare(b.file, undefined, { numeric: true, sensitivity: "base" });
   });
   storyItems = orderedItems;
-  const splitIndex = Math.ceil(orderedItems.length / 2);
   const cards = [];
   const yearTargets = [];
 
   orderedItems.forEach((item, index) => {
-    const isLeftColumn = index < splitIndex;
-    const localIndex = isLeftColumn ? index : index - splitIndex;
-    const slot = isLeftColumn ? getStoryMosaicSlot(localIndex) : localIndex <= 5 ? "small" : "half";
+    const slot = getStoryMosaicSlot(item, index);
     const card = buildStoryMosaicCard(item, slot, index);
-
-    if (isLeftColumn) storyMosaicLeft.appendChild(card);
-    else storyMosaicRight.appendChild(card);
+    storyMosaicLayout.appendChild(card);
 
     cards.push(card);
     yearTargets.push({ index, element: card });
@@ -3237,7 +3314,6 @@ async function init() {
   initMakanSection();
   initReveals();
   await initStoryMosaicLayout();
-  await initStoryTimeline();
   initRsvpCards();
   initRsvpForm();
 

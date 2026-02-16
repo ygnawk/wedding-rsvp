@@ -3,7 +3,7 @@
  * @property {string} id
  * @property {string} name_en
  * @property {string} name_cn
- * @property {"Duck & roasts"|"Cantonese & seafood"|"Jiangnan (Shanghai / Huaiyang)"|"Breakfast & street snacks"|"Hotpot & late-night"|"Desserts, tea & coffee"} category
+ * @property {string} restaurantType
  * @property {string} blurb_en
  * @property {string=} address_cn
  * @property {string[]} vibe_tags
@@ -18,7 +18,7 @@ window.BEIJING_FOOD_PLACES = [
     id: "gongyan",
     name_en: "Gong Yan — Imperial-themed dinner + show",
     name_cn: "宫宴",
-    category: "Duck & roasts",
+    restaurantType: "Imperial / Banquet experience",
     blurb_en:
       "Want a full-on main character night? You can dress up, dine like royalty, and watch traditional performances while you eat. It’s dramatic in the best way.",
     address_cn: "北京市东城区前门大街50号",
@@ -31,7 +31,7 @@ window.BEIJING_FOOD_PLACES = [
     id: "sijiminfu-gugong",
     name_en: "Siji Minfu (Forbidden City) — The crowd-favorite Peking duck",
     name_cn: "四季民福（故宫店）",
-    category: "Duck & roasts",
+    restaurantType: "Peking duck",
     blurb_en:
       "This is a local legend. Also: it can be very crowded. If you’re into the buzz, the noise, and the “we earned this duck” feeling—do it. Pro tip: go early, or be ready to wait.",
     vibe_tags: ["Crowded", "Local favorite"],
@@ -43,7 +43,7 @@ window.BEIJING_FOOD_PLACES = [
     id: "xiaodadong",
     name_en: "Xiao Da Dong — Peking duck, but calmer",
     name_cn: "小大董（北京烤鸭）",
-    category: "Duck & roasts",
+    restaurantType: "Peking duck",
     blurb_en:
       "Prefer something quieter but still excellent? Pick any Xiao Da Dong branch—reliable, easy, and very guest-friendly. Pro tip: perfect for “we want duck but not chaos.”",
     vibe_tags: ["Calmer", "Polished"],
@@ -55,7 +55,7 @@ window.BEIJING_FOOD_PLACES = [
     id: "tanggong",
     name_en: "Tang Gong — Cantonese comfort, Beijing edition (Miki’s parents’ #1)",
     name_cn: "唐宫",
-    category: "Cantonese & seafood",
+    restaurantType: "Cantonese dining",
     blurb_en:
       "Possibly the most legit Cantonese food in Beijing. Also Miki’s parents’ favorite—reportedly a once-a-week situation, which is the highest endorsement possible.",
     vibe_tags: ["Family favorite", "Reliable"],
@@ -67,7 +67,7 @@ window.BEIJING_FOOD_PLACES = [
     id: "subangyuan-raffles",
     name_en: "Su Bang Yuan (Raffles City) — Shanghai-approved Shanghainese",
     name_cn: "苏帮袁（来福士店）",
-    category: "Jiangnan (Shanghai / Huaiyang)",
+    restaurantType: "Jiangnan / Shanghainese",
     blurb_en:
       "Craving Shanghainese food? This one is a repeat spot for Miki’s family. Miki’s mom is from Shanghai, so yes—we’re comfortable betting our credibility on this being authentic.",
     vibe_tags: ["Authentic", "Family favorite"],
