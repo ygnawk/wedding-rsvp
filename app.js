@@ -2570,7 +2570,6 @@ function getGuestCardTitle(index) {
 }
 
 function getGuestNameLabel(index) {
-  if (index === 0) return "Your name";
   return `+${index} name`;
 }
 
@@ -2599,11 +2598,6 @@ function buildGuestCard(index, name = "", funFact = "") {
     header.appendChild(remove);
   }
 
-  const nameField = document.createElement("div");
-  nameField.className = "field form-field";
-  const nameLabel = document.createElement("label");
-  nameLabel.setAttribute("for", `guestName${index + 1}`);
-  nameLabel.textContent = getGuestNameLabel(index);
   const nameInput = document.createElement("input");
   nameInput.id = `guestName${index + 1}`;
   nameInput.required = true;
@@ -2611,33 +2605,25 @@ function buildGuestCard(index, name = "", funFact = "") {
   nameInput.dataset.guestName = "true";
 
   if (index === 0) {
-    const display = document.createElement("p");
-    display.className = "guest-primary-display";
-    display.dataset.primaryGuestDisplay = "true";
-    display.textContent = `You: ${name || "—"}`;
-
-    const hint = document.createElement("p");
-    hint.className = "guest-primary-hint";
-    hint.textContent = "Edit above";
-
     nameInput.type = "hidden";
     nameInput.dataset.primaryGuest = "true";
     nameInput.dataset.autoSync = "true";
-    nameField.appendChild(nameLabel);
-    nameField.appendChild(display);
-    nameField.appendChild(hint);
   } else {
+    const nameField = document.createElement("div");
+    nameField.className = "field form-field";
+    const nameLabel = document.createElement("label");
+    nameLabel.setAttribute("for", `guestName${index + 1}`);
+    nameLabel.textContent = getGuestNameLabel(index);
     nameInput.type = "text";
     nameField.appendChild(nameLabel);
+    const error = document.createElement("p");
+    error.className = "field-error hidden";
+    error.textContent = "Please enter a name.";
+    error.dataset.guestNameError = "true";
     nameField.appendChild(nameInput);
+    nameField.appendChild(error);
+    card.appendChild(nameField);
   }
-
-  const error = document.createElement("p");
-  error.className = "field-error hidden";
-  error.textContent = "Please enter a name.";
-  error.dataset.guestNameError = "true";
-  nameField.appendChild(nameInput);
-  nameField.appendChild(error);
 
   const factField = document.createElement("div");
   factField.className = "field form-field";
@@ -2659,7 +2645,9 @@ function buildGuestCard(index, name = "", funFact = "") {
   factField.appendChild(buildFunFactExamplesPopover(factInput));
 
   card.appendChild(header);
-  card.appendChild(nameField);
+  if (index === 0) {
+    card.appendChild(nameInput);
+  }
   card.appendChild(factField);
   return card;
 }
@@ -2675,10 +2663,13 @@ function resequenceGuestCards() {
     const factInput = card.querySelector("textarea[data-guest-fun-fact]");
     if (nameInput) nameInput.id = `guestName${index + 1}`;
     if (factInput) factInput.id = `guestFunFact${index + 1}`;
-    const labels = card.querySelectorAll("label");
-    if (labels[0]) labels[0].setAttribute("for", `guestName${index + 1}`);
-    if (labels[0]) labels[0].textContent = getGuestNameLabel(index);
-    if (labels[1]) labels[1].setAttribute("for", `guestFunFact${index + 1}`);
+    const nameLabel = card.querySelector("label[for^='guestName']");
+    const factLabel = card.querySelector("label[for^='guestFunFact']");
+    if (nameLabel) {
+      nameLabel.setAttribute("for", `guestName${index + 1}`);
+      nameLabel.textContent = getGuestNameLabel(index);
+    }
+    if (factLabel) factLabel.setAttribute("for", `guestFunFact${index + 1}`);
     if (nameInput) {
       if (index === 0) {
         nameInput.dataset.primaryGuest = "true";
@@ -2711,7 +2702,6 @@ function syncPrimaryGuestName(force = false) {
   const primaryGuestInput =
     guestCardsWrap.querySelector("input[data-primary-guest='true']") || guestCardsWrap.querySelector("input[data-guest-name]");
   if (!(primaryGuestInput instanceof HTMLInputElement)) return;
-  const primaryDisplay = guestCardsWrap.querySelector("[data-primary-guest-display='true']");
 
   const fullName = fullNameInput.value.trim();
   const canSync = force || primaryGuestInput.dataset.autoSync === "true" || !primaryGuestInput.value.trim();
@@ -2719,42 +2709,36 @@ function syncPrimaryGuestName(force = false) {
 
   primaryGuestInput.value = fullName;
   primaryGuestInput.dataset.autoSync = "true";
-  if (primaryDisplay instanceof HTMLElement) {
-    primaryDisplay.textContent = `You: ${fullName || "—"}`;
-  }
-}
-
-function handlePrimaryGuestManualEdit(input) {
-  if (!(input instanceof HTMLInputElement) || !fullNameInput) return;
-  if (input.dataset.primaryGuest !== "true") return;
-
-  const typed = input.value.trim();
-  const source = fullNameInput.value.trim();
-  input.dataset.autoSync = typed === source ? "true" : "false";
 }
 
 function collectGuests() {
   if (!guestCardsWrap) return [];
   const cards = Array.from(guestCardsWrap.querySelectorAll(".guest-card"));
+  const fullName = (fullNameInput && fullNameInput.value.trim()) || inviteState.greetingName;
   return cards.map((card) => {
     const nameInput = card.querySelector("input[data-guest-name]");
     const factInput = card.querySelector("textarea[data-guest-fun-fact]");
+    const isPrimary = nameInput instanceof HTMLInputElement && nameInput.dataset.primaryGuest === "true";
     return {
-      name: nameInput instanceof HTMLInputElement ? nameInput.value.trim() : "",
+      name: isPrimary ? fullName : nameInput instanceof HTMLInputElement ? nameInput.value.trim() : "",
       funFact: factInput ? factInput.value.trim() : "",
       nameInput,
       errorNode: card.querySelector("[data-guest-name-error]"),
+      isPrimary,
     };
   });
 }
 
 function validateGuestCards() {
   const guests = collectGuests();
+  const fullName = (fullNameInput && fullNameInput.value.trim()) || "";
   let valid = true;
   guests.forEach((guest) => {
-    const hasName = Boolean(guest.name);
+    const hasName = guest.isPrimary ? Boolean(fullName) : Boolean(guest.name);
     if (guest.errorNode) guest.errorNode.classList.toggle("hidden", hasName);
-    if (guest.nameInput) guest.nameInput.setCustomValidity(hasName ? "" : "Please enter a name.");
+    if (guest.nameInput instanceof HTMLInputElement) {
+      guest.nameInput.setCustomValidity(hasName ? "" : "Please enter a name.");
+    }
     if (!hasName) valid = false;
   });
   return valid;

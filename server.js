@@ -31,8 +31,16 @@ const SHEET_TAB_BY_STATUS = {
 
 const MAX_UPLOAD_FILES = 3;
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
-const ALLOWED_UPLOAD_EXTENSIONS = new Set(["jpg", "jpeg", "png", "heic", "heif"]);
-const ALLOWED_UPLOAD_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/heic", "image/heif"]);
+const ALLOWED_UPLOAD_EXTENSIONS = new Set(["jpg", "jpeg", "png", "heic", "heif", "mp4", "mov", "webm"]);
+const ALLOWED_UPLOAD_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/heic",
+  "image/heif",
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
+]);
 const PHOTO_UPLOAD_FIELDS = [
   { name: "photo1", maxCount: 1 },
   { name: "photo2", maxCount: 1 },
@@ -226,6 +234,9 @@ function detectFileExtension(file) {
   if (mime === "image/jpeg") return "jpg";
   if (mime === "image/png") return "png";
   if (mime === "image/heic" || mime === "image/heif") return "heic";
+  if (mime === "video/mp4") return "mp4";
+  if (mime === "video/quicktime") return "mov";
+  if (mime === "video/webm") return "webm";
   return "jpg";
 }
 
@@ -246,7 +257,7 @@ function validatePhotoFile(file) {
   const mimeAllowed = !mime || ALLOWED_UPLOAD_MIME_TYPES.has(mime);
 
   if (!extensionAllowed || !mimeAllowed) {
-    return `${file.originalname || "Photo"} must be JPG, PNG, or HEIC.`;
+    return `${file.originalname || "Photo"} must be JPG, PNG, HEIC, MP4, MOV, or WEBM.`;
   }
 
   return "";
