@@ -3700,6 +3700,10 @@ details[open] .faq-answer {
   position: fixed;
   inset: 0;
   z-index: 165;
+  display: flex;
+  align-items: flex-end;
+  justify-content: stretch;
+  overflow: hidden;
 }
 
 .hotel-map-sheet-backdrop {
@@ -3710,17 +3714,17 @@ details[open] .faq-answer {
 }
 
 .hotel-map-sheet-panel {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  position: relative;
+  width: 100%;
   background: rgba(255, 251, 243, 0.98);
   border-radius: 22px 22px 0 0;
   border: 1px solid rgba(201, 174, 116, 0.32);
   border-bottom: 0;
-  padding: 14px 16px 16px;
-  max-height: min(80vh, 620px);
-  overflow: auto;
+  padding: max(14px, calc(env(safe-area-inset-top) + 8px)) 16px calc(16px + env(safe-area-inset-bottom));
+  max-height: calc(100dvh - max(8px, env(safe-area-inset-top)));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .hotel-map-dot-tooltip {

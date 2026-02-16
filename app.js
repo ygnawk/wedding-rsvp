@@ -260,6 +260,7 @@ const hotelMatrixDetails = document.getElementById("hotelMatrixDetails");
 const hotelMatrixSheet = document.getElementById("hotelMatrixSheet");
 const hotelMatrixSheetContent = document.getElementById("hotelMatrixSheetContent");
 const hotelMatrixSheetClose = document.getElementById("hotelMatrixSheetClose");
+const hotelMatrixSheetPanel = hotelMatrixSheet ? hotelMatrixSheet.querySelector(".hotel-map-sheet-panel") : null;
 const hotelMatrixSheetCloseControls = hotelMatrixSheet ? Array.from(hotelMatrixSheet.querySelectorAll("[data-sheet-close], #hotelMatrixSheetClose")) : [];
 const hotelMatrixRatingClaim = document.getElementById("hotelMatrixRatingClaim");
 const hotelMethodTrigger = document.getElementById("hotelMethodTrigger");
@@ -1868,6 +1869,9 @@ function openHotelMatrixSheet(item) {
   if (!hotelMatrixSheet || !hotelMatrixSheetContent || !item) return;
   hotelMatrixSheet.hidden = false;
   hotelMatrixSheetContent.replaceChildren(buildHotelDetailsCard(item));
+  hotelMatrixSheet.scrollTop = 0;
+  hotelMatrixSheetContent.scrollTop = 0;
+  if (hotelMatrixSheetPanel) hotelMatrixSheetPanel.scrollTop = 0;
   hotelSheetOpen = true;
   document.body.classList.add("modal-open");
   if (hotelMatrixSheetClose) hotelMatrixSheetClose.focus({ preventScroll: true });
