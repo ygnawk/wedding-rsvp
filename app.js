@@ -106,7 +106,6 @@ const storyFocusImage = document.getElementById("storyFocusImage");
 const storyCaption = document.getElementById("storyCaption");
 const storyCaptionTitle = document.getElementById("storyCaptionTitle");
 const storyCaptionBlurb = document.getElementById("storyCaptionBlurb");
-const storySkip = document.querySelector(".story-skip");
 const storyLightbox = document.getElementById("storyLightbox");
 const storyLightboxImg = document.getElementById("storyLightboxImg");
 const storyLightboxTitle = document.getElementById("storyLightboxTitle");
@@ -2638,7 +2637,7 @@ function renderStoryYearScrubber(items, yearTargets = [], onSelect = null) {
   storyYearScrubber.innerHTML = "";
   storyYearButtons = [];
 
-  if (!Array.isArray(items) || !items.length) {
+  if (!Array.isArray(items) || !items.length || !isStoryMobileView()) {
     storyYearScrubber.classList.add("hidden");
     return;
   }
@@ -2833,6 +2832,15 @@ function setStoryMobileSlide(index, options = {}) {
 function syncStoryResponsiveMode() {
   if (!storyMosaicLayout || !storyMobileStage) return;
   const isMobile = isStoryMobileView();
+  if (storyYearScrubber) {
+    storyYearScrubber.classList.toggle("hidden", !isMobile);
+    if (isMobile && !storyYearButtons.length) {
+      renderStoryYearScrubber(storyItems, storyPathTargets, (index) => {
+        if (!isStoryMobileView()) return;
+        setStoryMobileSlide(index);
+      });
+    }
+  }
   storyMobileStage.hidden = !isMobile;
   storyMobileStage.setAttribute("aria-hidden", String(!isMobile));
   if (storyMosaicShell) storyMosaicShell.setAttribute("aria-hidden", String(isMobile));
@@ -2947,16 +2955,6 @@ function bindStoryTimelineEvents() {
     storyNext.addEventListener("click", () => {
       scrollStoryTimelineTo(storyTimelineIndex + 1);
     });
-  }
-
-  if (storySkip && storySkip.dataset.bound !== "true") {
-    storySkip.addEventListener("click", (event) => {
-      event.preventDefault();
-      const target = document.getElementById("schedule");
-      if (!target) return;
-      target.scrollIntoView({ behavior: getScrollBehavior(), block: "start" });
-    });
-    storySkip.dataset.bound = "true";
   }
 
   storyViewport.addEventListener(
@@ -3217,7 +3215,12 @@ async function initStoryMosaicLayout() {
   applyStoryMosaicReveal(cards);
   bindStoryMobileStage();
   bindStoryChronologyResize();
-  setStoryMobileSlide(0, { scrollPill: false });
+  const preferredIndex = Math.max(
+    0,
+    orderedItems.findIndex((item) => Number(item.year) === 2016),
+  );
+  storyMobileIndex = preferredIndex;
+  setStoryMobileSlide(preferredIndex, { scrollPill: false });
   syncStoryResponsiveMode();
   queueStoryChronologyPathRender();
 }
@@ -3613,21 +3616,13 @@ function bindStoryScrollyEvents() {
     });
   }
 
-  if (storySkip) {
-    storySkip.addEventListener("click", (event) => {
-      event.preventDefault();
-      const target = document.getElementById("schedule");
-      if (!target) return;
-      target.scrollIntoView({ behavior: getScrollBehavior(), block: "start" });
-    });
-  }
-
   window.addEventListener("scroll", requestStoryStepSync, { passive: true });
 
   window.addEventListener("resize", () => {
     if (storyResizeRaf) window.cancelAnimationFrame(storyResizeRaf);
     storyResizeRaf = window.requestAnimationFrame(() => {
       storyResizeRaf = null;
+      syncStoryResponsiveMode();
       if (storyActiveStep >= 0) {
         showStoryFocus(storyActiveStep, false);
       } else {
