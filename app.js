@@ -2438,7 +2438,7 @@ function buildGuestCard(index, name = "", funFact = "") {
   factField.className = "field form-field";
   const factLabel = document.createElement("label");
   factLabel.setAttribute("for", `guestFunFact${index + 1}`);
-  factLabel.textContent = "Fun fact (we will print this on your name card to help break the ice)";
+  factLabel.textContent = "Fun facts (we will print this on your name card to help break the ice)";
   const factInput = document.createElement("textarea");
   factInput.id = `guestFunFact${index + 1}`;
   factInput.rows = 2;
