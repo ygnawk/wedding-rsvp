@@ -3414,7 +3414,7 @@ details[open] .faq-answer {
   visibility: hidden;
   pointer-events: none;
   transform: translateY(6px);
-  transition: opacity 190ms ease, transform 210ms ease, visibility 0ms linear 210ms;
+  transition: opacity 320ms ease-out, transform 320ms ease-out, visibility 0ms linear 320ms;
 }
 
 .hotel-map-details.is-visible {
@@ -3422,7 +3422,7 @@ details[open] .faq-answer {
   visibility: visible;
   pointer-events: auto;
   transform: translateY(0);
-  transition: opacity 190ms ease, transform 210ms ease, visibility 0ms linear 0ms;
+  transition: opacity 320ms ease-out, transform 320ms ease-out, visibility 0ms linear 0ms;
 }
 
 .hotel-map-empty {
@@ -3680,13 +3680,13 @@ details[open] .faq-answer {
     overflow: hidden;
     transform: translateY(6px);
     transition:
-      opacity 220ms var(--ease-out),
-      transform 220ms var(--ease-out),
-      visibility 0ms linear 220ms,
-      max-width 280ms var(--ease-out),
-      padding 280ms var(--ease-out),
-      border-color 280ms var(--ease-out),
-      background-color 280ms var(--ease-out);
+      opacity 320ms ease-out,
+      transform 320ms ease-out,
+      visibility 0ms linear 320ms,
+      max-width 340ms var(--ease-out),
+      padding 340ms var(--ease-out),
+      border-color 340ms var(--ease-out),
+      background-color 340ms var(--ease-out);
   }
 
   .hotel-map-card.has-selection .hotel-map-details {
@@ -3699,13 +3699,13 @@ details[open] .faq-answer {
     pointer-events: auto;
     transform: translateY(0);
     transition:
-      opacity 220ms var(--ease-out),
-      transform 220ms var(--ease-out),
+      opacity 320ms ease-out,
+      transform 320ms ease-out,
       visibility 0ms linear 0ms,
-      max-width 280ms var(--ease-out),
-      padding 280ms var(--ease-out),
-      border-color 280ms var(--ease-out),
-      background-color 280ms var(--ease-out);
+      max-width 340ms var(--ease-out),
+      padding 340ms var(--ease-out),
+      border-color 340ms var(--ease-out),
+      background-color 340ms var(--ease-out);
   }
 }
 
