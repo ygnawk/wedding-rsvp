@@ -1938,8 +1938,8 @@ function getHotelMatrixDimensions() {
 
   const width = Math.max(300, Math.round(innerWidth));
   const compact = width < 560;
-  const aspect = compact ? 1 : 760 / 460;
-  const height = compact ? Math.max(320, Math.round(width / aspect)) : Math.max(280, Math.round(width / aspect));
+  const aspect = compact ? 0.8 : 760 / 460;
+  const height = compact ? Math.max(390, Math.round(width / aspect)) : Math.max(280, Math.round(width / aspect));
   return { width, height };
 }
 
@@ -1949,7 +1949,7 @@ function renderHotelMatrix() {
   const width = hotelMatrixWidth;
   const height = hotelMatrixHeight;
   const isCompact = width < 560;
-  const margins = isCompact ? { top: 24, right: 24, bottom: 72, left: 80 } : { top: 42, right: 56, bottom: 104, left: 122 };
+  const margins = isCompact ? { top: 24, right: 18, bottom: 92, left: 72 } : { top: 42, right: 56, bottom: 104, left: 122 };
   const plotWidth = Math.max(180, width - margins.left - margins.right);
   const plotHeight = Math.max(170, height - margins.top - margins.bottom);
   const ringRadius = isCompact ? 10.8 : 12;
@@ -2009,7 +2009,11 @@ function renderHotelMatrix() {
   const drivePadding = Math.max(1, Math.round((maxDrive - minDrive) * 0.08));
   const driveDomainMin = Math.max(0, minDrive - drivePadding);
   const driveDomainMax = maxDrive + drivePadding;
-  const driveTicks = [...new Set(driveTimes.map((value) => Math.round(value)))].sort((a, b) => a - b);
+  const driveTicksRaw = [...new Set(driveTimes.map((value) => Math.round(value)))].sort((a, b) => a - b);
+  const driveTicks =
+    isCompact && driveTicksRaw.length > 4
+      ? driveTicksRaw.filter((_, index) => index % 2 === 0 || index === driveTicksRaw.length - 1)
+      : driveTicksRaw;
 
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
   const mapPrice = (price) => {
@@ -2089,9 +2093,9 @@ function renderHotelMatrix() {
     );
 
     const node = createSvgNode("text", {
-      class: "hotel-map-tick",
+      class: isCompact ? "hotel-map-tick hotel-map-tick--compact" : "hotel-map-tick",
       x,
-      y: margins.top + plotHeight + 31,
+      y: margins.top + plotHeight + (isCompact ? 24 : 31),
       "text-anchor": "middle",
       "dominant-baseline": "hanging",
     });
@@ -2112,8 +2116,8 @@ function renderHotelMatrix() {
     );
 
     const node = createSvgNode("text", {
-      class: "hotel-map-tick",
-      x: margins.left - 24,
+      class: isCompact ? "hotel-map-tick hotel-map-tick--compact" : "hotel-map-tick",
+      x: margins.left - (isCompact ? 16 : 24),
       y,
       "text-anchor": "end",
       "dominant-baseline": "middle",
@@ -2133,7 +2137,7 @@ function renderHotelMatrix() {
   xAxisLabel.textContent = "Price ($ to $$$$)";
   hotelMatrixSvg.appendChild(xAxisLabel);
 
-  const yAxisLabelX = isCompact ? 22 : 26;
+  const yAxisLabelX = isCompact ? 20 : 26;
   const yAxisLabel = createSvgNode("text", {
     class: axisLabelClass,
     x: yAxisLabelX,

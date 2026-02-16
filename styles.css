@@ -3462,8 +3462,8 @@ details[open] .faq-answer {
 }
 
 .hotel-map-axis-label--compact {
-  font-size: 14px;
-  letter-spacing: 0.04em;
+  font-size: 16px;
+  letter-spacing: 0.03em;
   font-weight: 500;
 }
 
@@ -3477,6 +3477,12 @@ details[open] .faq-answer {
   font-family: var(--bodyFont);
   font-size: 21px;
   letter-spacing: 0.04em;
+}
+
+.hotel-map-tick--compact {
+  fill: rgba(75, 15, 23, 0.74);
+  font-size: 14px;
+  letter-spacing: 0.02em;
 }
 
 .hotel-map-crosshair {
@@ -3895,7 +3901,7 @@ details[open] .faq-answer {
   }
 
   .hotel-map-svg {
-    aspect-ratio: 1 / 1;
+    aspect-ratio: 4 / 5;
   }
 
   .hotel-map-title-row {
