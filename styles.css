@@ -196,8 +196,8 @@ a {
   min-height: var(--headerH);
   border-radius: 999px;
   border: 1px solid rgba(201, 174, 116, 0.66);
-  background: rgba(75, 15, 23, 0.85);
-  backdrop-filter: blur(7px);
+  background: rgba(75, 15, 23, 0.95);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   gap: 12px;
@@ -894,7 +894,7 @@ a:focus-visible,
 
 .story-year-scrubber {
   margin-top: 12px;
-  display: flex;
+  display: none;
   align-items: center;
   gap: 8px;
   overflow-x: auto;
@@ -2043,15 +2043,15 @@ a:focus-visible,
   }
 
   .jump-menu-wrap {
-    right: auto;
-    left: 50%;
+    right: 12px;
+    left: auto;
     bottom: calc(16px + env(safe-area-inset-bottom));
-    align-items: center;
-    transform: translate(-50%, 10px);
+    align-items: flex-end;
+    transform: translateY(10px);
   }
 
   .jump-menu-wrap.is-visible {
-    transform: translate(-50%, 0);
+    transform: translateY(0);
   }
 }
 
@@ -3632,6 +3632,10 @@ details[open] .faq-answer {
   .hotel-map-card {
     padding: 14px;
     border-radius: 18px;
+  }
+
+  .hotel-map-svg {
+    aspect-ratio: 1 / 1;
   }
 
   .hotel-map-title-row {

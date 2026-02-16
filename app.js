@@ -2,6 +2,8 @@ const SHEETS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwpfLq3hB_mRi
 const RSVP_LOCAL_FALLBACK_KEY = "wedding_rsvp_fallback";
 const BASE_PATH = window.location.hostname === "ygnawk.github.io" ? "/wedding-rsvp" : "";
 const IS_LOCAL_DEV = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
+const DEBUG_FOCAL_PARAM = String(new URLSearchParams(window.location.search).get("debugFocal") || "").toLowerCase();
+const ENABLE_FOCAL_TUNER = IS_LOCAL_DEV && ["1", "true", "yes", "on"].includes(DEBUG_FOCAL_PARAM);
 
 const SECTION_IDS = ["top", "interlude", "story", "venue", "schedule", "rsvp", "faq", "stay", "things-to-do", "makan", "travel-visa", "gallery"];
 
@@ -637,8 +639,11 @@ function toggleJumpMenu() {
 
 function syncJumpMenuVisibility() {
   if (!jumpMenuWrap) return;
-  const visible = window.scrollY > Math.max(240, window.innerHeight * 0.9);
+  const isMobileViewport = window.matchMedia("(max-width: 760px)").matches;
+  const revealThreshold = isMobileViewport ? Math.max(880, window.innerHeight * 1.65) : Math.max(240, window.innerHeight * 0.9);
+  const visible = window.scrollY > revealThreshold;
   jumpMenuWrap.classList.toggle("is-visible", visible);
+  if (!visible) closeJumpMenu();
 }
 
 function initJumpMenu() {
@@ -1647,8 +1652,9 @@ function getHotelMatrixDimensions() {
   }
 
   const width = Math.max(300, Math.round(innerWidth));
-  const aspect = 760 / 460;
-  const height = Math.max(280, Math.round(width / aspect));
+  const compact = width < 560;
+  const aspect = compact ? 1 : 760 / 460;
+  const height = compact ? Math.max(320, Math.round(width / aspect)) : Math.max(280, Math.round(width / aspect));
   return { width, height };
 }
 
@@ -1658,7 +1664,7 @@ function renderHotelMatrix() {
   const width = hotelMatrixWidth;
   const height = hotelMatrixHeight;
   const isCompact = width < 560;
-  const margins = isCompact ? { top: 34, right: 30, bottom: 66, left: 62 } : { top: 42, right: 52, bottom: 84, left: 88 };
+  const margins = isCompact ? { top: 24, right: 18, bottom: 54, left: 54 } : { top: 42, right: 52, bottom: 84, left: 88 };
   const plotWidth = Math.max(180, width - margins.left - margins.right);
   const plotHeight = Math.max(170, height - margins.top - margins.bottom);
   const ringRadius = isCompact ? 10.8 : 12;
@@ -3164,7 +3170,7 @@ function bindGalleryLightboxEvents() {
 }
 
 function bindGalleryFocalTuner(card, img, entry, index, initialFocalX, initialFocalY) {
-  if (!IS_LOCAL_DEV) return;
+  if (!ENABLE_FOCAL_TUNER) return;
   card.classList.add("gallery-tile--tuning");
   const marker = document.createElement("span");
   marker.className = "gallery-focal-marker";
@@ -3213,7 +3219,7 @@ function buildGalleryCard(entry, index) {
   card.style.setProperty("--objPos", objectPosition);
   card.appendChild(img);
 
-  if (IS_LOCAL_DEV) {
+  if (ENABLE_FOCAL_TUNER) {
     bindGalleryFocalTuner(card, img, entry, index, focalX, focalY);
   } else {
     card.addEventListener("click", () => openLightbox(index));
@@ -3605,7 +3611,7 @@ function renderStoryYearScrubber(items, yearTargets = [], onSelect = null) {
   });
 
   setActiveStoryScrubberIndex(0);
-  storyYearScrubber.classList.remove("hidden");
+  storyYearScrubber.classList.toggle("hidden", !isStoryMobileView());
 }
 
 function bindStoryYearObserver(yearTargets = []) {
@@ -3762,7 +3768,7 @@ function syncStoryResponsiveMode() {
   if (!storyMosaicLayout || !storyMobileStage) return;
   const isMobile = isStoryMobileView();
   if (storyYearScrubber) {
-    storyYearScrubber.classList.toggle("hidden", !storyItems.length);
+    storyYearScrubber.classList.toggle("hidden", !storyItems.length || !isMobile);
     if (!storyYearButtons.length && storyItems.length) {
       renderStoryYearScrubber(storyItems, storyPathTargets, (index) => {
         if (!isStoryMobileView()) return;
@@ -4024,7 +4030,7 @@ function buildStoryMosaicCard(item, slot, index) {
   card.appendChild(overlay);
   card.appendChild(yearPill);
 
-  if (IS_LOCAL_DEV) {
+  if (ENABLE_FOCAL_TUNER) {
     const marker = document.createElement("span");
     marker.className = "story-focal-marker";
     marker.style.left = `${(item.focalX * 100).toFixed(2)}%`;
