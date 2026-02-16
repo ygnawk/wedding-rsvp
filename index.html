@@ -111,7 +111,7 @@
         <div class="interlude-shell interlude-bleed">
           <div class="interlude-band">
             <figure class="interlude-photo-half reveal reveal-scale">
-              <img src="photos/interlude1.jpeg" alt="Miki and Yi Jie" loading="lazy" decoding="async" />
+              <img src="photos/interlude1.jpg" alt="Miki and Yi Jie" loading="lazy" decoding="async" />
             </figure>
             <div class="interlude-color-half">
               <div class="motif-layer motif-layer--maroon motif-layer--both" aria-hidden="true">
@@ -708,11 +708,13 @@
                   aria-controls="hotelMethodOverlay"
                   aria-label="Show methodology notes"
                 >
-                  ⓘ
+                  i
                 </button>
               </div>
-              <p class="hotel-map-helper">Click a dot for hotel details.</p>
-              <p id="hotelMatrixRatingClaim" class="hotel-map-rating-claim"></p>
+              <p class="hotel-map-helper">
+                Click a dot for hotel details.
+                <span id="hotelMatrixRatingClaim" class="hotel-map-rating-claim">All hotels shown are rated ≥ 9.0 on Expedia.</span>
+              </p>
 
               <div id="hotelMatrixShell" class="hotel-map-shell">
                 <svg
@@ -723,7 +725,7 @@
                   aria-labelledby="hotelMatrixTitle hotelMatrixDesc"
                 >
                   <title id="hotelMatrixTitle">Hotels matrix by price and drive time</title>
-                  <desc id="hotelMatrixDesc">Price increases from left to right, and drive time increases from bottom to top.</desc>
+                  <desc id="hotelMatrixDesc">Price increases from left to right, and drive time to the wedding venue increases from bottom to top.</desc>
                 </svg>
                 <div id="hotelMatrixTooltip" class="hotel-map-dot-tooltip" role="status" aria-live="polite" hidden></div>
               </div>
@@ -999,10 +1001,7 @@
               </summary>
               <div class="things-theme-panel">
                 <div class="things-grid things-grid--theme">
-                  <article class="content-card thing-card reveal">
-                    <figure class="content-media thing-img">
-                      <img data-photo-key="thingYuspa" src="photos/things/sanlitun-taikooli.jpg" alt="YUSPA near Sanlitun" loading="lazy" />
-                    </figure>
+                  <article class="content-card thing-card thing-card--text reveal">
                     <h3>愈舍YUSPA (三里屯店)</h3>
                     <p>Spotless, reasonably priced, and known for gentle oil massages.</p>
                     <p class="thing-links">
@@ -1010,10 +1009,7 @@
                       <a href="https://www.ihg.com/intercontinental/hotels/us/en/beijing/bjsfa/hoteldetail" target="_blank" rel="noopener noreferrer">Website</a>
                     </p>
                   </article>
-                  <article class="content-card thing-card reveal">
-                    <figure class="content-media thing-img">
-                      <img data-photo-key="thingISpa" src="photos/hotels/jw-marriott-beijing-central.jpg" alt="JW Marriott Beijing for iSpa" loading="lazy" />
-                    </figure>
+                  <article class="content-card thing-card thing-card--text reveal">
                     <h3>iSpa (华贸JW万豪店）</h3>
                     <p>A well-established chain with Thai, oil, and deep tissue options.</p>
                     <p class="thing-links">
@@ -1230,7 +1226,6 @@
           <span class="site-footer-main-label">Questions?</span>
           <a class="site-footer-email" href="mailto:sub.kyj123@gmail.com">sub.kyj123@gmail.com</a>
         </p>
-        <p class="site-footer-legal">(I check this… occasionall, but it's mainly for spam. If you know how to reach us, you’ll find us.)</p>
         <p class="site-footer-copy">© 2026 Miki &amp; Yi Jie</p>
       </div>
     </footer>

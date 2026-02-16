@@ -7,7 +7,7 @@
       "objectPosition": "50% 50%"
     },
     "interludeHands": {
-      "file": "interlude1.jpeg",
+      "file": "interlude1.jpg",
       "alt": "Miki and Yi Jie",
       "cropClass": "img-round",
       "objectPosition": "52% 60%"
@@ -113,8 +113,9 @@
       "file": "LMN_2093.jpg",
       "alt": "Miki and Yi Jie",
       "cropClass": "img-round",
-      "focalX": 0.67,
-      "focalY": 0.69
+      "focalX": 0.54,
+      "focalY": 0.18,
+      "objectPosition": "50% 18%"
     },
     {
       "id": "lmn-4200",
