@@ -133,6 +133,16 @@
             <div class="story-mosaic-column story-mosaic-column--left" id="storyMosaicLeft"></div>
             <div class="story-mosaic-column story-mosaic-column--right" id="storyMosaicRight"></div>
           </div>
+
+          <div class="story-timeline-wrap reveal" data-delay="120">
+            <button id="storyPrev" class="story-timeline-nav" type="button" aria-label="Previous story moment">‹</button>
+            <div id="storyViewport" class="story-timeline-viewport" tabindex="0" aria-label="Our story timeline">
+              <div id="storyTrack" class="story-timeline-track"></div>
+            </div>
+            <button id="storyNext" class="story-timeline-nav" type="button" aria-label="Next story moment">›</button>
+          </div>
+          <p id="storyHint" class="story-timeline-hint reveal" data-delay="140">Swipe timeline →</p>
+          <div id="storyDots" class="story-timeline-dots reveal" data-delay="160" aria-label="Story timeline dots"></div>
         </div>
       </section>
 
@@ -318,200 +328,241 @@
             <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/orchid-bud.svg" alt="" />
           </div>
           <h2 class="reveal reveal-left">FAQ</h2>
-          <div class="faq-list reveal">
-            <details>
-              <summary class="faq-summary">
-                <span class="faq-q">What to wear?</span>
-                <span class="faq-chevron" aria-hidden="true"></span>
-              </summary>
-              <div class="faq-answer">
-                <p>Western formal. Chinese traditional is encouraged — it’s fun, cool, and fitting for Beijing.</p>
-                <p>We know it’s kind of hard when someone describes it in words, so we got ChatGPT to generate what it might look like.</p>
-                <div class="faq-wear-media">
-                  <img
-                    id="faqWearImg"
-                    data-src="/photos/faq-photo/what-to-wear.png"
-                    src="photos/faq-photo/what-to-wear.png"
-                    alt="Attire inspiration: Western formal and Chinese traditional"
-                    loading="lazy"
-                    decoding="async"
-                    width="1200"
-                    height="800"
-                  />
-                </div>
+          <div class="faq-groups reveal">
+            <section class="faq-group" aria-labelledby="faqGroupBasics">
+              <h3 id="faqGroupBasics" class="faq-group-title">Wedding basics</h3>
+              <div class="faq-list">
+                <details>
+                  <summary class="faq-summary">
+                    <span class="faq-q">What to wear?</span>
+                    <span class="faq-chevron" aria-hidden="true"></span>
+                  </summary>
+                  <div class="faq-answer">
+                    <p>Western formal. Chinese traditional is encouraged — it’s fun, cool, and fitting for Beijing.</p>
+                    <p>We know it’s kind of hard when someone describes it in words, so we got ChatGPT to generate what it might look like.</p>
+                    <div class="faq-wear-media">
+                      <img
+                        id="faqWearImg"
+                        data-src="/photos/faq-photo/what-to-wear.png"
+                        src="photos/faq-photo/what-to-wear.png"
+                        alt="Attire inspiration: Western formal and Chinese traditional"
+                        loading="lazy"
+                        decoding="async"
+                        width="1200"
+                        height="800"
+                      />
+                    </div>
+                  </div>
+                </details>
+                <details>
+                  <summary class="faq-summary">
+                    <span class="faq-q">When should I arrive?</span>
+                    <span class="faq-chevron" aria-hidden="true"></span>
+                  </summary>
+                  <div class="faq-answer">
+                    <p>At least a day before. If you have extra time, Beijing is lovely in September.</p>
+                  </div>
+                </details>
+                <details>
+                  <summary class="faq-summary">
+                    <span class="faq-q">What language will the wedding be conducted in?</span>
+                    <span class="faq-chevron" aria-hidden="true"></span>
+                  </summary>
+                  <div class="faq-answer">
+                    <p>English and Chinese (if our emcee is willing — thanks Yukai.)</p>
+                  </div>
+                </details>
+                <details>
+                  <summary class="faq-summary">
+                    <span class="faq-q">How will seating work at the venue? (Yes, it’s a little different.)</span>
+                    <span class="faq-chevron" aria-hidden="true"></span>
+                  </summary>
+                  <div class="faq-answer">
+                    <p>
+                      We’re getting married at the Mandarin Oriental Qianmen Mansion. It’s beautiful, meaningful… and has two separate dining
+                      areas with a courtyard in the middle. (<em>Miki chose meaning over convenience. I chose acceptance.</em>)
+                    </p>
+                    <p>
+                      Here’s the flow: we’ll do the ceremony all together in the central courtyard. After that, dinner will be in two rooms—one
+                      more English-leaning (friends) and one more Chinese-leaning (family).
+                    </p>
+                  </div>
+                </details>
               </div>
-            </details>
-            <details>
-              <summary class="faq-summary">
-                <span class="faq-q">When should I arrive?</span>
-                <span class="faq-chevron" aria-hidden="true"></span>
-              </summary>
-              <div class="faq-answer">
-                <p>At least a day before. If you have extra time, Beijing is lovely in September.</p>
+            </section>
+
+            <section class="faq-group" aria-labelledby="faqGroupLogistics">
+              <h3 id="faqGroupLogistics" class="faq-group-title">Beijing logistics</h3>
+              <div class="faq-list">
+                <details>
+                  <summary class="faq-summary">
+                    <span class="faq-q">How do we get around in Beijing?</span>
+                    <span class="faq-chevron" aria-hidden="true"></span>
+                  </summary>
+                  <div class="faq-answer">
+                    <ul>
+                      <li><strong>Didi (滴滴) = Uber.</strong> It’s our go-to. It works for taxis and ride-shares, and it’s very reliable in Beijing.</li>
+                      <li><strong>The subway is great.</strong> It’s clean, cheap, and gets you almost everywhere.</li>
+                      <li>
+                        <strong>One catch:</strong> to enter the metro, most people use a <strong>Transit QR code</strong> inside
+                        <strong>Alipay (支付宝)</strong> (or WeChat). Once it’s set up, you just scan at the gates.
+                      </li>
+                    </ul>
+                  </div>
+                </details>
+                <details>
+                  <summary class="faq-summary">
+                    <span class="faq-q">What’s the easiest way to get from the airport to the hotel?</span>
+                    <span class="faq-chevron" aria-hidden="true"></span>
+                  </summary>
+                  <div class="faq-answer">
+                    <ul>
+                      <li>The simplest option is usually a <strong>taxi from the official taxi queue</strong> at the airport.</li>
+                      <li>
+                        <strong>Very important:</strong> have your hotel <strong>name + address in Chinese characters</strong> ready to show the
+                        driver. English often won’t work.
+                      </li>
+                      <li>If you’d like, send us your arrival details (flight number + landing time). We’re happy to help arrange pickup service as well.</li>
+                    </ul>
+                  </div>
+                </details>
               </div>
-            </details>
-            <details>
-              <summary class="faq-summary">
-                <span class="faq-q">What language will the wedding be conducted in?</span>
-                <span class="faq-chevron" aria-hidden="true"></span>
-              </summary>
-              <div class="faq-answer">
-                <p>English and Chinese (if our emcee is willing — thanks Yukai.)</p>
+            </section>
+
+            <section class="faq-group" aria-labelledby="faqGroupPractical">
+              <h3 id="faqGroupPractical" class="faq-group-title">Practical China</h3>
+              <div class="faq-list">
+                <details>
+                  <summary class="faq-summary">
+                    <span class="faq-q">How do we pay in China?</span>
+                    <span class="faq-chevron" aria-hidden="true"></span>
+                  </summary>
+                  <div class="faq-answer">
+                    <p>China is mostly cashless. The two apps you’ll want are:</p>
+                    <ul>
+                      <li><strong>WeChat Pay (微信支付)</strong> and <strong>Alipay (支付宝)</strong> — used everywhere (restaurants, cafés, taxis, and small shops).</li>
+                      <li><strong>Good news:</strong> you can usually link a foreign credit card after verification. If you can, use a card with no foreign transaction fees.</li>
+                      <li>If either app gives you trouble (verification, linking cards, QR codes, etc.), Miki can help you get set up.</li>
+                    </ul>
+                  </div>
+                </details>
+                <details>
+                  <summary class="faq-summary">
+                    <span class="faq-q">Will I need a VPN in Beijing?</span>
+                    <span class="faq-chevron" aria-hidden="true"></span>
+                  </summary>
+                  <div class="faq-answer">
+                    <p>To use Google Maps, Google Search, Instagram, and many other non-China apps, you’ll usually need a <strong>VPN</strong> while you’re in Beijing.</p>
+                    <ul>
+                      <li>Install it, sign in, and <strong>test it before you fly</strong> (it’s much easier to set up outside China).</li>
+                      <li>NordVPN is one common option (any VPN you trust is fine).</li>
+                    </ul>
+                  </div>
+                </details>
+                <details>
+                  <summary class="faq-summary">
+                    <span class="faq-q">Weather?</span>
+                    <span class="faq-chevron" aria-hidden="true"></span>
+                  </summary>
+                  <div class="faq-answer">
+                    <p>
+                      September is the nicest month in Beijing. It’s the perfect weather — the only 2 weeks that’s enjoyable — typically mild:
+                      about 15–26°C, or 59–79°F. Bring a light layer for evenings.
+                    </p>
+                  </div>
+                </details>
               </div>
-            </details>
-            <details>
-              <summary class="faq-summary">
-                <span class="faq-q">How will seating work at the venue? (Yes, it’s a little different.)</span>
-                <span class="faq-chevron" aria-hidden="true"></span>
-              </summary>
-              <div class="faq-answer">
-                <p>
-                  We’re getting married at the Mandarin Oriental Qianmen Mansion. It’s beautiful, meaningful… and has two separate dining areas with a courtyard in the middle.
-                  (<em>Miki chose meaning over convenience. I chose acceptance.</em>)
-                </p>
-                <p>
-                  Here’s the flow: we’ll do the ceremony all together in the central courtyard. After that, dinner will be in two rooms—one more English-leaning (friends) and
-                  one more Chinese-leaning (family).
-                </p>
+            </section>
+
+            <section class="faq-group" aria-labelledby="faqGroupPlanning">
+              <h3 id="faqGroupPlanning" class="faq-group-title">Planning</h3>
+              <div class="faq-list">
+                <details>
+                  <summary class="faq-summary">
+                    <span class="faq-q">Should we bring a gift?</span>
+                    <span class="faq-chevron" aria-hidden="true"></span>
+                  </summary>
+                  <div class="faq-answer">
+                    <p>
+                      We don’t expect anything—Beijing is already a big ask, and your time means the world. If you insist, we’ll accept with
+                      gratitude. But please don’t feel you have to.
+                    </p>
+                  </div>
+                </details>
+                <details>
+                  <summary class="faq-summary">
+                    <span class="faq-q">Where should I stay?</span>
+                    <span class="faq-chevron" aria-hidden="true"></span>
+                  </summary>
+                  <div class="faq-answer">
+                    <p>We listed a few hotels nearby, with booking links and directions.</p>
+                    <p><a class="faq-cta" href="#stay">See section →</a></p>
+                  </div>
+                </details>
+                <details>
+                  <summary class="faq-summary">
+                    <span class="faq-q">What are the best things to do in Beijing?</span>
+                    <span class="faq-chevron" aria-hidden="true"></span>
+                  </summary>
+                  <div class="faq-answer">
+                    <p>We picked a few favorites with photos and maps if you’re staying longer.</p>
+                    <p><a class="faq-cta" href="#things-to-do">See section →</a></p>
+                  </div>
+                </details>
+                <details>
+                  <summary class="faq-summary">
+                    <span class="faq-q">Do I need a visa, and which airport should I fly into?</span>
+                    <span class="faq-chevron" aria-hidden="true"></span>
+                  </summary>
+                  <div class="faq-answer">
+                    <p>
+                      Visa rules depend on passport and can change—please check official sources before booking. For flights, both Beijing Capital
+                      (PEK) and Beijing Daxing (PKX) are fine—choose whichever works best for your route.
+                    </p>
+                    <p><a class="faq-cta" href="#travel-visa">See section →</a></p>
+                  </div>
+                </details>
               </div>
-            </details>
-            <details>
-              <summary class="faq-summary">
-                <span class="faq-q">How do we get around in Beijing?</span>
-                <span class="faq-chevron" aria-hidden="true"></span>
-              </summary>
-              <div class="faq-answer">
-                <ul>
-                  <li><strong>Didi (滴滴) = Uber.</strong> It’s our go-to. It works for taxis and ride-shares, and it’s very reliable in Beijing.</li>
-                  <li><strong>The subway is great.</strong> It’s clean, cheap, and gets you almost everywhere.</li>
-                  <li><strong>One catch:</strong> to enter the metro, most people use a <strong>Transit QR code</strong> inside <strong>Alipay (支付宝)</strong> (or WeChat). Once it’s set up, you just scan at the gates.</li>
-                </ul>
+            </section>
+
+            <section class="faq-group" aria-labelledby="faqGroupSite">
+              <h3 id="faqGroupSite" class="faq-group-title">Site issues</h3>
+              <div class="faq-list">
+                <details>
+                  <summary class="faq-summary">
+                    <span class="faq-q">Found a bug on this site?</span>
+                    <span class="faq-chevron" aria-hidden="true"></span>
+                  </summary>
+                  <div class="faq-answer">
+                    <p>
+                      Please report it to Yi Jie. He built this with Codex + ChatGPT using pure vibes and zero knowledge of what the code actually
+                      does. He claims it worked once, briefly, on his laptop.
+                    </p>
+                  </div>
+                </details>
+                <details>
+                  <summary class="faq-summary">
+                    <span class="faq-q">Why is the website doing that?</span>
+                    <span class="faq-chevron" aria-hidden="true"></span>
+                  </summary>
+                  <div class="faq-answer">
+                    <p>
+                      Great question. Again, please direct your questions to Yi Jie — he built (and I’m using that word generously) this with
+                      Codex + ChatGPT and a healthy amount of hope… and a brave disregard for error messages.
+                    </p>
+                  </div>
+                </details>
+                <details>
+                  <summary class="faq-summary">
+                    <span class="faq-q">Are these hotel recommendations vetted?</span>
+                    <span class="faq-chevron" aria-hidden="true"></span>
+                  </summary>
+                  <div class="faq-answer">
+                    <p>Absolutely* (*vetted by ChatGPT at 1:00am. We have not personally stayed at any of them.)</p>
+                  </div>
+                </details>
               </div>
-            </details>
-            <details>
-              <summary class="faq-summary">
-                <span class="faq-q">What’s the easiest way to get from the airport to the hotel?</span>
-                <span class="faq-chevron" aria-hidden="true"></span>
-              </summary>
-              <div class="faq-answer">
-                <ul>
-                  <li>The simplest option is usually a <strong>taxi from the official taxi queue</strong> at the airport.</li>
-                  <li><strong>Very important:</strong> have your hotel <strong>name + address in Chinese characters</strong> ready to show the driver. English often won’t work.</li>
-                  <li>If you’d like, send us your arrival details (flight number + landing time). We’re happy to help arrange pickup service as well.</li>
-                </ul>
-              </div>
-            </details>
-            <details>
-              <summary class="faq-summary">
-                <span class="faq-q">How do we pay in China?</span>
-                <span class="faq-chevron" aria-hidden="true"></span>
-              </summary>
-              <div class="faq-answer">
-                <p>China is mostly cashless. The two apps you’ll want are:</p>
-                <ul>
-                  <li><strong>WeChat Pay (微信支付)</strong> and <strong>Alipay (支付宝)</strong> — used everywhere (restaurants, cafés, taxis, and small shops).</li>
-                  <li><strong>Good news:</strong> you can usually link a foreign credit card after verification. If you can, use a card with no foreign transaction fees.</li>
-                  <li>If either app gives you trouble (verification, linking cards, QR codes, etc.), Miki can help you get set up.</li>
-                </ul>
-              </div>
-            </details>
-            <details>
-              <summary class="faq-summary">
-                <span class="faq-q">Will I need a VPN in Beijing?</span>
-                <span class="faq-chevron" aria-hidden="true"></span>
-              </summary>
-              <div class="faq-answer">
-                <p>To use Google Maps, Google Search, Instagram, and many other non-China apps, you’ll usually need a <strong>VPN</strong> while you’re in Beijing.</p>
-                <ul>
-                  <li>Install it, sign in, and <strong>test it before you fly</strong> (it’s much easier to set up outside China).</li>
-                  <li>NordVPN is one common option (any VPN you trust is fine).</li>
-                </ul>
-              </div>
-            </details>
-            <details>
-              <summary class="faq-summary">
-                <span class="faq-q">Weather?</span>
-                <span class="faq-chevron" aria-hidden="true"></span>
-              </summary>
-              <div class="faq-answer">
-                <p>September is the nicest month in Beijing. It’s the perfect weather — the only 2 weeks that’s enjoyable — typically mild: about 15–26°C, or 59–79°F. Bring a light layer for evenings.</p>
-              </div>
-            </details>
-            <details>
-              <summary class="faq-summary">
-                <span class="faq-q">Should we bring a gift?</span>
-                <span class="faq-chevron" aria-hidden="true"></span>
-              </summary>
-              <div class="faq-answer">
-                <p>We don’t expect anything—Beijing is already a big ask, and your time means the world. If you insist, we’ll accept with gratitude. But please don’t feel you have to.</p>
-              </div>
-            </details>
-            <details>
-              <summary class="faq-summary">
-                <span class="faq-q">Where should I stay?</span>
-                <span class="faq-chevron" aria-hidden="true"></span>
-              </summary>
-              <div class="faq-answer">
-                <p>We listed a few hotels nearby, with booking links and directions.</p>
-                <p><a class="faq-cta" href="#stay">See section →</a></p>
-              </div>
-            </details>
-            <details>
-              <summary class="faq-summary">
-                <span class="faq-q">What are the best things to do in Beijing?</span>
-                <span class="faq-chevron" aria-hidden="true"></span>
-              </summary>
-              <div class="faq-answer">
-                <p>We picked a few favorites with photos and maps if you’re staying longer.</p>
-                <p><a class="faq-cta" href="#things-to-do">See section →</a></p>
-              </div>
-            </details>
-            <details>
-              <summary class="faq-summary">
-                <span class="faq-q">Do I need a visa, and which airport should I fly into?</span>
-                <span class="faq-chevron" aria-hidden="true"></span>
-              </summary>
-              <div class="faq-answer">
-                <p>
-                  Visa rules depend on passport and can change—please check official sources before booking. For flights, both Beijing Capital
-                  (PEK) and Beijing Daxing (PKX) are fine—choose whichever works best for your route.
-                </p>
-                <p><a class="faq-cta" href="#travel-visa">See section →</a></p>
-              </div>
-            </details>
-            <details>
-              <summary class="faq-summary">
-                <span class="faq-q">Found a bug on this site?</span>
-                <span class="faq-chevron" aria-hidden="true"></span>
-              </summary>
-              <div class="faq-answer">
-                <p>
-                  Please report it to Yi Jie. He built this with Codex + ChatGPT using pure vibes and zero knowledge of what the code actually
-                  does. He claims it worked once, briefly, on his laptop.
-                </p>
-              </div>
-            </details>
-            <details>
-              <summary class="faq-summary">
-                <span class="faq-q">Why is the website doing that?</span>
-                <span class="faq-chevron" aria-hidden="true"></span>
-              </summary>
-              <div class="faq-answer">
-                <p>
-                  Great question. Again, please direct your questions to Yi Jie — he built (and I’m using that word generously) this with
-                  Codex + ChatGPT and a healthy amount of hope… and a brave disregard for error messages.
-                </p>
-              </div>
-            </details>
-            <details>
-              <summary class="faq-summary">
-                <span class="faq-q">Are these hotel recommendations vetted?</span>
-                <span class="faq-chevron" aria-hidden="true"></span>
-              </summary>
-              <div class="faq-answer">
-                <p>Absolutely* (*vetted by ChatGPT at 1:00am. We have not personally stayed at any of them.)</p>
-              </div>
-            </details>
+            </section>
           </div>
         </div>
       </section>
@@ -526,15 +577,16 @@
           <p class="stay-eyebrow reveal">Where to stay</p>
           <h2 class="reveal reveal-left">Hotels near the venue — mapped by comfort and price</h2>
           <p class="stay-subtitle reveal">
-            Comfort uses guest reviews. Price uses a public nightly-rate snapshot. Hover a dot to see details.
+            Comfort uses guest reviews. Price uses a public nightly-rate snapshot.
             <button
               id="hotelMethodTrigger"
               class="stay-method-trigger"
               type="button"
               aria-expanded="false"
               aria-controls="hotelMethodTooltip"
+              aria-label="Show methodology notes"
             >
-              Methodology
+              ⓘ
             </button>
           </p>
           <div id="hotelMethodTooltip" class="hotel-method-tooltip" role="tooltip" hidden aria-hidden="true">
@@ -548,10 +600,7 @@
           <div class="hotel-map-card reveal" aria-labelledby="hotelMatrixHeading">
             <div class="hotel-map-chart-col">
               <h3 id="hotelMatrixHeading" class="hotel-map-heading">Hotels at a glance</h3>
-              <p class="hotel-map-helper">
-                <span class="hotel-map-helper-desktop">Hover a dot to see details. Click to pin.</span>
-                <span class="hotel-map-helper-mobile">Tap a dot to see details.</span>
-              </p>
+              <p class="hotel-map-helper">Hover a dot to preview. Click to pin. (Tap a dot on mobile.)</p>
 
               <div id="hotelMatrixShell" class="hotel-map-shell">
                 <svg
@@ -564,6 +613,7 @@
                   <title id="hotelMatrixTitle">Hotels matrix by price and comfort</title>
                   <desc id="hotelMatrixDesc">Price increases from left to right, comfort increases from bottom to top.</desc>
                 </svg>
+                <div id="hotelMatrixTooltip" class="hotel-map-dot-tooltip" role="status" aria-live="polite" hidden></div>
               </div>
             </div>
 
@@ -593,95 +643,108 @@
             <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/orchid-bud.svg" alt="" />
           </div>
           <h2 class="reveal reveal-left">Things to do in Beijing</h2>
+          <div class="things-theme-list reveal" id="thingsThemeList">
+            <details class="things-theme" open>
+              <summary class="things-theme-summary">
+                <span class="things-theme-title">Imperial core</span>
+                <span class="things-theme-meta">Forbidden City + Jingshan Park</span>
+                <span class="things-theme-chevron" aria-hidden="true"></span>
+              </summary>
+              <div class="things-theme-panel">
+                <div class="things-grid things-grid--theme">
+                  <article class="content-card thing-card reveal">
+                    <figure class="content-media thing-img">
+                      <img data-photo-key="thingForbiddenCity" src="photos/things/forbidden-city.jpg" alt="Forbidden City" loading="lazy" />
+                    </figure>
+                    <h3>Forbidden City</h3>
+                    <p>Explore the former imperial palace complex and its iconic ceremonial halls.</p>
+                    <p class="thing-links">
+                      <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Forbidden+City+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                      <a href="https://en.dpm.org.cn/" target="_blank" rel="noopener noreferrer">Website</a>
+                    </p>
+                  </article>
+                  <article class="content-card thing-card reveal">
+                    <figure class="content-media thing-img">
+                      <img data-photo-key="thingJingshan" src="photos/things/jingshan-park.jpg" alt="Jingshan Park" loading="lazy" />
+                    </figure>
+                    <h3>Jingshan Park</h3>
+                    <p>A short climb with one of the best panoramic views over old Beijing.</p>
+                    <p class="thing-links">
+                      <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Jingshan+Park+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                      <a href="https://en.wikipedia.org/wiki/Jingshan_Park" target="_blank" rel="noopener noreferrer">Website</a>
+                    </p>
+                  </article>
+                </div>
+              </div>
+            </details>
 
-          <div class="things-grid" id="thingsGridTop">
-            <article class="content-card thing-card reveal">
-              <figure class="content-media thing-img">
-                <img data-photo-key="thingForbiddenCity" src="photos/things/forbidden-city.jpg" alt="Forbidden City" loading="lazy" />
-              </figure>
-              <h3>Forbidden City</h3>
-              <p>Explore the former imperial palace complex and its iconic ceremonial halls.</p>
-              <p class="thing-links">
-                <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Forbidden+City+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
-                <a href="https://en.dpm.org.cn/" target="_blank" rel="noopener noreferrer">Website</a>
-              </p>
-            </article>
+            <details class="things-theme">
+              <summary class="things-theme-summary">
+                <span class="things-theme-title">Iconic parks/temples</span>
+                <span class="things-theme-meta">Temple of Heaven + Summer Palace</span>
+                <span class="things-theme-chevron" aria-hidden="true"></span>
+              </summary>
+              <div class="things-theme-panel">
+                <div class="things-grid things-grid--theme">
+                  <article class="content-card thing-card reveal">
+                    <figure class="content-media thing-img">
+                      <img data-photo-key="thingTempleHeaven" src="photos/things/temple-of-heaven.jpg" alt="Temple of Heaven" loading="lazy" />
+                    </figure>
+                    <h3>Temple of Heaven</h3>
+                    <p>A landmark of Ming architecture and expansive gardens in central Beijing.</p>
+                    <p class="thing-links">
+                      <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Temple+of+Heaven+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                      <a href="https://whc.unesco.org/en/list/881/" target="_blank" rel="noopener noreferrer">Website</a>
+                    </p>
+                  </article>
+                  <article class="content-card thing-card reveal">
+                    <figure class="content-media thing-img">
+                      <img data-photo-key="thingSummerPalace" src="photos/things/summer-palace.jpg" alt="Summer Palace" loading="lazy" />
+                    </figure>
+                    <h3>Summer Palace</h3>
+                    <p>Lake views, painted corridors, and one of Beijing’s most scenic royal parks.</p>
+                    <p class="thing-links">
+                      <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Summer+Palace+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                      <a href="https://whc.unesco.org/en/list/880/" target="_blank" rel="noopener noreferrer">Website</a>
+                    </p>
+                  </article>
+                </div>
+              </div>
+            </details>
 
-            <article class="content-card thing-card reveal">
-              <figure class="content-media thing-img">
-                <img data-photo-key="thingTempleHeaven" src="photos/things/temple-of-heaven.jpg" alt="Temple of Heaven" loading="lazy" />
-              </figure>
-              <h3>Temple of Heaven</h3>
-              <p>A landmark of Ming architecture and expansive gardens in central Beijing.</p>
-              <p class="thing-links">
-                <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Temple+of+Heaven+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
-                <a href="https://whc.unesco.org/en/list/881/" target="_blank" rel="noopener noreferrer">Website</a>
-              </p>
-            </article>
-
-            <article class="content-card thing-card reveal">
-              <figure class="content-media thing-img">
-                <img data-photo-key="thingSummerPalace" src="photos/things/summer-palace.jpg" alt="Summer Palace" loading="lazy" />
-              </figure>
-              <h3>Summer Palace</h3>
-              <p>Lake views, painted corridors, and one of Beijing’s most scenic royal parks.</p>
-              <p class="thing-links">
-                <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Summer+Palace+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
-                <a href="https://whc.unesco.org/en/list/880/" target="_blank" rel="noopener noreferrer">Website</a>
-              </p>
-            </article>
-          </div>
-
-          <div id="things-to-do-more" class="things-more" hidden>
-            <div class="things-grid things-grid--more">
-              <article class="content-card thing-card reveal">
-                <figure class="content-media thing-img">
-                  <img data-photo-key="thingMutianyu" src="photos/things/great-wall-mutianyu.jpg" alt="Great Wall at Mutianyu" loading="lazy" />
-                </figure>
-                <h3>Great Wall (Mutianyu)</h3>
-                <p>A scenic section of the Wall with mountain panoramas and restored watchtowers.</p>
-                <p class="thing-links">
-                  <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Mutianyu+Great+Wall&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
-                  <a href="https://www.mutianyugreatwall.com/" target="_blank" rel="noopener noreferrer">Website</a>
-                </p>
-              </article>
-
-              <article class="content-card thing-card reveal">
-                <figure class="content-media thing-img">
-                  <img data-photo-key="thingJingshan" src="photos/things/jingshan-park.jpg" alt="Jingshan Park" loading="lazy" />
-                </figure>
-                <h3>Jingshan Park</h3>
-                <p>A short climb with one of the best panoramic views over old Beijing.</p>
-                <p class="thing-links">
-                  <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Jingshan+Park+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
-                  <a href="https://en.wikipedia.org/wiki/Jingshan_Park" target="_blank" rel="noopener noreferrer">Website</a>
-                </p>
-              </article>
-
-              <article class="content-card thing-card reveal">
-                <figure class="content-media thing-img">
-                  <img data-photo-key="thingSanlitun" src="photos/things/sanlitun-taikooli.jpg" alt="Sanlitun Taikoo Li" loading="lazy" />
-                </figure>
-                <h3>Sanlitun (Taikoo Li)</h3>
-                <p>Modern shopping, cafes, and nightlife—one of Beijing’s most energetic neighborhoods.</p>
-                <p class="thing-links">
-                  <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Taikoo+Li+Sanlitun+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
-                  <a href="https://taikoolisanlitun.com" target="_blank" rel="noopener noreferrer">Website</a>
-                </p>
-              </article>
-            </div>
-          </div>
-
-          <div class="things-disclosure-wrap reveal">
-            <button
-              id="thingsToggle"
-              class="btn things-disclosure-btn"
-              type="button"
-              aria-expanded="false"
-              aria-controls="things-to-do-more"
-            >
-              Show 3 more
-            </button>
+            <details class="things-theme">
+              <summary class="things-theme-summary">
+                <span class="things-theme-title">Modern + day trip</span>
+                <span class="things-theme-meta">Sanlitun + Great Wall (Mutianyu)</span>
+                <span class="things-theme-chevron" aria-hidden="true"></span>
+              </summary>
+              <div class="things-theme-panel">
+                <div class="things-grid things-grid--theme">
+                  <article class="content-card thing-card reveal">
+                    <figure class="content-media thing-img">
+                      <img data-photo-key="thingSanlitun" src="photos/things/sanlitun-taikooli.jpg" alt="Sanlitun Taikoo Li" loading="lazy" />
+                    </figure>
+                    <h3>Sanlitun (Taikoo Li)</h3>
+                    <p>Modern shopping, cafes, and nightlife—one of Beijing’s most energetic neighborhoods.</p>
+                    <p class="thing-links">
+                      <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Taikoo+Li+Sanlitun+Beijing&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                      <a href="https://taikoolisanlitun.com" target="_blank" rel="noopener noreferrer">Website</a>
+                    </p>
+                  </article>
+                  <article class="content-card thing-card reveal">
+                    <figure class="content-media thing-img">
+                      <img data-photo-key="thingMutianyu" src="photos/things/great-wall-mutianyu.jpg" alt="Great Wall at Mutianyu" loading="lazy" />
+                    </figure>
+                    <h3>Great Wall (Mutianyu)</h3>
+                    <p>A scenic section of the Wall with mountain panoramas and restored watchtowers.</p>
+                    <p class="thing-links">
+                      <a href="https://www.google.com/maps/dir/?api=1&origin=Mandarin+Oriental+Qianmen+Beijing&destination=Mutianyu+Great+Wall&travelmode=driving" target="_blank" rel="noopener noreferrer">View on Google Maps</a>
+                      <a href="https://www.mutianyugreatwall.com/" target="_blank" rel="noopener noreferrer">Website</a>
+                    </p>
+                  </article>
+                </div>
+              </div>
+            </details>
           </div>
         </div>
       </section>
@@ -699,29 +762,26 @@
               classics.
             </p>
 
-            <div class="makan-tip-banner" role="note" aria-label="Beijing food app tip">
-              <span class="makan-tip-icon" aria-hidden="true">✦</span>
-              <p>
-                One Beijing tip: download 大众点评 (Dàzhòng Diǎnpíng). Most restaurants here don’t show their full vibe on Google Maps. For photos,
-                menus, and real reviews, locals use 大众点评—think Yelp + Google Reviews in one. If you want to see what a place actually looks like
-                (and what to order), it’s the best app for it.
-              </p>
+            <div class="makan-tip-row">
+              <button id="makanTipTrigger" class="makan-tip-trigger" type="button" aria-expanded="false" aria-controls="makanTipPopover">
+                ⓘ Tip
+              </button>
+              <div id="makanTipPopover" class="makan-tip-popover" role="tooltip" hidden aria-hidden="true">
+                <p>
+                  One Beijing tip: download 大众点评 (Dàzhòng Diǎnpíng). Most restaurants here don’t show their full vibe on Google Maps. For
+                  photos, menus, and real reviews, locals use 大众点评—think Yelp + Google Reviews in one. If you want to see what a place actually
+                  looks like (and what to order), it’s the best app for it.
+                </p>
+              </div>
             </div>
 
-            <div class="makan-specials" aria-labelledby="makanSpecialsTitle">
-              <div class="makan-menu-head">
-                <h3 id="makanSpecialsTitle">House Specials</h3>
-                <span class="makan-badge">CURATED</span>
+            <div class="makan-menu-table" aria-label="Beijing makan table">
+              <div class="makan-menu-table-head" aria-hidden="true">
+                <span>Type of food</span>
+                <span>Restaurant</span>
+                <span>Short description</span>
               </div>
-              <div id="makanSpecialsTrack" class="makan-specials-track" aria-label="House Specials"></div>
-            </div>
-
-            <div class="makan-categories">
-              <div class="makan-menu-head">
-                <h3>Menu Categories</h3>
-                <span class="makan-badge">IN PROGRESS</span>
-              </div>
-              <div class="makan-category-grid" id="makanCategoryGrid" aria-label="Beijing Makan categories"></div>
+              <div id="makanMenuRows" class="makan-menu-rows" aria-label="Beijing makan rows"></div>
             </div>
           </div>
 
@@ -742,7 +802,16 @@
 
           <div class="travel-selector reveal">
             <label class="travel-selector-label" for="travelPassportSelect">Select your passport</label>
-            <select id="travelPassportSelect" class="travel-passport-select" aria-describedby="travelPassportHint">
+            <div class="travel-passport-pills" role="radiogroup" aria-label="Passport selector">
+              <button class="travel-passport-pill" type="button" data-passport="us">🇺🇸 U.S.</button>
+              <button class="travel-passport-pill" type="button" data-passport="singapore">🇸🇬 Singapore</button>
+              <button class="travel-passport-pill" type="button" data-passport="japan">🇯🇵 Japan</button>
+              <button class="travel-passport-pill" type="button" data-passport="thailand">🇹🇭 Thailand</button>
+              <button class="travel-passport-pill" type="button" data-passport="malaysia">🇲🇾 Malaysia</button>
+              <button class="travel-passport-pill" type="button" data-passport="south-korea">🇰🇷 South Korea</button>
+              <button class="travel-passport-pill" type="button" data-passport="other">🌍 Other</button>
+            </div>
+            <select id="travelPassportSelect" class="travel-passport-select travel-passport-select--sr" aria-describedby="travelPassportHint">
               <option value="">Select…</option>
               <option value="us">U.S.</option>
               <option value="singapore">Singapore</option>
@@ -813,7 +882,7 @@
             </div>
           </details>
 
-          <p class="travel-note">Rules change. Not legal advice. Not liable (per Miki). Please rely on official sources.</p>
+          <p class="travel-note">Rules change. Not legal advice. Not liable (per Miki). Please rely on the official sources below.</p>
         </div>
       </section>
 
