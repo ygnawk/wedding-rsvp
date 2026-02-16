@@ -14,6 +14,9 @@ const inviteState = {
 const MAX_GUESTS = 4;
 const MAX_UPLOAD_FILES = 3;
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
+const UPLOAD_ALLOWED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "heic", "heif"]);
+const UPLOAD_ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/heic", "image/heif"]);
+const UPLOAD_SLOT_DEFAULT_META = "JPG/PNG/HEIC • up to 10MB";
 const FUN_FACT_CHIP_COUNT = 6;
 const FUN_FACT_EXAMPLES = [
   "I will travel for noodles.",
@@ -33,7 +36,8 @@ const FUN_FACT_EXAMPLES = [
 let photoManifest = null;
 let revealObserver = null;
 let reducedMotion = false;
-let selectedUploadFiles = [];
+let selectedUploadFiles = Array.from({ length: MAX_UPLOAD_FILES }, () => null);
+let selectedUploadPreviewUrls = Array.from({ length: MAX_UPLOAD_FILES }, () => "");
 
 const floatingHeader = document.getElementById("floatingHeader");
 const menuToggle = document.getElementById("menuToggle");
@@ -68,9 +72,23 @@ const workingCount = document.getElementById("workingCount");
 const workingConfirm = document.getElementById("workingConfirm");
 
 const noFields = document.getElementById("noFields");
-const photoUploadInput = document.getElementById("photoUpload");
-const photoUploadError = document.getElementById("photoUploadError");
-const photoUploadList = document.getElementById("photoUploadList");
+const photoUploadSlots = Array.from(document.querySelectorAll("[data-upload-slot]"));
+const photoUploadSlotRefs = photoUploadSlots.map((slotNode, fallbackIndex) => {
+  const slot = Number(slotNode.dataset.uploadSlot || fallbackIndex + 1);
+  return {
+    slot,
+    slotNode,
+    input: document.getElementById(`photoUpload${slot}`),
+    trigger: slotNode.querySelector(`[data-upload-trigger='${slot}']`),
+    meta: slotNode.querySelector(`[data-upload-meta='${slot}']`),
+    previewWrap: slotNode.querySelector(`[data-upload-preview-wrap='${slot}']`),
+    preview: slotNode.querySelector(`[data-upload-preview='${slot}']`),
+    actions: slotNode.querySelector(`[data-upload-actions='${slot}']`),
+    replaceButton: slotNode.querySelector(`[data-upload-replace='${slot}']`),
+    removeButton: slotNode.querySelector(`[data-upload-remove='${slot}']`),
+    errorNode: slotNode.querySelector(`[data-upload-error='${slot}']`),
+  };
+});
 const thingsThemeList = document.getElementById("thingsThemeList");
 const makanTipTrigger = document.getElementById("makanTipTrigger");
 const makanTipPopover = document.getElementById("makanTipPopover");
@@ -2304,52 +2322,192 @@ function validateGuestCards() {
   return valid;
 }
 
-function showUploadError(message) {
-  if (!photoUploadError) return;
-  photoUploadError.textContent = message;
-  photoUploadError.classList.remove("hidden");
+function getUploadFileExtension(fileName) {
+  const value = String(fileName || "");
+  const dotIndex = value.lastIndexOf(".");
+  if (dotIndex < 0) return "";
+  return value.slice(dotIndex + 1).toLowerCase();
 }
 
-function clearUploadError() {
-  if (!photoUploadError) return;
-  photoUploadError.textContent = "";
-  photoUploadError.classList.add("hidden");
+function isUploadFileTypeAllowed(file) {
+  const extension = getUploadFileExtension(file && file.name ? file.name : "");
+  const mime = String(file && file.type ? file.type : "").toLowerCase();
+  const hasAllowedExtension = extension ? UPLOAD_ALLOWED_EXTENSIONS.has(extension) : false;
+  const hasAllowedMime = mime ? UPLOAD_ALLOWED_MIME_TYPES.has(mime) : false;
+  return hasAllowedExtension || hasAllowedMime;
 }
 
-function renderSelectedUploadFiles() {
-  if (!photoUploadList) return;
-  photoUploadList.innerHTML = "";
-  selectedUploadFiles.forEach((file) => {
-    const li = document.createElement("li");
-    li.textContent = file.name;
-    photoUploadList.appendChild(li);
-  });
+function validateUploadFile(file) {
+  if (!file) return "";
+  if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+    return `${file.name} is larger than 10MB.`;
+  }
+  if (!isUploadFileTypeAllowed(file)) {
+    return `${file.name} must be JPG, PNG, or HEIC.`;
+  }
+  return "";
 }
 
-function validateAndStoreUploadFiles(fileList) {
-  clearUploadError();
-  const files = Array.from(fileList || []);
-  if (!files.length) {
-    selectedUploadFiles = [];
-    renderSelectedUploadFiles();
+function getUploadSlotRef(index) {
+  return photoUploadSlotRefs[index] || null;
+}
+
+function clearUploadSlotError(index) {
+  const ref = getUploadSlotRef(index);
+  if (!ref || !ref.errorNode) return;
+  ref.errorNode.textContent = "";
+  ref.errorNode.classList.add("hidden");
+}
+
+function setUploadSlotError(index, message) {
+  const ref = getUploadSlotRef(index);
+  if (!ref || !ref.errorNode) return;
+  ref.errorNode.textContent = message;
+  ref.errorNode.classList.remove("hidden");
+}
+
+function clearUploadSlotPreview(index) {
+  const ref = getUploadSlotRef(index);
+  if (!ref) return;
+
+  const previewUrl = selectedUploadPreviewUrls[index];
+  if (previewUrl) {
+    URL.revokeObjectURL(previewUrl);
+    selectedUploadPreviewUrls[index] = "";
+  }
+
+  if (ref.preview) {
+    ref.preview.src = "";
+    ref.preview.classList.add("hidden");
+  }
+
+  if (ref.previewWrap) {
+    ref.previewWrap.classList.add("hidden");
+  }
+}
+
+function updateUploadSlotUi(index) {
+  const ref = getUploadSlotRef(index);
+  if (!ref) return;
+
+  const file = selectedUploadFiles[index];
+  const hasFile = Boolean(file);
+  ref.slotNode.classList.toggle("has-file", hasFile);
+
+  if (ref.meta) {
+    ref.meta.textContent = hasFile ? file.name : UPLOAD_SLOT_DEFAULT_META;
+  }
+
+  if (ref.actions) {
+    ref.actions.classList.toggle("hidden", !hasFile);
+  }
+
+  clearUploadSlotPreview(index);
+
+  if (!hasFile || !ref.preview || !ref.previewWrap) return;
+
+  const extension = getUploadFileExtension(file.name);
+  const canPreview = file.type.startsWith("image/") && extension !== "heic" && extension !== "heif";
+  if (!canPreview) return;
+
+  const previewUrl = URL.createObjectURL(file);
+  selectedUploadPreviewUrls[index] = previewUrl;
+  ref.preview.src = previewUrl;
+  ref.preview.classList.remove("hidden");
+  ref.previewWrap.classList.remove("hidden");
+}
+
+function setUploadSlotFile(index, file) {
+  const ref = getUploadSlotRef(index);
+  if (!ref || !ref.input) return false;
+
+  clearUploadSlotError(index);
+
+  if (!file) {
+    selectedUploadFiles[index] = null;
+    updateUploadSlotUi(index);
     return true;
   }
 
-  if (files.length > MAX_UPLOAD_FILES) {
-    showUploadError("Please upload up to 3 photos.");
+  const errorMessage = validateUploadFile(file);
+  if (errorMessage) {
+    selectedUploadFiles[index] = null;
+    ref.input.value = "";
+    setUploadSlotError(index, errorMessage);
+    updateUploadSlotUi(index);
     return false;
   }
 
-  for (const file of files) {
-    if (file.size > MAX_UPLOAD_SIZE_BYTES) {
-      showUploadError(`${file.name} is larger than 10MB.`);
-      return false;
-    }
-  }
-
-  selectedUploadFiles = files;
-  renderSelectedUploadFiles();
+  selectedUploadFiles[index] = file;
+  updateUploadSlotUi(index);
   return true;
+}
+
+function clearUploadSlots() {
+  selectedUploadFiles = Array.from({ length: MAX_UPLOAD_FILES }, () => null);
+  selectedUploadPreviewUrls.forEach((previewUrl) => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+  });
+  selectedUploadPreviewUrls = Array.from({ length: MAX_UPLOAD_FILES }, () => "");
+
+  photoUploadSlotRefs.forEach((ref, index) => {
+    if (ref && ref.input) ref.input.value = "";
+    clearUploadSlotError(index);
+    updateUploadSlotUi(index);
+  });
+}
+
+function validateUploadSlots() {
+  let valid = true;
+  photoUploadSlotRefs.forEach((ref, index) => {
+    if (!ref) return;
+    const file = selectedUploadFiles[index];
+    clearUploadSlotError(index);
+    if (!file) return;
+    const errorMessage = validateUploadFile(file);
+    if (!errorMessage) return;
+    valid = false;
+    setUploadSlotError(index, errorMessage);
+  });
+  return valid;
+}
+
+function initUploadSlots() {
+  if (!photoUploadSlotRefs.length) return;
+
+  photoUploadSlotRefs.forEach((ref, index) => {
+    if (!ref || !ref.slotNode || ref.slotNode.dataset.bound === "true") return;
+    const { input, trigger, replaceButton, removeButton } = ref;
+    if (!input || !trigger) return;
+
+    trigger.addEventListener("click", () => {
+      input.click();
+    });
+
+    input.addEventListener("change", () => {
+      const nextFile = input.files && input.files[0] ? input.files[0] : null;
+      setUploadSlotFile(index, nextFile);
+    });
+
+    if (replaceButton) {
+      replaceButton.addEventListener("click", () => {
+        input.click();
+      });
+    }
+
+    if (removeButton) {
+      removeButton.addEventListener("click", () => {
+        input.value = "";
+        setUploadSlotFile(index, null);
+      });
+    }
+
+    ref.slotNode.dataset.bound = "true";
+  });
+
+  photoUploadSlotRefs.forEach((_ref, index) => {
+    updateUploadSlotUi(index);
+  });
 }
 
 function clearRsvpChoice() {
@@ -2383,13 +2541,7 @@ function clearRsvpChoice() {
     workingConfirm.setCustomValidity("");
   }
 
-  if (photoUploadInput) {
-    photoUploadInput.value = "";
-  }
-
-  selectedUploadFiles = [];
-  clearUploadError();
-  renderSelectedUploadFiles();
+  clearUploadSlots();
   hideGuestLimitError();
 
   submitButton.textContent = "Send reply";
@@ -2489,15 +2641,7 @@ function initRsvpCards() {
     });
   }
 
-  if (photoUploadInput) {
-    photoUploadInput.addEventListener("change", () => {
-      if (!validateAndStoreUploadFiles(photoUploadInput.files)) {
-        photoUploadInput.value = "";
-        selectedUploadFiles = [];
-        renderSelectedUploadFiles();
-      }
-    });
-  }
+  initUploadSlots();
 }
 
 function buildPayload() {
@@ -2522,7 +2666,17 @@ function buildPayload() {
     dietary: status === "yes" && dietary ? dietary.value.trim() : "",
     whenWillYouKnow: status === "maybe" && workingConfirm ? workingConfirm.value : "",
     followupChoice: status === "maybe" && workingConfirm ? workingConfirm.value : "",
-    photoFiles: selectedUploadFiles.map((file) => ({ name: file.name, size: file.size, type: file.type || "" })),
+    photoFiles: selectedUploadFiles
+      .map((file, index) => {
+        if (!file) return null;
+        return {
+          slot: index + 1,
+          name: file.name,
+          size: file.size,
+          type: file.type || "",
+        };
+      })
+      .filter(Boolean),
     userAgent: navigator.userAgent || "",
   };
 }
@@ -2597,7 +2751,7 @@ function initRsvpForm() {
       }
     }
 
-    if (!validateAndStoreUploadFiles(photoUploadInput ? photoUploadInput.files : [])) {
+    if (!validateUploadSlots()) {
       rsvpConfirmation.textContent = "Please fix the photo upload errors before submitting.";
       rsvpConfirmation.classList.remove("hidden");
       return;

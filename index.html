@@ -134,13 +134,11 @@
           <div class="story-timeline-head">
             <div class="story-head-row">
               <h2 class="section-title reveal reveal-left settle">Our story</h2>
-              <a class="story-skip-link reveal settle" data-delay="30" href="#venue">Skip to logistics</a>
             </div>
             <p class="ourstory-lede reveal settle" data-delay="70">
               We met on orientation day at Wesleyan University in 2016. Since then, life has taken us across cities and continents—and many of
               you have been part of that journey. We’d love to celebrate this milestone together with you in Beijing.
             </p>
-            <p class="story-chronology-hint reveal settle" data-delay="82">Chronological — left to right, top to bottom.</p>
             <div id="storyYearScrubber" class="story-year-scrubber reveal hidden" data-delay="95" aria-label="Jump through story years"></div>
           </div>
 
@@ -153,9 +151,6 @@
           </div>
 
           <div class="story-mosaic-shell reveal" data-delay="120" id="storyMosaicShell">
-            <svg class="story-chronology-path" id="storyChronologyPath" aria-hidden="true"></svg>
-            <span class="story-chronology-label story-chronology-label--start" id="storyChronologyStart" aria-hidden="true">Start</span>
-            <span class="story-chronology-label story-chronology-label--now" id="storyChronologyNow" aria-hidden="true">Now</span>
             <div class="story-mosaic-layout" id="storyMosaicLayout" aria-label="Our story mosaic"></div>
           </div>
         </div>
@@ -330,17 +325,81 @@
                 </div>
 
                 <div class="field form-field form-row">
-                  <label for="photoUpload">Optional: upload a photo of you (for a guest wall / memory book)</label>
-                  <input
-                    id="photoUpload"
-                    name="photoUpload"
-                    type="file"
-                    accept=".jpg,.jpeg,.png,.heic,image/jpeg,image/png,image/heic,image/heif"
-                    multiple
-                  />
-                  <p class="field-helper">Up to 3 photos, max 10MB each.</p>
-                  <p id="photoUploadError" class="field-error hidden" role="alert"></p>
-                  <ul id="photoUploadList" class="upload-file-list" aria-live="polite"></ul>
+                  <label>Upload a photo (optional)</label>
+                  <p class="field-helper">Up to 3 photos. Zero is totally fine.</p>
+                  <div class="upload-slot-grid" id="photoUploadSlots">
+                    <div class="upload-slot" data-upload-slot="1">
+                      <label for="photoUpload1">Photo 1 (optional)</label>
+                      <input
+                        id="photoUpload1"
+                        name="photoUpload1"
+                        class="upload-slot-input"
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.heic,image/jpeg,image/png,image/heic,image/heif"
+                      />
+                      <button type="button" class="upload-slot-card" data-upload-trigger="1">
+                        <span class="upload-slot-icon" aria-hidden="true">+</span>
+                        <span class="upload-slot-title">Upload a photo</span>
+                        <span class="upload-slot-meta" data-upload-meta="1">JPG/PNG/HEIC • up to 10MB</span>
+                      </button>
+                      <div class="upload-slot-preview hidden" data-upload-preview-wrap="1">
+                        <img class="hidden" data-upload-preview="1" alt="" loading="lazy" decoding="async" />
+                      </div>
+                      <div class="upload-slot-actions hidden" data-upload-actions="1">
+                        <button type="button" class="upload-slot-action" data-upload-replace="1">Replace</button>
+                        <button type="button" class="upload-slot-action" data-upload-remove="1">Remove</button>
+                      </div>
+                      <p class="field-error hidden" role="alert" data-upload-error="1"></p>
+                    </div>
+
+                    <div class="upload-slot" data-upload-slot="2">
+                      <label for="photoUpload2">Photo 2 (optional)</label>
+                      <input
+                        id="photoUpload2"
+                        name="photoUpload2"
+                        class="upload-slot-input"
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.heic,image/jpeg,image/png,image/heic,image/heif"
+                      />
+                      <button type="button" class="upload-slot-card" data-upload-trigger="2">
+                        <span class="upload-slot-icon" aria-hidden="true">+</span>
+                        <span class="upload-slot-title">Upload a photo</span>
+                        <span class="upload-slot-meta" data-upload-meta="2">JPG/PNG/HEIC • up to 10MB</span>
+                      </button>
+                      <div class="upload-slot-preview hidden" data-upload-preview-wrap="2">
+                        <img class="hidden" data-upload-preview="2" alt="" loading="lazy" decoding="async" />
+                      </div>
+                      <div class="upload-slot-actions hidden" data-upload-actions="2">
+                        <button type="button" class="upload-slot-action" data-upload-replace="2">Replace</button>
+                        <button type="button" class="upload-slot-action" data-upload-remove="2">Remove</button>
+                      </div>
+                      <p class="field-error hidden" role="alert" data-upload-error="2"></p>
+                    </div>
+
+                    <div class="upload-slot" data-upload-slot="3">
+                      <label for="photoUpload3">Photo 3 (optional)</label>
+                      <input
+                        id="photoUpload3"
+                        name="photoUpload3"
+                        class="upload-slot-input"
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.heic,image/jpeg,image/png,image/heic,image/heif"
+                      />
+                      <button type="button" class="upload-slot-card" data-upload-trigger="3">
+                        <span class="upload-slot-icon" aria-hidden="true">+</span>
+                        <span class="upload-slot-title">Upload a photo</span>
+                        <span class="upload-slot-meta" data-upload-meta="3">JPG/PNG/HEIC • up to 10MB</span>
+                      </button>
+                      <div class="upload-slot-preview hidden" data-upload-preview-wrap="3">
+                        <img class="hidden" data-upload-preview="3" alt="" loading="lazy" decoding="async" />
+                      </div>
+                      <div class="upload-slot-actions hidden" data-upload-actions="3">
+                        <button type="button" class="upload-slot-action" data-upload-replace="3">Replace</button>
+                        <button type="button" class="upload-slot-action" data-upload-remove="3">Remove</button>
+                      </div>
+                      <p class="field-error hidden" role="alert" data-upload-error="3"></p>
+                    </div>
+                  </div>
                 </div>
 
                 <div class="form-actions">
@@ -860,7 +919,6 @@
             </div>
           </div>
 
-          <p class="makan-microcopy reveal">Have a must-eat spot? Send it to us and we’ll add it.</p>
         </div>
       </section>
 
