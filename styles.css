@@ -643,7 +643,7 @@ a {
   height: 100%;
   display: block;
   object-fit: cover;
-  object-position: 66% 58%;
+  object-position: 52% 60%;
   filter: var(--photoGradeFilter);
 }
 
@@ -4576,7 +4576,7 @@ body.modal-open {
   }
 
   .interlude-photo-half img {
-    object-position: 60% 56%;
+    object-position: 50% 58%;
   }
 
   .interlude-color-half .motif-layer__item {
