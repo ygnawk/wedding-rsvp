@@ -60,6 +60,7 @@ const rsvpConfirmation = document.getElementById("rsvpConfirmation");
 const fullNameInput = document.getElementById("fullName");
 const emailInput = document.getElementById("email");
 const phoneInput = document.getElementById("phone");
+const messageInput = document.getElementById("message");
 
 const yesFields = document.getElementById("yesFields");
 const guestCardsWrap = document.getElementById("guestCardsWrap");
@@ -2660,6 +2661,7 @@ function buildPayload() {
     guestName: fullName,
     email: emailInput ? emailInput.value.trim() : "",
     phone: phoneInput ? phoneInput.value.trim() : "",
+    message: messageInput ? messageInput.value.trim() : "",
     partySize: status === "yes" ? yesPartySize : potentialPartySize,
     potentialPartySize,
     guests,
