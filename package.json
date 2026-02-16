@@ -3,13 +3,18 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "prestart": "npm run story:check",
+    "predev": "npm run story:check",
     "start": "node server.js",
     "dev": "concurrently -k -n SERVER,SYNC -c yellow,cyan \"npm:dev:server\" \"npm:dev:sync\"",
     "dev:server": "node server.js",
-    "dev:sync": "browser-sync start --proxy http://localhost:3000 --files \"index.html,styles.css,app.js,photos/**/*,public/**/*\" --port 3001 --no-ui --no-notify --reload-delay 120"
+    "dev:sync": "browser-sync start --proxy http://localhost:3000 --files \"index.html,styles.css,app.js,photos/**/*,public/**/*\" --port 3001 --no-ui --no-notify --reload-delay 120",
+    "story:crops": "node scripts/storyCrop.js",
+    "story:check": "node scripts/storyCheck.js"
   },
   "devDependencies": {
     "browser-sync": "^3.0.4",
-    "concurrently": "^9.2.1"
+    "concurrently": "^9.2.1",
+    "sharp": "^0.34.4"
   }
 }

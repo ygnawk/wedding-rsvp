@@ -88,6 +88,7 @@ const storyNext = document.getElementById("storyNext");
 const storyDots = document.getElementById("storyDots");
 const storyHint = document.getElementById("storyHint");
 const storyYearScrubber = document.getElementById("storyYearScrubber");
+const storySkipLink = document.querySelector(".story-skip-link");
 const storyMosaicShell = document.getElementById("storyMosaicShell");
 const storyMosaicLayout = document.getElementById("storyMosaicLayout");
 const storyChronologyPath = document.getElementById("storyChronologyPath");
@@ -296,12 +297,14 @@ const MAKAN_PLACEHOLDER_COPY = {
     "Send us your favorite spot and we’ll add it.",
   ],
 };
-const STORY_ASSET_VERSION = "20260215-1310";
+const STORY_ASSET_VERSION = "20260216-0915";
+const STORY_DEFAULT_FOCAL_X = 0.5;
+const STORY_DEFAULT_FOCAL_Y = 0.28;
 const STORY_OVERRIDES = {
-  // Lock problematic files so orientation and year placement stay stable.
-  "2008-miki-moves-beijing-upright.jpg": { rotate: -90, yearTop: 72, objPos: "50% 36%" },
-  "2020-covid-upright.jpg": { rotate: 180, yearTop: 72, objPos: "50% 36%" },
-  "2024-proposal-upright.jpg": { rotate: -90, yearTop: 72, objPos: "50% 40%" },
+  // Upright files should remain upright.
+  "2008-miki-moves-beijing-upright.jpg": { rotate: 0, objPos: "50% 44%" },
+  "2020-covid-upright.jpg": { rotate: 0, objPos: "50% 42%" },
+  "2024-proposal-upright.jpg": { rotate: 0, objPos: "50% 44%" },
   // Legacy names (kept in case old files are reintroduced).
   "2008-miki-moves-beijing.jpg": { rotate: -90, yearTop: 72, objPos: "50% 36%" },
   "2008-miki-moves-beijing-v2.jpg": { rotate: -90, yearTop: 72, objPos: "50% 36%" },
@@ -315,17 +318,17 @@ const STORY_OVERRIDES = {
   "2024 - She said yes.JPG": { rotate: -90, yearTop: 72, objPos: "50% 40%" },
 };
 const STORY_YEAR_FOCAL_PRESETS = {
-  1995: { focalX: 0.5, focalY: 0.3, cropMode: "cover" },
-  1998: { focalX: 0.45, focalY: 0.35, cropMode: "cover" },
-  2001: { focalX: 0.5, focalY: 0.3, cropMode: "cover" },
-  2008: { focalX: 0.5, focalY: 0.25, cropMode: "cover" },
-  2013: { focalX: 0.5, focalY: 0.22, cropMode: "cover" },
-  2016: { focalX: 0.55, focalY: 0.25, cropMode: "cover" },
-  2020: { focalX: 0.5, focalY: 0.3, cropMode: "cover" },
-  2021: { focalX: 0.5, focalY: 0.3, cropMode: "cover" },
-  2023: { focalX: 0.5, focalY: 0.24, cropMode: "cover" },
-  2024: { focalX: 0.5, focalY: 0.2, cropMode: "cover" },
-  2025: { focalX: 0.5, focalY: 0.22, cropMode: "cover" },
+  1995: { focalX: 0.5, focalY: 0.42, cropMode: "cover" },
+  1998: { focalX: 0.45, focalY: 0.46, cropMode: "cover" },
+  2001: { focalX: 0.5, focalY: 0.48, cropMode: "cover" },
+  2008: { focalX: 0.5, focalY: 0.44, cropMode: "cover" },
+  2013: { focalX: 0.5, focalY: 0.26, cropMode: "cover" },
+  2016: { focalX: 0.55, focalY: 0.44, cropMode: "cover" },
+  2020: { focalX: 0.5, focalY: 0.42, cropMode: "cover" },
+  2021: { focalX: 0.5, focalY: 0.44, cropMode: "cover" },
+  2023: { focalX: 0.5, focalY: 0.48, cropMode: "cover" },
+  2024: { focalX: 0.5, focalY: 0.44, cropMode: "cover" },
+  2025: { focalX: 0.5, focalY: 0.4, cropMode: "cover" },
   2027: { focalX: 0.5, focalY: 0.5, cropMode: "cover" },
 };
 const WEDDING_DATE_SHANGHAI = { year: 2026, month: 9, day: 19 };
@@ -608,6 +611,21 @@ function initThingsThemes() {
   });
 
   thingsThemeList.dataset.bound = "true";
+}
+
+function initStorySkipLink() {
+  if (!storySkipLink || storySkipLink.dataset.bound === "true") return;
+
+  storySkipLink.addEventListener("click", (event) => {
+    event.preventDefault();
+    const href = storySkipLink.getAttribute("href") || "#venue";
+    const targetId = href.startsWith("#") ? href.slice(1) : href;
+    const target = targetId ? document.getElementById(targetId) : null;
+    if (!target) return;
+    target.scrollIntoView({ behavior: getScrollBehavior(), block: "start" });
+  });
+
+  storySkipLink.dataset.bound = "true";
 }
 
 function renderTravelPassportResult(key) {
@@ -2430,33 +2448,55 @@ function parseStoryObjectPosition(positionValue) {
   const match = String(positionValue || "").trim().match(/(-?\d+(?:\.\d+)?)%\s+(-?\d+(?:\.\d+)?)%/);
   if (!match) return null;
   return {
-    x: clamp01(Number(match[1]) / 100),
-    y: clamp01(Number(match[2]) / 100, 0.3),
+    x: clamp01(Number(match[1]) / 100, STORY_DEFAULT_FOCAL_X),
+    y: clamp01(Number(match[2]) / 100, STORY_DEFAULT_FOCAL_Y),
   };
 }
 
-function toObjectPosition(focalX = 0.5, focalY = 0.3) {
-  return `${(clamp01(focalX) * 100).toFixed(2)}% ${(clamp01(focalY, 0.3) * 100).toFixed(2)}%`;
+function toObjectPosition(focalX = STORY_DEFAULT_FOCAL_X, focalY = STORY_DEFAULT_FOCAL_Y) {
+  return `${(clamp01(focalX, STORY_DEFAULT_FOCAL_X) * 100).toFixed(2)}% ${(clamp01(focalY, STORY_DEFAULT_FOCAL_Y) * 100).toFixed(2)}%`;
 }
 
 function normalizeStoryEntry(entry) {
   if (typeof entry === "string") {
-    return { file: entry.trim(), objectPosition: "", alt: "", year: NaN, focalX: NaN, focalY: NaN, cropMode: "" };
+    return {
+      file: entry.trim(),
+      mosaicFile: "",
+      objectPosition: "",
+      alt: "",
+      year: NaN,
+      focalX: NaN,
+      focalY: NaN,
+      cropMode: "",
+      allowNoFace: false,
+    };
   }
 
   if (!entry || typeof entry !== "object") {
-    return { file: "", objectPosition: "", alt: "", year: NaN, focalX: NaN, focalY: NaN, cropMode: "" };
+    return {
+      file: "",
+      mosaicFile: "",
+      objectPosition: "",
+      alt: "",
+      year: NaN,
+      focalX: NaN,
+      focalY: NaN,
+      cropMode: "",
+      allowNoFace: false,
+    };
   }
 
   return {
     file: String(entry.file || "").trim(),
+    mosaicFile: String(entry.mosaicFile || "").trim(),
     objectPosition: String(entry.objectPosition || "").trim(),
     fit: String(entry.fit || "").trim(),
     cropMode: normalizeCropMode(entry.cropMode || entry.fit),
     rotation: Number.isFinite(Number(entry.rotation)) ? Number(entry.rotation) : 0,
     year: Number.isFinite(Number(entry.year)) ? Number(entry.year) : NaN,
     focalX: Number.isFinite(Number(entry.focalX)) ? clamp01(Number(entry.focalX)) : NaN,
-    focalY: Number.isFinite(Number(entry.focalY)) ? clamp01(Number(entry.focalY), 0.3) : NaN,
+    focalY: Number.isFinite(Number(entry.focalY)) ? clamp01(Number(entry.focalY), STORY_DEFAULT_FOCAL_Y) : NaN,
+    allowNoFace: Boolean(entry.allowNoFace),
     alt: String(entry.alt || "").trim(),
   };
 }
@@ -2473,12 +2513,14 @@ function sortStoryEntries(entries) {
     .map((entry) => ({
       file: entry.file,
       objectPosition: entry.objectPosition,
+      mosaicFile: entry.mosaicFile,
       fit: entry.fit,
       cropMode: entry.cropMode,
       rotation: entry.rotation,
       alt: entry.alt,
       focalX: entry.focalX,
       focalY: entry.focalY,
+      allowNoFace: entry.allowNoFace,
       year: Number.isFinite(entry.year) ? entry.year : extractStoryYear(entry.file),
     }))
     .filter((entry) => {
@@ -2516,6 +2558,11 @@ async function loadStoryEntriesFromManifest() {
         file: entry.file.startsWith("/")
           ? withBasePath(entry.file)
           : withBasePath(`/photos/timeline-photos/${encodeURIComponent(entry.file)}`),
+        mosaicFile: entry.mosaicFile
+          ? entry.mosaicFile.startsWith("/")
+            ? withBasePath(entry.mosaicFile)
+            : withBasePath(`/public/images/story-crops/${entry.mosaicFile}`)
+          : withBasePath(`/public/images/story-crops/${Number.isFinite(entry.year) ? entry.year : extractStoryYear(entry.file)}.jpg`),
       }));
   } catch (_error) {
     return [];
@@ -2536,6 +2583,38 @@ function storyYearLabel(year) {
   return Number(year) === 2027 ? "Future..." : String(year);
 }
 
+function withStoryVersion(srcValue) {
+  const src = String(srcValue || "").trim();
+  if (!src) return "";
+  return `${src}${src.includes("?") ? "&" : "?"}v=${STORY_ASSET_VERSION}`;
+}
+
+function storyImageSources(item, preferMosaic = false) {
+  const originalBase = toPhotoSrc(item?.file || "");
+  const mosaicBase = toPhotoSrc(item?.mosaicFile || "");
+  const preferredBase = preferMosaic && mosaicBase ? mosaicBase : originalBase;
+  const fallbackBase = preferredBase === originalBase ? "" : originalBase;
+
+  return {
+    preferred: withStoryVersion(preferredBase),
+    fallback: withStoryVersion(fallbackBase),
+    original: withStoryVersion(originalBase),
+  };
+}
+
+function attachStoryFallback(img, fallbackSrc) {
+  if (!(img instanceof HTMLImageElement)) return;
+  const fallback = String(fallbackSrc || "").trim();
+  img.dataset.fallbackSrc = fallback;
+  img.dataset.fallbackUsed = "false";
+  img.onerror = () => {
+    const nextSrc = String(img.dataset.fallbackSrc || "").trim();
+    if (!nextSrc || img.dataset.fallbackUsed === "true") return;
+    img.dataset.fallbackUsed = "true";
+    img.src = nextSrc;
+  };
+}
+
 function buildStoryTimelineSlide(item, index) {
   const slide = document.createElement("article");
   slide.className = "story-slide";
@@ -2545,11 +2624,12 @@ function buildStoryTimelineSlide(item, index) {
   media.className = "story-slide-media";
 
   const img = document.createElement("img");
-  img.src = `${toPhotoSrc(item.file)}${String(item.file).includes("?") ? "&" : "?"}v=${STORY_ASSET_VERSION}`;
+  const imageSources = storyImageSources(item, false);
+  img.src = imageSources.preferred;
   img.alt = item.alt || `Story photo ${item.yearLabel}`;
   img.loading = "lazy";
   img.decoding = "async";
-  img.style.objectPosition = item.objectPosition || "50% 50%";
+  img.style.objectPosition = item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
   img.style.imageOrientation = "from-image";
   img.style.objectFit = item.cropMode === "contain" || item.fit === "contain" ? "contain" : "cover";
 
@@ -2654,7 +2734,7 @@ function renderStoryYearScrubber(items, yearTargets = [], onSelect = null) {
   storyYearScrubber.innerHTML = "";
   storyYearButtons = [];
 
-  if (!Array.isArray(items) || !items.length || !isStoryMobileView()) {
+  if (!Array.isArray(items) || !items.length) {
     storyYearScrubber.classList.add("hidden");
     return;
   }
@@ -2816,11 +2896,13 @@ function setStoryMobileSlide(index, options = {}) {
   const safeIndex = ((Number(index) || 0) % total + total) % total;
   const item = storyItems[safeIndex];
   storyMobileIndex = safeIndex;
-  const imageSrc = `${toPhotoSrc(item.file)}${String(item.file).includes("?") ? "&" : "?"}v=${STORY_ASSET_VERSION}`;
+  const imageSources = storyImageSources(item, true);
+  const imageSrc = imageSources.preferred || imageSources.original;
 
   storyMobileImg.src = imageSrc;
+  attachStoryFallback(storyMobileImg, imageSources.fallback);
   storyMobileImg.alt = item.alt || `Story photo ${item.yearLabel}`;
-  storyMobileImg.style.objectPosition = item.objectPosition || "50% 50%";
+  storyMobileImg.style.objectPosition = item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
   storyMobileImg.style.imageOrientation = "from-image";
   storyMobileImg.style.objectFit = item.cropMode === "contain" ? "contain" : "cover";
   if (storyMobileCard) {
@@ -2850,8 +2932,8 @@ function syncStoryResponsiveMode() {
   if (!storyMosaicLayout || !storyMobileStage) return;
   const isMobile = isStoryMobileView();
   if (storyYearScrubber) {
-    storyYearScrubber.classList.toggle("hidden", !isMobile);
-    if (isMobile && !storyYearButtons.length) {
+    storyYearScrubber.classList.toggle("hidden", !storyItems.length);
+    if (!storyYearButtons.length && storyItems.length) {
       renderStoryYearScrubber(storyItems, storyPathTargets, (index) => {
         if (!isStoryMobileView()) return;
         setStoryMobileSlide(index);
@@ -3071,7 +3153,8 @@ function buildStoryMosaicCard(item, slot, index) {
   card.style.setProperty("--objPos", item.objectPosition || "50% 50%");
   card.setAttribute("aria-label", `Open story from ${item.yearLabel}`);
 
-  const imageSrc = `${toPhotoSrc(item.file)}${String(item.file).includes("?") ? "&" : "?"}v=${STORY_ASSET_VERSION}`;
+  const imageSources = storyImageSources(item, true);
+  const imageSrc = imageSources.preferred || imageSources.original;
 
   if (item.cropMode === "contain") {
     const bgImg = document.createElement("img");
@@ -3087,10 +3170,11 @@ function buildStoryMosaicCard(item, slot, index) {
   const img = document.createElement("img");
   img.className = "story-mosaic-image";
   img.src = imageSrc;
+  attachStoryFallback(img, imageSources.fallback);
   img.alt = item.alt || `Story photo ${item.yearLabel}`;
   img.loading = "lazy";
   img.decoding = "async";
-  img.style.objectPosition = item.objectPosition || "50% 50%";
+  img.style.objectPosition = item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
   img.style.objectFit = item.cropMode === "contain" ? "contain" : "cover";
   img.style.imageOrientation = "from-image";
   if (item.rotation === 90) img.style.setProperty("--storyRotate", "90deg");
@@ -3262,7 +3346,7 @@ function isStoryLightboxOpen() {
 function updateStoryLightboxView() {
   if (!storyLightboxImg || !storyItems.length) return;
   const item = storyItems[currentStoryIndex];
-  storyLightboxImg.src = `${toPhotoSrc(item.file)}${String(item.file).includes("?") ? "&" : "?"}v=${STORY_ASSET_VERSION}`;
+  storyLightboxImg.src = storyImageSources(item, false).original;
   storyLightboxImg.alt = item.alt || `Story photo ${item.year}`;
   if (item.rotation === 90) storyLightboxImg.style.transform = "rotate(90deg) scale(0.95)";
   else if (item.rotation === -90) storyLightboxImg.style.transform = "rotate(-90deg) scale(0.95)";
@@ -3384,13 +3468,16 @@ function buildStoryItem(entry) {
       : 0;
   const parsedEntryPosition = parseStoryObjectPosition(entry.objectPosition);
   const focalX = Number.isFinite(Number(entry.focalX))
-    ? clamp01(Number(entry.focalX))
-    : parsedEntryPosition?.x ?? yearPreset.focalX ?? 0.5;
+    ? clamp01(Number(entry.focalX), STORY_DEFAULT_FOCAL_X)
+    : parsedEntryPosition?.x ?? yearPreset.focalX ?? STORY_DEFAULT_FOCAL_X;
   const focalY = Number.isFinite(Number(entry.focalY))
-    ? clamp01(Number(entry.focalY), 0.3)
-    : parsedEntryPosition?.y ?? yearPreset.focalY ?? 0.3;
+    ? clamp01(Number(entry.focalY), STORY_DEFAULT_FOCAL_Y)
+    : parsedEntryPosition?.y ?? yearPreset.focalY ?? STORY_DEFAULT_FOCAL_Y;
   const cropMode = normalizeCropMode(entry.cropMode || yearPreset.cropMode || entry.fit || "cover") || "cover";
-  const objectPosition = override.objPos || toObjectPosition(focalX, focalY);
+  const parsedOverridePosition = parseStoryObjectPosition(override.objPos);
+  const objectPosition = parsedOverridePosition
+    ? toObjectPosition(parsedOverridePosition.x, parsedOverridePosition.y)
+    : toObjectPosition(focalX, focalY);
 
   return {
     ...entry,
@@ -3401,6 +3488,7 @@ function buildStoryItem(entry) {
     focalX,
     focalY,
     cropMode,
+    allowNoFace: Boolean(entry.allowNoFace),
     objectPosition,
     yearLabel: storyYearLabel(entry.year),
   };
@@ -3420,11 +3508,13 @@ function createStoryMosaicTile(item, index, totalCount) {
   }
 
   const img = document.createElement("img");
-  img.src = `${toPhotoSrc(item.file)}${String(item.file).includes("?") ? "&" : "?"}v=${STORY_ASSET_VERSION}`;
+  const imageSources = storyImageSources(item, true);
+  img.src = imageSources.preferred || imageSources.original;
+  attachStoryFallback(img, imageSources.fallback);
   img.alt = item.alt || `Story photo ${item.yearLabel}`;
   img.loading = "lazy";
   img.decoding = "async";
-  img.style.objectPosition = item.objectPosition || "50% 50%";
+  img.style.objectPosition = item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
   img.style.imageOrientation = "from-image";
   if (item.rotation === 90) img.style.setProperty("--storyRotate", "90deg");
   else if (item.rotation === -90) img.style.setProperty("--storyRotate", "-90deg");
@@ -3497,9 +3587,11 @@ function setStoryOverlayRect(rect) {
 
 function applyStoryOverlayImage(item) {
   if (!storyFocusImage || !item) return;
-  storyFocusImage.src = `${toPhotoSrc(item.file)}${String(item.file).includes("?") ? "&" : "?"}v=${STORY_ASSET_VERSION}`;
+  const imageSources = storyImageSources(item, true);
+  storyFocusImage.src = imageSources.preferred || imageSources.original;
+  attachStoryFallback(storyFocusImage, imageSources.fallback);
   storyFocusImage.alt = item.alt || `Story photo ${item.yearLabel}`;
-  storyFocusImage.style.objectPosition = item.objectPosition || "50% 50%";
+  storyFocusImage.style.objectPosition = item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
 
   if (item.rotation === 90) {
     storyFocusImage.style.setProperty("--storyRotate", "90deg");
@@ -3825,6 +3917,7 @@ async function init() {
   initTravelVisaSection();
   initHotelMatrix();
   initMakanSection();
+  initStorySkipLink();
   initReveals();
   initScheduleReveal();
   await initStoryMosaicLayout();
