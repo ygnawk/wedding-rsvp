@@ -2255,8 +2255,69 @@ function validateAndStoreUploadFiles(fileList) {
   return true;
 }
 
+function clearRsvpChoice() {
+  if (!attendanceChoice || !rsvpFields || !submitButton || !yesFields || !workingFields || !noFields) return;
+
+  if (rsvpForm) rsvpForm.reset();
+
+  attendanceChoice.value = "";
+  rsvpFields.classList.add("hidden");
+
+  choiceCards.forEach((card) => {
+    card.classList.remove("selected");
+    card.setAttribute("aria-pressed", "false");
+  });
+
+  yesFields.classList.add("hidden");
+  workingFields.classList.add("hidden");
+  noFields.classList.add("hidden");
+
+  if (guestCardsWrap) {
+    guestCardsWrap.innerHTML = "";
+  }
+
+  if (workingCount) {
+    workingCount.required = false;
+    workingCount.setCustomValidity("");
+  }
+
+  if (workingConfirm) {
+    workingConfirm.required = false;
+    workingConfirm.setCustomValidity("");
+  }
+
+  if (photoUploadInput) {
+    photoUploadInput.value = "";
+  }
+
+  selectedUploadFiles = [];
+  clearUploadError();
+  renderSelectedUploadFiles();
+  hideGuestLimitError();
+
+  submitButton.textContent = "Send reply";
+
+  if (fullNameInput && inviteState.greetingName) {
+    fullNameInput.value = inviteState.greetingName;
+  }
+
+  if (rsvpConfirmation) {
+    rsvpConfirmation.classList.add("hidden");
+    rsvpConfirmation.textContent = "";
+  }
+}
+
 function setChoice(choice) {
   if (!attendanceChoice || !rsvpFields || !submitButton || !yesFields || !workingFields || !noFields) return;
+  if (!choice) {
+    clearRsvpChoice();
+    return;
+  }
+
+  if (attendanceChoice.value === choice) {
+    clearRsvpChoice();
+    return;
+  }
 
   attendanceChoice.value = choice;
   rsvpFields.classList.remove("hidden");
