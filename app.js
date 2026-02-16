@@ -3706,8 +3706,6 @@ function initCutoutParallax() {
     img.dataset.cutoutBound = "true";
   }
 
-  const START_X = 0.05;
-  const END_X = 0.17;
   const clamp01 = (value) => Math.max(0, Math.min(1, value));
 
   let sceneTop = 0;
@@ -3719,14 +3717,15 @@ function initCutoutParallax() {
   let lastPanX = Number.NaN;
   let ticking = false;
   let inViewport = true;
+  let resizeRaf = null;
 
   const setStaticCrop = () => {
     img.style.width = "100%";
     img.style.maxWidth = "100%";
     img.style.setProperty("--venue-pan", "0px");
     img.style.setProperty("--venue-pan-x", "0px");
-    img.style.setProperty("--venue-scale", "1.02");
-    img.style.transform = "translate3d(0, 0, 0) scale(1.02)";
+    img.style.setProperty("--venue-scale", "1");
+    img.style.transform = "translate3d(0, 0, 0) scale(1)";
   };
 
   const prefersReduced = reducedMotion || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -3742,11 +3741,14 @@ function initCutoutParallax() {
     sceneHeight = sceneRect.height;
 
     const frameWidth = media.clientWidth || 0;
-    const basePanPx = Math.min(120, frameWidth * 0.12);
+    const basePanPx = Math.min(140, frameWidth * 0.12);
     const isMobile = window.innerWidth <= 760;
-    panPx = isMobile ? basePanPx * 0.5 : basePanPx;
-    startPx = -(panPx * START_X);
-    endPx = -(panPx * END_X);
+    panPx = isMobile ? basePanPx * 0.55 : basePanPx;
+
+    const startRatio = 0.05;
+    const endRatio = isMobile ? 0.36 : 0.68;
+    startPx = -(panPx * startRatio);
+    endPx = -(panPx * endRatio);
 
     img.style.width = `calc(100% + ${panPx.toFixed(2)}px)`;
     img.style.maxWidth = "none";
@@ -3774,7 +3776,7 @@ function initCutoutParallax() {
     if (Number.isFinite(lastPanX) && Math.abs(nextPanX - lastPanX) < 0.08) return;
 
     lastPanX = nextPanX;
-    const scale = window.innerWidth <= 760 ? 1.02 : 1.03;
+    const scale = window.innerWidth <= 760 ? 1.01 : 1.02;
     img.style.setProperty("--venue-pan-x", `${nextPanX.toFixed(2)}px`);
     img.style.setProperty("--venue-scale", `${scale}`);
     img.style.transform = `translate3d(${nextPanX.toFixed(2)}px, 0, 0) scale(${scale})`;
@@ -3800,8 +3802,12 @@ function initCutoutParallax() {
 
   window.addEventListener("scroll", requestTick, { passive: true });
   window.addEventListener("resize", () => {
-    measure();
-    requestTick();
+    if (resizeRaf !== null) window.cancelAnimationFrame(resizeRaf);
+    resizeRaf = window.requestAnimationFrame(() => {
+      measure();
+      requestTick();
+      resizeRaf = null;
+    });
   });
 
   measure();

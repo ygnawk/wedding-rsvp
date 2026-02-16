@@ -2053,8 +2053,9 @@ a:focus-visible,
 }
 
 .venue-layout {
+  position: relative;
   display: grid;
-  gap: clamp(18px, 3vw, 42px);
+  gap: clamp(32px, 5vw, 64px);
   align-items: center;
 }
 
@@ -2062,24 +2063,34 @@ a:focus-visible,
   min-height: auto;
   align-items: stretch;
   overflow: visible;
+  padding-top: clamp(72px, 8vh, 100px);
+  padding-bottom: clamp(72px, 8vh, 100px);
+}
+
+.venue-container {
+  position: relative;
+  width: min(1240px, 100%);
+  margin-inline: auto;
+  padding-inline: clamp(24px, 2.8vw, 32px);
 }
 
 .venue-scene-scroll {
   position: relative;
   width: 100%;
-  height: clamp(760px, 140vh, 1180px);
+  height: clamp(900px, 140vh, 1320px);
 }
 
 .venue-sticky {
   position: sticky;
-  top: calc(var(--headerH) + 20px);
-  height: clamp(520px, 76vh, 760px);
+  top: calc(var(--headerH) + 24px);
+  height: calc(100vh - var(--headerH) - 48px);
+  min-height: 520px;
   display: flex;
   align-items: center;
 }
 
-.venue-sticky .venue-layout {
-  width: 100%;
+.venue-sticky .venue-container {
+  width: min(1240px, 100%);
 }
 
 .venue-layout > * {
@@ -2089,7 +2100,7 @@ a:focus-visible,
 .venue-copy {
   position: relative;
   z-index: 2;
-  max-width: 60ch;
+  max-width: clamp(520px, 48vw, 620px);
 }
 
 .venue-copy h2 {
@@ -2098,7 +2109,7 @@ a:focus-visible,
 
 .venue-copy p {
   margin: 0 0 12px;
-  max-width: 58ch;
+  max-width: 60ch;
   color: rgba(247, 241, 230, 0.92);
   line-height: 1.62;
 }
@@ -2114,8 +2125,9 @@ a:focus-visible,
 }
 
 .venue-hero {
-  width: min(100%, 560px);
-  justify-self: stretch;
+  width: clamp(360px, 42vw, 520px);
+  max-width: 100%;
+  justify-self: start;
   aspect-ratio: 4 / 5;
 }
 
@@ -2184,7 +2196,7 @@ a:focus-visible,
 
 @media (min-width: 980px) {
   .venue-layout {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
   }
 
   .venue-copy {
@@ -2195,7 +2207,7 @@ a:focus-visible,
   .venue-hero {
     grid-column: 2;
     grid-row: 1;
-    justify-self: end;
+    justify-self: start;
   }
 }
 
@@ -2208,22 +2220,30 @@ a:focus-visible,
     position: relative;
     top: auto;
     height: auto;
+    min-height: 0;
     display: block;
+  }
+
+  .venue-container {
+    padding-inline: 0;
   }
 
   .venue-layout {
     grid-template-columns: 1fr;
-    gap: 18px;
+    gap: 22px;
   }
 
   .venue-hero {
     order: 1;
     width: 100%;
+    max-width: min(680px, 100%);
+    justify-self: center;
     aspect-ratio: 4 / 3;
   }
 
   .venue-copy {
     order: 2;
+    max-width: 60ch;
   }
 }
 
