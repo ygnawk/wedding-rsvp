@@ -1107,8 +1107,28 @@ function createMakanCopyMenu(place) {
   return menu;
 }
 
+function dedupeMakanDescription(rawText) {
+  const normalized = String(rawText || "").replace(/\r\n/g, "\n").trim();
+  if (!normalized) return "";
+
+  const unique = [];
+  const seen = new Set();
+  normalized
+    .split(/\n{2,}/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .forEach((part) => {
+      const key = part.replace(/\s+/g, " ").trim().toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      unique.push(part.replace(/\s+/g, " ").trim());
+    });
+
+  return unique.join("\n\n");
+}
+
 function buildMakanRestaurantItem(place) {
-  const row = document.createElement("details");
+  const row = document.createElement("div");
   row.className = "makan-item";
   const rawNameEn = String(place.name_en || "").trim();
   const nameParts = rawNameEn.split(/\s+—\s+/);
@@ -1116,14 +1136,11 @@ function buildMakanRestaurantItem(place) {
   const movedTagline = nameParts.join(" — ").trim();
   const taglineLead = movedTagline ? (/[.!?]$/.test(movedTagline) ? movedTagline : `${movedTagline}.`) : "";
   const baseBlurb = String(place.blurb_en || "").trim();
-  const blurbText = [taglineLead, baseBlurb].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+  const mergedBlurb = [taglineLead, baseBlurb].filter(Boolean).join(" ").trim();
+  const blurbText = dedupeMakanDescription(mergedBlurb);
 
-  const summary = document.createElement("summary");
-  summary.className = "makan-item-summary";
-  summary.setAttribute("aria-label", `Toggle details for ${nameOnly}`);
-
-  const summaryMain = document.createElement("div");
-  summaryMain.className = "makan-item-summary-main";
+  const main = document.createElement("div");
+  main.className = "makan-item-main";
 
   const nameEn = document.createElement("strong");
   nameEn.className = "makan-name-en";
@@ -1131,20 +1148,6 @@ function buildMakanRestaurantItem(place) {
   const nameCn = document.createElement("span");
   nameCn.className = "makan-name-cn";
   nameCn.textContent = place.name_cn;
-
-  const summaryBlurb = document.createElement("span");
-  summaryBlurb.className = "makan-item-summary-blurb";
-  summaryBlurb.textContent = blurbText;
-
-  const summaryChevron = document.createElement("span");
-  summaryChevron.className = "makan-item-chevron";
-  summaryChevron.setAttribute("aria-hidden", "true");
-
-  summaryMain.appendChild(nameEn);
-  summaryMain.appendChild(nameCn);
-  summaryMain.appendChild(summaryBlurb);
-  summary.appendChild(summaryMain);
-  summary.appendChild(summaryChevron);
 
   const panel = document.createElement("div");
   panel.className = "makan-item-panel";
@@ -1177,7 +1180,9 @@ function buildMakanRestaurantItem(place) {
   if (copyMenu) actions.appendChild(copyMenu);
   panel.appendChild(actions);
 
-  row.appendChild(summary);
+  main.appendChild(nameEn);
+  main.appendChild(nameCn);
+  row.appendChild(main);
   row.appendChild(panel);
   return row;
 }
