@@ -11,5 +11,9 @@
   "devDependencies": {
     "browser-sync": "^3.0.4",
     "concurrently": "^9.2.1"
+  },
+  "dependencies": {
+    "formidable": "^3.5.4",
+    "googleapis": "^171.4.0"
   }
 }
