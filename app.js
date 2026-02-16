@@ -16,9 +16,17 @@ const inviteState = {
 const MAX_GUESTS = 4;
 const MAX_UPLOAD_FILES = 3;
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
-const UPLOAD_ALLOWED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "heic", "heif"]);
-const UPLOAD_ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/heic", "image/heif"]);
-const UPLOAD_SLOT_DEFAULT_META = "JPG/PNG/HEIC • up to 10MB";
+const UPLOAD_ALLOWED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "heic", "heif", "mp4", "mov", "webm"]);
+const UPLOAD_ALLOWED_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/heic",
+  "image/heif",
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
+]);
+const UPLOAD_SLOT_DEFAULT_META = "JPG/PNG/HEIC/MP4/MOV • up to 10MB";
 const FUN_FACT_CHIP_COUNT = 6;
 const BASE_FUN_FACT_EXAMPLES = [
   "I will travel for noodles.",
@@ -222,6 +230,7 @@ const photoUploadSlotRefs = photoUploadSlots.map((slotNode, fallbackIndex) => {
     meta: slotNode.querySelector(`[data-upload-meta='${slot}']`),
     previewWrap: slotNode.querySelector(`[data-upload-preview-wrap='${slot}']`),
     preview: slotNode.querySelector(`[data-upload-preview='${slot}']`),
+    previewText: slotNode.querySelector(`[data-upload-preview-text='${slot}']`),
     actions: slotNode.querySelector(`[data-upload-actions='${slot}']`),
     replaceButton: slotNode.querySelector(`[data-upload-replace='${slot}']`),
     removeButton: slotNode.querySelector(`[data-upload-remove='${slot}']`),
@@ -889,43 +898,120 @@ function renderTravelPassportResult(key) {
 }
 
 function initScheduleReveal() {
-  const scheduleRows = Array.from(document.querySelectorAll(".scheduleRow"));
-  if (!scheduleRows.length) return;
+  const sectionRef = document.getElementById("schedule");
+  if (!sectionRef) return;
+  const timelineRef = sectionRef.querySelector(".schedule-list");
+  if (!(timelineRef instanceof HTMLElement)) return;
 
-  scheduleRows.forEach((row, index) => {
-    row.style.setProperty("--schedule-delay", `${index * 80}ms`);
-  });
+  const rowRefs = Array.from(timelineRef.querySelectorAll(".scheduleRow"));
+  if (!rowRefs.length) return;
+  const dotRefs = rowRefs.map((row) => row.querySelector(".schedule-dot"));
 
   const reduce = reducedMotion || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (reduce) {
-    scheduleRows.forEach((row) => {
-      row.classList.remove("schedule-row-pending");
-      row.classList.add("schedule-row-visible");
+    timelineRef.style.setProperty("--schedule-line-progress", "1");
+    rowRefs.forEach((row) => {
+      row.style.opacity = "1";
+      row.style.transform = "translateY(0)";
+    });
+    dotRefs.forEach((dot) => {
+      if (!(dot instanceof HTMLElement)) return;
+      dot.style.opacity = "1";
+      dot.style.transform = "translateY(-50%) scale(1)";
     });
     return;
   }
 
-  scheduleRows.forEach((row) => {
-    row.classList.add("schedule-row-pending");
-  });
+  sectionRef.classList.add("schedule-scrub-ready");
+  timelineRef.style.setProperty("--schedule-line-progress", "0");
+
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+  const getProgress = () => {
+    const rect = sectionRef.getBoundingClientRect();
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+    const start = viewportHeight * 0.85;
+    const end = viewportHeight * 0.15;
+    const raw = (start - rect.top) / Math.max(1, start - end);
+    return clamp(raw, 0, 1);
+  };
+
+  const renderProgress = (progressValue) => {
+    const p = clamp(progressValue, 0, 1);
+    timelineRef.style.setProperty("--schedule-line-progress", `${p}`);
+
+    const count = rowRefs.length;
+    rowRefs.forEach((row, index) => {
+      const revealStart = (index / Math.max(1, count)) * 0.9;
+      const revealEnd = revealStart + 0.18;
+      const t = clamp((p - revealStart) / Math.max(0.001, revealEnd - revealStart), 0, 1);
+      row.style.opacity = `${t}`;
+      row.style.transform = `translateY(${((1 - t) * 10).toFixed(3)}px)`;
+
+      const dot = dotRefs[index];
+      if (!(dot instanceof HTMLElement)) return;
+      const dotScale = 0.96 + 0.04 * t;
+      dot.style.opacity = `${t}`;
+      dot.style.transform = `translateY(-50%) scale(${dotScale.toFixed(4)})`;
+    });
+  };
+
+  renderProgress(0);
+
+  let active = false;
+  let rafId = null;
+
+  const apply = () => {
+    rafId = null;
+    renderProgress(getProgress());
+  };
+
+  const requestApply = () => {
+    if (!active) return;
+    if (rafId !== null) return;
+    rafId = window.requestAnimationFrame(apply);
+  };
+
+  const onScroll = () => {
+    requestApply();
+  };
+
+  const onResize = () => {
+    requestApply();
+  };
+
+  const attach = () => {
+    if (active) return;
+    active = true;
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onResize);
+    requestApply();
+  };
+
+  const detach = () => {
+    if (!active) return;
+    active = false;
+    window.removeEventListener("scroll", onScroll);
+    window.removeEventListener("resize", onResize);
+    if (rafId !== null) {
+      window.cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+    renderProgress(getProgress());
+  };
 
   const observer = new IntersectionObserver(
-    (entries, obs) => {
-      entries.forEach((entry) => {
-        if (!entry.isIntersecting) return;
-        const row = entry.target;
-        row.classList.remove("schedule-row-pending");
-        row.classList.add("schedule-row-visible");
-        obs.unobserve(row);
-      });
+    (entries) => {
+      const inView = entries.some((entry) => entry.isIntersecting);
+      if (inView) attach();
+      else detach();
     },
     {
-      rootMargin: "0px 0px -10% 0px",
-      threshold: 0.2,
+      threshold: 0.05,
+      rootMargin: "20% 0px 20% 0px",
     },
   );
 
-  scheduleRows.forEach((row) => observer.observe(row));
+  observer.observe(sectionRef);
 }
 
 function initTravelVisaSection() {
@@ -1017,94 +1103,46 @@ async function copyTextToClipboard(value) {
 function createFoodCopyButton(copyValueInput, options = {}) {
   const copyValue = String(copyValueInput || "").trim();
   const label = String(options.label || "Copy name");
-  const copiedLabel = String(options.copiedLabel || "Copied");
+  const copiedLabel = String(options.copiedLabel || "Copied!");
   const failedLabel = String(options.failedLabel || "Copy failed");
   const ariaLabel = String(options.ariaLabel || `Copy ${label.toLowerCase()}`);
   const className = String(options.className || "makan-copy-btn");
-  const onComplete = typeof options.onComplete === "function" ? options.onComplete : null;
+  const title = String(options.title || "Copy");
+  const iconOnly = Boolean(options.iconOnly);
+  const resetDelay = Number.isFinite(options.resetDelay) ? Math.max(300, Number(options.resetDelay)) : 600;
   const button = document.createElement("button");
   button.type = "button";
   button.className = className;
   button.setAttribute("aria-label", ariaLabel);
-  button.textContent = label;
-  button.dataset.defaultText = button.textContent;
+  button.title = title;
+  if (iconOnly) {
+    button.textContent = "⧉";
+    button.dataset.defaultText = "⧉";
+  } else {
+    button.textContent = label;
+    button.dataset.defaultText = button.textContent;
+  }
 
   button.addEventListener("click", async () => {
+    if (button.disabled) return;
+    button.disabled = true;
     const copied = await copyTextToClipboard(copyValue);
-    button.textContent = copied ? copiedLabel : failedLabel;
-    button.classList.toggle("is-copied", copied);
+    if (iconOnly) {
+      showToast(copied ? copiedLabel : failedLabel);
+      button.classList.toggle("is-copied", copied);
+    } else {
+      button.textContent = copied ? copiedLabel : failedLabel;
+      button.classList.toggle("is-copied", copied);
+    }
 
     window.setTimeout(() => {
-      button.textContent = button.dataset.defaultText || label;
+      button.textContent = button.dataset.defaultText || (iconOnly ? "⧉" : label);
       button.classList.remove("is-copied");
-    }, 1300);
-
-    if (onComplete) onComplete(copied);
+      button.disabled = false;
+    }, resetDelay);
   });
 
   return button;
-}
-
-function closeMakanCopyMenus(exceptMenu = null) {
-  if (!makanMenuRows) return;
-  const menus = Array.from(makanMenuRows.querySelectorAll(".makan-copy-menu[open]"));
-  menus.forEach((menu) => {
-    if (!(menu instanceof HTMLDetailsElement)) return;
-    if (exceptMenu && menu === exceptMenu) return;
-    menu.open = false;
-  });
-}
-
-function createMakanCopyMenu(place) {
-  const nameValue = String(place.name_cn || place.name_en || "").trim();
-  const addressValue = String(place.address_cn || "").trim();
-  if (!nameValue && !addressValue) return null;
-
-  const menu = document.createElement("details");
-  menu.className = "makan-copy-menu";
-
-  const summary = document.createElement("summary");
-  summary.className = "makan-copy-trigger";
-  summary.textContent = "Copy";
-  summary.setAttribute("aria-label", "Copy options");
-
-  const options = document.createElement("div");
-  options.className = "makan-copy-options";
-
-  if (nameValue) {
-    options.appendChild(
-      createFoodCopyButton(nameValue, {
-        className: "makan-copy-option",
-        label: "Copy name",
-        ariaLabel: `Copy restaurant name ${nameValue}`,
-        onComplete: () => {
-          menu.open = false;
-        },
-      }),
-    );
-  }
-
-  if (addressValue) {
-    options.appendChild(
-      createFoodCopyButton(addressValue, {
-        className: "makan-copy-option",
-        label: "Copy address",
-        ariaLabel: `Copy restaurant address ${addressValue}`,
-        onComplete: () => {
-          menu.open = false;
-        },
-      }),
-    );
-  }
-
-  menu.appendChild(summary);
-  menu.appendChild(options);
-
-  menu.addEventListener("toggle", () => {
-    if (menu.open) closeMakanCopyMenus(menu);
-  });
-
-  return menu;
 }
 
 function dedupeMakanDescription(rawText) {
@@ -1139,33 +1177,79 @@ function buildMakanRestaurantItem(place) {
   const mergedBlurb = [taglineLead, baseBlurb].filter(Boolean).join(" ").trim();
   const blurbText = dedupeMakanDescription(mergedBlurb);
 
-  const main = document.createElement("div");
-  main.className = "makan-item-main";
+  const meta = document.createElement("div");
+  meta.className = "makan-item-main";
 
-  const nameEn = document.createElement("strong");
-  nameEn.className = "makan-name-en";
-  nameEn.textContent = nameOnly;
-  const nameCn = document.createElement("span");
-  nameCn.className = "makan-name-cn";
-  nameCn.textContent = place.name_cn;
+  const createMetaRow = ({ label, value, copyValue, valueClass, rowClass }) => {
+    const rowEl = document.createElement("div");
+    rowEl.className = `makan-meta-row ${rowClass || ""}`.trim();
 
-  const panel = document.createElement("div");
-  panel.className = "makan-item-panel";
+    const metaLabel = document.createElement("span");
+    metaLabel.className = "makan-meta-label";
+    metaLabel.textContent = label;
+    rowEl.appendChild(metaLabel);
 
-  const fullDescription = document.createElement("p");
-  fullDescription.className = "makan-item-description";
-  fullDescription.textContent = blurbText;
-  panel.appendChild(fullDescription);
+    const metaValue = document.createElement("span");
+    metaValue.className = `makan-meta-value ${valueClass || ""}`.trim();
+    metaValue.textContent = value;
+    rowEl.appendChild(metaValue);
+
+    if (copyValue) {
+      rowEl.appendChild(
+        createFoodCopyButton(copyValue, {
+          className: "makan-copy-icon-btn",
+          ariaLabel: `Copy ${label} for ${nameOnly}`,
+          copiedLabel: "Copied!",
+          failedLabel: "Copy failed",
+          resetDelay: 600,
+          iconOnly: true,
+          title: "Copy",
+        }),
+      );
+    } else {
+      const spacer = document.createElement("span");
+      spacer.className = "makan-copy-icon-spacer";
+      spacer.setAttribute("aria-hidden", "true");
+      rowEl.appendChild(spacer);
+    }
+    return rowEl;
+  };
+
+  const canonicalName = [nameOnly, place.name_cn].filter(Boolean).join(" / ");
+  meta.appendChild(
+    createMetaRow({
+      label: "EN",
+      value: nameOnly,
+      copyValue: canonicalName,
+      valueClass: "makan-name-en",
+      rowClass: "makan-meta-name-row",
+    }),
+  );
+
+  if (place.name_cn) {
+    meta.appendChild(
+      createMetaRow({
+        label: "中文",
+        value: place.name_cn,
+        copyValue: place.name_cn,
+        valueClass: "makan-name-cn",
+      }),
+    );
+  }
 
   if (place.address_cn) {
-    const addressInline = document.createElement("p");
-    addressInline.className = "makan-address-inline";
-    addressInline.textContent = place.address_cn;
-    panel.appendChild(addressInline);
+    meta.appendChild(
+      createMetaRow({
+        label: "地址",
+        value: place.address_cn,
+        copyValue: place.address_cn,
+        valueClass: "makan-address-text",
+      }),
+    );
   }
 
   const actions = document.createElement("div");
-  actions.className = "makan-row-actions";
+  actions.className = "makan-row-actions makan-item-actions";
   if (place.dianping_url) {
     const link = document.createElement("a");
     link.className = "makan-link";
@@ -1176,14 +1260,16 @@ function buildMakanRestaurantItem(place) {
     actions.appendChild(link);
   }
 
-  const copyMenu = createMakanCopyMenu(place);
-  if (copyMenu) actions.appendChild(copyMenu);
-  panel.appendChild(actions);
+  const panel = document.createElement("div");
+  panel.className = "makan-item-panel";
 
-  main.appendChild(nameEn);
-  main.appendChild(nameCn);
-  row.appendChild(main);
+  const fullDescription = document.createElement("p");
+  fullDescription.className = "makan-item-description";
+  fullDescription.textContent = blurbText;
+  panel.appendChild(fullDescription);
+  row.appendChild(meta);
   row.appendChild(panel);
+  row.appendChild(actions);
   return row;
 }
 
@@ -1390,26 +1476,6 @@ function initMakanSection() {
   renderMakanMenuRows();
   initMakanTypeControls();
   initMakanTipPopover();
-
-  if (makanMenuRows && makanMenuRows.dataset.bound !== "true") {
-    document.addEventListener(
-      "pointerdown",
-      (event) => {
-        const target = event.target;
-        if (!(target instanceof Element)) return;
-        if (target.closest(".makan-copy-menu")) return;
-        closeMakanCopyMenus();
-      },
-      { passive: true },
-    );
-
-    document.addEventListener("keydown", (event) => {
-      if (event.key !== "Escape") return;
-      closeMakanCopyMenus();
-    });
-
-    makanMenuRows.dataset.bound = "true";
-  }
 }
 
 function createSvgNode(tagName, attributes = {}) {
@@ -2395,6 +2461,16 @@ function buildFunFactExamplesPopover(input) {
   return wrap;
 }
 
+function getGuestCardTitle(index) {
+  if (index === 0) return "You";
+  return `+${index}`;
+}
+
+function getGuestNameLabel(index) {
+  if (index === 0) return "Your name";
+  return `+${index} name`;
+}
+
 function buildGuestCard(index, name = "", funFact = "") {
   const card = document.createElement("article");
   card.className = "guest-card";
@@ -2404,7 +2480,7 @@ function buildGuestCard(index, name = "", funFact = "") {
   header.className = "guest-card-header";
 
   const title = document.createElement("h4");
-  title.textContent = `Guest ${index + 1}`;
+  title.textContent = getGuestCardTitle(index);
   header.appendChild(title);
 
   if (index > 0) {
@@ -2424,13 +2500,17 @@ function buildGuestCard(index, name = "", funFact = "") {
   nameField.className = "field form-field";
   const nameLabel = document.createElement("label");
   nameLabel.setAttribute("for", `guestName${index + 1}`);
-  nameLabel.textContent = "Guest name";
+  nameLabel.textContent = getGuestNameLabel(index);
   const nameInput = document.createElement("input");
   nameInput.id = `guestName${index + 1}`;
   nameInput.type = "text";
   nameInput.required = true;
   nameInput.value = name;
   nameInput.dataset.guestName = "true";
+  if (index === 0) {
+    nameInput.dataset.primaryGuest = "true";
+    nameInput.dataset.autoSync = "true";
+  }
   const error = document.createElement("p");
   error.className = "field-error hidden";
   error.textContent = "Please enter a name.";
@@ -2470,14 +2550,24 @@ function resequenceGuestCards() {
   cards.forEach((card, index) => {
     card.dataset.guestIndex = String(index);
     const title = card.querySelector(".guest-card-header h4");
-    if (title) title.textContent = `Guest ${index + 1}`;
+    if (title) title.textContent = getGuestCardTitle(index);
     const nameInput = card.querySelector("input[data-guest-name]");
     const factInput = card.querySelector("textarea[data-guest-fun-fact]");
     if (nameInput) nameInput.id = `guestName${index + 1}`;
     if (factInput) factInput.id = `guestFunFact${index + 1}`;
     const labels = card.querySelectorAll("label");
     if (labels[0]) labels[0].setAttribute("for", `guestName${index + 1}`);
+    if (labels[0]) labels[0].textContent = getGuestNameLabel(index);
     if (labels[1]) labels[1].setAttribute("for", `guestFunFact${index + 1}`);
+    if (nameInput) {
+      if (index === 0) {
+        nameInput.dataset.primaryGuest = "true";
+        if (!nameInput.dataset.autoSync) nameInput.dataset.autoSync = "true";
+      } else {
+        delete nameInput.dataset.primaryGuest;
+        delete nameInput.dataset.autoSync;
+      }
+    }
     const remove = card.querySelector(".guest-remove");
     if (remove) remove.toggleAttribute("hidden", index === 0);
   });
@@ -2493,6 +2583,30 @@ function ensureGuestCards(minCount = 1) {
     guestCardsWrap.appendChild(buildGuestCard(i, i === 0 ? preferredName : "", ""));
   }
   resequenceGuestCards();
+  syncPrimaryGuestName();
+}
+
+function syncPrimaryGuestName(force = false) {
+  if (!guestCardsWrap || !fullNameInput) return;
+  const primaryGuestInput =
+    guestCardsWrap.querySelector("input[data-primary-guest='true']") || guestCardsWrap.querySelector("input[data-guest-name]");
+  if (!(primaryGuestInput instanceof HTMLInputElement)) return;
+
+  const fullName = fullNameInput.value.trim();
+  const canSync = force || primaryGuestInput.dataset.autoSync === "true" || !primaryGuestInput.value.trim();
+  if (!canSync) return;
+
+  primaryGuestInput.value = fullName;
+  primaryGuestInput.dataset.autoSync = "true";
+}
+
+function handlePrimaryGuestManualEdit(input) {
+  if (!(input instanceof HTMLInputElement) || !fullNameInput) return;
+  if (input.dataset.primaryGuest !== "true") return;
+
+  const typed = input.value.trim();
+  const source = fullNameInput.value.trim();
+  input.dataset.autoSync = typed === source ? "true" : "false";
 }
 
 function collectGuests() {
@@ -2543,7 +2657,7 @@ function validateUploadFile(file) {
     return `${file.name} is larger than 10MB.`;
   }
   if (!isUploadFileTypeAllowed(file)) {
-    return `${file.name} must be JPG, PNG, or HEIC.`;
+    return `${file.name} must be JPG, PNG, HEIC, MP4, MOV, or WEBM.`;
   }
   return "";
 }
@@ -2584,6 +2698,11 @@ function clearUploadSlotPreview(index) {
   if (ref.previewWrap) {
     ref.previewWrap.classList.add("hidden");
   }
+
+  if (ref.previewText) {
+    ref.previewText.textContent = "";
+    ref.previewText.classList.add("hidden");
+  }
 }
 
 function updateUploadSlotUi(index) {
@@ -2607,14 +2726,22 @@ function updateUploadSlotUi(index) {
   if (!hasFile || !ref.preview || !ref.previewWrap) return;
 
   const extension = getUploadFileExtension(file.name);
-  const canPreview = file.type.startsWith("image/") && extension !== "heic" && extension !== "heif";
-  if (!canPreview) return;
+  const isImagePreview = file.type.startsWith("image/") && extension !== "heic" && extension !== "heif";
+  if (isImagePreview) {
+    const previewUrl = URL.createObjectURL(file);
+    selectedUploadPreviewUrls[index] = previewUrl;
+    ref.preview.src = previewUrl;
+    ref.preview.classList.remove("hidden");
+    ref.previewWrap.classList.remove("hidden");
+    return;
+  }
 
-  const previewUrl = URL.createObjectURL(file);
-  selectedUploadPreviewUrls[index] = previewUrl;
-  ref.preview.src = previewUrl;
-  ref.preview.classList.remove("hidden");
-  ref.previewWrap.classList.remove("hidden");
+  const isVideo = file.type.startsWith("video/") || ["mp4", "mov", "webm"].includes(extension);
+  if (isVideo && ref.previewText && ref.previewWrap) {
+    ref.previewText.textContent = `Video selected: ${file.name}`;
+    ref.previewText.classList.remove("hidden");
+    ref.previewWrap.classList.remove("hidden");
+  }
 }
 
 function setUploadSlotFile(index, file) {
@@ -2792,6 +2919,7 @@ function setChoice(choice) {
 
   if (choice === "yes") {
     ensureGuestCards(1);
+    syncPrimaryGuestName(true);
     submitButton.textContent = "Confirm attendance";
   }
 
@@ -2836,8 +2964,13 @@ function initRsvpCards() {
 
   if (fullNameInput) {
     fullNameInput.addEventListener("input", () => {
-      const first = guestCardsWrap && guestCardsWrap.querySelector("input[data-guest-name]");
-      if (first && !first.value.trim()) first.value = fullNameInput.value.trim();
+      syncPrimaryGuestName();
+    });
+  }
+
+  if (guestCardsWrap) {
+    guestCardsWrap.addEventListener("input", (event) => {
+      handlePrimaryGuestManualEdit(event.target);
     });
   }
 
