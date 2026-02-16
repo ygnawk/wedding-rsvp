@@ -678,6 +678,11 @@ function setHiddenClass(node, hidden) {
   node.classList.toggle("hidden", Boolean(hidden));
 }
 
+function setA11yHidden(node, hidden) {
+  node.hidden = Boolean(hidden);
+  node.setAttribute("aria-hidden", hidden ? "true" : "false");
+}
+
 function createExternalAnchor(href, textContent, className = "") {
   const anchor = document.createElement("a");
   if (className) anchor.className = className;
@@ -1407,8 +1412,7 @@ function renderMakanMenuRows() {
 
 function closeMakanTipPopover() {
   if (!makanTipTrigger || !makanTipPopover) return;
-  makanTipPopover.hidden = true;
-  makanTipPopover.setAttribute("aria-hidden", "true");
+  setA11yHidden(makanTipPopover, true);
   setAriaExpanded(makanTipTrigger, false);
   makanTipOpen = false;
 }
@@ -1435,8 +1439,7 @@ function positionMakanTipPopover() {
 
 function openMakanTipPopover() {
   if (!makanTipTrigger || !makanTipPopover) return;
-  makanTipPopover.hidden = false;
-  makanTipPopover.setAttribute("aria-hidden", "false");
+  setA11yHidden(makanTipPopover, false);
   setAriaExpanded(makanTipTrigger, true);
   makanTipOpen = true;
   positionMakanTipPopover();
@@ -1492,9 +1495,8 @@ function initMakanTipPopover() {
 
 function closeMakanLegalModal({ restoreFocus = true } = {}) {
   if (!makanLegalPopover || !makanLegalTrigger) return;
-  makanLegalPopover.hidden = true;
+  setA11yHidden(makanLegalPopover, true);
   makanLegalPopover.classList.remove("open");
-  makanLegalPopover.setAttribute("aria-hidden", "true");
   setAriaExpanded(makanLegalTrigger, false);
   makanLegalOpen = false;
   if (restoreFocus) {
@@ -1504,9 +1506,8 @@ function closeMakanLegalModal({ restoreFocus = true } = {}) {
 
 function openMakanLegalModal() {
   if (!makanLegalPopover || !makanLegalTrigger) return;
-  makanLegalPopover.hidden = false;
+  setA11yHidden(makanLegalPopover, false);
   makanLegalPopover.classList.add("open");
-  makanLegalPopover.setAttribute("aria-hidden", "false");
   setAriaExpanded(makanLegalTrigger, true);
   makanLegalOpen = true;
   if (makanLegalClose instanceof HTMLElement) {
@@ -1655,8 +1656,7 @@ function closeHotelMethodologyTooltip(resetPinned = true) {
     window.clearTimeout(hotelMethodCloseTimer);
     hotelMethodCloseTimer = null;
   }
-  hotelMethodTooltip.hidden = true;
-  hotelMethodTooltip.setAttribute("aria-hidden", "true");
+  setA11yHidden(hotelMethodTooltip, true);
   setAriaExpanded(hotelMethodTrigger, false);
   hotelMethodOpen = false;
   if (resetPinned) hotelMethodPinned = false;
@@ -1667,8 +1667,7 @@ function openHotelMethodologyTooltip({ pinned = false } = {}) {
   ensureHotelMethodOverlay();
   if (!hotelMethodTooltip) return;
   hotelMethodPinned = pinned;
-  hotelMethodTooltip.hidden = false;
-  hotelMethodTooltip.setAttribute("aria-hidden", "false");
+  setA11yHidden(hotelMethodTooltip, false);
   setAriaExpanded(hotelMethodTrigger, true);
   hotelMethodOpen = true;
   positionHotelMethodTooltip();
