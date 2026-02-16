@@ -2512,6 +2512,33 @@ function getGuestNameLabel(index) {
   return `+${index} name`;
 }
 
+function buildGuestFunFactField(index, funFact = "") {
+  const factField = document.createElement("div");
+  factField.className = "field form-field";
+
+  const inputId = `guestFunFact${index + 1}`;
+  const factLabel = document.createElement("label");
+  factLabel.setAttribute("for", inputId);
+  factLabel.textContent = "Fun facts (we will print this on your name card to help break the ice)";
+
+  const factInput = document.createElement("textarea");
+  factInput.id = inputId;
+  factInput.rows = 2;
+  factInput.placeholder = "Example: I will travel for noodles.";
+  factInput.value = funFact;
+  factInput.dataset.guestFunFact = "true";
+
+  const helper = document.createElement("p");
+  helper.className = "field-helper";
+  helper.textContent = "Short + specific is best.";
+
+  factField.appendChild(factLabel);
+  factField.appendChild(factInput);
+  factField.appendChild(helper);
+  factField.appendChild(buildFunFactExamplesPopover(factInput));
+  return factField;
+}
+
 function buildPrimaryGuestCard(name = "", funFact = "") {
   const card = document.createElement("article");
   card.className = "guest-card guest-card--primary-inline";
@@ -2525,27 +2552,8 @@ function buildPrimaryGuestCard(name = "", funFact = "") {
   nameInput.dataset.primaryGuest = "true";
   nameInput.dataset.autoSync = "true";
 
-  const factField = document.createElement("div");
-  factField.className = "field form-field";
-  const factLabel = document.createElement("label");
-  factLabel.setAttribute("for", "guestFunFact1");
-  factLabel.textContent = "Fun facts (we will print this on your name card to help break the ice)";
-  const factInput = document.createElement("textarea");
-  factInput.id = "guestFunFact1";
-  factInput.rows = 2;
-  factInput.placeholder = "Example: I will travel for noodles.";
-  factInput.value = funFact;
-  factInput.dataset.guestFunFact = "true";
-  const helper = document.createElement("p");
-  helper.className = "field-helper";
-  helper.textContent = "Short + specific is best.";
-  factField.appendChild(factLabel);
-  factField.appendChild(factInput);
-  factField.appendChild(helper);
-  factField.appendChild(buildFunFactExamplesPopover(factInput));
-
   card.appendChild(nameInput);
-  card.appendChild(factField);
+  card.appendChild(buildGuestFunFactField(0, funFact));
   return card;
 }
 
@@ -2593,27 +2601,8 @@ function buildGuestCard(index, name = "", funFact = "") {
   nameField.appendChild(error);
   card.appendChild(nameField);
 
-  const factField = document.createElement("div");
-  factField.className = "field form-field";
-  const factLabel = document.createElement("label");
-  factLabel.setAttribute("for", `guestFunFact${index + 1}`);
-  factLabel.textContent = "Fun facts (we will print this on your name card to help break the ice)";
-  const factInput = document.createElement("textarea");
-  factInput.id = `guestFunFact${index + 1}`;
-  factInput.rows = 2;
-  factInput.placeholder = "Example: I will travel for noodles.";
-  factInput.value = funFact;
-  factInput.dataset.guestFunFact = "true";
-  const helper = document.createElement("p");
-  helper.className = "field-helper";
-  helper.textContent = "Short + specific is best.";
-  factField.appendChild(factLabel);
-  factField.appendChild(factInput);
-  factField.appendChild(helper);
-  factField.appendChild(buildFunFactExamplesPopover(factInput));
-
   card.appendChild(header);
-  card.appendChild(factField);
+  card.appendChild(buildGuestFunFactField(index, funFact));
   return card;
 }
 
