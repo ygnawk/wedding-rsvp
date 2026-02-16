@@ -666,6 +666,10 @@ function getScrollBehavior() {
   return reducedMotion ? "auto" : "smooth";
 }
 
+function prefersReducedMotion() {
+  return reducedMotion || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
 function createExternalAnchor(href, textContent, className = "") {
   const anchor = document.createElement("a");
   if (className) anchor.className = className;
@@ -926,7 +930,7 @@ function initScheduleReveal() {
   if (!rowRefs.length) return;
   const dotRefs = rowRefs.map((row) => row.querySelector(".schedule-dot"));
 
-  const reduce = reducedMotion || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const reduce = prefersReducedMotion();
   if (reduce) {
     timelineRef.style.setProperty("--schedule-line-progress", "1");
     rowRefs.forEach((row) => {
@@ -2312,7 +2316,7 @@ function setupRevealNode(node) {
 }
 
 function initReveals() {
-  reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  reducedMotion = prefersReducedMotion();
 
   if (reducedMotion) {
     document.body.classList.add("reduce-motion");
@@ -5061,7 +5065,7 @@ function initCutoutParallax() {
     img.style.transform = "translate3d(0, 0, 0) scale(1)";
   };
 
-  const prefersReduced = reducedMotion || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const prefersReduced = prefersReducedMotion();
   if (prefersReduced) {
     setStaticCrop();
     return;
