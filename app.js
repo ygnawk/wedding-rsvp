@@ -539,6 +539,11 @@ const STORY_YEAR_FOCAL_PRESETS = {
   2025: { focalX: 0.5, focalY: 0.4, cropMode: "cover" },
   2027: { focalX: 0.5, focalY: 0.5, cropMode: "cover" },
 };
+const STORY_YEAR_ROTATION_OVERRIDES = {
+  2008: { rotationDeg: -90 },
+  2020: { rotationDeg: 180 },
+  2024: { rotationDeg: -90 },
+};
 const WEDDING_DATE_SHANGHAI = { year: 2026, month: 9, day: 19 };
 const SHANGHAI_TIMEZONE = "Asia/Shanghai";
 const RECENT_DEFAULT_FOCAL_X = 0.5;
@@ -3851,6 +3856,7 @@ function normalizeStoryEntry(entry) {
     objectPosition: String(entry.objectPosition || "").trim(),
     fit: String(entry.fit || "").trim(),
     cropMode: normalizeCropMode(entry.cropMode || entry.fit),
+    rotationDeg: Number.isFinite(Number(entry.rotationDeg)) ? Number(entry.rotationDeg) : NaN,
     rotation: Number.isFinite(Number(entry.rotation)) ? Number(entry.rotation) : 0,
     year: Number.isFinite(Number(entry.year)) ? Number(entry.year) : NaN,
     focalX: Number.isFinite(Number(entry.focalX)) ? clamp01(Number(entry.focalX)) : NaN,
@@ -4261,9 +4267,9 @@ function setStoryMobileSlide(index, options = {}) {
   storyMobileImg.src = imageSrc;
   attachStoryFallback(storyMobileImg, imageSources.fallback);
   storyMobileImg.alt = item.alt || `Story photo ${item.yearLabel}`;
-  storyMobileImg.style.objectPosition = "50% 50%";
+  storyMobileImg.style.objectPosition = item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
   storyMobileImg.style.imageOrientation = "from-image";
-  storyMobileImg.style.objectFit = "contain";
+  storyMobileImg.style.objectFit = "cover";
   storyMobileImg.style.transformOrigin = "50% 50%";
   storyMobileImg.style.setProperty("--storyRotate", "0deg");
   storyMobileImg.style.transform = "none";
@@ -4274,13 +4280,13 @@ function setStoryMobileSlide(index, options = {}) {
 
   if (item.rotation === 90) {
     storyMobileImg.style.setProperty("--storyRotate", "90deg");
-    storyMobileImg.style.transform = "rotate(90deg)";
+    storyMobileImg.style.transform = "rotate(90deg) scale(1.1)";
   } else if (item.rotation === -90) {
     storyMobileImg.style.setProperty("--storyRotate", "-90deg");
-    storyMobileImg.style.transform = "rotate(-90deg)";
+    storyMobileImg.style.transform = "rotate(-90deg) scale(1.1)";
   } else if (item.rotation === 180) {
     storyMobileImg.style.setProperty("--storyRotate", "180deg");
-    storyMobileImg.style.transform = "rotate(180deg)";
+    storyMobileImg.style.transform = "rotate(180deg) scale(1.02)";
   } else {
     storyMobileImg.style.setProperty("--storyRotate", "0deg");
     storyMobileImg.style.transform = "none";
@@ -4552,10 +4558,19 @@ function buildStoryMosaicCard(item, slot, index) {
   img.style.objectPosition = item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
   img.style.objectFit = item.cropMode === "contain" ? "contain" : "cover";
   img.style.imageOrientation = "from-image";
-  if (item.rotation === 90) img.style.setProperty("--storyRotate", "90deg");
-  else if (item.rotation === -90) img.style.setProperty("--storyRotate", "-90deg");
-  else if (item.rotation === 180) img.style.setProperty("--storyRotate", "180deg");
-  else img.style.setProperty("--storyRotate", "0deg");
+  if (item.rotation === 90) {
+    img.style.setProperty("--storyRotate", "90deg");
+    img.style.setProperty("--storyTileScale", "1.1");
+  } else if (item.rotation === -90) {
+    img.style.setProperty("--storyRotate", "-90deg");
+    img.style.setProperty("--storyTileScale", "1.1");
+  } else if (item.rotation === 180) {
+    img.style.setProperty("--storyRotate", "180deg");
+    img.style.setProperty("--storyTileScale", "1.03");
+  } else {
+    img.style.setProperty("--storyRotate", "0deg");
+    img.style.setProperty("--storyTileScale", "1");
+  }
 
   const overlay = document.createElement("span");
   overlay.className = "story-card-overlay";
@@ -4835,8 +4850,13 @@ function buildStoryItem(entry) {
   const filename = decodeURIComponent((String(entry.file || "").split("?")[0].split("/").pop() || "").trim());
   const override = STORY_OVERRIDES[filename] || {};
   const yearPreset = STORY_YEAR_FOCAL_PRESETS[entry.year] || {};
+  const yearRotation = STORY_YEAR_ROTATION_OVERRIDES[entry.year] || {};
   const copy = storyCopyForYear(entry.year);
-  const rotation = Number.isFinite(Number(override.rotate))
+  const rotation = Number.isFinite(Number(entry.rotationDeg))
+    ? Number(entry.rotationDeg)
+    : Number.isFinite(Number(yearRotation.rotationDeg))
+    ? Number(yearRotation.rotationDeg)
+    : Number.isFinite(Number(override.rotate))
     ? Number(override.rotate)
     : Number.isFinite(Number(entry.rotation))
       ? Number(entry.rotation)
@@ -4891,10 +4911,19 @@ function createStoryMosaicTile(item, index, totalCount) {
   img.decoding = "async";
   img.style.objectPosition = item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
   img.style.imageOrientation = "from-image";
-  if (item.rotation === 90) img.style.setProperty("--storyRotate", "90deg");
-  else if (item.rotation === -90) img.style.setProperty("--storyRotate", "-90deg");
-  else if (item.rotation === 180) img.style.setProperty("--storyRotate", "180deg");
-  else img.style.setProperty("--storyRotate", "0deg");
+  if (item.rotation === 90) {
+    img.style.setProperty("--storyRotate", "90deg");
+    img.style.setProperty("--storyScale", "1.1");
+  } else if (item.rotation === -90) {
+    img.style.setProperty("--storyRotate", "-90deg");
+    img.style.setProperty("--storyScale", "1.1");
+  } else if (item.rotation === 180) {
+    img.style.setProperty("--storyRotate", "180deg");
+    img.style.setProperty("--storyScale", "1.03");
+  } else {
+    img.style.setProperty("--storyRotate", "0deg");
+    img.style.setProperty("--storyScale", "1");
+  }
 
   const overlay = document.createElement("span");
   overlay.className = "story-mosaic-overlay";

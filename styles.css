@@ -965,6 +965,7 @@ a:focus-visible,
   image-orientation: from-image;
   filter: var(--photoGradeFilter);
   transform: rotate(var(--storyRotate, 0deg));
+  transform-origin: center center;
 }
 
 .story-mobile-card.is-contain img {
@@ -1214,6 +1215,7 @@ a:focus-visible,
   filter: var(--photoGradeFilter);
   transform: rotate(var(--storyRotate, 0deg)) scale(var(--storyTileScale));
   transition: transform 180ms var(--ease-out);
+  transform-origin: center center;
 }
 
 .story-mosaic-card--contain > .story-mosaic-image {
@@ -1552,6 +1554,7 @@ a:focus-visible,
   filter: var(--photoGradeFilter);
   transform: rotate(var(--storyRotate, 0deg)) scale(var(--storyScale));
   transition: transform 180ms var(--ease-out), opacity 180ms var(--ease-out);
+  transform-origin: center center;
 }
 
 .story-mosaic-tile::after {
@@ -2007,8 +2010,8 @@ a:focus-visible,
   }
 
   .story-mobile-card img {
-    object-fit: contain !important;
-    object-position: center !important;
+    object-fit: cover !important;
+    object-position: var(--objPos, 50% 50%) !important;
     background: transparent;
   }
 

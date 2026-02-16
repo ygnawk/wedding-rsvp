@@ -22,7 +22,8 @@
       "file": "2008-miki-moves-beijing-upright.jpg",
       "year": 2008,
       "alt": "Miki in 2008",
-      "objectPosition": "50% 36%"
+      "objectPosition": "50% 36%",
+      "rotationDeg": -90
     },
     {
       "file": "2013-army.jpg",
@@ -40,7 +41,8 @@
       "file": "2020-covid-upright.jpg",
       "year": 2020,
       "alt": "Miki and Yi Jie in masks in 2020",
-      "objectPosition": "50% 34%"
+      "objectPosition": "50% 34%",
+      "rotationDeg": 180
     },
     {
       "file": "2021-sf.jpg",
@@ -59,7 +61,8 @@
       "file": "2024-proposal-upright.jpg",
       "year": 2024,
       "alt": "Proposal moment in 2024",
-      "objectPosition": "50% 36%"
+      "objectPosition": "50% 36%",
+      "rotationDeg": -90
     },
     {
       "file": "2025-cats.jpg",
