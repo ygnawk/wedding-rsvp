@@ -247,7 +247,6 @@ const hotelMatrixSheetCloseControls = hotelMatrixSheet ? Array.from(hotelMatrixS
 const hotelMatrixRatingClaim = document.getElementById("hotelMatrixRatingClaim");
 const hotelMethodTrigger = document.getElementById("hotelMethodTrigger");
 let hotelMethodTooltip = null;
-let hotelMethodBackdrop = null;
 
 const galleryGrid = document.getElementById("galleryGrid");
 const galleryLightbox = document.getElementById("lightbox");
@@ -1460,13 +1459,7 @@ function getActiveHotelMatrixId() {
 }
 
 function ensureHotelMethodOverlay() {
-  if (hotelMethodTooltip && hotelMethodBackdrop) return;
-
-  hotelMethodBackdrop = document.createElement("button");
-  hotelMethodBackdrop.type = "button";
-  hotelMethodBackdrop.className = "hotel-method-backdrop";
-  hotelMethodBackdrop.setAttribute("aria-label", "Close methodology notes");
-  hotelMethodBackdrop.hidden = true;
+  if (hotelMethodTooltip) return;
 
   hotelMethodTooltip = document.createElement("div");
   hotelMethodTooltip.id = "hotelMethodOverlay";
@@ -1484,7 +1477,6 @@ function ensureHotelMethodOverlay() {
     </ul>
   `;
 
-  document.body.appendChild(hotelMethodBackdrop);
   document.body.appendChild(hotelMethodTooltip);
 }
 
@@ -1515,7 +1507,6 @@ function closeHotelMethodologyTooltip(resetPinned = true) {
     window.clearTimeout(hotelMethodCloseTimer);
     hotelMethodCloseTimer = null;
   }
-  if (hotelMethodBackdrop) hotelMethodBackdrop.hidden = true;
   hotelMethodTooltip.hidden = true;
   hotelMethodTooltip.setAttribute("aria-hidden", "true");
   hotelMethodTrigger.setAttribute("aria-expanded", "false");
@@ -1526,9 +1517,8 @@ function closeHotelMethodologyTooltip(resetPinned = true) {
 function openHotelMethodologyTooltip({ pinned = false } = {}) {
   if (!hotelMethodTrigger) return;
   ensureHotelMethodOverlay();
-  if (!hotelMethodTooltip || !hotelMethodBackdrop) return;
+  if (!hotelMethodTooltip) return;
   hotelMethodPinned = pinned;
-  hotelMethodBackdrop.hidden = false;
   hotelMethodTooltip.hidden = false;
   hotelMethodTooltip.setAttribute("aria-hidden", "false");
   hotelMethodTrigger.setAttribute("aria-expanded", "true");
@@ -1540,7 +1530,7 @@ function initHotelMethodology() {
   if (!hotelMethodTrigger) return;
   if (hotelMethodTrigger.dataset.bound === "true") return;
   ensureHotelMethodOverlay();
-  if (!hotelMethodTooltip || !hotelMethodBackdrop) return;
+  if (!hotelMethodTooltip) return;
 
   closeHotelMethodologyTooltip();
 

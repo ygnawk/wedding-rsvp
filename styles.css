@@ -3167,16 +3167,6 @@ details[open] .faq-answer {
   border-radius: 999px;
 }
 
-.hotel-method-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 9998;
-  background: rgba(8, 5, 6, 0.1);
-  border: 0;
-  padding: 0;
-  margin: 0;
-}
-
 .hotel-method-tooltip {
   position: fixed;
   z-index: 9999;
@@ -3189,8 +3179,7 @@ details[open] .faq-answer {
   color: var(--ink);
 }
 
-.hotel-method-tooltip[hidden],
-.hotel-method-backdrop[hidden] {
+.hotel-method-tooltip[hidden] {
   display: none !important;
 }
 
