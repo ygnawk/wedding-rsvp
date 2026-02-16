@@ -53,6 +53,7 @@ const makanTipTrigger = document.getElementById("makanTipTrigger");
 const makanTipPopover = document.getElementById("makanTipPopover");
 const makanMenuRows = document.getElementById("makanMenuRows");
 const hotelMatrixShell = document.getElementById("hotelMatrixShell");
+const hotelMatrixChartCol = document.querySelector(".hotel-map-chart-col");
 const hotelMatrixSvg = document.getElementById("hotelMatrixSvg");
 const hotelMatrixTooltip = document.getElementById("hotelMatrixTooltip");
 const hotelMatrixDetails = document.getElementById("hotelMatrixDetails");
@@ -60,7 +61,6 @@ const hotelMatrixSheet = document.getElementById("hotelMatrixSheet");
 const hotelMatrixSheetContent = document.getElementById("hotelMatrixSheetContent");
 const hotelMatrixSheetClose = document.getElementById("hotelMatrixSheetClose");
 const hotelMatrixSheetCloseControls = hotelMatrixSheet ? Array.from(hotelMatrixSheet.querySelectorAll("[data-sheet-close], #hotelMatrixSheetClose")) : [];
-const hotelMatrixCard = document.querySelector(".hotel-map-card");
 const hotelMatrixRatingClaim = document.getElementById("hotelMatrixRatingClaim");
 const hotelMethodTrigger = document.getElementById("hotelMethodTrigger");
 const hotelMethodTooltip = document.getElementById("hotelMethodTooltip");
@@ -136,13 +136,15 @@ let storyPathRaf = null;
 let storyPathResizeBound = false;
 let storyPathResizeObserver = null;
 let hotelMatrixItems = [];
-let hotelMatrixHoveredId = "";
 let hotelMatrixPinnedId = "";
 let activeHotelMatrixId = "";
 let hotelDetailsSwapTimer = null;
-let hotelHoverSwapTimer = null;
 let hotelSheetOpen = false;
 let hotelMatrixMetaById = new Map();
+let hotelMatrixResizeObserver = null;
+let hotelMatrixResizeRaf = null;
+let hotelMatrixWidth = 760;
+let hotelMatrixHeight = 460;
 let hotelMethodOpen = false;
 let hotelMethodCloseTimer = null;
 let makanTipOpen = false;
@@ -1034,7 +1036,7 @@ function getHotelById(hotelId) {
 }
 
 function getActiveHotelMatrixId() {
-  return hotelMatrixPinnedId || hotelMatrixHoveredId || "";
+  return hotelMatrixPinnedId || "";
 }
 
 function positionHotelMethodTooltip() {
@@ -1175,9 +1177,9 @@ function buildHotelEmptyState() {
   empty.className = "hotel-map-empty";
   const title = document.createElement("p");
   title.className = "hotel-map-empty-title";
-  title.textContent = "Hover a dot to see details.";
+  title.textContent = "Click a dot to see details.";
   const body = document.createElement("p");
-  body.textContent = "Yes, this is a framework. Old habits. ChatGPT made it faster.";
+  body.textContent = "Tap a dot on mobile. Click again to clear.";
   empty.appendChild(title);
   empty.appendChild(body);
   return empty;
@@ -1187,43 +1189,6 @@ function hideHotelDotTooltip() {
   if (!hotelMatrixTooltip) return;
   hotelMatrixTooltip.hidden = true;
   hotelMatrixTooltip.setAttribute("aria-hidden", "true");
-}
-
-function showHotelDotTooltip(item, cx, cy, priceBucket = "$$") {
-  if (!hotelMatrixTooltip || !hotelMatrixShell || !item) return;
-  if (isHotelMatrixMobile() || hotelMatrixPinnedId) {
-    hideHotelDotTooltip();
-    return;
-  }
-
-  hotelMatrixTooltip.innerHTML = `
-    <p class="hotel-map-dot-tooltip-title">${item.name}</p>
-    <p class="hotel-map-dot-tooltip-body">${Number(item.driveMins)} min drive · ${priceBucket}</p>
-  `;
-
-  hotelMatrixTooltip.hidden = false;
-  hotelMatrixTooltip.setAttribute("aria-hidden", "false");
-
-  const shellRect = hotelMatrixShell.getBoundingClientRect();
-  const tooltipRect = hotelMatrixTooltip.getBoundingClientRect();
-  const viewX = shellRect.left + (cx / 760) * shellRect.width;
-  const viewY = shellRect.top + (cy / 460) * shellRect.height;
-  const gap = 10;
-  const viewportPad = 12;
-
-  let left = viewX - tooltipRect.width / 2;
-  left = Math.max(viewportPad, Math.min(left, window.innerWidth - tooltipRect.width - viewportPad));
-
-  let top = viewY - tooltipRect.height - gap;
-  if (top < viewportPad) {
-    top = viewY + gap;
-  }
-  if (top + tooltipRect.height > window.innerHeight - viewportPad) {
-    top = window.innerHeight - tooltipRect.height - viewportPad;
-  }
-
-  hotelMatrixTooltip.style.left = `${left}px`;
-  hotelMatrixTooltip.style.top = `${top}px`;
 }
 
 function buildHotelDetailsCard(item) {
@@ -1358,52 +1323,60 @@ function closeHotelMatrixSheet() {
 }
 
 function clearHotelMatrixSelection() {
-  hotelMatrixHoveredId = "";
   hotelMatrixPinnedId = "";
   closeHotelMatrixSheet();
   applyHotelMatrixSelection();
 }
 
 function applyHotelMatrixSelection() {
-  const highlightId = getActiveHotelMatrixId();
-  activeHotelMatrixId = highlightId;
+  const selectedId = getActiveHotelMatrixId();
+  activeHotelMatrixId = selectedId;
 
   hotelMatrixMetaById.forEach((meta, hotelId) => {
-    const isActive = hotelId === highlightId;
+    const isActive = hotelId === selectedId;
     if (meta.group) meta.group.classList.toggle("is-active", isActive);
   });
 
-  const pinnedHotel = getHotelById(hotelMatrixPinnedId);
-  const shouldShowDetailsPanel = Boolean(hotelMatrixPinnedId) && !isHotelMatrixMobile();
-
-  if (hotelMatrixCard) {
-    hotelMatrixCard.classList.toggle("is-detail-open", shouldShowDetailsPanel);
-  }
-
-  if (shouldShowDetailsPanel) {
-    swapHotelDetails(pinnedHotel);
-  } else {
-    swapHotelDetails(null);
-  }
-
-  if (!highlightId || hotelMatrixPinnedId) {
-    hideHotelDotTooltip();
-  }
+  const pinnedHotel = getHotelById(selectedId);
+  swapHotelDetails(pinnedHotel || null);
+  hideHotelDotTooltip();
 }
 
-function initHotelMatrix() {
-  if (!hotelMatrixShell || !hotelMatrixSvg || !hotelMatrixDetails) return;
-  if (hotelMatrixShell.dataset.initialized === "true") return;
-  initHotelMethodology();
+function getHotelMatrixDimensions() {
+  if (!hotelMatrixShell) {
+    return { width: hotelMatrixWidth, height: hotelMatrixHeight };
+  }
 
-  hotelMatrixItems = HOTELS_DATA.slice(0, 6);
-  if (!hotelMatrixItems.length) return;
+  const shellRect = hotelMatrixShell.getBoundingClientRect();
+  const shellStyle = window.getComputedStyle(hotelMatrixShell);
+  const innerWidth =
+    shellRect.width -
+    (Number.parseFloat(shellStyle.paddingLeft) || 0) -
+    (Number.parseFloat(shellStyle.paddingRight) || 0);
+  if (!(innerWidth > 0)) {
+    return { width: hotelMatrixWidth, height: hotelMatrixHeight };
+  }
 
-  const width = 760;
-  const height = 460;
-  const margins = { top: 42, right: 52, bottom: 84, left: 88 };
-  const plotWidth = width - margins.left - margins.right;
-  const plotHeight = height - margins.top - margins.bottom;
+  const width = Math.max(300, Math.round(innerWidth));
+  const aspect = 760 / 460;
+  const height = Math.max(280, Math.round(width / aspect));
+  return { width, height };
+}
+
+function renderHotelMatrix() {
+  if (!hotelMatrixSvg || !hotelMatrixItems.length) return;
+
+  const width = hotelMatrixWidth;
+  const height = hotelMatrixHeight;
+  const isCompact = width < 560;
+  const margins = isCompact ? { top: 34, right: 30, bottom: 66, left: 62 } : { top: 42, right: 52, bottom: 84, left: 88 };
+  const plotWidth = Math.max(180, width - margins.left - margins.right);
+  const plotHeight = Math.max(170, height - margins.top - margins.bottom);
+  const ringRadius = isCompact ? 10.8 : 12;
+  const dotRadius = isCompact ? 6.6 : 7.4;
+
+  hotelMatrixSvg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  hotelMatrixSvg.setAttribute("preserveAspectRatio", "xMidYMid meet");
   hotelMatrixSvg.innerHTML = "";
   hotelMatrixMetaById = new Map();
 
@@ -1414,15 +1387,29 @@ function initHotelMatrix() {
   hotelMatrixSvg.appendChild(title);
   hotelMatrixSvg.appendChild(desc);
 
-  const plotFrame = createSvgNode("rect", {
-    class: "hotel-map-frame",
-    x: margins.left,
-    y: margins.top,
-    width: plotWidth,
-    height: plotHeight,
-    fill: "none",
-  });
-  hotelMatrixSvg.appendChild(plotFrame);
+  const defs = createSvgNode("defs");
+  const clipPath = createSvgNode("clipPath", { id: "hotelMatrixPlotClip" });
+  clipPath.appendChild(
+    createSvgNode("rect", {
+      x: margins.left,
+      y: margins.top,
+      width: plotWidth,
+      height: plotHeight,
+    }),
+  );
+  defs.appendChild(clipPath);
+  hotelMatrixSvg.appendChild(defs);
+
+  hotelMatrixSvg.appendChild(
+    createSvgNode("rect", {
+      class: "hotel-map-frame",
+      x: margins.left,
+      y: margins.top,
+      width: plotWidth,
+      height: plotHeight,
+      fill: "none",
+    }),
+  );
 
   const midX = margins.left + plotWidth / 2;
   const midY = margins.top + plotHeight / 2;
@@ -1443,10 +1430,6 @@ function initHotelMatrix() {
   const driveDomainMin = Math.max(0, minDrive - drivePadding);
   const driveDomainMax = maxDrive + drivePadding;
   const driveTicks = [...new Set(driveTimes.map((value) => Math.round(value)))].sort((a, b) => a - b);
-
-  if (hotelMatrixRatingClaim) {
-    hotelMatrixRatingClaim.textContent = buildHotelRatingClaim(hotelMatrixItems);
-  }
 
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
   const mapPrice = (price) => {
@@ -1536,17 +1519,18 @@ function initHotelMatrix() {
   xAxisLabel.textContent = "Price ($ to $$$$)";
   hotelMatrixSvg.appendChild(xAxisLabel);
 
+  const yAxisLabelX = isCompact ? 18 : 22;
   const yAxisLabel = createSvgNode("text", {
     class: "hotel-map-axis-label",
-    x: 22,
+    x: yAxisLabelX,
     y: margins.top + plotHeight / 2,
     "text-anchor": "middle",
-    transform: `rotate(-90 22 ${margins.top + plotHeight / 2})`,
+    transform: `rotate(-90 ${yAxisLabelX} ${margins.top + plotHeight / 2})`,
   });
   yAxisLabel.textContent = "Drive time to Mandarin Oriental (mins)";
   hotelMatrixSvg.appendChild(yAxisLabel);
 
-  const layer = createSvgNode("g", { class: "hotel-map-points" });
+  const layer = createSvgNode("g", { class: "hotel-map-points", "clip-path": "url(#hotelMatrixPlotClip)" });
   hotelMatrixSvg.appendChild(layer);
 
   hotelMatrixItems.forEach((item) => {
@@ -1576,75 +1560,40 @@ function initHotelMatrix() {
       class: "hotel-map-dot-ring",
       cx: cx.toFixed(2),
       cy: cy.toFixed(2),
-      r: "12",
+      r: ringRadius.toFixed(2),
     });
     const dot = createSvgNode("circle", {
       class: "hotel-map-dot",
       cx: cx.toFixed(2),
       cy: cy.toFixed(2),
-      r: "7.4",
+      r: dotRadius.toFixed(2),
       tabindex: "0",
       role: "button",
       "aria-label": `Hotel: ${item.name}. Price ${priceBand}. Drive time ${Number(item.driveMins)} minutes (${driveBand}).`,
     });
 
-    dot.addEventListener("pointerenter", () => {
-      if (isHotelMatrixMobile() || hotelMatrixPinnedId) return;
-      if (hotelHoverSwapTimer) window.clearTimeout(hotelHoverSwapTimer);
-      hotelHoverSwapTimer = window.setTimeout(() => {
-        hotelMatrixHoveredId = item.id;
-        applyHotelMatrixSelection();
-        showHotelDotTooltip(item, cx, cy, priceBand);
-      }, 90);
-    });
-
-    dot.addEventListener("pointerleave", () => {
-      if (isHotelMatrixMobile() || hotelMatrixPinnedId) return;
-      if (hotelHoverSwapTimer) {
-        window.clearTimeout(hotelHoverSwapTimer);
-        hotelHoverSwapTimer = null;
-      }
-      hotelMatrixHoveredId = "";
-      applyHotelMatrixSelection();
-      hideHotelDotTooltip();
-    });
-
-    dot.addEventListener("focus", () => {
-      if (hotelMatrixPinnedId && hotelMatrixPinnedId !== item.id) return;
-      hotelMatrixHoveredId = item.id;
-      applyHotelMatrixSelection();
-      showHotelDotTooltip(item, cx, cy, priceBand);
-    });
-
-    dot.addEventListener("blur", () => {
-      if (!hotelMatrixPinnedId) {
-        hotelMatrixHoveredId = "";
-        applyHotelMatrixSelection();
-      }
-      hideHotelDotTooltip();
-    });
-
-    dot.addEventListener("click", (event) => {
+    const handleSelect = (event) => {
       event.preventDefault();
-      if (hotelMatrixPinnedId === item.id) {
-        clearHotelMatrixSelection();
-        return;
-      }
-
-      hotelMatrixPinnedId = item.id;
-      hotelMatrixHoveredId = item.id;
+      event.stopPropagation();
+      const isSameSelection = hotelMatrixPinnedId === item.id;
+      hotelMatrixPinnedId = isSameSelection ? "" : item.id;
       applyHotelMatrixSelection();
-      hideHotelDotTooltip();
 
       if (isHotelMatrixMobile()) {
-        openHotelMatrixSheet(item);
+        if (hotelMatrixPinnedId) openHotelMatrixSheet(item);
+        else closeHotelMatrixSheet();
+      } else {
+        closeHotelMatrixSheet();
       }
-    });
+    };
+
+    dot.addEventListener("click", handleSelect);
+    ring.addEventListener("click", handleSelect);
 
     dot.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-        dot.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        handleSelect(event);
         return;
       }
       if (event.key === "Escape") {
@@ -1661,11 +1610,54 @@ function initHotelMatrix() {
     hotelMatrixMetaById.set(item.id, { group, item, cx, cy, priceBand });
   });
 
+  applyHotelMatrixSelection();
+}
+
+function queueHotelMatrixRender(force = false) {
+  if (hotelMatrixResizeRaf) return;
+  hotelMatrixResizeRaf = window.requestAnimationFrame(() => {
+    hotelMatrixResizeRaf = null;
+    const next = getHotelMatrixDimensions();
+    const changed =
+      force ||
+      Math.abs(next.width - hotelMatrixWidth) > 1 ||
+      Math.abs(next.height - hotelMatrixHeight) > 1;
+    if (!changed) return;
+    hotelMatrixWidth = next.width;
+    hotelMatrixHeight = next.height;
+    renderHotelMatrix();
+  });
+}
+
+function initHotelMatrix() {
+  if (!hotelMatrixShell || !hotelMatrixSvg || !hotelMatrixDetails || !hotelMatrixChartCol) return;
+  if (hotelMatrixShell.dataset.initialized === "true") return;
+  initHotelMethodology();
+
+  hotelMatrixItems = HOTELS_DATA.slice(0, 6);
+  if (!hotelMatrixItems.length) return;
+
+  if (hotelMatrixRatingClaim) {
+    hotelMatrixRatingClaim.textContent = buildHotelRatingClaim(hotelMatrixItems);
+  }
+
+  if (hotelMatrixTooltip) hideHotelDotTooltip();
+  swapHotelDetails(null);
+
+  if (hotelMatrixSvg.dataset.bound !== "true") {
+    hotelMatrixSvg.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest(".hotel-map-point")) return;
+      if (hotelMatrixPinnedId) clearHotelMatrixSelection();
+    });
+    hotelMatrixSvg.dataset.bound = "true";
+  }
+
   hotelMatrixSheetCloseControls.forEach((control) => {
     control.addEventListener("click", () => {
       closeHotelMatrixSheet();
       hotelMatrixPinnedId = "";
-      hotelMatrixHoveredId = "";
       applyHotelMatrixSelection();
     });
   });
@@ -1673,9 +1665,8 @@ function initHotelMatrix() {
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
     if (hotelSheetOpen) closeHotelMatrixSheet();
-    if (hotelMatrixPinnedId || hotelMatrixHoveredId) {
+    if (hotelMatrixPinnedId) {
       hotelMatrixPinnedId = "";
-      hotelMatrixHoveredId = "";
       applyHotelMatrixSelection();
     }
     hideHotelDotTooltip();
@@ -1697,18 +1688,17 @@ function initHotelMatrix() {
     if (!isHotelMatrixMobile() && hotelSheetOpen) {
       closeHotelMatrixSheet();
     }
-    if (isHotelMatrixMobile()) {
-      hideHotelDotTooltip();
-      return;
-    }
-    if (hotelMatrixHoveredId && !hotelMatrixPinnedId) {
-      const hoveredMeta = hotelMatrixMetaById.get(hotelMatrixHoveredId);
-      if (hoveredMeta) showHotelDotTooltip(hoveredMeta.item, hoveredMeta.cx, hoveredMeta.cy, hoveredMeta.priceBand);
-    }
+    queueHotelMatrixRender();
   });
 
-  if (hotelMatrixCard) hotelMatrixCard.classList.remove("is-detail-open");
-  swapHotelDetails(null);
+  if ("ResizeObserver" in window) {
+    hotelMatrixResizeObserver = new ResizeObserver(() => {
+      queueHotelMatrixRender();
+    });
+    hotelMatrixResizeObserver.observe(hotelMatrixChartCol);
+  }
+
+  queueHotelMatrixRender(true);
   hotelMatrixShell.dataset.initialized = "true";
 }
 
