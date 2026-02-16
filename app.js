@@ -4254,7 +4254,6 @@ function setStoryMobileSlide(index, options = {}) {
   const total = storyItems.length;
   const safeIndex = ((Number(index) || 0) % total + total) % total;
   const item = storyItems[safeIndex];
-  const mobileView = isStoryMobileView();
   storyMobileIndex = safeIndex;
   const imageSources = storyImageSources(item, true);
   const imageSrc = imageSources.preferred || imageSources.original;
@@ -4262,15 +4261,15 @@ function setStoryMobileSlide(index, options = {}) {
   storyMobileImg.src = imageSrc;
   attachStoryFallback(storyMobileImg, imageSources.fallback);
   storyMobileImg.alt = item.alt || `Story photo ${item.yearLabel}`;
-  storyMobileImg.style.objectPosition = mobileView ? "50% 50%" : item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
+  storyMobileImg.style.objectPosition = item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
   storyMobileImg.style.imageOrientation = "from-image";
-  storyMobileImg.style.objectFit = mobileView ? "contain" : item.cropMode === "contain" ? "contain" : "cover";
+  storyMobileImg.style.objectFit = "cover";
   storyMobileImg.style.transformOrigin = "50% 50%";
   storyMobileImg.style.setProperty("--storyRotate", "0deg");
   storyMobileImg.style.transform = "none";
   if (storyMobileCard) {
-    storyMobileCard.classList.toggle("is-contain", mobileView || item.cropMode === "contain");
-    storyMobileCard.style.setProperty("--storyMobileBgImage", `url("${imageSrc}")`);
+    storyMobileCard.classList.remove("is-contain");
+    storyMobileCard.style.setProperty("--storyMobileBgImage", "none");
   }
 
   if (item.rotation === 90) {
