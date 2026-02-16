@@ -744,36 +744,6 @@ function buildMakanRow(place, rowIndex) {
   details.className = "makan-row-details";
   details.hidden = true;
 
-  const imageSrc = place.imageSrc || place.image || "";
-  if (imageSrc) {
-    const media = document.createElement("figure");
-    media.className = "makan-row-photo";
-    const img = document.createElement("img");
-    img.src = toPhotoSrc(imageSrc);
-    img.alt = place.imageAlt || place.name_en;
-    img.loading = "lazy";
-    img.decoding = "async";
-    media.appendChild(img);
-    details.appendChild(media);
-  }
-
-  if (place.imageAttribution || place.imageLicenseUrl) {
-    const attribution = document.createElement("p");
-    attribution.className = "makan-image-attribution";
-    if (place.imageLicenseUrl) {
-      const licenseLink = document.createElement("a");
-      licenseLink.href = place.imageLicenseUrl;
-      licenseLink.target = "_blank";
-      licenseLink.rel = "noopener noreferrer";
-      licenseLink.textContent = "License";
-      attribution.textContent = `${place.imageAttribution || "Image attribution"} · `;
-      attribution.appendChild(licenseLink);
-    } else {
-      attribution.textContent = place.imageAttribution || "";
-    }
-    details.appendChild(attribution);
-  }
-
   const actions = document.createElement("div");
   actions.className = "makan-row-actions";
   actions.appendChild(createFoodCopyButton(place.name_cn, place.name_en));
