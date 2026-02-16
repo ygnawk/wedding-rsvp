@@ -4256,7 +4256,7 @@ function setStoryMobileSlide(index, options = {}) {
   const item = storyItems[safeIndex];
   storyMobileIndex = safeIndex;
   const imageSources = storyImageSources(item, true);
-  const imageSrc = imageSources.preferred || imageSources.original;
+  const imageSrc = imageSources.original || imageSources.preferred;
 
   storyMobileImg.src = imageSrc;
   attachStoryFallback(storyMobileImg, imageSources.fallback);
