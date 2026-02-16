@@ -670,6 +670,10 @@ function prefersReducedMotion() {
   return reducedMotion || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
+function setAriaExpanded(node, expanded) {
+  node.setAttribute("aria-expanded", String(expanded));
+}
+
 function createExternalAnchor(href, textContent, className = "") {
   const anchor = document.createElement("a");
   if (className) anchor.className = className;
@@ -712,18 +716,18 @@ function initSectionObserver() {
 function closeMobileMenu() {
   if (!mobileNavSheet || !menuToggle) return;
   mobileNavSheet.classList.remove("open");
-  menuToggle.setAttribute("aria-expanded", "false");
+  setAriaExpanded(menuToggle, false);
 }
 
 function closeDesktopMoreMenu() {
   if (!desktopMoreToggle || !desktopMoreMenu) return;
-  desktopMoreToggle.setAttribute("aria-expanded", "false");
+  setAriaExpanded(desktopMoreToggle, false);
   desktopMoreMenu.hidden = true;
 }
 
 function openDesktopMoreMenu() {
   if (!desktopMoreToggle || !desktopMoreMenu) return;
-  desktopMoreToggle.setAttribute("aria-expanded", "true");
+  setAriaExpanded(desktopMoreToggle, true);
   desktopMoreMenu.hidden = false;
 }
 
@@ -738,7 +742,7 @@ function initHeader() {
   if (menuToggle && mobileNavSheet) {
     menuToggle.addEventListener("click", () => {
       const isOpen = mobileNavSheet.classList.toggle("open");
-      menuToggle.setAttribute("aria-expanded", String(isOpen));
+      setAriaExpanded(menuToggle, isOpen);
     });
 
     window.addEventListener("resize", () => {
@@ -788,13 +792,13 @@ function initHeader() {
 
 function closeJumpMenu() {
   if (!jumpMenuToggle || !jumpMenuPanel) return;
-  jumpMenuToggle.setAttribute("aria-expanded", "false");
+  setAriaExpanded(jumpMenuToggle, false);
   jumpMenuPanel.hidden = true;
 }
 
 function openJumpMenu() {
   if (!jumpMenuToggle || !jumpMenuPanel) return;
-  jumpMenuToggle.setAttribute("aria-expanded", "true");
+  setAriaExpanded(jumpMenuToggle, true);
   jumpMenuPanel.hidden = false;
 }
 
@@ -1401,7 +1405,7 @@ function closeMakanTipPopover() {
   if (!makanTipTrigger || !makanTipPopover) return;
   makanTipPopover.hidden = true;
   makanTipPopover.setAttribute("aria-hidden", "true");
-  makanTipTrigger.setAttribute("aria-expanded", "false");
+  setAriaExpanded(makanTipTrigger, false);
   makanTipOpen = false;
 }
 
@@ -1429,7 +1433,7 @@ function openMakanTipPopover() {
   if (!makanTipTrigger || !makanTipPopover) return;
   makanTipPopover.hidden = false;
   makanTipPopover.setAttribute("aria-hidden", "false");
-  makanTipTrigger.setAttribute("aria-expanded", "true");
+  setAriaExpanded(makanTipTrigger, true);
   makanTipOpen = true;
   positionMakanTipPopover();
 }
@@ -1487,7 +1491,7 @@ function closeMakanLegalModal({ restoreFocus = true } = {}) {
   makanLegalPopover.hidden = true;
   makanLegalPopover.classList.remove("open");
   makanLegalPopover.setAttribute("aria-hidden", "true");
-  makanLegalTrigger.setAttribute("aria-expanded", "false");
+  setAriaExpanded(makanLegalTrigger, false);
   makanLegalOpen = false;
   if (restoreFocus) {
     makanLegalTrigger.focus({ preventScroll: true });
@@ -1499,7 +1503,7 @@ function openMakanLegalModal() {
   makanLegalPopover.hidden = false;
   makanLegalPopover.classList.add("open");
   makanLegalPopover.setAttribute("aria-hidden", "false");
-  makanLegalTrigger.setAttribute("aria-expanded", "true");
+  setAriaExpanded(makanLegalTrigger, true);
   makanLegalOpen = true;
   if (makanLegalClose instanceof HTMLElement) {
     window.requestAnimationFrame(() => makanLegalClose.focus({ preventScroll: true }));
@@ -1649,7 +1653,7 @@ function closeHotelMethodologyTooltip(resetPinned = true) {
   }
   hotelMethodTooltip.hidden = true;
   hotelMethodTooltip.setAttribute("aria-hidden", "true");
-  hotelMethodTrigger.setAttribute("aria-expanded", "false");
+  setAriaExpanded(hotelMethodTrigger, false);
   hotelMethodOpen = false;
   if (resetPinned) hotelMethodPinned = false;
 }
@@ -1661,7 +1665,7 @@ function openHotelMethodologyTooltip({ pinned = false } = {}) {
   hotelMethodPinned = pinned;
   hotelMethodTooltip.hidden = false;
   hotelMethodTooltip.setAttribute("aria-hidden", "false");
-  hotelMethodTrigger.setAttribute("aria-expanded", "true");
+  setAriaExpanded(hotelMethodTrigger, true);
   hotelMethodOpen = true;
   positionHotelMethodTooltip();
 }
@@ -2428,7 +2432,7 @@ function buildFunFactExamplesPopover(input) {
   toggle.type = "button";
   toggle.className = "fun-fact-ideas-toggle";
   toggle.textContent = "See ideas";
-  toggle.setAttribute("aria-expanded", "false");
+  setAriaExpanded(toggle, false);
 
   const shuffle = document.createElement("button");
   shuffle.type = "button";
@@ -2444,14 +2448,14 @@ function buildFunFactExamplesPopover(input) {
   function openIdeas() {
     chipsWrap.classList.remove("hidden");
     shuffle.classList.remove("hidden");
-    toggle.setAttribute("aria-expanded", "true");
+    setAriaExpanded(toggle, true);
     toggle.textContent = "Hide ideas";
   }
 
   function closeIdeas() {
     chipsWrap.classList.add("hidden");
     shuffle.classList.add("hidden");
-    toggle.setAttribute("aria-expanded", "false");
+    setAriaExpanded(toggle, false);
     toggle.textContent = "See ideas";
   }
 
