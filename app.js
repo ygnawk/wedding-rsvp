@@ -783,9 +783,9 @@ function createFoodCopyButton(copyValueInput, options = {}) {
   return button;
 }
 
-function buildMakanRow(place, rowIndex) {
+function buildMakanRestaurantItem(place) {
   const row = document.createElement("article");
-  row.className = "makan-menu-row";
+  row.className = "makan-item";
   const rawNameEn = String(place.name_en || "").trim();
   const nameParts = rawNameEn.split(/\s+—\s+/);
   const nameOnly = nameParts.shift() || rawNameEn;
@@ -794,20 +794,8 @@ function buildMakanRow(place, rowIndex) {
   const baseBlurb = String(place.blurb_en || "").trim();
   const blurbText = [taglineLead, baseBlurb].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
 
-  const detailsId = `makanRowDetails${rowIndex + 1}`;
-  const toggle = document.createElement("button");
-  toggle.type = "button";
-  toggle.className = "makan-row-toggle";
-  toggle.setAttribute("aria-expanded", "false");
-  toggle.setAttribute("aria-controls", detailsId);
-  toggle.setAttribute("aria-label", `Show details for ${nameOnly}`);
-
-  const colType = document.createElement("span");
-  colType.className = "makan-col makan-col--type";
-  colType.textContent = place.restaurantType || place.category || "Restaurant";
-
   const colRestaurant = document.createElement("span");
-  colRestaurant.className = "makan-col makan-col--restaurant";
+  colRestaurant.className = "makan-col makan-col--restaurant makan-item-restaurant";
 
   const nameEn = document.createElement("span");
   nameEn.className = "makan-name-en";
@@ -819,7 +807,7 @@ function buildMakanRow(place, rowIndex) {
   colRestaurant.appendChild(nameCn);
 
   const colBlurb = document.createElement("span");
-  colBlurb.className = "makan-col makan-col--blurb";
+  colBlurb.className = "makan-col makan-col--blurb makan-item-blurb";
   const blurbBody = document.createElement("span");
   blurbBody.className = "makan-blurb-text";
   blurbBody.textContent = blurbText;
@@ -832,19 +820,10 @@ function buildMakanRow(place, rowIndex) {
     colBlurb.appendChild(addressInline);
   }
 
-  const chevron = document.createElement("span");
-  chevron.className = "makan-row-chevron";
-  chevron.setAttribute("aria-hidden", "true");
-
-  toggle.appendChild(colType);
-  toggle.appendChild(colRestaurant);
-  toggle.appendChild(colBlurb);
-  toggle.appendChild(chevron);
-
-  const details = document.createElement("div");
-  details.id = detailsId;
-  details.className = "makan-row-details";
-  details.hidden = true;
+  const main = document.createElement("div");
+  main.className = "makan-item-main";
+  main.appendChild(colRestaurant);
+  main.appendChild(colBlurb);
 
   const actions = document.createElement("div");
   actions.className = "makan-row-actions";
@@ -871,11 +850,9 @@ function buildMakanRow(place, rowIndex) {
     link.textContent = "Open in the app";
     actions.appendChild(link);
   }
-  details.appendChild(actions);
-
-  row.appendChild(toggle);
-  row.appendChild(details);
-  return { row, toggle, details };
+  row.appendChild(main);
+  row.appendChild(actions);
+  return row;
 }
 
 function renderMakanMenuRows() {
@@ -892,36 +869,48 @@ function renderMakanMenuRows() {
     return a.name_en.localeCompare(b.name_en, undefined, { sensitivity: "base" });
   });
 
-  const rowBindings = [];
-  let currentType = "";
-  sorted.forEach((place, index) => {
+  const grouped = new Map();
+  sorted.forEach((place) => {
     const nextType = String(place.restaurantType || place.category || "Restaurant");
-    if (nextType !== currentType) {
-      currentType = nextType;
-      const heading = document.createElement("div");
-      heading.className = "makan-group-heading";
-      heading.textContent = currentType;
-      makanMenuRows.appendChild(heading);
+    if (!grouped.has(nextType)) {
+      grouped.set(nextType, []);
     }
-
-    const { row, toggle, details } = buildMakanRow(place, index);
-    makanMenuRows.appendChild(row);
-    rowBindings.push({ toggle, details, row });
+    grouped.get(nextType)?.push(place);
   });
 
-  rowBindings.forEach((binding) => {
-    binding.toggle.addEventListener("click", () => {
-      const willOpen = binding.toggle.getAttribute("aria-expanded") !== "true";
-      rowBindings.forEach((candidate) => {
-        candidate.toggle.setAttribute("aria-expanded", "false");
-        candidate.details.hidden = true;
-        candidate.row.classList.remove("is-open");
-      });
-      if (!willOpen) return;
-      binding.toggle.setAttribute("aria-expanded", "true");
-      binding.details.hidden = false;
-      binding.row.classList.add("is-open");
+  Array.from(grouped.entries()).forEach(([typeName, places], groupIndex) => {
+    const accordion = document.createElement("details");
+    accordion.className = "makan-type";
+
+    const summary = document.createElement("summary");
+    summary.className = "makan-type-summary";
+    summary.setAttribute("aria-label", `Toggle ${typeName}`);
+
+    const title = document.createElement("span");
+    title.className = "makan-type-title";
+    title.textContent = typeName;
+
+    const chevron = document.createElement("span");
+    chevron.className = "makan-type-chevron";
+    chevron.setAttribute("aria-hidden", "true");
+
+    summary.appendChild(title);
+    summary.appendChild(chevron);
+
+    const panel = document.createElement("div");
+    panel.className = "makan-type-panel";
+    panel.id = `makanTypePanel${groupIndex + 1}`;
+
+    const itemsWrap = document.createElement("div");
+    itemsWrap.className = "makan-type-items";
+    places.forEach((place) => {
+      itemsWrap.appendChild(buildMakanRestaurantItem(place));
     });
+    panel.appendChild(itemsWrap);
+
+    accordion.appendChild(summary);
+    accordion.appendChild(panel);
+    makanMenuRows.appendChild(accordion);
   });
 }
 
