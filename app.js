@@ -2257,6 +2257,10 @@ function initHotelMatrix() {
   if (hotelMatrixShell.dataset.initialized === "true") return;
   initHotelMethodology();
 
+  // Defensive reset: never leave a transparent sheet/backdrop intercepting taps.
+  closeHotelMatrixSheet();
+  hotelSheetOpen = false;
+
   hotelMatrixItems = HOTELS_DATA.slice(0, 6);
   if (!hotelMatrixItems.length) return;
 

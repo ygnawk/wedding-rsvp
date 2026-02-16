@@ -3728,6 +3728,15 @@ details[open] .faq-answer {
   align-items: flex-end;
   justify-content: stretch;
   overflow: hidden;
+  pointer-events: none;
+}
+
+.hotel-map-sheet:not([hidden]) {
+  pointer-events: auto;
+}
+
+.hotel-map-sheet[hidden] {
+  display: none !important;
 }
 
 .hotel-map-sheet-backdrop {
