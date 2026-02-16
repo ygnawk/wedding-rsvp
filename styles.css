@@ -2010,8 +2010,8 @@ a:focus-visible,
   }
 
   .story-mobile-card img {
-    object-fit: cover !important;
-    object-position: var(--objPos, 50% 50%) !important;
+    object-fit: contain !important;
+    object-position: center !important;
     background: transparent;
   }
 

@@ -4257,6 +4257,7 @@ function setStoryMobileSlide(index, options = {}) {
   if (!storyItems.length || !storyMobileImg || !storyMobileYear) return;
 
   const { scrollPill = true } = options;
+  const mobileView = isStoryMobileView();
   const total = storyItems.length;
   const safeIndex = ((Number(index) || 0) % total + total) % total;
   const item = storyItems[safeIndex];
@@ -4267,26 +4268,26 @@ function setStoryMobileSlide(index, options = {}) {
   storyMobileImg.src = imageSrc;
   attachStoryFallback(storyMobileImg, imageSources.fallback);
   storyMobileImg.alt = item.alt || `Story photo ${item.yearLabel}`;
-  storyMobileImg.style.objectPosition = item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
+  storyMobileImg.style.objectPosition = mobileView ? "50% 50%" : item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
   storyMobileImg.style.imageOrientation = "from-image";
-  storyMobileImg.style.objectFit = "cover";
+  storyMobileImg.style.objectFit = mobileView ? "contain" : "cover";
   storyMobileImg.style.transformOrigin = "50% 50%";
   storyMobileImg.style.setProperty("--storyRotate", "0deg");
   storyMobileImg.style.transform = "none";
   if (storyMobileCard) {
-    storyMobileCard.classList.remove("is-contain");
+    storyMobileCard.classList.toggle("is-contain", mobileView);
     storyMobileCard.style.setProperty("--storyMobileBgImage", "none");
   }
 
   if (item.rotation === 90) {
     storyMobileImg.style.setProperty("--storyRotate", "90deg");
-    storyMobileImg.style.transform = "rotate(90deg) scale(1.1)";
+    storyMobileImg.style.transform = mobileView ? "rotate(90deg)" : "rotate(90deg) scale(1.1)";
   } else if (item.rotation === -90) {
     storyMobileImg.style.setProperty("--storyRotate", "-90deg");
-    storyMobileImg.style.transform = "rotate(-90deg) scale(1.1)";
+    storyMobileImg.style.transform = mobileView ? "rotate(-90deg)" : "rotate(-90deg) scale(1.1)";
   } else if (item.rotation === 180) {
     storyMobileImg.style.setProperty("--storyRotate", "180deg");
-    storyMobileImg.style.transform = "rotate(180deg) scale(1.02)";
+    storyMobileImg.style.transform = mobileView ? "rotate(180deg)" : "rotate(180deg) scale(1.02)";
   } else {
     storyMobileImg.style.setProperty("--storyRotate", "0deg");
     storyMobileImg.style.transform = "none";
