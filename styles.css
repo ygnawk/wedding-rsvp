@@ -1862,6 +1862,30 @@ a:focus-visible,
   align-items: center;
 }
 
+#venue.venue-scene {
+  min-height: auto;
+  align-items: stretch;
+  overflow: visible;
+}
+
+.venue-scene-scroll {
+  position: relative;
+  width: 100%;
+  height: clamp(760px, 140vh, 1180px);
+}
+
+.venue-sticky {
+  position: sticky;
+  top: calc(var(--headerH) + 20px);
+  height: clamp(520px, 76vh, 760px);
+  display: flex;
+  align-items: center;
+}
+
+.venue-sticky .venue-layout {
+  width: 100%;
+}
+
 .venue-layout > * {
   min-width: 0;
 }
@@ -1918,13 +1942,14 @@ a:focus-visible,
 }
 
 .cutout-parallax__media img {
-  width: 100%;
+  width: calc(100% + var(--venue-pan, 0px));
+  max-width: none;
   height: 100%;
   object-fit: cover;
-  object-position: var(--objPos, 50% 56%);
+  object-position: var(--objPos, 54% 56%);
   display: block;
-  transform: translate3d(0, 0, 0) scale(1.03);
-  transition: transform 120ms linear;
+  transform: translate3d(var(--venue-pan-x, 0px), 0, 0) scale(var(--venue-scale, 1.03));
+  transition: none;
   will-change: transform;
   filter: var(--photoGradeFilter);
 }
@@ -1979,6 +2004,17 @@ a:focus-visible,
 }
 
 @media (max-width: 979px) {
+  .venue-scene-scroll {
+    height: auto;
+  }
+
+  .venue-sticky {
+    position: relative;
+    top: auto;
+    height: auto;
+    display: block;
+  }
+
   .venue-layout {
     grid-template-columns: 1fr;
     gap: 18px;
@@ -1992,6 +2028,13 @@ a:focus-visible,
 
   .venue-copy {
     order: 2;
+  }
+}
+
+@media (max-width: 760px) {
+  #venue.venue-scene {
+    padding-top: 56px;
+    padding-bottom: 56px;
   }
 }
 

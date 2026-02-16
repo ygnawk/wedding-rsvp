@@ -3394,102 +3394,124 @@ async function initStoryScrolly() {
 }
 
 function initCutoutParallax() {
-  const blocks = Array.from(document.querySelectorAll(".cutout-parallax"));
-  if (!blocks.length) return;
+  const venueSection = document.getElementById("venue");
+  if (!venueSection) return;
 
-  const entries = blocks
-    .map((block, index) => ({
-      block,
-      img: block.querySelector(".cutout-parallax__media img"),
-      speed: Number(block.getAttribute("data-parallax-speed") || 0.12),
-      index,
-    }))
-    .filter((entry) => entry.img);
+  const block = venueSection.querySelector(".cutout-parallax");
+  const media = block ? block.querySelector(".cutout-parallax__media") : null;
+  const img = media ? media.querySelector("img") : null;
+  const scene = venueSection.querySelector(".venue-scene-scroll") || venueSection;
+  if (!(block instanceof HTMLElement) || !(media instanceof HTMLElement) || !(img instanceof HTMLElement) || !(scene instanceof HTMLElement)) return;
 
-  if (!entries.length) return;
-
-  entries.forEach((entry) => {
-    const img = entry.img;
-    if (!img) return;
-    if (img.dataset.cutoutBound === "true") return;
+  if (img.dataset.cutoutBound !== "true") {
     img.addEventListener("load", () => {
-      entry.block.classList.remove("is-image-missing");
+      block.classList.remove("is-image-missing");
     });
     img.addEventListener("error", () => {
-      entry.block.classList.add("is-image-missing");
+      block.classList.add("is-image-missing");
     });
     img.dataset.cutoutBound = "true";
-  });
+  }
 
-  const setStatic = (scale = 1.01) => {
-    entries.forEach((entry) => {
-      entry.img.style.transform = `translate3d(0, 0, 0) scale(${scale})`;
-    });
+  const START_X = 0.05;
+  const END_X = 0.17;
+  const clamp01 = (value) => Math.max(0, Math.min(1, value));
+
+  let sceneTop = 0;
+  let sceneHeight = 0;
+  let viewportHeight = window.innerHeight;
+  let panPx = 0;
+  let startPx = 0;
+  let endPx = 0;
+  let lastPanX = Number.NaN;
+  let ticking = false;
+  let inViewport = true;
+
+  const setStaticCrop = () => {
+    img.style.width = "100%";
+    img.style.maxWidth = "100%";
+    img.style.setProperty("--venue-pan", "0px");
+    img.style.setProperty("--venue-pan-x", "0px");
+    img.style.setProperty("--venue-scale", "1.02");
+    img.style.transform = "translate3d(0, 0, 0) scale(1.02)";
   };
 
-  if (reducedMotion) {
-    setStatic(1);
+  const prefersReduced = reducedMotion || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (prefersReduced) {
+    setStaticCrop();
     return;
   }
 
-  const active = new Set();
-  let ticking = false;
+  const measure = () => {
+    viewportHeight = window.innerHeight;
+    const sceneRect = scene.getBoundingClientRect();
+    sceneTop = window.scrollY + sceneRect.top;
+    sceneHeight = sceneRect.height;
 
-  const update = () => {
+    const frameWidth = media.clientWidth || 0;
+    const basePanPx = Math.min(120, frameWidth * 0.12);
+    const isMobile = window.innerWidth <= 760;
+    panPx = isMobile ? basePanPx * 0.5 : basePanPx;
+    startPx = -(panPx * START_X);
+    endPx = -(panPx * END_X);
+
+    img.style.width = `calc(100% + ${panPx.toFixed(2)}px)`;
+    img.style.maxWidth = "none";
+    img.style.setProperty("--venue-pan", `${panPx.toFixed(2)}px`);
+    lastPanX = Number.NaN;
+  };
+
+  const getProgress = () => {
+    const denominator = sceneHeight - viewportHeight;
+    if (denominator > 1) {
+      return clamp01((window.scrollY - sceneTop) / denominator);
+    }
+
+    const rect = scene.getBoundingClientRect();
+    const travel = Math.max(1, rect.height + viewportHeight);
+    return clamp01((viewportHeight - rect.top) / travel);
+  };
+
+  const apply = () => {
     ticking = false;
-    const isMobile = window.innerWidth <= 900;
+    if (!inViewport) return;
 
-    entries.forEach((entry) => {
-      if (!active.has(entry.block)) return;
+    const progress = getProgress();
+    const nextPanX = startPx + (endPx - startPx) * progress;
+    if (Number.isFinite(lastPanX) && Math.abs(nextPanX - lastPanX) < 0.08) return;
 
-      if (isMobile) {
-        entry.img.style.transform = "translate3d(0, 0, 0) scale(1.01)";
-        return;
-      }
-
-      const rect = entry.block.getBoundingClientRect();
-      const viewportCenter = window.innerHeight / 2;
-      const blockCenter = rect.top + rect.height / 2;
-      const delta = viewportCenter - blockCenter;
-      const strength = entry.speed * 0.3;
-      const maxShift = 24;
-      const translateY = Math.max(-maxShift, Math.min(maxShift, delta * strength));
-      entry.img.style.transform = `translate3d(0, ${translateY.toFixed(2)}px, 0) scale(1.03)`;
-    });
+    lastPanX = nextPanX;
+    const scale = window.innerWidth <= 760 ? 1.02 : 1.03;
+    img.style.setProperty("--venue-pan-x", `${nextPanX.toFixed(2)}px`);
+    img.style.setProperty("--venue-scale", `${scale}`);
+    img.style.transform = `translate3d(${nextPanX.toFixed(2)}px, 0, 0) scale(${scale})`;
   };
 
   const requestTick = () => {
     if (ticking) return;
     ticking = true;
-    window.requestAnimationFrame(update);
+    window.requestAnimationFrame(apply);
   };
 
   const observer = new IntersectionObserver(
-    (observerEntries) => {
-      observerEntries.forEach((entry) => {
-        if (entry.isIntersecting) active.add(entry.target);
-        else active.delete(entry.target);
-      });
-      requestTick();
+    (entries) => {
+      inViewport = entries.some((entry) => entry.isIntersecting);
+      if (inViewport) requestTick();
     },
     {
-      threshold: [0, 0.15, 0.35, 0.6],
-      rootMargin: "120px 0px 120px 0px",
+      threshold: [0, 0.1, 0.35, 0.65],
+      rootMargin: "140px 0px 140px 0px",
     },
   );
+  observer.observe(scene);
 
-  entries.forEach((entry) => observer.observe(entry.block));
   window.addEventListener("scroll", requestTick, { passive: true });
   window.addEventListener("resize", () => {
-    if (window.innerWidth <= 900) {
-      setStatic(1.01);
-      return;
-    }
+    measure();
     requestTick();
   });
-  if (window.innerWidth <= 900) {
-    setStatic(1.01);
-  }
+
+  measure();
   requestTick();
 }
 
