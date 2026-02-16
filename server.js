@@ -1,11 +1,12 @@
 const fs = require("fs");
 const path = require("path");
 const http = require("http");
+const { randomUUID } = require("crypto");
+const { formidable } = require("formidable");
+const { google } = require("googleapis");
 
 const PORT = process.env.PORT || 3000;
 const ROOT = __dirname;
-const DATA_DIR = path.join(ROOT, "data");
-const RSVP_FILE = path.join(DATA_DIR, "rsvps.json");
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -17,6 +18,43 @@ const MIME_TYPES = {
   ".png": "image/png",
   ".svg": "image/svg+xml",
   ".webp": "image/webp",
+};
+
+const TAB_SCHEMAS = {
+  rsvps: [
+    "submission_id",
+    "submitted_at",
+    "rsvp_status",
+    "full_name",
+    "email",
+    "phone",
+    "party_size",
+    "when_will_you_know",
+    "dietary_restrictions",
+    "message_to_couple",
+    "primary_fun_facts",
+    "media_count",
+    "source",
+    "approved",
+  ],
+  guests: [
+    "submission_id",
+    "guest_index",
+    "guest_name",
+    "fun_facts",
+    "is_primary",
+    "created_at",
+  ],
+  media: [
+    "submission_id",
+    "file_index",
+    "file_id",
+    "file_name",
+    "mime_type",
+    "file_type",
+    "drive_view_url",
+    "created_at",
+  ],
 };
 
 function extractYearPrefix(filename) {
@@ -37,30 +75,13 @@ function getRequestBody(req) {
     let raw = "";
     req.on("data", (chunk) => {
       raw += chunk;
-      if (raw.length > 1_000_000) {
+      if (raw.length > 5_000_000) {
         reject(new Error("Payload too large"));
       }
     });
     req.on("end", () => resolve(raw));
     req.on("error", reject);
   });
-}
-
-function appendRsvp(record) {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-
-  let existing = [];
-  if (fs.existsSync(RSVP_FILE)) {
-    try {
-      existing = JSON.parse(fs.readFileSync(RSVP_FILE, "utf8"));
-      if (!Array.isArray(existing)) existing = [];
-    } catch (_error) {
-      existing = [];
-    }
-  }
-
-  existing.push(record);
-  fs.writeFileSync(RSVP_FILE, JSON.stringify(existing, null, 2), "utf8");
 }
 
 function safePath(urlPath) {
@@ -99,6 +120,414 @@ function serveStaticFile(res, filePath) {
   send(res, 200, fs.readFileSync(filePath), mime);
 }
 
+function normalizeFieldValue(value) {
+  if (Array.isArray(value)) return normalizeFieldValue(value[0]);
+  if (value === undefined || value === null) return "";
+  return String(value).trim();
+}
+
+function inferSource(userAgent, viewportWidthRaw) {
+  const viewportWidth = Number.parseInt(normalizeFieldValue(viewportWidthRaw), 10);
+  if (Number.isFinite(viewportWidth) && viewportWidth > 0) {
+    return viewportWidth <= 860 ? "mobile" : "web";
+  }
+
+  const ua = String(userAgent || "").toLowerCase();
+  if (/iphone|ipad|ipod|android|mobile|blackberry|windows phone/.test(ua)) {
+    return "mobile";
+  }
+
+  return "web";
+}
+
+function parseMaybeInt(value) {
+  const parsed = Number.parseInt(normalizeFieldValue(value), 10);
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
+function safeJsonParse(raw, fallback) {
+  try {
+    return JSON.parse(raw);
+  } catch (_error) {
+    return fallback;
+  }
+}
+
+function normalizeGuests(guestsRaw) {
+  if (!Array.isArray(guestsRaw)) return [];
+  return guestsRaw
+    .map((guest) => {
+      if (!guest || typeof guest !== "object") return null;
+      return {
+        name: normalizeFieldValue(guest.name),
+        funFact: normalizeFieldValue(guest.funFact),
+      };
+    })
+    .filter(Boolean);
+}
+
+function normalizeUploadedFiles(parsedFiles) {
+  const collected = [];
+  Object.entries(parsedFiles || {}).forEach(([fieldName, fileOrFiles]) => {
+    const files = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles];
+    files.forEach((file) => {
+      if (!file) return;
+      const size = Number(file.size || 0);
+      if (size <= 0) return;
+      collected.push({ fieldName, file });
+    });
+  });
+
+  const orderFromField = (fieldName) => {
+    const match = String(fieldName || "").match(/photo(\d+)/i);
+    if (!match) return Number.POSITIVE_INFINITY;
+    return Number.parseInt(match[1], 10);
+  };
+
+  return collected
+    .sort((a, b) => orderFromField(a.fieldName) - orderFromField(b.fieldName))
+    .map((entry) => entry.file)
+    .slice(0, 3);
+}
+
+async function parseMultipartForm(req) {
+  const form = formidable({
+    multiples: true,
+    maxFiles: 3,
+    maxFileSize: 10 * 1024 * 1024,
+    allowEmptyFiles: false,
+    keepExtensions: true,
+  });
+
+  return new Promise((resolve, reject) => {
+    form.parse(req, (error, fields, files) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve({
+        fields,
+        files: normalizeUploadedFiles(files),
+      });
+    });
+  });
+}
+
+function getGoogleCredentials() {
+  const jsonRaw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (jsonRaw) {
+    const parsed = safeJsonParse(jsonRaw, null);
+    if (!parsed || typeof parsed !== "object") {
+      throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON is invalid JSON");
+    }
+    if (!parsed.client_email || !parsed.private_key) {
+      throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON must include client_email and private_key");
+    }
+    return {
+      client_email: String(parsed.client_email),
+      private_key: String(parsed.private_key).replace(/\\n/g, "\n"),
+    };
+  }
+
+  const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
+  if (!clientEmail || !privateKey) {
+    throw new Error("Missing Google credentials. Set GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY");
+  }
+
+  return {
+    client_email: String(clientEmail),
+    private_key: String(privateKey).replace(/\\n/g, "\n"),
+  };
+}
+
+function getRequiredGoogleIds() {
+  const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
+  const uploadsFolderId = process.env.GOOGLE_DRIVE_UPLOADS_FOLDER_ID;
+  if (!spreadsheetId) {
+    throw new Error("Missing GOOGLE_SPREADSHEET_ID");
+  }
+  if (!uploadsFolderId) {
+    throw new Error("Missing GOOGLE_DRIVE_UPLOADS_FOLDER_ID");
+  }
+  return { spreadsheetId, uploadsFolderId };
+}
+
+function createGoogleClients() {
+  const credentials = getGoogleCredentials();
+  const auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: [
+      "https://www.googleapis.com/auth/spreadsheets",
+      "https://www.googleapis.com/auth/drive",
+    ],
+  });
+
+  return {
+    sheets: google.sheets({ version: "v4", auth }),
+    drive: google.drive({ version: "v3", auth }),
+  };
+}
+
+async function getSheetHeaders(sheets, spreadsheetId, tabName) {
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: `${tabName}!1:1`,
+  });
+
+  const row = Array.isArray(response.data.values) ? response.data.values[0] : null;
+  if (!Array.isArray(row) || !row.length) {
+    throw new Error(`Tab '${tabName}' has no header row`);
+  }
+
+  return row.map((header) => normalizeFieldValue(header));
+}
+
+function assertHeadersPresent(headers, requiredHeaders, tabName) {
+  const missing = requiredHeaders.filter((header) => !headers.includes(header));
+  if (missing.length) {
+    throw new Error(`Tab '${tabName}' is missing required headers: ${missing.join(", ")}`);
+  }
+}
+
+function buildRowFromHeaders(headers, valuesByHeader) {
+  return headers.map((header) => {
+    const value = valuesByHeader[header];
+    if (value === undefined || value === null) return "";
+    return String(value);
+  });
+}
+
+async function appendRows(sheets, spreadsheetId, tabName, rows) {
+  if (!Array.isArray(rows) || !rows.length) return;
+  await sheets.spreadsheets.values.append({
+    spreadsheetId,
+    range: `${tabName}!A1`,
+    valueInputOption: "USER_ENTERED",
+    insertDataOption: "INSERT_ROWS",
+    requestBody: {
+      values: rows,
+    },
+  });
+}
+
+function deriveFileTypeFromMime(mimeType) {
+  const mime = String(mimeType || "").toLowerCase();
+  if (mime.startsWith("video/")) return "video";
+  return "image";
+}
+
+async function createSubmissionFolder(drive, parentFolderId, submissionId) {
+  const response = await drive.files.create({
+    requestBody: {
+      name: submissionId,
+      mimeType: "application/vnd.google-apps.folder",
+      parents: [parentFolderId],
+    },
+    fields: "id",
+  });
+
+  const folderId = response.data && response.data.id;
+  if (!folderId) {
+    throw new Error("Failed to create Drive submission folder");
+  }
+  return folderId;
+}
+
+async function uploadMediaFilesToDrive(drive, folderId, files) {
+  const uploaded = [];
+  for (let i = 0; i < files.length; i += 1) {
+    const file = files[i];
+    const mimeType = normalizeFieldValue(file.mimetype) || "application/octet-stream";
+    const originalName = normalizeFieldValue(file.originalFilename) || `upload-${i + 1}`;
+
+    const response = await drive.files.create({
+      requestBody: {
+        name: originalName,
+        parents: [folderId],
+        mimeType,
+      },
+      media: {
+        mimeType,
+        body: fs.createReadStream(file.filepath),
+      },
+      fields: "id,name,mimeType",
+    });
+
+    const fileId = response.data && response.data.id;
+    if (!fileId) {
+      throw new Error(`Failed to upload media file ${originalName}`);
+    }
+
+    uploaded.push({
+      fileIndex: i + 1,
+      fileId,
+      fileName: response.data.name || originalName,
+      mimeType: response.data.mimeType || mimeType,
+      fileType: deriveFileTypeFromMime(response.data.mimeType || mimeType),
+      driveViewUrl: `https://drive.google.com/file/d/${fileId}/view`,
+    });
+  }
+
+  return uploaded;
+}
+
+async function cleanupUploadedTempFiles(files) {
+  if (!Array.isArray(files) || !files.length) return;
+  await Promise.all(
+    files.map(async (file) => {
+      const filepath = file && file.filepath;
+      if (!filepath) return;
+      try {
+        await fs.promises.unlink(filepath);
+      } catch (_error) {
+        // ignore temp cleanup failures
+      }
+    }),
+  );
+}
+
+async function parseRsvpRequest(req) {
+  const contentType = String(req.headers["content-type"] || "").toLowerCase();
+  if (contentType.includes("multipart/form-data")) {
+    return parseMultipartForm(req);
+  }
+
+  const raw = await getRequestBody(req);
+  const payload = safeJsonParse(raw || "{}", {});
+  return {
+    fields: payload && typeof payload === "object" ? payload : {},
+    files: [],
+  };
+}
+
+function getField(fields, key, fallback = "") {
+  const raw = fields && Object.prototype.hasOwnProperty.call(fields, key) ? fields[key] : fallback;
+  return normalizeFieldValue(raw);
+}
+
+async function handleRsvpSubmission(req, res) {
+  let uploadedTempFiles = [];
+
+  try {
+    const { spreadsheetId, uploadsFolderId } = getRequiredGoogleIds();
+    const { sheets, drive } = createGoogleClients();
+
+    const { fields, files } = await parseRsvpRequest(req);
+    uploadedTempFiles = files;
+
+    const submissionId = randomUUID();
+    const nowIso = new Date().toISOString();
+
+    const rsvpStatusRaw = getField(fields, "status").toLowerCase();
+    const rsvpStatus = rsvpStatusRaw === "working" ? "maybe" : rsvpStatusRaw === "yes" || rsvpStatusRaw === "maybe" || rsvpStatusRaw === "no" ? rsvpStatusRaw : "";
+
+    const fullName = getField(fields, "fullName") || getField(fields, "guestName");
+    const email = getField(fields, "email");
+    const phone = getField(fields, "phone");
+    const messageToCouple = getField(fields, "message");
+    const dietaryRestrictions = getField(fields, "dietary");
+
+    const guestsRaw = safeJsonParse(getField(fields, "guests_json", "[]"), []);
+    const guests = normalizeGuests(guestsRaw);
+    const primaryFunFacts = getField(fields, "primaryFunFacts") || getField(fields, "primary_fun_facts") || (guests[0] ? guests[0].funFact : "");
+
+    const maybePartySize = parseMaybeInt(getField(fields, "partySize") || getField(fields, "potentialPartySize"));
+    const partySize = rsvpStatus === "maybe" && Number.isFinite(maybePartySize) ? String(maybePartySize) : "";
+    const whenWillYouKnow = rsvpStatus === "maybe" ? getField(fields, "whenWillYouKnow") || getField(fields, "followupChoice") : "";
+
+    const mediaCount = files.length;
+    const source = inferSource(getField(fields, "userAgent"), getField(fields, "viewportWidth"));
+
+    const tabHeaders = {
+      rsvps: await getSheetHeaders(sheets, spreadsheetId, "rsvps"),
+      guests: await getSheetHeaders(sheets, spreadsheetId, "guests"),
+      media: await getSheetHeaders(sheets, spreadsheetId, "media"),
+    };
+
+    assertHeadersPresent(tabHeaders.rsvps, TAB_SCHEMAS.rsvps, "rsvps");
+    assertHeadersPresent(tabHeaders.guests, TAB_SCHEMAS.guests, "guests");
+    assertHeadersPresent(tabHeaders.media, TAB_SCHEMAS.media, "media");
+
+    const rsvpRow = buildRowFromHeaders(tabHeaders.rsvps, {
+      submission_id: submissionId,
+      submitted_at: nowIso,
+      rsvp_status: rsvpStatus,
+      full_name: fullName,
+      email,
+      phone,
+      party_size: partySize,
+      when_will_you_know: whenWillYouKnow,
+      dietary_restrictions: dietaryRestrictions,
+      message_to_couple: messageToCouple,
+      primary_fun_facts: primaryFunFacts,
+      media_count: String(mediaCount),
+      source,
+      approved: "FALSE",
+    });
+
+    const guestRowsData = [];
+    guestRowsData.push(
+      buildRowFromHeaders(tabHeaders.guests, {
+        submission_id: submissionId,
+        guest_index: "1",
+        guest_name: fullName,
+        fun_facts: primaryFunFacts,
+        is_primary: "TRUE",
+        created_at: nowIso,
+      }),
+    );
+
+    let guestIndex = 2;
+    const additionalGuests = guests.slice(1);
+    additionalGuests.forEach((guest) => {
+      if (!guest.name) return;
+      guestRowsData.push(
+        buildRowFromHeaders(tabHeaders.guests, {
+          submission_id: submissionId,
+          guest_index: String(guestIndex),
+          guest_name: guest.name,
+          fun_facts: guest.funFact || "",
+          is_primary: "FALSE",
+          created_at: nowIso,
+        }),
+      );
+      guestIndex += 1;
+    });
+
+    const submissionFolderId = await createSubmissionFolder(drive, uploadsFolderId, submissionId);
+
+    let mediaRowsData = [];
+    if (files.length) {
+      const uploadedMedia = await uploadMediaFilesToDrive(drive, submissionFolderId, files);
+      mediaRowsData = uploadedMedia.map((item) =>
+        buildRowFromHeaders(tabHeaders.media, {
+          submission_id: submissionId,
+          file_index: String(item.fileIndex),
+          file_id: item.fileId,
+          file_name: item.fileName,
+          mime_type: item.mimeType,
+          file_type: item.fileType,
+          drive_view_url: item.driveViewUrl,
+          created_at: nowIso,
+        }),
+      );
+    }
+
+    await appendRows(sheets, spreadsheetId, "rsvps", [rsvpRow]);
+    await appendRows(sheets, spreadsheetId, "guests", guestRowsData);
+    await appendRows(sheets, spreadsheetId, "media", mediaRowsData);
+
+    send(res, 200, JSON.stringify({ ok: true, submission_id: submissionId }), MIME_TYPES[".json"]);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "RSVP submission failed";
+    send(res, 500, JSON.stringify({ ok: false, error: message }), MIME_TYPES[".json"]);
+  } finally {
+    await cleanupUploadedTempFiles(uploadedTempFiles);
+  }
+}
+
 const server = http.createServer(async (req, res) => {
   const pathname = decodeURIComponent((req.url || "/").split("?")[0] || "/");
 
@@ -113,23 +542,12 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (pathname === "/api/rsvp" && req.method === "POST") {
-    try {
-      const raw = await getRequestBody(req);
-      const payload = JSON.parse(raw || "{}");
-      appendRsvp(payload);
-      send(res, 200, JSON.stringify({ ok: true }), MIME_TYPES[".json"]);
-    } catch (error) {
-      send(res, 400, JSON.stringify({ ok: false, error: error.message }), MIME_TYPES[".json"]);
-    }
+    await handleRsvpSubmission(req, res);
     return;
   }
 
   if (pathname === "/api/rsvp" && req.method === "GET") {
-    if (!fs.existsSync(RSVP_FILE)) {
-      send(res, 200, "[]", MIME_TYPES[".json"]);
-      return;
-    }
-    send(res, 200, fs.readFileSync(RSVP_FILE, "utf8"), MIME_TYPES[".json"]);
+    send(res, 200, JSON.stringify({ ok: true, message: "RSVP API is active" }), MIME_TYPES[".json"]);
     return;
   }
 
@@ -228,5 +646,5 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`Wedding site running at http://localhost:${PORT}`);
-  console.log(`RSVP submissions saved to ${RSVP_FILE}`);
+  console.log("RSVP submissions will be written to Google Sheets + Google Drive");
 });

@@ -3126,6 +3126,7 @@ function buildPayload() {
       })
       .filter(Boolean),
     userAgent: navigator.userAgent || "",
+    viewportWidth: window.innerWidth || 0,
   };
 }
 
@@ -3145,6 +3146,7 @@ function buildRsvpFormData(payload) {
   formData.append("whenWillYouKnow", payload.whenWillYouKnow || "");
   formData.append("followupChoice", payload.followupChoice || "");
   formData.append("userAgent", payload.userAgent || "");
+  formData.append("viewportWidth", String(payload.viewportWidth || 0));
 
   selectedUploadFiles.forEach((file, index) => {
     if (!file) return;
