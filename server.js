@@ -214,7 +214,7 @@ async function parseMultipartForm(req) {
   });
 }
 
-function getGoogleCredentials() {
+function getServiceAccountCredentials() {
   const jsonRaw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (jsonRaw) {
     const parsed = safeJsonParse(jsonRaw, null);
@@ -255,14 +255,25 @@ function getRequiredGoogleIds() {
 }
 
 function createGoogleClients() {
-  const credentials = getGoogleCredentials();
-  const auth = new google.auth.GoogleAuth({
-    credentials,
-    scopes: [
-      "https://www.googleapis.com/auth/spreadsheets",
-      "https://www.googleapis.com/auth/drive",
-    ],
-  });
+  const oauthClientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const oauthClientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  const oauthRefreshToken = process.env.GOOGLE_OAUTH_REFRESH_TOKEN;
+
+  let auth;
+  if (oauthClientId && oauthClientSecret && oauthRefreshToken) {
+    const oauth2Client = new google.auth.OAuth2(oauthClientId, oauthClientSecret);
+    oauth2Client.setCredentials({ refresh_token: oauthRefreshToken });
+    auth = oauth2Client;
+  } else {
+    const credentials = getServiceAccountCredentials();
+    auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive",
+      ],
+    });
+  }
 
   return {
     sheets: google.sheets({ version: "v4", auth }),

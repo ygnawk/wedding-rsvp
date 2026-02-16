@@ -31,6 +31,11 @@ Copy `.env.example` to `.env` and set:
 Or set:
 - `GOOGLE_SERVICE_ACCOUNT_JSON` (stringified service account JSON)
 
+If you are using a personal Google account (no Shared drives), use OAuth user creds instead:
+- `GOOGLE_OAUTH_CLIENT_ID`
+- `GOOGLE_OAUTH_CLIENT_SECRET`
+- `GOOGLE_OAUTH_REFRESH_TOKEN`
+
 Do not commit `.env`.
 
 ### Google setup
@@ -40,6 +45,17 @@ Do not commit `.env`.
    - Drive scope (`https://www.googleapis.com/auth/drive`)
 2. Share the target spreadsheet with the service account email (Editor).
 3. Share the target Drive upload folder with the service account email (Editor).
+
+For personal Google Drive uploads (no Shared drives), use OAuth user credentials:
+1. Create OAuth Client ID in Google Cloud (`APIs & Services` -> `Credentials` -> `Create Credentials` -> `OAuth client ID` -> `Web application`).
+2. Add redirect URI: `https://developers.google.com/oauthplayground`.
+3. Open OAuth Playground, click gear icon, enable `Use your own OAuth credentials`.
+4. Paste your OAuth Client ID + Secret.
+5. Authorize scopes:
+   - `https://www.googleapis.com/auth/spreadsheets`
+   - `https://www.googleapis.com/auth/drive.file`
+6. Exchange authorization code for tokens.
+7. Copy refresh token into `.env` as `GOOGLE_OAUTH_REFRESH_TOKEN`.
 
 ### Required sheet tabs and headers (row 1)
 
