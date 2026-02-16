@@ -1473,6 +1473,7 @@ function ensureHotelMethodOverlay() {
       <li>Y-axis: estimated drive time (mins) to the wedding venue (traffic dependent).</li>
       <li>X-axis: nightly price bands in USD ($: under 150, $$: 150–300, $$$: 301–500, $$$$: 500+).</li>
       <li>Only hotels rated ≥ 9.0 on Expedia are shown.</li>
+      <li>Shaded area = best value zone (lower price + shorter drive time).</li>
       <li>No footnotes, no appendix — our AI analyst “Chat” ran the numbers. I already did my six-year consultant sentence.</li>
     </ul>
   `;
@@ -1872,6 +1873,45 @@ function renderHotelMatrix() {
     const ratio = (minutes - driveDomainMin) / (driveDomainMax - driveDomainMin);
     return clamp(0.04 + ratio * 0.92, 0.04, 0.96);
   };
+
+  const bestValueDriveCutoff = Math.min(15, driveDomainMax);
+  const bestValueYNorm = mapDriveMins(bestValueDriveCutoff);
+  const bestValueTopY = margins.top + (1 - bestValueYNorm) * plotHeight;
+  const bestValueZoneX = margins.left;
+  const bestValueZoneWidth = plotWidth * 0.5;
+  const bestValueZoneHeight = margins.top + plotHeight - bestValueTopY;
+
+  hotelMatrixSvg.appendChild(
+    createSvgNode("rect", {
+      class: "hotel-map-best-value-zone",
+      x: bestValueZoneX,
+      y: bestValueTopY,
+      width: bestValueZoneWidth,
+      height: bestValueZoneHeight,
+      rx: 10,
+      ry: 10,
+    }),
+  );
+
+  const bestValueLabel = createSvgNode("text", {
+    class: "hotel-map-best-value-label",
+    x: bestValueZoneX + 12,
+    y: bestValueTopY + 14,
+    "text-anchor": "start",
+  });
+  bestValueLabel.textContent = "Best value";
+  hotelMatrixSvg.appendChild(bestValueLabel);
+
+  if (!isCompact) {
+    const bestValueSubtext = createSvgNode("text", {
+      class: "hotel-map-best-value-subtext",
+      x: bestValueZoneX + 12,
+      y: bestValueTopY + 30,
+      "text-anchor": "start",
+    });
+    bestValueSubtext.textContent = "Closest + most affordable sweet spot.";
+    hotelMatrixSvg.appendChild(bestValueSubtext);
+  }
 
   hotelMatrixSvg.appendChild(
     createSvgNode("line", {

@@ -3282,6 +3282,28 @@ details[open] .faq-answer {
   stroke-dasharray: 3 6;
 }
 
+.hotel-map-best-value-zone {
+  fill: rgba(201, 174, 116, 0.08);
+  stroke: rgba(201, 174, 116, 0.28);
+  stroke-width: 1;
+  stroke-dasharray: 4 5;
+}
+
+.hotel-map-best-value-label {
+  fill: rgba(75, 15, 23, 0.86);
+  font-family: var(--bodyFont);
+  font-size: 11px;
+  font-weight: 620;
+  letter-spacing: 0.04em;
+}
+
+.hotel-map-best-value-subtext {
+  fill: rgba(75, 15, 23, 0.7);
+  font-family: var(--bodyFont);
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+}
+
 .hotel-map-label {
   fill: rgba(75, 15, 23, 0.72);
   font-family: var(--bodyFont);
