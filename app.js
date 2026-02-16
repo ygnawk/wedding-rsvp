@@ -87,7 +87,8 @@ const hotelMatrixSheetClose = document.getElementById("hotelMatrixSheetClose");
 const hotelMatrixSheetCloseControls = hotelMatrixSheet ? Array.from(hotelMatrixSheet.querySelectorAll("[data-sheet-close], #hotelMatrixSheetClose")) : [];
 const hotelMatrixRatingClaim = document.getElementById("hotelMatrixRatingClaim");
 const hotelMethodTrigger = document.getElementById("hotelMethodTrigger");
-const hotelMethodTooltip = document.getElementById("hotelMethodTooltip");
+let hotelMethodTooltip = null;
+let hotelMethodBackdrop = null;
 
 const galleryGrid = document.getElementById("galleryGrid");
 const galleryLightbox = document.getElementById("lightbox");
@@ -171,6 +172,7 @@ let hotelMatrixWidth = 760;
 let hotelMatrixHeight = 460;
 let hotelMethodOpen = false;
 let hotelMethodCloseTimer = null;
+let hotelMethodPinned = false;
 let makanTipOpen = false;
 let makanTypeAccordions = [];
 let makanBulkToggle = false;
@@ -1244,6 +1246,34 @@ function getActiveHotelMatrixId() {
   return hotelMatrixPinnedId || "";
 }
 
+function ensureHotelMethodOverlay() {
+  if (hotelMethodTooltip && hotelMethodBackdrop) return;
+
+  hotelMethodBackdrop = document.createElement("button");
+  hotelMethodBackdrop.type = "button";
+  hotelMethodBackdrop.className = "hotel-method-backdrop";
+  hotelMethodBackdrop.setAttribute("aria-label", "Close methodology notes");
+  hotelMethodBackdrop.hidden = true;
+
+  hotelMethodTooltip = document.createElement("div");
+  hotelMethodTooltip.id = "hotelMethodOverlay";
+  hotelMethodTooltip.className = "hotel-method-tooltip";
+  hotelMethodTooltip.setAttribute("role", "tooltip");
+  hotelMethodTooltip.hidden = true;
+  hotelMethodTooltip.setAttribute("aria-hidden", "true");
+  hotelMethodTooltip.innerHTML = `
+    <p class="hotel-method-tooltip-title">METHODOLOGY</p>
+    <p class="hotel-method-tooltip-body">
+      Comfort uses guest reviews. Price uses a public nightly-rate snapshot.
+      <br />
+      We had a deluge of hotel tabs. A consultant did what they do: made a matrix. ChatGPT helped with the synthesis. Please don’t ask for the appendix.
+    </p>
+  `;
+
+  document.body.appendChild(hotelMethodBackdrop);
+  document.body.appendChild(hotelMethodTooltip);
+}
+
 function positionHotelMethodTooltip() {
   if (!hotelMethodTrigger || !hotelMethodTooltip || hotelMethodTooltip.hidden) return;
 
@@ -1265,16 +1295,26 @@ function positionHotelMethodTooltip() {
   hotelMethodTooltip.style.top = `${top}px`;
 }
 
-function closeHotelMethodologyTooltip() {
+function closeHotelMethodologyTooltip(resetPinned = true) {
   if (!hotelMethodTooltip || !hotelMethodTrigger) return;
+  if (hotelMethodCloseTimer) {
+    window.clearTimeout(hotelMethodCloseTimer);
+    hotelMethodCloseTimer = null;
+  }
+  if (hotelMethodBackdrop) hotelMethodBackdrop.hidden = true;
   hotelMethodTooltip.hidden = true;
   hotelMethodTooltip.setAttribute("aria-hidden", "true");
   hotelMethodTrigger.setAttribute("aria-expanded", "false");
   hotelMethodOpen = false;
+  if (resetPinned) hotelMethodPinned = false;
 }
 
-function openHotelMethodologyTooltip() {
-  if (!hotelMethodTooltip || !hotelMethodTrigger) return;
+function openHotelMethodologyTooltip({ pinned = false } = {}) {
+  if (!hotelMethodTrigger) return;
+  ensureHotelMethodOverlay();
+  if (!hotelMethodTooltip || !hotelMethodBackdrop) return;
+  hotelMethodPinned = pinned;
+  hotelMethodBackdrop.hidden = false;
   hotelMethodTooltip.hidden = false;
   hotelMethodTooltip.setAttribute("aria-hidden", "false");
   hotelMethodTrigger.setAttribute("aria-expanded", "true");
@@ -1282,31 +1322,23 @@ function openHotelMethodologyTooltip() {
   positionHotelMethodTooltip();
 }
 
-function toggleHotelMethodologyTooltip() {
-  if (hotelMethodOpen) {
-    closeHotelMethodologyTooltip();
-  } else {
-    openHotelMethodologyTooltip();
-  }
-}
-
 function initHotelMethodology() {
-  if (!hotelMethodTrigger || !hotelMethodTooltip) return;
+  if (!hotelMethodTrigger) return;
   if (hotelMethodTrigger.dataset.bound === "true") return;
+  ensureHotelMethodOverlay();
+  if (!hotelMethodTooltip || !hotelMethodBackdrop) return;
 
   closeHotelMethodologyTooltip();
 
   const openIfDesktop = () => {
     if (isCoarsePointer()) return;
-    if (hotelMethodCloseTimer) {
-      window.clearTimeout(hotelMethodCloseTimer);
-      hotelMethodCloseTimer = null;
-    }
-    openHotelMethodologyTooltip();
+    if (hotelMethodPinned) return;
+    openHotelMethodologyTooltip({ pinned: false });
   };
 
   const closeIfDesktop = () => {
     if (isCoarsePointer()) return;
+    if (hotelMethodPinned) return;
     if (hotelMethodCloseTimer) window.clearTimeout(hotelMethodCloseTimer);
     hotelMethodCloseTimer = window.setTimeout(() => {
       closeHotelMethodologyTooltip();
@@ -1337,12 +1369,8 @@ function initHotelMethodology() {
 
   hotelMethodTrigger.addEventListener("click", (event) => {
     event.preventDefault();
-    if (isCoarsePointer()) {
-      toggleHotelMethodologyTooltip();
-      return;
-    }
-    if (hotelMethodOpen) closeHotelMethodologyTooltip();
-    else openHotelMethodologyTooltip();
+    if (hotelMethodOpen && hotelMethodPinned) closeHotelMethodologyTooltip();
+    else openHotelMethodologyTooltip({ pinned: true });
   });
 
   document.addEventListener("keydown", (event) => {
@@ -1375,19 +1403,6 @@ function initHotelMethodology() {
   );
 
   hotelMethodTrigger.dataset.bound = "true";
-}
-
-function buildHotelEmptyState() {
-  const empty = document.createElement("div");
-  empty.className = "hotel-map-empty";
-  const title = document.createElement("p");
-  title.className = "hotel-map-empty-title";
-  title.textContent = "Click a dot to see details.";
-  const body = document.createElement("p");
-  body.textContent = "Tap a dot on mobile. Click again to clear.";
-  empty.appendChild(title);
-  empty.appendChild(body);
-  return empty;
 }
 
 function hideHotelDotTooltip() {
@@ -1482,33 +1497,17 @@ function buildHotelDetailsCard(item) {
 }
 
 function swapHotelDetails(item) {
-  if (!hotelMatrixDetails) return;
-  const nextNode = item ? buildHotelDetailsCard(item) : buildHotelEmptyState();
-  const nextId = item ? item.id : "";
-
-  if (hotelMatrixDetails.dataset.hotelId === nextId) return;
-
+  if (!hotelMatrixDetails || !item) return;
   if (hotelDetailsSwapTimer) {
     window.clearTimeout(hotelDetailsSwapTimer);
     hotelDetailsSwapTimer = null;
   }
 
-  if (reducedMotion || hotelMatrixDetails.dataset.ready !== "true") {
-    hotelMatrixDetails.replaceChildren(nextNode);
-    hotelMatrixDetails.dataset.hotelId = nextId;
-    hotelMatrixDetails.dataset.ready = "true";
-    return;
-  }
+  const nextId = item.id;
+  if (hotelMatrixDetails.dataset.hotelId === nextId) return;
 
-  hotelMatrixDetails.classList.add("is-fading");
-  hotelDetailsSwapTimer = window.setTimeout(() => {
-    hotelMatrixDetails.replaceChildren(nextNode);
-    hotelMatrixDetails.dataset.hotelId = nextId;
-    hotelMatrixDetails.classList.remove("is-fading");
-    hotelMatrixDetails.classList.add("is-entering");
-    window.requestAnimationFrame(() => hotelMatrixDetails.classList.remove("is-entering"));
-    hotelDetailsSwapTimer = null;
-  }, 150);
+  hotelMatrixDetails.replaceChildren(buildHotelDetailsCard(item));
+  hotelMatrixDetails.dataset.hotelId = nextId;
 }
 
 function openHotelMatrixSheet(item) {
@@ -1543,7 +1542,25 @@ function applyHotelMatrixSelection() {
   });
 
   const pinnedHotel = getHotelById(selectedId);
-  swapHotelDetails(pinnedHotel || null);
+  if (pinnedHotel) {
+    swapHotelDetails(pinnedHotel);
+    hotelMatrixDetails.classList.add("is-visible");
+  } else if (hotelMatrixDetails) {
+    hotelMatrixDetails.classList.remove("is-visible");
+    hotelMatrixDetails.dataset.hotelId = "";
+    if (hotelDetailsSwapTimer) {
+      window.clearTimeout(hotelDetailsSwapTimer);
+      hotelDetailsSwapTimer = null;
+    }
+    if (reducedMotion) {
+      hotelMatrixDetails.replaceChildren();
+    } else {
+      hotelDetailsSwapTimer = window.setTimeout(() => {
+        if (!hotelMatrixPinnedId && hotelMatrixDetails) hotelMatrixDetails.replaceChildren();
+        hotelDetailsSwapTimer = null;
+      }, 210);
+    }
+  }
   hideHotelDotTooltip();
 }
 
@@ -1847,7 +1864,9 @@ function initHotelMatrix() {
   }
 
   if (hotelMatrixTooltip) hideHotelDotTooltip();
-  swapHotelDetails(null);
+  hotelMatrixDetails.classList.remove("is-visible");
+  hotelMatrixDetails.replaceChildren();
+  hotelMatrixDetails.dataset.hotelId = "";
 
   if (hotelMatrixSvg.dataset.bound !== "true") {
     hotelMatrixSvg.addEventListener("click", (event) => {
