@@ -1455,6 +1455,12 @@ a:focus-visible,
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, opacity 160ms ease;
+}
+
+.story-timeline-nav:hover,
+.story-timeline-nav:focus-visible {
+  transform: none;
 }
 
 .story-timeline-nav[disabled] {
@@ -1791,6 +1797,12 @@ a:focus-visible,
   font-size: 30px;
   line-height: 1;
   z-index: 3;
+  transition: background-color 160ms ease, border-color 160ms ease, opacity 160ms ease;
+}
+
+.story-lightbox-btn:hover,
+.story-lightbox-btn:focus-visible {
+  transform: translateY(-50%);
 }
 
 .story-lightbox-btn--prev {
@@ -4207,12 +4219,17 @@ details[open] .faq-answer {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background 160ms ease, transform 160ms ease, border-color 160ms ease;
+  transition: background 160ms ease, border-color 160ms ease, opacity 160ms ease;
 }
 
 .lightbox-btn:hover {
+  transform: translateY(-50%);
   background: rgba(201, 174, 116, 0.2);
   border-color: rgba(201, 174, 116, 0.75);
+}
+
+.lightbox-btn:focus-visible {
+  transform: translateY(-50%);
 }
 
 .lightbox-btn--prev {
