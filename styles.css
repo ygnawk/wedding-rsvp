@@ -4065,12 +4065,19 @@ details[open] .faq-answer {
 
 .makan-tip-row {
   position: relative;
-  margin-top: 16px;
   display: inline-flex;
 }
 
+.makan-controls-row {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .makan-tip-trigger {
-  min-height: 44px;
+  min-height: 42px;
   border-radius: 999px;
   border: 1px solid rgba(201, 174, 116, 0.42);
   background: rgba(247, 241, 230, 0.08);
@@ -4112,10 +4119,10 @@ details[open] .faq-answer {
 }
 
 .makan-controls {
-  margin-top: 12px;
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .makan-control-btn {
@@ -4211,21 +4218,21 @@ details[open] .faq-answer {
 .makan-type-items {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .makan-item {
   border-radius: 16px;
   border: 1px solid rgba(201, 174, 116, 0.24);
   background: #4b0f17;
-  padding: 16px 18px;
+  padding: 16px;
   display: grid;
-  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
   grid-template-areas:
     "meta desc"
     "actions desc";
   column-gap: 16px;
-  row-gap: 10px;
+  row-gap: 8px;
   align-items: start;
 }
 
@@ -4233,22 +4240,14 @@ details[open] .faq-answer {
   grid-area: meta;
   min-width: 0;
   display: grid;
-  gap: 8px;
+  gap: 7px;
 }
 
 .makan-meta-row {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) 28px;
-  align-items: start;
-  column-gap: 10px;
-}
-
-.makan-meta-label {
-  margin-top: 2px;
-  opacity: 0.72;
-  font-size: 0.68rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  align-items: center;
+  column-gap: 8px;
 }
 
 .makan-meta-value {
@@ -4273,7 +4272,7 @@ details[open] .faq-answer {
 .makan-item-panel {
   grid-area: desc;
   display: grid;
-  gap: 12px;
+  gap: 8px;
   align-content: start;
 }
 
@@ -4281,7 +4280,7 @@ details[open] .faq-answer {
   margin: 0;
   color: rgba(247, 241, 230, 0.88);
   font-size: 0.94rem;
-  line-height: 1.5;
+  line-height: 1.57;
 }
 
 .makan-address-text {
@@ -4300,7 +4299,7 @@ details[open] .faq-answer {
 
 .makan-item-actions {
   grid-area: actions;
-  margin-top: 2px;
+  margin-top: 10px;
 }
 
 .makan-link {
@@ -4353,11 +4352,6 @@ details[open] .faq-answer {
   letter-spacing: 0;
   line-height: 1;
   cursor: pointer;
-}
-
-.makan-copy-icon-spacer {
-  width: 28px;
-  height: 28px;
 }
 
 .makan-legal-row {
@@ -4523,7 +4517,7 @@ details[open] .faq-answer {
   }
 
   .makan-meta-row {
-    grid-template-columns: 42px minmax(0, 1fr) 28px;
+    grid-template-columns: minmax(0, 1fr) 28px;
   }
 
   .makan-legal-popover {
@@ -4939,6 +4933,14 @@ body.modal-open {
   margin: 10px 0 20px;
   opacity: 0.92;
   line-height: 1.6;
+}
+
+@media (min-width: 761px) {
+  .ourstory-lede,
+  .makan-intro,
+  .travel-intro {
+    max-width: clamp(720px, 78vw, 980px);
+  }
 }
 
 .travel-selector {

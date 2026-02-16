@@ -1185,13 +1185,10 @@ function buildMakanRestaurantItem(place) {
   meta.className = "makan-item-main";
 
   const createMetaRow = ({ label, value, copyValue, valueClass, rowClass }) => {
+    if (!value) return null;
     const rowEl = document.createElement("div");
     rowEl.className = `makan-meta-row ${rowClass || ""}`.trim();
-
-    const metaLabel = document.createElement("span");
-    metaLabel.className = "makan-meta-label";
-    metaLabel.textContent = label;
-    rowEl.appendChild(metaLabel);
+    rowEl.dataset.metaType = String(label || "").toLowerCase();
 
     const metaValue = document.createElement("span");
     metaValue.className = `makan-meta-value ${valueClass || ""}`.trim();
@@ -1210,11 +1207,6 @@ function buildMakanRestaurantItem(place) {
           title: "Copy",
         }),
       );
-    } else {
-      const spacer = document.createElement("span");
-      spacer.className = "makan-copy-icon-spacer";
-      spacer.setAttribute("aria-hidden", "true");
-      rowEl.appendChild(spacer);
     }
     return rowEl;
   };
