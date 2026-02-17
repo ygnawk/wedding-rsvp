@@ -5580,17 +5580,18 @@ a.makan-copy-icon-btn {
 }
 
 .guestwall-control-btn {
-  min-height: 36px;
-  padding: 0 12px;
+  min-height: 40px;
+  padding: 0 14px;
   border-radius: 999px;
-  border: 1px solid rgba(201, 174, 116, 0.55);
-  background: rgba(247, 241, 230, 0.94);
-  color: rgba(75, 15, 23, 0.94);
+  border: 1px solid rgba(128, 70, 70, 0.35);
+  background: #f6f0e6;
+  color: var(--maroonDeep);
   font-size: 14px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: border-color 180ms ease, background-color 180ms ease, color 180ms ease;
+  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease, transform 140ms ease,
+    box-shadow 140ms ease;
 }
 
 .guestwall-control-link {
@@ -5602,20 +5603,36 @@ a.makan-copy-icon-btn {
 
 .guestwall-control-btn:hover,
 .guestwall-control-btn:focus-visible {
-  border-color: rgba(201, 174, 116, 0.8);
-  background: rgba(201, 174, 116, 0.16);
-  color: var(--maroonDeep);
+  border-color: rgba(128, 70, 70, 0.55);
+  background: rgba(246, 240, 230, 0.92);
+  box-shadow: 0 6px 16px rgba(19, 8, 8, 0.14);
 }
 
 .guestwall-control-btn.is-paused {
-  border-color: rgba(201, 174, 116, 0.82);
-  background: rgba(201, 174, 116, 0.24);
+  border-color: rgba(128, 70, 70, 0.55);
+  background: #f6f0e6;
 }
 
 .guestwall-control-btn.is-disabled,
 .guestwall-control-btn[aria-disabled="true"] {
   opacity: 0.5;
   pointer-events: none;
+}
+
+.guestwall-control-btn:active {
+  transform: scale(0.98);
+  background: rgba(246, 240, 230, 0.92);
+  box-shadow: 0 4px 12px rgba(19, 8, 8, 0.12);
+}
+
+.guestwall-control-btn.flash {
+  background: rgba(246, 240, 230, 0.85);
+  box-shadow: 0 6px 18px rgba(19, 8, 8, 0.18);
+}
+
+.guestwall-control-btn:focus-visible {
+  outline: 2px solid rgba(201, 174, 116, 0.75);
+  outline-offset: 2px;
 }
 
 .guestwall-status {
@@ -5631,7 +5648,7 @@ a.makan-copy-icon-btn {
   border-radius: calc(var(--radius) + 4px);
   border: 1px solid rgba(201, 174, 116, 0.35);
   background: linear-gradient(145deg, rgba(252, 246, 236, 0.98), rgba(244, 234, 218, 0.95));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65), 0 12px 30px rgba(27, 7, 10, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65), 0 14px 32px rgba(27, 7, 10, 0.1);
   overflow: hidden;
 }
 
@@ -5639,8 +5656,18 @@ a.makan-copy-icon-btn {
   content: "";
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(circle at 20% 18%, rgba(201, 174, 116, 0.12), transparent 52%),
+  background-image:
+    radial-gradient(circle at 48% 42%, rgba(255, 252, 246, 0.35) 0%, rgba(255, 252, 246, 0) 58%),
+    radial-gradient(circle at 20% 18%, rgba(201, 174, 116, 0.12), transparent 52%),
     radial-gradient(circle at 78% 82%, rgba(75, 15, 23, 0.07), transparent 48%);
+  pointer-events: none;
+}
+
+.guestwall-pinboard::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 45%, rgba(0, 0, 0, 0) 48%, rgba(23, 12, 10, 0.13) 100%);
   pointer-events: none;
 }
 
@@ -5650,10 +5677,11 @@ a.makan-copy-icon-btn {
   top: calc(var(--gw-top, 0) * 1% + var(--gw-y-offset, 0px));
   width: var(--gw-card-width, clamp(180px, 22vw, 230px));
   --gw-scale: 1;
-  transform: translate(-50%, -50%) rotate(var(--gw-rotate, 0deg)) scale(var(--gw-scale));
+  transform: translate(-50%, -50%) rotate(var(--gw-rotate, 0deg)) skewX(var(--gw-skew-x, 0deg))
+    skewY(var(--gw-skew-y, 0deg)) scale(var(--gw-scale));
   transform-origin: center center;
   z-index: var(--gw-z, 2);
-  transition: transform 260ms var(--ease-out);
+  transition: transform 260ms var(--ease-out), filter 260ms var(--ease-out);
 }
 
 .guestwall-slot:hover,
@@ -5706,11 +5734,34 @@ a.makan-copy-icon-btn {
 
 .guestwall-item--polaroid {
   position: relative;
+  aspect-ratio: 72 / 86;
+  --gw-m-side: 8%;
+  --gw-m-top: 7%;
+  --gw-m-bottom: 22%;
+  --gw-photo-window-ratio: 1 / 1;
   background: var(--gwPolaroidTone, #5a1720);
   border-radius: 2px;
-  border: 1px solid rgba(15, 8, 12, 0.5);
-  padding: 13px;
-  box-shadow: 0 12px 22px rgba(15, 8, 9, 0.22);
+  border: 1px solid rgba(15, 8, 12, 0.46);
+  padding: 0;
+  box-shadow: 12px 18px 30px rgba(15, 8, 9, 0.26), 2px 3px 8px rgba(15, 8, 9, 0.11);
+}
+
+.guestwall-polaroid--mini {
+  aspect-ratio: 54 / 86;
+  --gw-photo-window-ratio: 62 / 46;
+}
+
+.guestwall-polaroid--square {
+  aspect-ratio: 72 / 86;
+  --gw-photo-window-ratio: 1 / 1;
+}
+
+.guestwall-polaroid--wide {
+  aspect-ratio: 108 / 86;
+  --gw-m-side: 6.8%;
+  --gw-m-top: 7%;
+  --gw-m-bottom: 20%;
+  --gw-photo-window-ratio: 99 / 62;
 }
 
 .guestwall-item--polaroid::before {
@@ -5727,18 +5778,27 @@ a.makan-copy-icon-btn {
 }
 
 .guestwall-polaroid-mat {
+  position: absolute;
+  inset: 0;
   border-radius: 2px;
-  padding: 9px 9px 11px;
-  background: rgba(251, 247, 241, 0.985);
-  border: 1px solid rgba(236, 226, 208, 0.96);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  padding: var(--gw-m-top) var(--gw-m-side) var(--gw-m-bottom);
+  background:
+    linear-gradient(178deg, rgba(255, 255, 255, 0.74), rgba(246, 240, 229, 0.92)),
+    radial-gradient(circle at 18% 14%, rgba(255, 255, 255, 0.24), transparent 46%),
+    radial-gradient(circle at 82% 84%, rgba(120, 97, 70, 0.08), transparent 50%),
+    repeating-linear-gradient(42deg, rgba(120, 98, 72, 0.018) 0 1px, transparent 1px 3px);
+  border: 1px solid rgba(229, 217, 196, 0.96);
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.72);
 }
 
 .guestwall-polaroid-media {
-  aspect-ratio: 4 / 5;
+  position: relative;
+  width: 100%;
+  aspect-ratio: var(--gw-photo-window-ratio, 1 / 1);
+  align-self: flex-start;
   border-radius: 1px;
   overflow: hidden;
-  background: rgba(244, 239, 230, 0.96);
+  background: rgba(244, 239, 230, 0.98);
   border: 1px solid rgba(228, 216, 193, 0.78);
 }
 
@@ -5766,6 +5826,62 @@ a.makan-copy-icon-btn {
 
 .guestwall-polaroid-media video {
   background: rgba(21, 21, 21, 0.18);
+}
+
+.guestwall-polaroid-signature {
+  position: absolute;
+  bottom: 10px;
+  max-width: 70%;
+  padding: 0 2px;
+  font-family: "Brush Script MT", "Segoe Script", "Snell Roundhand", cursive;
+  font-size: clamp(18px, 1.35vw, 24px);
+  font-weight: 600;
+  line-height: 1;
+  color: var(--gwSigInk, rgba(55, 16, 23, 0.9));
+  letter-spacing: var(--gwSigLetterSpacing, 0.2px);
+  opacity: 0.92;
+  transform: rotate(var(--gwSigAngle, -1.2deg));
+  text-shadow: var(--gwSigShadowX, 1px) var(--gwSigShadowY, 1px) 0 rgba(0, 0, 0, 0.08), -0.4px 0.4px 0 rgba(0, 0, 0, 0.05);
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.guestwall-polaroid-signature::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -6px;
+  width: 85%;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--gwSigStroke, rgba(75, 15, 23, 0.78));
+  opacity: 0.22;
+  transform: rotate(-2.2deg);
+}
+
+.guestwall-polaroid-signature--left {
+  left: var(--gwSigOffset, 12px);
+  right: auto;
+}
+
+.guestwall-polaroid-signature--right {
+  right: var(--gwSigOffset, 12px);
+  left: auto;
+  text-align: right;
+}
+
+.guestwall-item--polaroid.guestwall-polaroid--mini .guestwall-polaroid-signature {
+  font-size: clamp(18px, 1.15vw, 20px);
+}
+
+.guestwall-item--polaroid.guestwall-polaroid--square .guestwall-polaroid-signature {
+  font-size: clamp(20px, 1.3vw, 26px);
+}
+
+.guestwall-item--polaroid.guestwall-polaroid--wide .guestwall-polaroid-signature {
+  font-size: clamp(20px, 1.22vw, 24px);
 }
 
 .guestwall-media-fallback {
@@ -5827,40 +5943,34 @@ a.guestwall-media-retry {
 }
 
 .guestwall-polaroid-caption {
-  margin: 10px 0 0;
-  min-height: 24px;
-  padding: 10px 2px 0;
-  border-radius: 0;
-  background: transparent;
-  border: 0;
-  border-top: 1px solid rgba(225, 212, 190, 0.86);
-  font-size: 0.8rem;
-  color: rgba(62, 14, 22, 0.9);
-  font-weight: 500;
+  display: none !important;
 }
 
 .guestwall-item--note {
   position: relative;
-  border-radius: 12px 14px 13px 15px;
-  border: 1px solid rgba(122, 92, 48, 0.08);
+  border-radius: 4px;
+  border: 1px solid rgba(122, 92, 48, 0.06);
   background-color: var(--gwNotePaper, #faf3e8);
-  background-image:
-    linear-gradient(178deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.06)),
-    radial-gradient(circle at 18% 10%, rgba(255, 255, 255, 0.2), transparent 44%),
-    radial-gradient(circle at 84% 86%, rgba(125, 94, 56, 0.07), transparent 46%),
-    repeating-linear-gradient(47deg, rgba(119, 88, 52, 0.017) 0 1px, transparent 1px 3px);
-  padding: 14px 14px 12px;
-  box-shadow: 0 11px 22px rgba(14, 7, 8, 0.14), 0 2px 5px rgba(14, 7, 8, 0.06);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.08)),
+    radial-gradient(circle at 22% 14%, rgba(255, 255, 255, 0.16), transparent 48%),
+    radial-gradient(circle at 80% 88%, rgba(125, 94, 56, 0.05), transparent 46%),
+    repeating-linear-gradient(43deg, rgba(118, 88, 50, 0.015) 0 1px, transparent 1px 3px);
+  padding: 16px 16px 13px;
+  box-shadow: 6px 10px 16px rgba(14, 7, 8, 0.14), 1px 2px 4px rgba(14, 7, 8, 0.06);
   overflow: visible;
 }
 
-.guestwall-item--note::before {
-  content: "";
+.guestwall-note-fastener {
   position: absolute;
   top: var(--gwPinTop, -7px);
   right: var(--gwPinRight, auto);
   bottom: var(--gwPinBottom, auto);
   left: var(--gwPinLeft, auto);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.guestwall-note-fastener--pin {
   width: 11px;
   height: 11px;
   border-radius: 999px;
@@ -5868,39 +5978,110 @@ a.guestwall-media-retry {
   background-image: radial-gradient(circle at 34% 30%, rgba(255, 255, 255, 0.62) 0 28%, rgba(255, 255, 255, 0) 29%),
     radial-gradient(circle at 68% 78%, rgba(0, 0, 0, 0.2) 0 34%, rgba(0, 0, 0, 0) 66%);
   box-shadow: 0 2px 5px rgba(20, 10, 12, 0.26), 0 0 0 2px rgba(247, 241, 230, 0.88);
-  z-index: 2;
 }
 
-.guestwall-item--note::after {
+.guestwall-note-fastener--tape {
+  width: 34px;
+  height: 13px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(247, 241, 229, 0.9), rgba(242, 236, 220, 0.66));
+  border: 1px solid rgba(132, 112, 83, 0.16);
+  transform: rotate(var(--gwTapeAngle, -2deg));
+  box-shadow: 0 2px 6px rgba(21, 12, 9, 0.12);
+}
+
+.guestwall-note-fastener--clip {
+  width: 12px;
+  height: 16px;
+  border: 2px solid rgba(112, 110, 114, 0.8);
+  border-bottom: 0;
+  border-radius: 7px 7px 0 0;
+  background: transparent;
+  box-shadow: 1px 2px 3px rgba(18, 18, 18, 0.2);
+}
+
+.guestwall-note-fastener--clip::before {
   content: "";
   position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: -7px;
+  inset: 2px;
+  border: 2px solid rgba(190, 190, 194, 0.76);
+  border-bottom: 0;
+  border-radius: 5px 5px 0 0;
+}
+
+.guestwall-note--sticky {
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(255, 249, 214, 0.95), rgba(248, 236, 187, 0.9));
+  box-shadow: 0 11px 17px rgba(17, 9, 6, 0.13), inset 0 1px 0 rgba(255, 255, 255, 0.34);
+}
+
+.guestwall-note--sticky::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 22px;
+  height: 22px;
+  background: linear-gradient(135deg, rgba(166, 137, 90, 0.2) 0 50%, rgba(255, 247, 220, 0.88) 50% 100%);
+  clip-path: polygon(100% 0, 0 0, 100% 100%);
+  box-shadow: -1px 1px 2px rgba(60, 32, 20, 0.12);
+}
+
+.guestwall-note--notebook {
+  border-radius: 2px;
+  background-color: #f9f3e4;
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.4), rgba(252, 245, 230, 0.78)),
+    repeating-linear-gradient(180deg, transparent 0 19px, rgba(99, 132, 177, 0.22) 19px 20px),
+    linear-gradient(90deg, rgba(198, 93, 89, 0.24) 0 2px, transparent 2px);
+  background-size: auto, auto, auto;
+  background-position: 0 0, 0 6px, 22px 0;
+}
+
+.guestwall-note--notebook::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -10px;
   height: 12px;
-  background: var(--gwNotePaper, #faf3e8);
-  opacity: 0.93;
-  filter: blur(0.25px);
+  background: inherit;
   clip-path: polygon(
-    0 38%,
-    7% 61%,
-    14% 43%,
-    22% 64%,
-    30% 46%,
-    38% 66%,
-    46% 43%,
-    54% 68%,
-    62% 45%,
-    70% 64%,
-    78% 44%,
-    86% 62%,
-    93% 46%,
-    100% 58%,
-    100% 100%,
-    0 100%
+    0 100%,
+    4% 65%,
+    9% 92%,
+    14% 61%,
+    20% 93%,
+    26% 60%,
+    34% 94%,
+    42% 62%,
+    52% 95%,
+    61% 64%,
+    69% 90%,
+    77% 58%,
+    86% 91%,
+    93% 67%,
+    100% 100%
   );
-  pointer-events: none;
-  z-index: 0;
+}
+
+.guestwall-note--index {
+  border-radius: 1px;
+  border-color: rgba(177, 156, 122, 0.25);
+  background-color: #fbf5e7;
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(246, 236, 217, 0.82)),
+    repeating-linear-gradient(0deg, rgba(148, 119, 78, 0.03) 0 1px, transparent 1px 4px),
+    repeating-linear-gradient(90deg, rgba(148, 119, 78, 0.02) 0 1px, transparent 1px 5px);
+  box-shadow: 0 13px 21px rgba(16, 10, 8, 0.15), inset 0 0 0 1px rgba(255, 255, 255, 0.46);
+}
+
+.guestwall-note--letter {
+  border-radius: 3px 3px 2px 2px;
+  background-color: #f6edda;
+  background-image: linear-gradient(178deg, rgba(255, 255, 255, 0.38), rgba(244, 233, 205, 0.82)),
+    radial-gradient(circle at 25% 18%, rgba(255, 255, 255, 0.2), transparent 48%),
+    radial-gradient(circle at 82% 82%, rgba(155, 119, 83, 0.12), transparent 52%),
+    repeating-linear-gradient(43deg, rgba(138, 106, 72, 0.018) 0 1px, transparent 1px 3px);
+  box-shadow: 0 14px 24px rgba(13, 7, 8, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.45);
 }
 
 .guestwall-note-text {
@@ -6447,8 +6628,8 @@ a.guestwall-media-retry {
   }
 
   .guestwall-control-btn {
-    min-height: 34px;
-    padding: 0 11px;
+    min-height: 40px;
+    padding: 0 14px;
     font-size: 14px;
     letter-spacing: 0.07em;
   }

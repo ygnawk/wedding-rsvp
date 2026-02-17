@@ -25,10 +25,13 @@ const HOTEL_CONTENT_FADE_MS = 500;
 const MOBILE_GALLERY_DOT_MAX = 7;
 const GUEST_WALL_AUTOPLAY_INTERVAL_MS = 10000;
 const GUEST_WALL_PINBOARD_LIMIT = 12;
+const GUEST_WALL_PINBOARD_BUFFER_DESKTOP = 32;
+const GUEST_WALL_PINBOARD_BUFFER_MOBILE = 16;
+const GUEST_WALL_PREFETCH_THRESHOLD = 4;
 const GUEST_WALL_DESKTOP_VISIBLE_SLOTS = 12;
 const GUEST_WALL_MOBILE_VISIBLE_SLOTS = 8;
-const GUEST_WALL_SLOT_GAP_DESKTOP = 24;
-const GUEST_WALL_SLOT_GAP_MOBILE = 18;
+const GUEST_WALL_SLOT_GAP_DESKTOP = -10;
+const GUEST_WALL_SLOT_GAP_MOBILE = -8;
 const GUEST_WALL_SLOT_JITTER_DESKTOP = 10;
 const GUEST_WALL_SLOT_JITTER_MOBILE = 6;
 const GUEST_WALL_SWAP_FADE_OUT_MS = 200;
@@ -39,6 +42,7 @@ const GUEST_WALL_UNAVAILABLE_MESSAGE = "Guest Wall is temporarily unavailable.";
 const GUEST_WALL_READY_MESSAGE = "";
 const GUEST_WALL_POLAROID_TONES = ["#5a1720", "#1f3c35", "#203652", "#3f2f2b", "#4c2a42"];
 const GUEST_WALL_NOTE_TONES = ["#FAF3E8", "#F7EEDB", "#FFF4D8", "#F3E9D6"];
+const GUEST_WALL_NOTE_VARIANTS = ["sticky", "notebook", "index", "letter"];
 const GUEST_WALL_PIN_COLORS = ["#2F6F5E", "#2E5E86", "#C9A24A", "#6B1F2A"];
 const GUEST_WALL_PIN_CORNERS = ["top-left", "top-right", "bottom-left", "bottom-right"];
 const RSVP_SLOW_SUBMIT_DELAY_MS = 4000;
@@ -327,6 +331,8 @@ const guestWallDetailName = document.getElementById("guestWallDetailName");
 let galleryImages = [];
 let currentGalleryIndex = 0;
 let galleryTouchStartX = null;
+let bodyScrollLockCount = 0;
+let bodyScrollLockY = 0;
 let galleryScrollRaf = null;
 let guestWallCards = [];
 let guestWallCardById = new Map();
@@ -339,8 +345,12 @@ let guestWallMobileIndex = 0;
 let guestWallPaused = false;
 let guestWallDetailOpen = false;
 let guestWallResizeRaf = null;
+let guestWallLastViewportWidth = window.innerWidth || 0;
+let guestWallNextCursor = null;
+let guestWallPrefetchInFlight = null;
 let guestWallRequestInFlight = null;
 let guestWallLayoutCycle = 0;
+let guestWallActiveSlotConfig = [];
 let overflowDebugResizeTimer = null;
 let desktopMoreCloseTimer = null;
 let activeSectionId = "top";
@@ -506,63 +516,97 @@ const travelSourcesDisclosure = document.querySelector(".travel-sources-disclosu
 
 const SLOT_MAPS_DESKTOP = {
   A: [
-    { id: "dA1", xPct: 30, yPct: 18, size: "M", baseZ: 3, tiltBase: -1.4 },
-    { id: "dA2", xPct: 70, yPct: 18, size: "S", baseZ: 2, tiltBase: 1.1 },
-    { id: "dA3", xPct: 20, yPct: 49, size: "S", baseZ: 2, tiltBase: -0.8 },
-    { id: "dA4", xPct: 50, yPct: 49, size: "M", baseZ: 3, tiltBase: 1.3 },
-    { id: "dA5", xPct: 80, yPct: 49, size: "S", baseZ: 2, tiltBase: -1.0 },
-    { id: "dA6", xPct: 30, yPct: 80, size: "S", baseZ: 2, tiltBase: 1.2 },
-    { id: "dA7", xPct: 70, yPct: 80, size: "M", baseZ: 3, tiltBase: -1.3 },
+    { id: "dA1", xPct: 11, yPct: 18, size: "M", baseZ: 3, tiltBase: -2.1 },
+    { id: "dA2", xPct: 24, yPct: 22, size: "S", baseZ: 2, tiltBase: 1.9 },
+    { id: "dA3", xPct: 38, yPct: 16, size: "M", baseZ: 4, tiltBase: -1.7 },
+    { id: "dA4", xPct: 52, yPct: 21, size: "S", baseZ: 2, tiltBase: 2.0 },
+    { id: "dA5", xPct: 66, yPct: 17, size: "L", baseZ: 5, tiltBase: -1.8 },
+    { id: "dA6", xPct: 81, yPct: 23, size: "S", baseZ: 2, tiltBase: 1.3 },
+    { id: "dA7", xPct: 92, yPct: 18, size: "M", baseZ: 3, tiltBase: -2.0 },
+    { id: "dA8", xPct: 15, yPct: 48, size: "S", baseZ: 2, tiltBase: 1.4 },
+    { id: "dA9", xPct: 31, yPct: 53, size: "L", baseZ: 5, tiltBase: -1.4 },
+    { id: "dA10", xPct: 49, yPct: 46, size: "L", format: "wide", baseZ: 3, tiltBase: 1.8 },
+    { id: "dA11", xPct: 66, yPct: 52, size: "S", baseZ: 2, tiltBase: -1.2 },
+    { id: "dA12", xPct: 83, yPct: 47, size: "L", baseZ: 5, tiltBase: 1.5 },
+    { id: "dA13", xPct: 10, yPct: 79, size: "M", baseZ: 3, tiltBase: -1.5 },
+    { id: "dA14", xPct: 27, yPct: 83, size: "S", baseZ: 2, tiltBase: 1.6 },
+    { id: "dA15", xPct: 44, yPct: 77, size: "M", baseZ: 4, tiltBase: -1.6 },
+    { id: "dA16", xPct: 62, yPct: 83, size: "S", baseZ: 2, tiltBase: 1.2 },
+    { id: "dA17", xPct: 79, yPct: 79, size: "L", format: "wide", baseZ: 3, tiltBase: -1.9 },
+    { id: "dA18", xPct: 92, yPct: 84, size: "S", baseZ: 2, tiltBase: 1.1 },
   ],
   B: [
-    { id: "dB1", xPct: 20, yPct: 18, size: "S", baseZ: 2, tiltBase: -1.1 },
-    { id: "dB2", xPct: 50, yPct: 18, size: "M", baseZ: 3, tiltBase: 1.2 },
-    { id: "dB3", xPct: 80, yPct: 18, size: "S", baseZ: 2, tiltBase: -0.9 },
-    { id: "dB4", xPct: 34, yPct: 49, size: "M", baseZ: 3, tiltBase: 1.1 },
-    { id: "dB5", xPct: 66, yPct: 49, size: "S", baseZ: 2, tiltBase: -1.2 },
-    { id: "dB6", xPct: 20, yPct: 80, size: "M", baseZ: 3, tiltBase: -1.0 },
-    { id: "dB7", xPct: 50, yPct: 80, size: "S", baseZ: 2, tiltBase: 0.9 },
-    { id: "dB8", xPct: 80, yPct: 80, size: "M", baseZ: 3, tiltBase: 1.3 },
+    { id: "dB1", xPct: 9, yPct: 19, size: "S", baseZ: 2, tiltBase: -1.6 },
+    { id: "dB2", xPct: 22, yPct: 14, size: "M", baseZ: 4, tiltBase: 1.4 },
+    { id: "dB3", xPct: 36, yPct: 21, size: "S", baseZ: 2, tiltBase: -2.0 },
+    { id: "dB4", xPct: 49, yPct: 16, size: "L", baseZ: 5, tiltBase: 1.8 },
+    { id: "dB5", xPct: 64, yPct: 23, size: "S", baseZ: 2, tiltBase: -1.2 },
+    { id: "dB6", xPct: 79, yPct: 16, size: "M", baseZ: 3, tiltBase: 1.5 },
+    { id: "dB7", xPct: 92, yPct: 21, size: "S", baseZ: 2, tiltBase: -1.6 },
+    { id: "dB8", xPct: 15, yPct: 48, size: "M", baseZ: 3, tiltBase: 1.1 },
+    { id: "dB9", xPct: 31, yPct: 55, size: "S", baseZ: 2, tiltBase: -1.3 },
+    { id: "dB10", xPct: 47, yPct: 47, size: "L", format: "wide", baseZ: 4, tiltBase: 1.9 },
+    { id: "dB11", xPct: 63, yPct: 56, size: "S", baseZ: 2, tiltBase: -1.5 },
+    { id: "dB12", xPct: 80, yPct: 48, size: "M", baseZ: 3, tiltBase: 1.2 },
+    { id: "dB13", xPct: 91, yPct: 56, size: "S", baseZ: 2, tiltBase: -1.1 },
+    { id: "dB14", xPct: 11, yPct: 81, size: "L", baseZ: 5, tiltBase: 1.6 },
+    { id: "dB15", xPct: 30, yPct: 76, size: "S", baseZ: 2, tiltBase: -1.4 },
+    { id: "dB16", xPct: 50, yPct: 84, size: "L", format: "wide", baseZ: 3, tiltBase: 1.1 },
+    { id: "dB17", xPct: 69, yPct: 78, size: "S", baseZ: 2, tiltBase: -1.2 },
+    { id: "dB18", xPct: 88, yPct: 83, size: "M", baseZ: 4, tiltBase: 1.7 },
   ],
   C: [
-    { id: "dC1", xPct: 30, yPct: 18, size: "S", baseZ: 2, tiltBase: -1.0 },
-    { id: "dC2", xPct: 70, yPct: 18, size: "M", baseZ: 3, tiltBase: 1.2 },
-    { id: "dC3", xPct: 30, yPct: 49, size: "M", baseZ: 3, tiltBase: -1.2 },
-    { id: "dC4", xPct: 70, yPct: 49, size: "S", baseZ: 2, tiltBase: 1.1 },
-    { id: "dC5", xPct: 20, yPct: 80, size: "S", baseZ: 2, tiltBase: -0.8 },
-    { id: "dC6", xPct: 50, yPct: 80, size: "M", baseZ: 3, tiltBase: 1.0 },
-    { id: "dC7", xPct: 80, yPct: 80, size: "S", baseZ: 2, tiltBase: -1.1 },
+    { id: "dC1", xPct: 12, yPct: 17, size: "M", baseZ: 3, tiltBase: 1.4 },
+    { id: "dC2", xPct: 27, yPct: 22, size: "S", baseZ: 2, tiltBase: -1.3 },
+    { id: "dC3", xPct: 43, yPct: 16, size: "M", baseZ: 4, tiltBase: 1.9 },
+    { id: "dC4", xPct: 58, yPct: 22, size: "S", baseZ: 2, tiltBase: -2.0 },
+    { id: "dC5", xPct: 74, yPct: 17, size: "M", baseZ: 3, tiltBase: 1.2 },
+    { id: "dC6", xPct: 89, yPct: 22, size: "S", baseZ: 2, tiltBase: -1.4 },
+    { id: "dC7", xPct: 9, yPct: 47, size: "S", baseZ: 2, tiltBase: 1.3 },
+    { id: "dC8", xPct: 25, yPct: 53, size: "L", baseZ: 5, tiltBase: -1.7 },
+    { id: "dC9", xPct: 44, yPct: 46, size: "S", baseZ: 2, tiltBase: 1.5 },
+    { id: "dC10", xPct: 59, yPct: 53, size: "L", format: "wide", baseZ: 5, tiltBase: -1.4 },
+    { id: "dC11", xPct: 77, yPct: 46, size: "S", baseZ: 2, tiltBase: 1.1 },
+    { id: "dC12", xPct: 91, yPct: 53, size: "M", baseZ: 3, tiltBase: -1.1 },
+    { id: "dC13", xPct: 15, yPct: 82, size: "M", baseZ: 3, tiltBase: -1.6 },
+    { id: "dC14", xPct: 31, yPct: 76, size: "S", baseZ: 2, tiltBase: 1.4 },
+    { id: "dC15", xPct: 48, yPct: 83, size: "L", format: "wide", baseZ: 4, tiltBase: -1.2 },
+    { id: "dC16", xPct: 66, yPct: 78, size: "S", baseZ: 2, tiltBase: 1.0 },
+    { id: "dC17", xPct: 82, yPct: 84, size: "M", baseZ: 3, tiltBase: -1.5 },
+    { id: "dC18", xPct: 94, yPct: 77, size: "S", baseZ: 2, tiltBase: 1.3 },
   ],
 };
 
 const SLOT_MAPS_MOBILE = {
   A: [
-    { id: "mA1", xPct: 30, yPct: 15, size: "M", baseZ: 3, tiltBase: -1.3 },
-    { id: "mA2", xPct: 70, yPct: 15, size: "S", baseZ: 2, tiltBase: 1.1 },
-    { id: "mA3", xPct: 20, yPct: 46, size: "S", baseZ: 2, tiltBase: -1.0 },
-    { id: "mA4", xPct: 50, yPct: 46, size: "M", baseZ: 3, tiltBase: 1.2 },
-    { id: "mA5", xPct: 80, yPct: 46, size: "S", baseZ: 2, tiltBase: -1.2 },
-    { id: "mA6", xPct: 30, yPct: 77, size: "S", baseZ: 2, tiltBase: 1.0 },
-    { id: "mA7", xPct: 70, yPct: 77, size: "M", baseZ: 3, tiltBase: -1.1 },
+    { id: "mA1", xPct: 17, yPct: 19, size: "M", baseZ: 3, tiltBase: -1.8 },
+    { id: "mA2", xPct: 49, yPct: 16, size: "L", baseZ: 5, tiltBase: 1.6 },
+    { id: "mA3", xPct: 81, yPct: 21, size: "M", baseZ: 3, tiltBase: -1.4 },
+    { id: "mA4", xPct: 24, yPct: 52, size: "S", baseZ: 2, tiltBase: 1.2 },
+    { id: "mA5", xPct: 57, yPct: 49, size: "M", baseZ: 4, tiltBase: -1.5 },
+    { id: "mA6", xPct: 86, yPct: 55, size: "S", baseZ: 2, tiltBase: 1.3 },
+    { id: "mA7", xPct: 35, yPct: 82, size: "M", baseZ: 3, tiltBase: -1.2 },
+    { id: "mA8", xPct: 72, yPct: 79, size: "L", baseZ: 5, tiltBase: 1.4 },
   ],
   B: [
-    { id: "mB1", xPct: 20, yPct: 14, size: "S", baseZ: 2, tiltBase: -1.1 },
-    { id: "mB2", xPct: 50, yPct: 14, size: "M", baseZ: 3, tiltBase: 1.2 },
-    { id: "mB3", xPct: 80, yPct: 14, size: "S", baseZ: 2, tiltBase: -0.9 },
-    { id: "mB4", xPct: 32, yPct: 46, size: "M", baseZ: 3, tiltBase: 1.1 },
-    { id: "mB5", xPct: 68, yPct: 46, size: "S", baseZ: 2, tiltBase: -1.2 },
-    { id: "mB6", xPct: 20, yPct: 78, size: "S", baseZ: 2, tiltBase: 1.0 },
-    { id: "mB7", xPct: 50, yPct: 78, size: "M", baseZ: 3, tiltBase: -1.0 },
-    { id: "mB8", xPct: 80, yPct: 78, size: "S", baseZ: 2, tiltBase: 1.1 },
+    { id: "mB1", xPct: 15, yPct: 17, size: "S", baseZ: 2, tiltBase: -1.2 },
+    { id: "mB2", xPct: 44, yPct: 22, size: "M", baseZ: 3, tiltBase: 1.5 },
+    { id: "mB3", xPct: 76, yPct: 16, size: "L", baseZ: 5, tiltBase: -1.7 },
+    { id: "mB4", xPct: 23, yPct: 51, size: "M", baseZ: 3, tiltBase: 1.1 },
+    { id: "mB5", xPct: 55, yPct: 47, size: "S", baseZ: 2, tiltBase: -1.0 },
+    { id: "mB6", xPct: 84, yPct: 53, size: "M", baseZ: 4, tiltBase: 1.2 },
+    { id: "mB7", xPct: 30, yPct: 82, size: "L", baseZ: 5, tiltBase: -1.4 },
+    { id: "mB8", xPct: 70, yPct: 79, size: "M", baseZ: 3, tiltBase: 1.3 },
   ],
   C: [
-    { id: "mC1", xPct: 30, yPct: 15, size: "S", baseZ: 2, tiltBase: -1.0 },
-    { id: "mC2", xPct: 70, yPct: 15, size: "M", baseZ: 3, tiltBase: 1.2 },
-    { id: "mC3", xPct: 28, yPct: 46, size: "M", baseZ: 3, tiltBase: -1.2 },
-    { id: "mC4", xPct: 72, yPct: 46, size: "S", baseZ: 2, tiltBase: 1.1 },
-    { id: "mC5", xPct: 20, yPct: 78, size: "S", baseZ: 2, tiltBase: -0.9 },
-    { id: "mC6", xPct: 50, yPct: 78, size: "M", baseZ: 3, tiltBase: 1.0 },
-    { id: "mC7", xPct: 80, yPct: 78, size: "S", baseZ: 2, tiltBase: -1.0 },
+    { id: "mC1", xPct: 19, yPct: 18, size: "M", baseZ: 3, tiltBase: 1.4 },
+    { id: "mC2", xPct: 50, yPct: 16, size: "S", baseZ: 2, tiltBase: -1.3 },
+    { id: "mC3", xPct: 82, yPct: 21, size: "M", baseZ: 4, tiltBase: 1.6 },
+    { id: "mC4", xPct: 15, yPct: 52, size: "L", baseZ: 5, tiltBase: -1.5 },
+    { id: "mC5", xPct: 48, yPct: 47, size: "M", baseZ: 3, tiltBase: 1.2 },
+    { id: "mC6", xPct: 80, yPct: 51, size: "S", baseZ: 2, tiltBase: -1.1 },
+    { id: "mC7", xPct: 29, yPct: 82, size: "M", baseZ: 3, tiltBase: 1.0 },
+    { id: "mC8", xPct: 66, yPct: 79, size: "L", baseZ: 5, tiltBase: -1.4 },
   ],
 };
 
@@ -888,6 +932,33 @@ function scrollToElement(target, options = {}) {
     block: options.block || "start",
     inline: options.inline || "nearest",
   });
+}
+
+function lockBodyScroll() {
+  if (bodyScrollLockCount === 0) {
+    bodyScrollLockY = window.scrollY || window.pageYOffset || 0;
+    document.body.classList.add("modal-open");
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${bodyScrollLockY}px`;
+    document.body.style.left = "0";
+    document.body.style.right = "0";
+    document.body.style.width = "100%";
+  }
+  bodyScrollLockCount += 1;
+}
+
+function unlockBodyScroll() {
+  if (bodyScrollLockCount <= 0) return;
+  bodyScrollLockCount -= 1;
+  if (bodyScrollLockCount > 0) return;
+
+  document.body.classList.remove("modal-open");
+  document.body.style.position = "";
+  document.body.style.top = "";
+  document.body.style.left = "";
+  document.body.style.right = "";
+  document.body.style.width = "";
+  window.scrollTo(0, bodyScrollLockY);
 }
 
 function setAriaExpanded(node, expanded) {
@@ -2072,21 +2143,22 @@ function swapHotelDetails(item) {
 
 function openHotelMatrixSheet(item) {
   if (!hotelMatrixSheet || !hotelMatrixSheetContent || !item) return;
+  const wasOpen = hotelSheetOpen;
   hotelMatrixSheet.hidden = false;
   hotelMatrixSheetContent.replaceChildren(buildHotelDetailsCard(item));
   hotelMatrixSheet.scrollTop = 0;
   hotelMatrixSheetContent.scrollTop = 0;
   if (hotelMatrixSheetPanel) hotelMatrixSheetPanel.scrollTop = 0;
   hotelSheetOpen = true;
-  document.body.classList.add("modal-open");
+  if (!wasOpen) lockBodyScroll();
   if (hotelMatrixSheetClose) hotelMatrixSheetClose.focus({ preventScroll: true });
 }
 
 function closeHotelMatrixSheet() {
-  if (!hotelMatrixSheet) return;
+  if (!hotelMatrixSheet || !hotelSheetOpen) return;
   hotelMatrixSheet.hidden = true;
   hotelSheetOpen = false;
-  document.body.classList.remove("modal-open");
+  unlockBodyScroll();
 }
 
 function clearHotelMatrixSelection() {
@@ -3662,14 +3734,16 @@ async function fetchGuestbookPage({
   mode = "pinboard",
   limit = GUEST_WALL_PINBOARD_LIMIT,
   refresh = false,
+  cursor = "",
 } = {}) {
   const apiUrl = resolveGuestbookApiUrl({
     mode,
     limit,
     refresh: refresh ? "1" : "",
+    cursor,
   });
   console.info(`[guestwall] request ${apiUrl}`);
-  const response = await fetch(apiUrl, { cache: "no-store" });
+  const response = await fetch(apiUrl, { cache: "default" });
   const text = await response.text();
   let data = null;
 
@@ -3704,6 +3778,7 @@ async function fetchGuestbookPage({
     ...data,
     items,
     total: Number.isFinite(Number(data.total)) ? Number(data.total) : items.length,
+    nextCursor: String(data.nextCursor || "").trim() || null,
   };
 }
 
@@ -3800,7 +3875,7 @@ function normalizeGuestWallCardFromApi(item) {
   };
 }
 
-function buildGuestWallImageCandidates(mediaItem) {
+function buildGuestWallImageCandidates(mediaItem, size = "w720") {
   if (!mediaItem || typeof mediaItem !== "object") return [];
   const fileId = String(mediaItem.file_id || mediaItem.fileId || "").trim();
   const directUrl = String(mediaItem.thumbnailUrl || mediaItem.url || "").trim();
@@ -3819,8 +3894,8 @@ function buildGuestWallImageCandidates(mediaItem) {
   addCandidate(driveThumbnailUrl);
 
   if (fileId) {
-    addCandidate(`https://lh3.googleusercontent.com/d/${fileId}=w1600`);
-    addCandidate(`https://drive.google.com/thumbnail?id=${fileId}&sz=w1600`);
+    addCandidate(`https://lh3.googleusercontent.com/d/${fileId}=${size}`);
+    addCandidate(`https://drive.google.com/thumbnail?id=${fileId}&sz=${size}`);
   }
   return candidates;
 }
@@ -3974,7 +4049,7 @@ function buildGuestWallMediaNode(card, context = "board") {
     retry.textContent = "Tap to retry";
     fallback.appendChild(retry);
 
-    const imageCandidates = buildGuestWallImageCandidates(card.media);
+    const imageCandidates = buildGuestWallImageCandidates(card.media, "w720");
     let candidateIndex = 0;
 
     const loadCurrentCandidate = () => {
@@ -4023,27 +4098,44 @@ function buildGuestWallCard(card, context = "board") {
   const node = document.createElement("article");
   if (card.kind === "media") {
     node.className = "guestwall-item guestwall-item--polaroid";
-    node.style.setProperty("--gwPolaroidTone", getGuestWallPolaroidTone(card.id));
+    const format = getGuestWallPolaroidFormat(card.id);
+    node.classList.add(`guestwall-polaroid--${format}`);
+    const tone = getGuestWallPolaroidTone(card.id);
+    node.style.setProperty("--gwPolaroidTone", tone);
     const mat = document.createElement("div");
     mat.className = "guestwall-polaroid-mat";
-    mat.appendChild(buildGuestWallMediaNode(card, context));
-
-    const caption = document.createElement("p");
-    caption.className = "guestwall-polaroid-caption";
-    caption.textContent = `— ${card.name}`;
-    mat.appendChild(caption);
+    const mediaNode = buildGuestWallMediaNode(card, context);
+    const signatureStyle = getGuestWallSignatureStyle(card.id, tone);
+    const signature = document.createElement("span");
+    signature.className = `guestwall-polaroid-signature guestwall-polaroid-signature--${signatureStyle.side}`;
+    signature.textContent = String(card.name || "").trim();
+    signature.style.setProperty("--gwSigAngle", signatureStyle.angle);
+    signature.style.setProperty("--gwSigOffset", signatureStyle.horizontalOffset);
+    signature.style.setProperty("--gwSigLetterSpacing", signatureStyle.letterSpacing);
+    signature.style.setProperty("--gwSigInk", signatureStyle.ink);
+    signature.style.setProperty("--gwSigStroke", signatureStyle.stroke);
+    signature.style.setProperty("--gwSigShadowX", signatureStyle.shadowX);
+    signature.style.setProperty("--gwSigShadowY", signatureStyle.shadowY);
+    mediaNode.appendChild(signature);
+    mat.appendChild(mediaNode);
     node.appendChild(mat);
     return node;
   }
 
   node.className = "guestwall-item guestwall-item--note";
   node.style.setProperty("--gwNotePaper", getGuestWallNoteTone(card.id));
-  const pinStyle = getGuestWallNotePinStyle(card.id);
-  node.style.setProperty("--gwPinColor", pinStyle.color);
-  node.style.setProperty("--gwPinTop", pinStyle.top);
-  node.style.setProperty("--gwPinRight", pinStyle.right);
-  node.style.setProperty("--gwPinBottom", pinStyle.bottom);
-  node.style.setProperty("--gwPinLeft", pinStyle.left);
+  node.classList.add(`guestwall-note--${getGuestWallNoteVariant(card.id)}`);
+  const fastenerStyle = getGuestWallNoteFastenerStyle(card.id);
+  node.style.setProperty("--gwPinColor", fastenerStyle.color);
+  node.style.setProperty("--gwPinTop", fastenerStyle.top);
+  node.style.setProperty("--gwPinRight", fastenerStyle.right);
+  node.style.setProperty("--gwPinBottom", fastenerStyle.bottom);
+  node.style.setProperty("--gwPinLeft", fastenerStyle.left);
+  node.style.setProperty("--gwTapeAngle", fastenerStyle.tapeAngle);
+
+  const fastener = document.createElement("span");
+  fastener.className = `guestwall-note-fastener guestwall-note-fastener--${fastenerStyle.type}`;
+  fastener.setAttribute("aria-hidden", "true");
   const text = document.createElement("p");
   text.className = "guestwall-note-text";
   text.textContent = String(card.text || "").replace(/\s+/g, " ").trim();
@@ -4052,6 +4144,7 @@ function buildGuestWallCard(card, context = "board") {
   sign.className = "guestwall-note-sign";
   sign.textContent = `— ${card.name}`;
 
+  node.appendChild(fastener);
   node.appendChild(text);
   node.appendChild(sign);
   return node;
@@ -4111,6 +4204,14 @@ function setGuestWallControlsDisabled(disabled) {
   });
 }
 
+function flashGuestWallButton(button) {
+  if (!(button instanceof HTMLButtonElement)) return;
+  button.classList.add("flash");
+  window.setTimeout(() => {
+    button.classList.remove("flash");
+  }, 180);
+}
+
 function setGuestWallActiveSlot(nextSlotNode) {
   if (guestWallActiveSlotNode instanceof HTMLElement && guestWallActiveSlotNode !== nextSlotNode) {
     guestWallActiveSlotNode.classList.remove("is-active");
@@ -4125,7 +4226,7 @@ function closeGuestWallDetail() {
   if (!(guestWallDetailModal instanceof HTMLElement) || !guestWallDetailOpen) return;
   setHiddenClass(guestWallDetailModal, true);
   guestWallDetailModal.setAttribute("aria-hidden", "true");
-  document.body.classList.remove("modal-open");
+  unlockBodyScroll();
   guestWallDetailOpen = false;
 }
 
@@ -4154,7 +4255,7 @@ function renderGuestWallDetailMedia(card) {
     return;
   }
 
-  const candidates = buildGuestWallImageCandidates(card.media);
+  const candidates = buildGuestWallImageCandidates(card.media, "w1600");
   if (!candidates.length) {
     const placeholder = document.createElement("div");
     placeholder.className = "guestwall-media-fallback";
@@ -4179,6 +4280,7 @@ function renderGuestWallDetailMedia(card) {
 
 function openGuestWallDetail(card) {
   if (!(guestWallDetailModal instanceof HTMLElement) || !card) return;
+  const wasOpen = guestWallDetailOpen;
 
   const fullNote = String(card.kind === "note" ? card.text : card.message || "").trim();
   if (guestWallDetailNote instanceof HTMLElement) {
@@ -4191,7 +4293,7 @@ function openGuestWallDetail(card) {
 
   setHiddenClass(guestWallDetailModal, false);
   guestWallDetailModal.setAttribute("aria-hidden", "false");
-  document.body.classList.add("modal-open");
+  if (!wasOpen) lockBodyScroll();
   guestWallDetailOpen = true;
 
   if (guestWallDetailClose instanceof HTMLButtonElement) {
@@ -4287,6 +4389,74 @@ function getGuestWallPolaroidTone(cardId) {
   return tones[seed % tones.length];
 }
 
+function getGuestWallPolaroidFormat(cardId) {
+  const seed = hashStringToUint32(`polaroid-format:${String(cardId || "")}`);
+  const value = seededRandomFromHash(seed);
+  if (value < 0.7) return "mini";
+  if (value < 0.9) return "square";
+  return "wide";
+}
+
+function isGuestWallWideFormat(value) {
+  return String(value || "").trim() === "wide";
+}
+
+function getGuestWallSlotFormat(slotConfigOrNode) {
+  if (!slotConfigOrNode) return "any";
+  if (slotConfigOrNode instanceof HTMLElement) {
+    return String(slotConfigOrNode.dataset.slotFormat || "any").trim() || "any";
+  }
+  return String(slotConfigOrNode.format || "any").trim() || "any";
+}
+
+function getHexColorLuminance(hexValue) {
+  const cleaned = String(hexValue || "")
+    .trim()
+    .replace(/^#/, "");
+  if (!/^[0-9a-f]{3}([0-9a-f]{3})?$/i.test(cleaned)) return 0.25;
+
+  const expanded =
+    cleaned.length === 3
+      ? cleaned
+          .split("")
+          .map((char) => `${char}${char}`)
+          .join("")
+      : cleaned;
+  const r = parseInt(expanded.slice(0, 2), 16) / 255;
+  const g = parseInt(expanded.slice(2, 4), 16) / 255;
+  const b = parseInt(expanded.slice(4, 6), 16) / 255;
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function getGuestWallSignatureStyle(cardId, toneHex) {
+  const id = String(cardId || "");
+  const sideSeed = hashStringToUint32(`sig-side:${id}`);
+  const angleSeed = hashStringToUint32(`sig-angle:${id}`);
+  const offsetSeed = hashStringToUint32(`sig-offset:${id}`);
+  const trackingSeed = hashStringToUint32(`sig-track:${id}`);
+  const shadowSeed = hashStringToUint32(`sig-shadow:${id}`);
+
+  const side = sideSeed % 2 === 0 ? "left" : "right";
+  const angle = ((seededRandomFromHash(angleSeed) * 6) - 3).toFixed(2);
+  const horizontalOffset = `${Math.round(9 + seededRandomFromHash(offsetSeed) * 7)}px`;
+  const letterSpacing = `${((seededRandomFromHash(trackingSeed) - 0.5) * 0.35).toFixed(2)}px`;
+  const shadowX = side === "left" ? 1 : -1;
+  const shadowY = 1 + Math.round(seededRandomFromHash(shadowSeed));
+  const luminance = getHexColorLuminance(toneHex);
+  const inkIsLight = luminance < 0.34;
+
+  return {
+    side,
+    angle: `${angle}deg`,
+    horizontalOffset,
+    letterSpacing,
+    shadowX: `${shadowX}px`,
+    shadowY: `${shadowY}px`,
+    ink: inkIsLight ? "rgba(246, 239, 230, 0.93)" : "rgba(55, 16, 23, 0.9)",
+    stroke: inkIsLight ? "rgba(246, 239, 230, 0.8)" : "rgba(75, 15, 23, 0.78)",
+  };
+}
+
 function getGuestWallNoteTone(cardId) {
   const tones = GUEST_WALL_NOTE_TONES;
   if (!tones.length) return "#FAF3E8";
@@ -4294,55 +4464,116 @@ function getGuestWallNoteTone(cardId) {
   return tones[seed % tones.length];
 }
 
-function getGuestWallNotePinStyle(cardId) {
+function getGuestWallNoteVariant(cardId) {
+  const variants = GUEST_WALL_NOTE_VARIANTS;
+  if (!variants.length) return "sticky";
+  const seed = hashStringToUint32(`note-variant:${String(cardId || "")}`);
+  return variants[seed % variants.length];
+}
+
+function getGuestWallNoteFastenerStyle(cardId) {
   const id = String(cardId || "");
   const colorSeed = hashStringToUint32(`pin-color:${id}`);
   const cornerSeed = hashStringToUint32(`pin-corner:${id}`);
   const xJitterSeed = hashStringToUint32(`pin-x:${id}`);
   const yJitterSeed = hashStringToUint32(`pin-y:${id}`);
+  const typeSeed = hashStringToUint32(`fastener-type:${id}`);
+  const tapeAngleSeed = hashStringToUint32(`fastener-angle:${id}`);
   const color = GUEST_WALL_PIN_COLORS[colorSeed % GUEST_WALL_PIN_COLORS.length] || "#6B1F2A";
   const corner = GUEST_WALL_PIN_CORNERS[cornerSeed % GUEST_WALL_PIN_CORNERS.length] || "top-right";
   const xJitter = Math.round((seededRandomFromHash(xJitterSeed) - 0.5) * 8);
   const yJitter = Math.round((seededRandomFromHash(yJitterSeed) - 0.5) * 5);
   const edgeInset = 12;
+  const fastenerTypeIndex = typeSeed % 10;
+  const type = fastenerTypeIndex <= 5 ? "pin" : fastenerTypeIndex <= 8 ? "tape" : "clip";
+  const tapeAngle = `${((seededRandomFromHash(tapeAngleSeed) * 8) - 4).toFixed(2)}deg`;
 
   if (corner === "top-left") {
     return {
+      type,
       color,
       top: `${-7 + yJitter}px`,
       right: "auto",
       bottom: "auto",
       left: `${edgeInset + xJitter}px`,
+      tapeAngle,
     };
   }
 
   if (corner === "bottom-left") {
     return {
+      type,
       color,
       top: "auto",
       right: "auto",
       bottom: `${-7 + yJitter}px`,
       left: `${edgeInset + xJitter}px`,
+      tapeAngle,
     };
   }
 
   if (corner === "bottom-right") {
     return {
+      type,
       color,
       top: "auto",
       right: `${edgeInset + xJitter}px`,
       bottom: `${-7 + yJitter}px`,
       left: "auto",
+      tapeAngle,
     };
   }
 
   return {
+    type,
     color,
     top: `${-7 + yJitter}px`,
     right: `${edgeInset + xJitter}px`,
     bottom: "auto",
     left: "auto",
+    tapeAngle,
   };
+}
+
+function assignGuestWallCardsToSlots(slotConfigs, requestedIds) {
+  const slots = Array.isArray(slotConfigs) ? slotConfigs : [];
+  if (!slots.length) return [];
+
+  const requested = Array.isArray(requestedIds) ? requestedIds : [];
+  const allIds = guestWallCards.map((card) => card.id);
+  const combined = [...requested, ...allIds];
+  const seen = new Set();
+  const uniquePool = combined.filter((id) => {
+    const key = String(id || "");
+    if (!key || !guestWallCardById.has(key) || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  const wideQueue = uniquePool.filter((id) => isGuestWallWideFormat(getGuestWallPolaroidFormat(id)));
+  const portraitQueue = uniquePool.filter((id) => !isGuestWallWideFormat(getGuestWallPolaroidFormat(id)));
+  const fallbackQueue = [...uniquePool];
+  const used = new Set();
+  const takeNext = (queue, predicate = null) => {
+    const index = queue.findIndex((id) => !used.has(id) && (!predicate || predicate(id)));
+    if (index < 0) return "";
+    const [picked] = queue.splice(index, 1);
+    used.add(picked);
+    return picked;
+  };
+
+  return slots.map((slotConfig) => {
+    const slotFormat = getGuestWallSlotFormat(slotConfig);
+    if (slotFormat === "wide") {
+      return takeNext(wideQueue) || takeNext(portraitQueue) || takeNext(fallbackQueue) || "";
+    }
+    return (
+      takeNext(portraitQueue) ||
+      takeNext(fallbackQueue, (id) => !isGuestWallWideFormat(getGuestWallPolaroidFormat(id))) ||
+      takeNext(fallbackQueue) ||
+      ""
+    );
+  });
 }
 
 function getGuestWallSlotMapForCycle(mobile = false) {
@@ -4365,17 +4596,32 @@ function getStableGuestWallSlotRotation(slotNode, cardId) {
   return clampNumber(tiltBase + tiltJitter, -4, 4);
 }
 
+function getStableGuestWallSlotWarp(slotNode, cardId) {
+  if (!(slotNode instanceof HTMLElement)) return { skewX: 0, skewY: 0 };
+  const slotId = String(slotNode.dataset.slotId || "");
+  const id = String(cardId || "");
+  const gateSeed = hashStringToUint32(`gw-warp-gate:${slotId}:${id}`);
+  const gate = seededRandomFromHash(gateSeed);
+  if (gate < 0.35) return { skewX: 0, skewY: 0 };
+
+  const xSeed = hashStringToUint32(`gw-warp-x:${slotId}:${id}`);
+  const ySeed = hashStringToUint32(`gw-warp-y:${slotId}:${id}`);
+  const skewX = ((seededRandomFromHash(xSeed) * 2 - 1) * 1.2).toFixed(2);
+  const skewY = ((seededRandomFromHash(ySeed) * 2 - 1) * 0.8).toFixed(2);
+  return { skewX: Number(skewX), skewY: Number(skewY) };
+}
+
 function getGuestWallSlotWidthPx(containerWidth, size, mobile = false) {
   const width = Math.max(320, Number(containerWidth) || 0);
   if (mobile) {
-    if (size === "S") return clampNumber(width * 0.3, 96, 116);
-    if (size === "L") return clampNumber(width * 0.38, 118, 136);
-    return clampNumber(width * 0.34, 108, 126);
+    if (size === "S") return clampNumber(width * 0.32, 112, 138);
+    if (size === "L") return clampNumber(width * 0.44, 146, 182);
+    return clampNumber(width * 0.38, 128, 162);
   }
 
-  if (size === "S") return clampNumber(width * 0.102, 108, 126);
-  if (size === "L") return clampNumber(width * 0.13, 132, 150);
-  return clampNumber(width * 0.114, 118, 136);
+  if (size === "S") return clampNumber(width * 0.125, 138, 176);
+  if (size === "L") return clampNumber(width * 0.172, 188, 236);
+  return clampNumber(width * 0.148, 162, 206);
 }
 
 function getGuestWallSlotRect(slotConfig, containerRect, mobile = false) {
@@ -4472,9 +4718,12 @@ function placeGuestWallSlot(slotNode, slotConfig) {
   slotNode.style.setProperty("--gw-y-offset", `${Math.round(Number(slotConfig.yOffsetPx || 0))}px`);
   slotNode.style.setProperty("--gw-card-width", `${Math.round(slotConfig.pxWidth || 140)}px`);
   slotNode.style.setProperty("--gw-rotate", `${slotConfig.tiltBase}deg`);
+  slotNode.style.setProperty("--gw-skew-x", "0deg");
+  slotNode.style.setProperty("--gw-skew-y", "0deg");
   slotNode.style.setProperty("--gw-z", String(slotConfig.baseZ));
   slotNode.dataset.slotId = String(slotConfig.id || "");
   slotNode.dataset.slotSize = String(slotConfig.size || "M");
+  slotNode.dataset.slotFormat = String(slotConfig.format || "any");
   slotNode.dataset.tiltBase = String(slotConfig.tiltBase || 0);
   slotNode.classList.toggle("slot-size-s", slotConfig.size === "S");
   slotNode.classList.toggle("slot-size-m", slotConfig.size === "M");
@@ -4494,7 +4743,10 @@ function mountGuestWallSlotCard(slotNode, cardId, animate = false) {
   if (!card) return;
 
   const stableRotate = getStableGuestWallSlotRotation(slotNode, cardId);
+  const stableWarp = getStableGuestWallSlotWarp(slotNode, cardId);
   slotNode.style.setProperty("--gw-rotate", `${stableRotate}deg`);
+  slotNode.style.setProperty("--gw-skew-x", `${stableWarp.skewX}deg`);
+  slotNode.style.setProperty("--gw-skew-y", `${stableWarp.skewY}deg`);
   slotNode.dataset.cardId = String(card.id || cardId || "");
 
   const debugNode = slotNode.querySelector(".guestwall-slot-debug");
@@ -4546,6 +4798,7 @@ function renderGuestWallDesktop({ reshuffle = false } = {}) {
     jitterMaxPx: GUEST_WALL_SLOT_JITTER_DESKTOP,
     jitterSeed: `desktop:${guestWallLayoutCycle}`,
   });
+  guestWallActiveSlotConfig = arrangedSlots.slice(0, slotCount);
   if (!guestWallCards.length) {
     const empty = document.createElement("p");
     empty.className = "guestwall-empty";
@@ -4555,6 +4808,7 @@ function renderGuestWallDesktop({ reshuffle = false } = {}) {
   }
 
   ensureGuestWallVisibleIds(slotCount, reshuffle);
+  guestWallVisibleCardIds = assignGuestWallCardsToSlots(guestWallActiveSlotConfig, guestWallVisibleCardIds);
 
   for (let slotIndex = 0; slotIndex < slotCount; slotIndex += 1) {
     const slotNode = document.createElement("div");
@@ -4603,7 +4857,9 @@ function renderGuestWallMobile() {
     jitterMaxPx: GUEST_WALL_SLOT_JITTER_MOBILE,
     jitterSeed: `mobile:${guestWallLayoutCycle}`,
   });
+  guestWallActiveSlotConfig = arrangedSlots.slice(0, slotCount);
   ensureGuestWallVisibleIds(slotCount, false);
+  guestWallVisibleCardIds = assignGuestWallCardsToSlots(guestWallActiveSlotConfig, guestWallVisibleCardIds);
 
   for (let slotIndex = 0; slotIndex < slotCount; slotIndex += 1) {
     const slotNode = document.createElement("div");
@@ -4681,8 +4937,9 @@ function shuffleGuestWallVisibleSubset() {
 
   let nextVisible = currentVisible.slice();
   const maxAttempts = 24;
+  const slotConfig = guestWallActiveSlotConfig.slice(0, slotCount);
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    const candidate = shuffleItems(allIds).slice(0, slotCount);
+    const candidate = assignGuestWallCardsToSlots(slotConfig, shuffleItems(allIds).slice(0, slotCount));
     if (candidate.length < slotCount) break;
     nextVisible = candidate;
     if (candidate.every((id, idx) => id !== currentVisible[idx])) {
@@ -4691,7 +4948,10 @@ function shuffleGuestWallVisibleSubset() {
   }
 
   if (!nextVisible.some((id, idx) => id !== currentVisible[idx])) {
-    const shifted = currentVisible.map((_, idx) => currentVisible[(idx + 1) % currentVisible.length]);
+    const shifted = assignGuestWallCardsToSlots(
+      slotConfig,
+      currentVisible.map((_, idx) => currentVisible[(idx + 1) % currentVisible.length]),
+    );
     if (shifted.some((id, idx) => id !== currentVisible[idx])) {
       nextVisible = shifted;
     }
@@ -4703,6 +4963,8 @@ function shuffleGuestWallVisibleSubset() {
     if (!nextCardId || nextCardId === currentVisible[slotIndex]) continue;
     swapGuestWallSlotCard(slotIndex, nextCardId);
   }
+
+  maybePrefetchGuestWallBuffer();
 }
 
 function bindGuestWallEvents() {
@@ -4712,10 +4974,17 @@ function bindGuestWallEvents() {
   if (guestWallShuffle instanceof HTMLButtonElement) {
     guestWallShuffle.addEventListener("click", () => {
       if (!guestWallCards.length) return;
+      if (guestWallShuffle.disabled) return;
+      guestWallShuffle.disabled = true;
+      flashGuestWallButton(guestWallShuffle);
       shuffleGuestWallVisibleSubset();
-      if (guestWallPaused) return;
-      if (isGuestWallMobileView()) scheduleGuestWallMobileRotation();
-      else scheduleGuestWallDesktopRotation();
+      window.setTimeout(() => {
+        guestWallShuffle.disabled = false;
+      }, 600);
+      if (!guestWallPaused) {
+        if (isGuestWallMobileView()) scheduleGuestWallMobileRotation();
+        else scheduleGuestWallDesktopRotation();
+      }
     });
   }
 
@@ -4731,6 +5000,10 @@ function bindGuestWallEvents() {
       if (guestWallResizeRaf) return;
       guestWallResizeRaf = window.requestAnimationFrame(() => {
         guestWallResizeRaf = null;
+        const currentWidth = window.innerWidth || 0;
+        const widthDelta = Math.abs(currentWidth - guestWallLastViewportWidth);
+        guestWallLastViewportWidth = currentWidth;
+        if (isGuestWallMobileView() && widthDelta < 2) return;
         syncGuestWallLayout();
       });
     },
@@ -4744,6 +5017,49 @@ function bindGuestWallEvents() {
   });
 
   guestWallPinboard.dataset.bound = "true";
+}
+
+function getGuestWallPinboardRequestLimit() {
+  return isGuestWallMobileView() ? GUEST_WALL_PINBOARD_BUFFER_MOBILE : GUEST_WALL_PINBOARD_BUFFER_DESKTOP;
+}
+
+function mergeGuestWallCards(newCards) {
+  if (!Array.isArray(newCards) || !newCards.length) return;
+  const merged = [...guestWallCards];
+  const seen = new Set(merged.map((card) => card.id));
+  newCards.forEach((card) => {
+    if (!card || !card.id || seen.has(card.id)) return;
+    seen.add(card.id);
+    merged.push(card);
+  });
+  guestWallCards = merged;
+  guestWallCardById = new Map(merged.map((card) => [card.id, card]));
+}
+
+async function maybePrefetchGuestWallBuffer() {
+  if (!guestWallNextCursor || guestWallPrefetchInFlight) return;
+  if (!guestWallVisibleCardIds.length) return;
+  const remainingPool = guestWallCards.length - guestWallVisibleCardIds.length;
+  if (remainingPool > GUEST_WALL_PREFETCH_THRESHOLD) return;
+
+  guestWallPrefetchInFlight = (async () => {
+    try {
+      const payload = await fetchGuestbookPage({
+        mode: "pinboard",
+        limit: getGuestWallPinboardRequestLimit(),
+        cursor: guestWallNextCursor,
+      });
+      guestWallNextCursor = payload.nextCursor;
+      const cards = normalizeGuestWallCards(payload.items);
+      mergeGuestWallCards(cards);
+    } catch (error) {
+      console.warn("[guestwall] prefetch failed", error instanceof Error ? error.message : String(error));
+    } finally {
+      guestWallPrefetchInFlight = null;
+    }
+  })();
+
+  return guestWallPrefetchInFlight;
 }
 
 async function initGuestWall() {
@@ -4764,10 +5080,17 @@ async function loadGuestWallPinboard({ refresh = false } = {}) {
 
   const request = (async () => {
     try {
-      const payload = await fetchGuestbookPage({ mode: "pinboard", limit: GUEST_WALL_PINBOARD_LIMIT, refresh });
+      const payload = await fetchGuestbookPage({
+        mode: "pinboard",
+        limit: getGuestWallPinboardRequestLimit(),
+        refresh,
+      });
       const cards = normalizeGuestWallCards(payload.items);
-      guestWallCards = cards;
-      guestWallCardById = new Map(cards.map((card) => [card.id, card]));
+      guestWallCards = [];
+      guestWallCardById = new Map();
+      mergeGuestWallCards(cards);
+      guestWallNextCursor = payload.nextCursor;
+      guestWallPrefetchInFlight = null;
       if (!cards.length) {
         setGuestWallStatus(GUEST_WALL_EMPTY_MESSAGE);
         syncGuestWallLayout({ reshuffle: true });
@@ -4780,6 +5103,7 @@ async function loadGuestWallPinboard({ refresh = false } = {}) {
       guestWallVisibleCardIds = [];
       setGuestWallPaused(false);
       syncGuestWallLayout({ reshuffle: true });
+      maybePrefetchGuestWallBuffer();
     } catch (error) {
       console.error("[guestwall] load failed", {
         message: error instanceof Error ? error.message : String(error),
@@ -4790,6 +5114,8 @@ async function loadGuestWallPinboard({ refresh = false } = {}) {
       });
       setGuestWallStatus(GUEST_WALL_UNAVAILABLE_MESSAGE);
       setGuestWallControlsDisabled(true);
+      guestWallNextCursor = null;
+      guestWallPrefetchInFlight = null;
       renderGuestWallErrorState();
     } finally {
       guestWallRequestInFlight = null;
@@ -5052,6 +5378,7 @@ function updateGalleryLightboxView() {
 
 function openGalleryLightbox(index) {
   if (!galleryLightbox || !galleryLightboxImage || !galleryImages.length) return;
+  const wasOpen = isGalleryLightboxOpen();
   closeStoryLightbox();
 
   const nextIndex = Number(index);
@@ -5061,7 +5388,7 @@ function openGalleryLightbox(index) {
   galleryLightbox.classList.remove("hidden");
   galleryLightbox.classList.add("open");
   galleryLightbox.setAttribute("aria-hidden", "false");
-  document.body.classList.add("modal-open");
+  if (!wasOpen) lockBodyScroll();
 }
 
 function openLightbox(index) {
@@ -5069,12 +5396,12 @@ function openLightbox(index) {
 }
 
 function closeGalleryLightbox() {
-  if (!galleryLightbox || !galleryLightboxImage) return;
+  if (!galleryLightbox || !galleryLightboxImage || !isGalleryLightboxOpen()) return;
   galleryLightbox.classList.add("hidden");
   galleryLightbox.classList.remove("open");
   galleryLightbox.setAttribute("aria-hidden", "true");
   galleryLightboxImage.removeAttribute("src");
-  document.body.classList.remove("modal-open");
+  unlockBodyScroll();
 }
 
 function showPrevLightboxImage() {
@@ -5488,8 +5815,29 @@ async function loadStoryEntriesFromManifest() {
     const normalizeManifestStoryPath = (rawPath, fallbackFolder = "/photos/timeline-photos/") => {
       const value = String(rawPath || "").trim();
       if (!value) return "";
-      if (/^https?:\/\//i.test(value)) return value;
-      if (value.startsWith("/our-story-normalized/")) return withBasePath(value);
+
+      if (/^https?:\/\//i.test(value)) {
+        try {
+          const url = new URL(value);
+          const pathname = url.pathname || "";
+          if (pathname.startsWith("/our-story-normalized/") || pathname.startsWith("/our-story/")) {
+            const fileName = pathname.split("/").pop() || "";
+            return withBasePath(`/our-story/${fileName}`);
+          }
+          if (pathname.startsWith("/public/") || pathname.startsWith("/photos/")) {
+            return withBasePath(pathname);
+          }
+          return withBasePath(pathname || "");
+        } catch (_error) {
+          return "";
+        }
+      }
+
+      if (value.startsWith("/our-story-normalized/") || value.startsWith("/our-story/")) {
+        const fileName = value.split("/").pop() || "";
+        return withBasePath(`/our-story/${fileName}`);
+      }
+      if (value.startsWith("/public/") || value.startsWith("/photos/")) return withBasePath(value);
       if (value.startsWith("/")) return withBasePath(value);
       return withBasePath(`${fallbackFolder}${encodeURIComponent(value)}`);
     };
@@ -5542,13 +5890,35 @@ function storyImageSources(item, preferMosaic = false) {
   };
 }
 
-function attachStoryFallback(img, fallbackSrc) {
+function attachStoryFallback(img, fallbackSrc, originalSrc) {
   if (!(img instanceof HTMLImageElement)) return;
   const fallback = String(fallbackSrc || "").trim();
+  const original = String(originalSrc || "").trim();
   img.dataset.fallbackSrc = fallback;
   img.dataset.fallbackUsed = "false";
+  img.dataset.retryUsed = "false";
   img.classList.remove("story-image--placeholder");
   img.onerror = () => {
+    const failingSrc = img.currentSrc || img.getAttribute("src") || "";
+    if (IS_LOCAL_DEV) {
+      console.warn("[story] image failed", {
+        origin: window.location.origin,
+        src: failingSrc,
+        fallback: img.dataset.fallbackSrc,
+        retried: img.dataset.retryUsed === "true",
+      });
+    }
+
+    if (img.dataset.retryUsed !== "true") {
+      const retryBase = original || failingSrc;
+      if (retryBase) {
+        img.dataset.retryUsed = "true";
+        const separator = retryBase.includes("?") ? "&" : "?";
+        img.src = `${retryBase}${separator}retry=${Date.now()}`;
+        return;
+      }
+    }
+
     const nextSrc = String(img.dataset.fallbackSrc || "").trim();
     if (nextSrc && img.dataset.fallbackUsed !== "true") {
       img.dataset.fallbackUsed = "true";
@@ -5595,7 +5965,7 @@ function buildStoryTimelineSlide(item, index) {
     halfTurn: 1.01,
     defaultScale: 1,
   });
-  attachStoryFallback(img, imageSources.fallback);
+  attachStoryFallback(img, imageSources.fallback, imageSources.preferred || imageSources.original);
   img.src = imageSources.preferred;
   img.alt = item.alt || `Story photo ${item.yearLabel}`;
   img.loading = "lazy";
@@ -5842,7 +6212,7 @@ function bindStoryChronologyResize() {
   }
 }
 
-function applyStoryImagePresentation(img, item, mobileView, fallbackSrc) {
+function applyStoryImagePresentation(img, item, mobileView, fallbackSrc, originalSrc) {
   if (!(img instanceof HTMLImageElement) || !item) return;
   img.style.objectPosition = mobileView
     ? item.mobileObjectPosition || item.objectPosition || "50% 20%"
@@ -5855,7 +6225,7 @@ function applyStoryImagePresentation(img, item, mobileView, fallbackSrc) {
     halfTurn: 1.01,
     defaultScale: 1,
   });
-  attachStoryFallback(img, fallbackSrc);
+  attachStoryFallback(img, fallbackSrc, originalSrc || img.src);
   img.alt = item.alt || `Story photo ${item.yearLabel}`;
 }
 
@@ -5921,9 +6291,17 @@ async function setStoryMobileSlide(index, options = {}) {
   const imageSources = storyImageSources(item, true);
   const imageSrc = imageSources.original || imageSources.preferred;
   const fallbackSrc = imageSources.fallback;
+  if (IS_LOCAL_DEV) {
+    console.info("[story] selected image", {
+      year: item.yearLabel,
+      origin: window.location.origin,
+      src: imageSrc,
+      fallback: fallbackSrc,
+    });
+  }
 
-  applyStoryImagePresentation(storyMobileImgCurrent, item, mobileView, fallbackSrc);
-  applyStoryImagePresentation(storyMobileImgNext, item, mobileView, fallbackSrc);
+  applyStoryImagePresentation(storyMobileImgCurrent, item, mobileView, fallbackSrc, imageSrc);
+  applyStoryImagePresentation(storyMobileImgNext, item, mobileView, fallbackSrc, imageSrc);
 
   try {
     await preloadStoryImage(imageSrc);
@@ -6232,7 +6610,7 @@ function buildStoryMosaicCard(item, slot, index) {
     halfTurn: 1.01,
     defaultScale: 1,
   });
-  attachStoryFallback(img, imageSources.fallback);
+  attachStoryFallback(img, imageSources.fallback, imageSources.preferred || imageSources.original);
   img.src = imageSrc;
   img.alt = item.alt || `Story photo ${item.yearLabel}`;
   img.loading = "lazy";
@@ -6403,7 +6781,7 @@ function updateStoryLightboxView() {
   if (!storyLightboxImg || !storyItems.length) return;
   const item = storyItems[currentStoryIndex];
   const imageSources = storyImageSources(item, false);
-  attachStoryFallback(storyLightboxImg, imageSources.fallback);
+  attachStoryFallback(storyLightboxImg, imageSources.fallback, imageSources.original);
   storyLightboxImg.style.imageOrientation = "from-image";
   storyLightboxImg.style.objectPosition = item.objectPosition || "50% 50%";
   applyStoryImageRotation(storyLightboxImg, item.rotation, "--storyScale", {
@@ -6421,21 +6799,22 @@ function updateStoryLightboxView() {
 
 function openStoryLightbox(index) {
   if (!storyLightbox || !storyItems.length) return;
+  const wasOpen = isStoryLightboxOpen();
   closeGalleryLightbox();
   currentStoryIndex = Number.isFinite(index) ? ((index % storyItems.length) + storyItems.length) % storyItems.length : 0;
   updateStoryLightboxView();
   storyLightbox.classList.remove("hidden");
   storyLightbox.setAttribute("aria-hidden", "false");
-  document.body.classList.add("modal-open");
+  if (!wasOpen) lockBodyScroll();
 }
 
 function closeStoryLightbox() {
-  if (!storyLightbox) return;
+  if (!storyLightbox || !isStoryLightboxOpen()) return;
   storyLightbox.classList.add("hidden");
   storyLightbox.setAttribute("aria-hidden", "true");
   if (storyLightboxImg) storyLightboxImg.removeAttribute("src");
   clearStoryTileReveal(-1);
-  document.body.classList.remove("modal-open");
+  unlockBodyScroll();
 }
 
 function showPrevStory() {
@@ -6577,7 +6956,7 @@ function createStoryMosaicTile(item, index, totalCount) {
     halfTurn: 1.01,
     defaultScale: 1,
   });
-  attachStoryFallback(img, imageSources.fallback);
+  attachStoryFallback(img, imageSources.fallback, imageSources.preferred || imageSources.original);
   img.src = imageSources.preferred || imageSources.original;
   img.alt = item.alt || `Story photo ${item.yearLabel}`;
   img.loading = "lazy";
@@ -6657,7 +7036,7 @@ function applyStoryOverlayImage(item) {
     halfTurn: 1.02,
     defaultScale: 1.03,
   });
-  attachStoryFallback(storyFocusImage, imageSources.fallback);
+  attachStoryFallback(storyFocusImage, imageSources.fallback, imageSources.original);
   storyFocusImage.src = imageSources.preferred || imageSources.original;
   storyFocusImage.alt = item.alt || `Story photo ${item.yearLabel}`;
 }

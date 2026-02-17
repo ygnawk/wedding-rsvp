@@ -71,6 +71,7 @@ const guestbookCache = {
   expiresAt: 0,
   items: [],
   pending: null,
+  refreshing: null,
 };
 
 function extractYearPrefix(filename) {
@@ -476,6 +477,7 @@ async function getSheetHeaders(sheets, spreadsheetId, tabName) {
 }
 
 async function getSheetObjects(sheets, spreadsheetId, tabName) {
+  const startedAt = Date.now();
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId,
     range: `${tabName}!A:ZZ`,
@@ -490,13 +492,18 @@ async function getSheetObjects(sheets, spreadsheetId, tabName) {
 
   assertHeadersPresent(headers, TAB_SCHEMAS[tabName], tabName);
 
-  return rows.map((row) => {
+  const mapped = rows.map((row) => {
     const item = {};
     headers.forEach((header, index) => {
       item[header] = normalizeFieldValue(row[index]);
     });
     return item;
   });
+
+  console.info(
+    `[sheets] tab=${tabName} duration_ms=${Date.now() - startedAt} rows=${mapped.length} cols=${headers.length} range=${tabName}!A:ZZ`,
+  );
+  return mapped;
 }
 
 function assertHeadersPresent(headers, requiredHeaders, tabName) {
@@ -562,7 +569,7 @@ function buildDriveEmbedUrl(fileId, driveViewUrl, fileType) {
 
 function buildDriveThumbnailUrl(fileId) {
   if (!fileId) return "";
-  return `https://lh3.googleusercontent.com/d/${fileId}=w1600`;
+  return `https://lh3.googleusercontent.com/d/${fileId}=w720`;
 }
 
 function normalizeDriveThumbnailLink(url) {
@@ -570,9 +577,63 @@ function normalizeDriveThumbnailLink(url) {
   if (!value) return "";
   if (!/^https:\/\//i.test(value)) return "";
   if (value.includes("=s")) {
-    return value.replace(/=s\d+/, "=w1600");
+    return value.replace(/=s\d+/, "=w720");
   }
   return value;
+}
+
+function getErrorCode(error) {
+  return Number(
+    (error && error.code) ||
+      (error && error.statusCode) ||
+      (error && error.response && error.response.status) ||
+      (error && error.cause && error.cause.code) ||
+      0,
+  );
+}
+
+function isRetryableDriveError(error) {
+  const code = getErrorCode(error);
+  return code === 403 || code === 429;
+}
+
+async function runDriveCall(label, operation) {
+  const startedAt = Date.now();
+  let attempt = 0;
+
+  while (attempt < 3) {
+    const attemptStartedAt = Date.now();
+    try {
+      const response = await operation();
+      const elapsed = Date.now() - attemptStartedAt;
+      const data = response && response.data ? response.data : null;
+      const itemCount = data && Array.isArray(data.files) ? data.files.length : 0;
+      const byteLength =
+        response && response.headers && response.headers["content-length"]
+          ? Number.parseInt(response.headers["content-length"], 10) || null
+          : null;
+      console.info(
+        `[drive] call=${label} attempt=${attempt + 1} duration_ms=${elapsed} items=${itemCount || 0} bytes=${byteLength || 0}`,
+      );
+      return response;
+    } catch (error) {
+      const elapsed = Date.now() - attemptStartedAt;
+      const code = getErrorCode(error);
+      const retryable = isRetryableDriveError(error);
+      console.warn(
+        `[drive] call=${label} attempt=${attempt + 1} duration_ms=${elapsed} status=${code || "unknown"} retryable=${retryable}`,
+      );
+      if (!retryable || attempt >= 2) {
+        throw error;
+      }
+      const backoffMs = 250 * 2 ** attempt + Math.floor(Math.random() * 120);
+      await new Promise((resolve) => setTimeout(resolve, backoffMs));
+      attempt += 1;
+    }
+  }
+
+  console.warn(`[drive] call=${label} exhausted retries duration_ms=${Date.now() - startedAt}`);
+  throw new Error("Drive request failed after retries");
 }
 
 async function loadDriveMetadataByFileId(drive, fileIds) {
@@ -580,26 +641,32 @@ async function loadDriveMetadataByFileId(drive, fileIds) {
   if (!uniqueIds.length) return new Map();
 
   const map = new Map();
-  await Promise.all(
-    uniqueIds.map(async (fileId) => {
+  const limit = 4;
+  for (let offset = 0; offset < uniqueIds.length; offset += limit) {
+    const chunk = uniqueIds.slice(offset, offset + limit);
+    await Promise.all(
+      chunk.map(async (fileId) => {
       try {
-        const response = await drive.files.get({
-          fileId,
-          supportsAllDrives: true,
-          fields: "id,mimeType,thumbnailLink,webViewLink",
-        });
+          const response = await runDriveCall("files.get(metadata)", () =>
+            drive.files.get({
+              fileId,
+              supportsAllDrives: true,
+              fields: "id,mimeType,thumbnailLink,webViewLink",
+            }),
+          );
 
-        map.set(fileId, {
-          mimeType: normalizeFieldValue(response.data && response.data.mimeType),
-          thumbnailLink: normalizeFieldValue(response.data && response.data.thumbnailLink),
-          webViewLink: normalizeFieldValue(response.data && response.data.webViewLink),
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error || "unknown");
-        console.warn(`[guestbook] drive metadata lookup failed file_id=${fileId} message=${message}`);
-      }
-    }),
-  );
+          map.set(fileId, {
+            mimeType: normalizeFieldValue(response.data && response.data.mimeType),
+            thumbnailLink: normalizeFieldValue(response.data && response.data.thumbnailLink),
+            webViewLink: normalizeFieldValue(response.data && response.data.webViewLink),
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error || "unknown");
+          console.warn(`[guestbook] drive metadata lookup failed file_id=${fileId} message=${message}`);
+        }
+      }),
+    );
+  }
 
   return map;
 }
@@ -610,15 +677,17 @@ async function makeDriveFilePublic(drive, fileId) {
   if (!fileId) return;
 
   try {
-    await drive.permissions.create({
-      fileId,
-      supportsAllDrives: true,
-      requestBody: {
-        role: "reader",
-        type: "anyone",
-      },
-      fields: "id",
-    });
+    await runDriveCall("permissions.create(public-read)", () =>
+      drive.permissions.create({
+        fileId,
+        supportsAllDrives: true,
+        requestBody: {
+          role: "reader",
+          type: "anyone",
+        },
+        fields: "id",
+      }),
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error || "unknown");
     console.warn(`[drive] could not make file public file_id=${fileId} message=${message}`);
@@ -685,19 +754,21 @@ async function uploadMediaFilesToDrive(drive, destinationFolderId, submissionId,
     const originalName = normalizeFieldValue(file.originalFilename) || `upload-${i + 1}`;
     const uploadName = `${submissionId}_${i + 1}${getUploadExtension(originalName, mimeType)}`;
 
-    const response = await drive.files.create({
-      supportsAllDrives: true,
-      requestBody: {
-        name: uploadName,
-        parents: [destinationFolderId],
-        mimeType,
-      },
-      media: {
-        mimeType,
-        body: fs.createReadStream(file.filepath),
-      },
-      fields: "id,name,mimeType",
-    });
+    const response = await runDriveCall("files.create(upload)", () =>
+      drive.files.create({
+        supportsAllDrives: true,
+        requestBody: {
+          name: uploadName,
+          parents: [destinationFolderId],
+          mimeType,
+        },
+        media: {
+          mimeType,
+          body: fs.createReadStream(file.filepath),
+        },
+        fields: "id,name,mimeType",
+      }),
+    );
 
     const fileId = response.data && response.data.id;
     if (!fileId) {
@@ -981,14 +1052,30 @@ async function loadGuestbookItems({ forceRefresh = false } = {}) {
     return guestbookCache.items;
   }
 
-  if (!forceRefresh && guestbookCache.pending) {
+  if (!forceRefresh && guestbookCache.items.length && guestbookCache.expiresAt <= now) {
+    if (!guestbookCache.refreshing) {
+      console.info("[guestbook] stale cache served; refreshing in background");
+      guestbookCache.refreshing = loadGuestbookItems({ forceRefresh: true })
+        .catch((error) => {
+          const message = error instanceof Error ? error.message : String(error || "unknown");
+          console.warn(`[guestbook] background refresh failed message=${message}`);
+        })
+        .finally(() => {
+          guestbookCache.refreshing = null;
+        });
+    }
+    return guestbookCache.items;
+  }
+
+  if (guestbookCache.pending) {
     console.info("[guestbook] cache pending request reused");
     return guestbookCache.pending;
   }
 
   const pending = (async () => {
+    const requestStartedAt = Date.now();
     const spreadsheetId = getRequiredSpreadsheetId();
-    const { sheets, drive } = createGoogleClients();
+    const { sheets } = createGoogleClients();
 
     const [rsvpRows, guestRows, mediaRows] = await Promise.all([
       getSheetObjects(sheets, spreadsheetId, "rsvps"),
@@ -1008,6 +1095,7 @@ async function loadGuestbookItems({ forceRefresh = false } = {}) {
     } else {
       console.info(`[guestbook] success items=${items.length}`);
     }
+    console.info(`[guestbook] refresh duration_ms=${Date.now() - requestStartedAt}`);
     return items;
   })();
 
@@ -1131,6 +1219,23 @@ function pickBalancedPinboardItems(items, limit) {
   return picked.slice(0, maxItems);
 }
 
+function buildPinboardFeed(items) {
+  const mediaQueue = (items || []).filter((item) => item.type === "media");
+  const noteQueue = (items || []).filter((item) => item.type === "note");
+  const feed = [];
+
+  while (mediaQueue.length || noteQueue.length) {
+    if (mediaQueue.length) feed.push(mediaQueue.shift());
+    if (mediaQueue.length) feed.push(mediaQueue.shift());
+    if (noteQueue.length) feed.push(noteQueue.shift());
+    if (!mediaQueue.length && noteQueue.length) {
+      feed.push(noteQueue.shift());
+    }
+  }
+
+  return feed.filter(Boolean);
+}
+
 function filterArchiveItems(items, { typeFilter = "all", query = "" } = {}) {
   const needle = normalizeFieldValue(query).toLowerCase();
   return (items || []).filter((item) => {
@@ -1148,7 +1253,7 @@ async function handleGuestbookRequest(req, res) {
     const requestUrl = new URL(req.url || "/api/guestbook", `http://${req.headers.host || "localhost"}`);
     const mode = parseGuestbookMode(requestUrl.searchParams.get("mode"));
     const defaultLimit = mode === "archive" ? GUESTBOOK_ARCHIVE_DEFAULT_LIMIT : GUESTBOOK_PINBOARD_DEFAULT_LIMIT;
-    const limit = parseBoundedInt(requestUrl.searchParams.get("limit"), defaultLimit, 1, mode === "archive" ? 60 : 32);
+    const limit = parseBoundedInt(requestUrl.searchParams.get("limit"), defaultLimit, 1, mode === "archive" ? 60 : 64);
     const typeFilter = parseGuestbookTypeFilter(requestUrl.searchParams.get("type"));
     const query = normalizeFieldValue(requestUrl.searchParams.get("q"));
     const cursor = requestUrl.searchParams.get("cursor");
@@ -1163,13 +1268,13 @@ async function handleGuestbookRequest(req, res) {
     const normalizedItems = buildGuestbookNormalizedItems(approvedSubmissions);
     let workingItems = normalizedItems;
     if (mode === "pinboard") {
-      workingItems = pickBalancedPinboardItems(normalizedItems, limit);
+      workingItems = buildPinboardFeed(normalizedItems);
     } else {
       workingItems = filterArchiveItems(normalizedItems, { typeFilter, query });
     }
 
-    const items = mode === "archive" ? workingItems.slice(offset, offset + limit) : workingItems;
-    const nextOffset = mode === "archive" && offset + items.length < workingItems.length ? offset + items.length : null;
+    const items = workingItems.slice(offset, offset + limit);
+    const nextOffset = offset + items.length < workingItems.length ? offset + items.length : null;
     const nextCursor = nextOffset === null ? null : encodeGuestbookCursor(nextOffset);
     console.info(
       `[guestbook] response mode=${mode} total=${workingItems.length} returned=${items.length} next_offset=${nextOffset === null ? "none" : nextOffset}`,
@@ -1305,6 +1410,22 @@ const server = http.createServer(async (req, res) => {
   const publicPath = safeMountedPath(req.url || "", "/public", path.join(ROOT, "public"));
   if (publicPath) {
     serveStaticFile(req, res, publicPath);
+    return;
+  }
+
+  const ourStoryNormalizedPath = safeMountedPath(
+    req.url || "",
+    "/our-story-normalized",
+    path.join(ROOT, "public", "our-story-normalized"),
+  );
+  if (ourStoryNormalizedPath) {
+    serveStaticFile(req, res, ourStoryNormalizedPath);
+    return;
+  }
+
+  const ourStoryPath = safeMountedPath(req.url || "", "/our-story", path.join(ROOT, "public", "our-story-normalized"));
+  if (ourStoryPath) {
+    serveStaticFile(req, res, ourStoryPath);
     return;
   }
 

@@ -5,6 +5,7 @@
   "scripts": {
     "start": "node server.js",
     "normalize:our-story": "node tools/normalize-our-story.js",
+    "validate:story-assets": "node tools/validate-story-assets.js",
     "dev": "npm run dev:clear-ports && concurrently -k -n SERVER,SYNC -c yellow,cyan \"npm:dev:server\" \"npm:dev:sync\"",
     "dev:clear-ports": "sh -c 'for p in 3000 3001 3002; do ids=$(lsof -ti tcp:$p); if [ -n \"$ids\" ]; then kill -9 $ids; fi; done'",
     "dev:server": "node server.js",
