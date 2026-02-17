@@ -57,6 +57,13 @@ const TAB_SCHEMAS = {
   ],
 };
 
+const GUESTBOOK_CACHE_TTL_MS = Math.max(60, Number.parseInt(process.env.GUESTBOOK_CACHE_TTL_SECONDS || "180", 10) || 180) * 1000;
+const guestbookCache = {
+  expiresAt: 0,
+  items: [],
+  pending: null,
+};
+
 function extractYearPrefix(filename) {
   const match = String(filename || "").match(/(?:^|[^0-9])((?:19|20)\d{2})(?!\d)/);
   return match ? Number(match[1]) : Number.POSITIVE_INFINITY;
@@ -143,6 +150,12 @@ function inferSource(userAgent, viewportWidthRaw) {
 function parseMaybeInt(value) {
   const parsed = Number.parseInt(normalizeFieldValue(value), 10);
   return Number.isFinite(parsed) ? parsed : NaN;
+}
+
+function parseBoundedInt(value, fallback, min, max) {
+  const parsed = parseMaybeInt(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.min(max, parsed));
 }
 
 function safeJsonParse(raw, fallback) {
@@ -254,6 +267,14 @@ function getRequiredGoogleIds() {
   return { spreadsheetId, uploadsFolderId };
 }
 
+function getRequiredSpreadsheetId() {
+  const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
+  if (!spreadsheetId) {
+    throw new Error("Missing GOOGLE_SPREADSHEET_ID");
+  }
+  return spreadsheetId;
+}
+
 function createGoogleClients() {
   const oauthClientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
   const oauthClientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
@@ -295,6 +316,30 @@ async function getSheetHeaders(sheets, spreadsheetId, tabName) {
   return row.map((header) => normalizeFieldValue(header));
 }
 
+async function getSheetObjects(sheets, spreadsheetId, tabName) {
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: `${tabName}!A:ZZ`,
+  });
+
+  const values = Array.isArray(response.data.values) ? response.data.values : [];
+  const [headerRow, ...rows] = values;
+  const headers = Array.isArray(headerRow) ? headerRow.map((header) => normalizeFieldValue(header)) : [];
+  if (!headers.length) {
+    throw new Error(`Tab '${tabName}' has no header row`);
+  }
+
+  assertHeadersPresent(headers, TAB_SCHEMAS[tabName], tabName);
+
+  return rows.map((row) => {
+    const item = {};
+    headers.forEach((header, index) => {
+      item[header] = normalizeFieldValue(row[index]);
+    });
+    return item;
+  });
+}
+
 function assertHeadersPresent(headers, requiredHeaders, tabName) {
   const missing = requiredHeaders.filter((header) => !headers.includes(header));
   if (missing.length) {
@@ -327,6 +372,33 @@ function deriveFileTypeFromMime(mimeType) {
   const mime = String(mimeType || "").toLowerCase();
   if (mime.startsWith("video/")) return "video";
   return "image";
+}
+
+function isTruthyApproval(value) {
+  const normalized = normalizeFieldValue(value).toLowerCase();
+  return normalized === "true" || normalized === "1" || normalized === "yes";
+}
+
+function normalizeFileType(fileTypeValue, mimeTypeValue) {
+  const fileType = normalizeFieldValue(fileTypeValue).toLowerCase();
+  if (fileType === "image" || fileType === "video") return fileType;
+  return deriveFileTypeFromMime(mimeTypeValue);
+}
+
+function buildDriveViewUrl(fileId, driveViewUrl) {
+  if (driveViewUrl) return driveViewUrl;
+  if (!fileId) return "";
+  return `https://drive.google.com/file/d/${fileId}/view`;
+}
+
+function buildDriveEmbedUrl(fileId, driveViewUrl, fileType) {
+  if (fileId) {
+    if (fileType === "video") {
+      return `https://drive.google.com/file/d/${fileId}/preview`;
+    }
+    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1600`;
+  }
+  return driveViewUrl || "";
 }
 
 function getUploadExtension(originalName, mimeType) {
@@ -536,6 +608,162 @@ async function handleRsvpSubmission(req, res) {
   }
 }
 
+function buildGuestbookItems(rsvpRows, guestRows, mediaRows) {
+  const primaryGuestBySubmissionId = new Map();
+  guestRows.forEach((row) => {
+    const submissionId = normalizeFieldValue(row.submission_id);
+    if (!submissionId || primaryGuestBySubmissionId.has(submissionId)) return;
+
+    const isPrimary = normalizeFieldValue(row.is_primary).toLowerCase() === "true" || normalizeFieldValue(row.guest_index) === "1";
+    if (!isPrimary) return;
+
+    primaryGuestBySubmissionId.set(submissionId, {
+      name: normalizeFieldValue(row.guest_name),
+      funFacts: normalizeFieldValue(row.fun_facts),
+    });
+  });
+
+  const mediaBySubmissionId = new Map();
+  mediaRows.forEach((row) => {
+    const submissionId = normalizeFieldValue(row.submission_id);
+    if (!submissionId) return;
+
+    const fileId = normalizeFieldValue(row.file_id);
+    const fileName = normalizeFieldValue(row.file_name);
+    const mimeType = normalizeFieldValue(row.mime_type);
+    const fileType = normalizeFileType(row.file_type, mimeType);
+    const driveViewUrl = buildDriveViewUrl(fileId, normalizeFieldValue(row.drive_view_url));
+    if (!driveViewUrl && !fileId) return;
+
+    const item = {
+      file_index: parseBoundedInt(row.file_index, Number.MAX_SAFE_INTEGER, 1, Number.MAX_SAFE_INTEGER),
+      file_id: fileId,
+      file_name: fileName,
+      mime_type: mimeType,
+      file_type: fileType,
+      drive_view_url: driveViewUrl,
+      embed_url: buildDriveEmbedUrl(fileId, driveViewUrl, fileType),
+      created_at: normalizeFieldValue(row.created_at),
+    };
+
+    const existing = mediaBySubmissionId.get(submissionId) || [];
+    existing.push(item);
+    mediaBySubmissionId.set(submissionId, existing);
+  });
+
+  mediaBySubmissionId.forEach((items) => {
+    items.sort((a, b) => {
+      if (a.file_index !== b.file_index) return a.file_index - b.file_index;
+      return String(a.created_at).localeCompare(String(b.created_at));
+    });
+  });
+
+  const guestbookItems = rsvpRows
+    .filter((row) => isTruthyApproval(row.approved))
+    .map((row) => {
+      const submissionId = normalizeFieldValue(row.submission_id);
+      if (!submissionId) return null;
+
+      const primaryGuest = primaryGuestBySubmissionId.get(submissionId);
+      const message = normalizeFieldValue(row.message_to_couple);
+      const primaryFunFacts = normalizeFieldValue(row.primary_fun_facts) || (primaryGuest ? primaryGuest.funFacts : "");
+      const media = mediaBySubmissionId.get(submissionId) || [];
+      const name = normalizeFieldValue(row.full_name) || (primaryGuest ? primaryGuest.name : "") || "Guest";
+      const submittedAt = normalizeFieldValue(row.submitted_at);
+
+      if (!message && !primaryFunFacts && !media.length) {
+        return null;
+      }
+
+      return {
+        submission_id: submissionId,
+        name,
+        message,
+        primary_fun_facts: primaryFunFacts,
+        media,
+        submitted_at: submittedAt,
+      };
+    })
+    .filter(Boolean);
+
+  guestbookItems.sort((a, b) => {
+    const tsA = Date.parse(a.submitted_at || "");
+    const tsB = Date.parse(b.submitted_at || "");
+    const validA = Number.isFinite(tsA);
+    const validB = Number.isFinite(tsB);
+    if (validA && validB && tsA !== tsB) return tsB - tsA;
+    if (validA !== validB) return validA ? -1 : 1;
+    return String(b.submission_id).localeCompare(String(a.submission_id));
+  });
+
+  return guestbookItems;
+}
+
+async function loadGuestbookItems({ forceRefresh = false } = {}) {
+  const now = Date.now();
+  if (!forceRefresh && guestbookCache.items.length && guestbookCache.expiresAt > now) {
+    return guestbookCache.items;
+  }
+
+  if (!forceRefresh && guestbookCache.pending) {
+    return guestbookCache.pending;
+  }
+
+  const pending = (async () => {
+    const spreadsheetId = getRequiredSpreadsheetId();
+    const { sheets } = createGoogleClients();
+
+    const [rsvpRows, guestRows, mediaRows] = await Promise.all([
+      getSheetObjects(sheets, spreadsheetId, "rsvps"),
+      getSheetObjects(sheets, spreadsheetId, "guests"),
+      getSheetObjects(sheets, spreadsheetId, "media"),
+    ]);
+
+    const items = buildGuestbookItems(rsvpRows, guestRows, mediaRows);
+    guestbookCache.items = items;
+    guestbookCache.expiresAt = Date.now() + GUESTBOOK_CACHE_TTL_MS;
+    return items;
+  })();
+
+  guestbookCache.pending = pending;
+  try {
+    return await pending;
+  } finally {
+    guestbookCache.pending = null;
+  }
+}
+
+async function handleGuestbookRequest(req, res) {
+  try {
+    const requestUrl = new URL(req.url || "/api/guestbook", `http://${req.headers.host || "localhost"}`);
+    const limit = parseBoundedInt(requestUrl.searchParams.get("limit"), 80, 1, 200);
+    const offset = parseBoundedInt(requestUrl.searchParams.get("offset"), 0, 0, 100000);
+    const refresh = ["1", "true", "yes"].includes(normalizeFieldValue(requestUrl.searchParams.get("refresh")).toLowerCase());
+
+    const allItems = await loadGuestbookItems({ forceRefresh: refresh });
+    const items = allItems.slice(offset, offset + limit);
+    const nextOffset = offset + items.length < allItems.length ? offset + items.length : null;
+
+    send(
+      res,
+      200,
+      JSON.stringify({
+        ok: true,
+        items,
+        total: allItems.length,
+        offset,
+        limit,
+        next_offset: nextOffset,
+        cached_until: guestbookCache.expiresAt ? new Date(guestbookCache.expiresAt).toISOString() : null,
+      }),
+      MIME_TYPES[".json"],
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Guestbook request failed";
+    send(res, 500, JSON.stringify({ ok: false, error: message }), MIME_TYPES[".json"]);
+  }
+}
+
 const server = http.createServer(async (req, res) => {
   const pathname = decodeURIComponent((req.url || "/").split("?")[0] || "/");
 
@@ -556,6 +784,11 @@ const server = http.createServer(async (req, res) => {
 
   if (pathname === "/api/rsvp" && req.method === "GET") {
     send(res, 200, JSON.stringify({ ok: true, message: "RSVP API is active" }), MIME_TYPES[".json"]);
+    return;
+  }
+
+  if (pathname === "/api/guestbook" && req.method === "GET") {
+    await handleGuestbookRequest(req, res);
     return;
   }
 

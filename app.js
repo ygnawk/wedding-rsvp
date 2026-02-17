@@ -21,6 +21,12 @@ const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const HOTEL_PANEL_TRANSITION_MS = 500;
 const HOTEL_CONTENT_FADE_MS = 500;
 const MOBILE_GALLERY_DOT_MAX = 7;
+const GUEST_WALL_ROTATE_MIN_MS = 8000;
+const GUEST_WALL_ROTATE_MAX_MS = 12000;
+const GUEST_WALL_ROTATE_SWAP_COUNT = 3;
+const GUEST_WALL_MOBILE_AUTO_MS = 9000;
+const GUEST_WALL_INITIAL_FETCH_LIMIT = 120;
+const GUEST_WALL_MODAL_PAGE_SIZE = 24;
 const UPLOAD_ALLOWED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "heic", "heif", "mp4", "mov", "webm"]);
 const UPLOAD_ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
@@ -281,11 +287,36 @@ const galleryLightboxFrame = galleryLightbox ? galleryLightbox.querySelector(".l
 const galleryLightboxCloseButtons = galleryLightbox
   ? Array.from(galleryLightbox.querySelectorAll("[data-close], .lightbox-close"))
   : [];
+const guestWallPinboard = document.getElementById("guestWallPinboard");
+const guestWallMobile = document.getElementById("guestWallMobile");
+const guestWallStatus = document.getElementById("guestWallStatus");
+const guestWallShuffle = document.getElementById("guestWallShuffle");
+const guestWallPause = document.getElementById("guestWallPause");
+const guestWallViewAll = document.getElementById("guestWallViewAll");
+const guestWallModal = document.getElementById("guestWallModal");
+const guestWallModalList = document.getElementById("guestWallModalList");
+const guestWallModalLoadMore = document.getElementById("guestWallModalLoadMore");
+const guestWallModalCloseControls = guestWallModal ? Array.from(guestWallModal.querySelectorAll("[data-guestwall-close]")) : [];
 
 let galleryImages = [];
 let currentGalleryIndex = 0;
 let galleryTouchStartX = null;
 let galleryScrollRaf = null;
+let guestWallEntries = [];
+let guestWallCards = [];
+let guestWallCardById = new Map();
+let guestWallVisibleCardIds = [];
+let guestWallSlotNodes = [];
+let guestWallRotationTimer = null;
+let guestWallMobileTimer = null;
+let guestWallMobileIndex = 0;
+let guestWallPaused = false;
+let guestWallApiTotal = 0;
+let guestWallModalOffset = 0;
+let guestWallModalHasMore = false;
+let guestWallModalLoading = false;
+let guestWallResizeRaf = null;
+let guestWallTouchStartX = null;
 
 const storySection = document.getElementById("story");
 const storyViewport = document.getElementById("storyViewport");
@@ -369,6 +400,23 @@ const travelPassportPills = Array.from(document.querySelectorAll(".travel-passpo
 const travelPassportClear = document.getElementById("travelPassportClear");
 const travelPassportResult = document.getElementById("travelPassportResult");
 const travelSourcesDisclosure = document.querySelector(".travel-sources-disclosure");
+
+const GUEST_WALL_DESKTOP_SLOTS = [
+  { left: 4.5, top: 7, width: 19, rotate: -4.5, z: 4 },
+  { left: 23, top: 4, width: 16, rotate: 2.2, z: 3 },
+  { left: 39, top: 9, width: 20, rotate: -1.8, z: 5 },
+  { left: 60, top: 5, width: 17, rotate: 3.1, z: 3 },
+  { left: 76.5, top: 10, width: 18, rotate: -2.2, z: 4 },
+  { left: 8, top: 37, width: 18, rotate: 3.4, z: 3 },
+  { left: 26, top: 35, width: 16.5, rotate: -3.8, z: 4 },
+  { left: 43, top: 37, width: 18.5, rotate: 2.1, z: 5 },
+  { left: 62, top: 36, width: 17.5, rotate: -2.9, z: 4 },
+  { left: 79, top: 40, width: 15.5, rotate: 2.8, z: 3 },
+  { left: 13, top: 67, width: 17.5, rotate: -2.3, z: 4 },
+  { left: 31.5, top: 70, width: 16, rotate: 3.2, z: 3 },
+  { left: 49, top: 66, width: 19.5, rotate: -1.5, z: 4 },
+  { left: 69.5, top: 69, width: 17, rotate: 2.4, z: 3 },
+];
 
 const HOTELS_DATA = Array.isArray(window.HOTELS_DATA) ? window.HOTELS_DATA : [];
 const BEIJING_FOOD_PLACES = Array.isArray(window.BEIJING_FOOD_PLACES) ? window.BEIJING_FOOD_PLACES : [];
@@ -3337,6 +3385,721 @@ function initRsvpForm() {
   });
 }
 
+function isGuestWallMobileView() {
+  return window.matchMedia("(max-width: 768px)").matches;
+}
+
+function getGuestWallDesktopVisibleCount() {
+  const width = window.innerWidth || 1280;
+  if (width >= 1380) return 14;
+  if (width >= 1200) return 12;
+  if (width >= 980) return 10;
+  return 8;
+}
+
+function shuffleItems(items) {
+  const list = Array.isArray(items) ? [...items] : [];
+  for (let i = list.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [list[i], list[j]] = [list[j], list[i]];
+  }
+  return list;
+}
+
+function chooseRandomIndices(total, count) {
+  const indices = Array.from({ length: Math.max(0, total) }, (_, index) => index);
+  return shuffleItems(indices).slice(0, Math.max(0, count));
+}
+
+function resolveGuestbookApiUrl(params = {}) {
+  const search = new URLSearchParams();
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
+    search.set(key, String(value));
+  });
+  const suffix = search.toString() ? `?${search.toString()}` : "";
+
+  if (IS_LOCAL_DEV) return `${withBasePath("/api/guestbook")}${suffix}`;
+  const host = String(window.location.hostname || "").toLowerCase();
+  if (host === "www.mikiandyijie.com" || host === "mikiandyijie.com" || host === "ygnawk.github.io") {
+    return `${RSVP_API_ORIGIN}/api/guestbook${suffix}`;
+  }
+  return `${withBasePath("/api/guestbook")}${suffix}`;
+}
+
+async function fetchGuestbookPage({ limit = GUEST_WALL_INITIAL_FETCH_LIMIT, offset = 0, refresh = false } = {}) {
+  const response = await fetch(resolveGuestbookApiUrl({ limit, offset, refresh: refresh ? "1" : "" }), { cache: "no-store" });
+  const text = await response.text();
+  let data = null;
+
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch (_error) {
+    data = null;
+  }
+
+  if (!response.ok || !data || data.ok !== true || !Array.isArray(data.items)) {
+    const errorMessage = data && data.error ? String(data.error) : "Guest Wall is unavailable right now.";
+    throw new Error(errorMessage);
+  }
+
+  return data;
+}
+
+function normalizeGuestWallEntry(entry) {
+  if (!entry || typeof entry !== "object") return null;
+
+  const submissionId = String(entry.submission_id || "").trim();
+  if (!submissionId) return null;
+
+  const mediaRaw = Array.isArray(entry.media) ? entry.media : [];
+  const media = mediaRaw
+    .map((item, index) => {
+      if (!item || typeof item !== "object") return null;
+      const fileType = String(item.file_type || item.type || "").toLowerCase() === "video" ? "video" : "image";
+      const driveViewUrl = String(item.drive_view_url || item.url || "").trim();
+      const embedUrl = String(item.embed_url || "").trim();
+      const mediaUrl = embedUrl || driveViewUrl;
+      if (!mediaUrl) return null;
+
+      return {
+        id: `${submissionId}:media:${index + 1}`,
+        fileName: String(item.file_name || "").trim(),
+        mimeType: String(item.mime_type || "").trim(),
+        fileType,
+        url: mediaUrl,
+        driveViewUrl,
+      };
+    })
+    .filter(Boolean);
+
+  return {
+    submissionId,
+    name: String(entry.name || "").trim() || "Guest",
+    message: String(entry.message || "").trim(),
+    primaryFunFacts: String(entry.primary_fun_facts || "").trim(),
+    submittedAt: String(entry.submitted_at || "").trim(),
+    media,
+  };
+}
+
+function buildGuestWallCards(entries) {
+  const cards = [];
+
+  (entries || []).forEach((entry) => {
+    if (!entry) return;
+
+    entry.media.forEach((mediaItem, mediaIndex) => {
+      cards.push({
+        id: `${entry.submissionId}:media:${mediaIndex + 1}`,
+        kind: "media",
+        name: entry.name,
+        submittedAt: entry.submittedAt,
+        message: entry.message,
+        media: mediaItem,
+      });
+    });
+
+    if (entry.message) {
+      cards.push({
+        id: `${entry.submissionId}:note`,
+        kind: "note",
+        name: entry.name,
+        submittedAt: entry.submittedAt,
+        text: entry.message,
+      });
+    } else if (entry.primaryFunFacts) {
+      cards.push({
+        id: `${entry.submissionId}:fun-facts`,
+        kind: "note",
+        name: entry.name,
+        submittedAt: entry.submittedAt,
+        text: `Fun fact: ${entry.primaryFunFacts}`,
+      });
+    }
+  });
+
+  const seen = new Set();
+  return cards.filter((card) => {
+    if (!card || !card.id || seen.has(card.id)) return false;
+    seen.add(card.id);
+    return true;
+  });
+}
+
+function truncateGuestWallText(value, maxChars = 180) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  if (text.length <= maxChars) return text;
+  return `${text.slice(0, maxChars).trimEnd()}…`;
+}
+
+function buildGuestWallMediaNode(card, context = "board") {
+  const mediaWrap = document.createElement("div");
+  mediaWrap.className = context === "modal" ? "guestwall-modal-media" : "guestwall-polaroid-media";
+
+  if (card.media.fileType === "video") {
+    const video = document.createElement("video");
+    video.src = card.media.url;
+    video.preload = "metadata";
+    video.muted = true;
+    video.playsInline = true;
+    if (context !== "board") video.controls = true;
+    mediaWrap.appendChild(video);
+  } else {
+    const img = document.createElement("img");
+    img.src = card.media.url;
+    img.alt = `Uploaded by ${card.name}`;
+    img.loading = "lazy";
+    img.decoding = "async";
+    img.addEventListener(
+      "error",
+      () => {
+        if (!card.media.driveViewUrl || img.src === card.media.driveViewUrl) return;
+        img.src = card.media.driveViewUrl;
+      },
+      { once: true },
+    );
+    mediaWrap.appendChild(img);
+  }
+
+  return mediaWrap;
+}
+
+function buildGuestWallCard(card, context = "board") {
+  const node = document.createElement("article");
+  if (card.kind === "media") {
+    node.className = "guestwall-item guestwall-item--polaroid";
+    node.appendChild(buildGuestWallMediaNode(card, context));
+
+    if (card.media.fileType === "video" && card.media.driveViewUrl) {
+      const link = createExternalAnchor(card.media.driveViewUrl, "Open video", "guestwall-polaroid-link");
+      node.appendChild(link);
+    }
+
+    const caption = document.createElement("p");
+    caption.className = "guestwall-polaroid-caption";
+    caption.textContent = `— ${card.name}`;
+    node.appendChild(caption);
+    return node;
+  }
+
+  node.className = "guestwall-item guestwall-item--note";
+  const text = document.createElement("p");
+  text.className = "guestwall-note-text";
+  text.textContent = truncateGuestWallText(card.text, context === "modal" ? 480 : context === "mobile" ? 260 : 190);
+
+  const sign = document.createElement("p");
+  sign.className = "guestwall-note-sign";
+  sign.textContent = `— ${card.name}`;
+
+  node.appendChild(text);
+  node.appendChild(sign);
+  return node;
+}
+
+function clearGuestWallDesktopTimer() {
+  if (!guestWallRotationTimer) return;
+  window.clearTimeout(guestWallRotationTimer);
+  guestWallRotationTimer = null;
+}
+
+function clearGuestWallMobileTimer() {
+  if (!guestWallMobileTimer) return;
+  window.clearTimeout(guestWallMobileTimer);
+  guestWallMobileTimer = null;
+}
+
+function ensureGuestWallVisibleIds(slotCount, reshuffle = false) {
+  const allIds = guestWallCards.map((card) => card.id);
+  if (!allIds.length || slotCount <= 0) {
+    guestWallVisibleCardIds = [];
+    return;
+  }
+
+  if (reshuffle || !guestWallVisibleCardIds.length) {
+    guestWallVisibleCardIds = shuffleItems(allIds).slice(0, slotCount);
+    return;
+  }
+
+  const next = guestWallVisibleCardIds.filter((id) => guestWallCardById.has(id)).slice(0, slotCount);
+  const needed = slotCount - next.length;
+
+  if (needed > 0) {
+    const remaining = shuffleItems(allIds.filter((id) => !next.includes(id))).slice(0, needed);
+    next.push(...remaining);
+  }
+
+  guestWallVisibleCardIds = next;
+}
+
+function setGuestWallStatus(message) {
+  if (!guestWallStatus) return;
+  guestWallStatus.textContent = String(message || "");
+}
+
+function setGuestWallControlsDisabled(disabled) {
+  [guestWallShuffle, guestWallPause, guestWallViewAll].forEach((button) => {
+    if (!(button instanceof HTMLButtonElement)) return;
+    button.disabled = Boolean(disabled);
+  });
+}
+
+function placeGuestWallSlot(slotNode, slotConfig) {
+  slotNode.style.setProperty("--gw-left", String(slotConfig.left));
+  slotNode.style.setProperty("--gw-top", String(slotConfig.top));
+  slotNode.style.setProperty("--gw-width", String(slotConfig.width));
+  slotNode.style.setProperty("--gw-rotate", `${slotConfig.rotate}deg`);
+  slotNode.style.setProperty("--gw-z", String(slotConfig.z));
+}
+
+function mountGuestWallSlotCard(slotNode, cardId, animate = false) {
+  if (!(slotNode instanceof HTMLElement)) return;
+  const card = guestWallCardById.get(cardId);
+  if (!card) return;
+
+  const node = buildGuestWallCard(card, "board");
+  if (animate && !prefersReducedMotion()) {
+    node.classList.add("is-entering");
+    slotNode.replaceChildren(node);
+    window.requestAnimationFrame(() => {
+      node.classList.remove("is-entering");
+    });
+    return;
+  }
+
+  slotNode.replaceChildren(node);
+}
+
+function swapGuestWallSlotCard(slotIndex, nextCardId) {
+  const slotNode = guestWallSlotNodes[slotIndex];
+  if (!(slotNode instanceof HTMLElement)) return;
+
+  const current = slotNode.firstElementChild;
+  if (!(current instanceof HTMLElement) || prefersReducedMotion()) {
+    mountGuestWallSlotCard(slotNode, nextCardId, false);
+    return;
+  }
+
+  current.classList.add("is-leaving");
+  window.setTimeout(() => {
+    mountGuestWallSlotCard(slotNode, nextCardId, true);
+  }, 210);
+}
+
+function renderGuestWallDesktop({ reshuffle = false } = {}) {
+  if (!(guestWallPinboard instanceof HTMLElement)) return;
+
+  guestWallPinboard.innerHTML = "";
+  guestWallSlotNodes = [];
+
+  const slotCount = Math.min(getGuestWallDesktopVisibleCount(), GUEST_WALL_DESKTOP_SLOTS.length, guestWallCards.length);
+  if (!slotCount) {
+    const empty = document.createElement("p");
+    empty.className = "guestwall-empty";
+    empty.textContent = "Guest Wall opens once approved uploads come in.";
+    guestWallPinboard.appendChild(empty);
+    return;
+  }
+
+  ensureGuestWallVisibleIds(slotCount, reshuffle);
+
+  for (let slotIndex = 0; slotIndex < slotCount; slotIndex += 1) {
+    const slotNode = document.createElement("div");
+    slotNode.className = "guestwall-slot";
+    placeGuestWallSlot(slotNode, GUEST_WALL_DESKTOP_SLOTS[slotIndex]);
+    mountGuestWallSlotCard(slotNode, guestWallVisibleCardIds[slotIndex], false);
+    guestWallPinboard.appendChild(slotNode);
+    guestWallSlotNodes.push(slotNode);
+  }
+}
+
+function getGuestWallRandomDelay() {
+  if (prefersReducedMotion()) return GUEST_WALL_ROTATE_MAX_MS;
+  return Math.floor(Math.random() * (GUEST_WALL_ROTATE_MAX_MS - GUEST_WALL_ROTATE_MIN_MS + 1)) + GUEST_WALL_ROTATE_MIN_MS;
+}
+
+function rotateGuestWallDesktopSubset() {
+  if (guestWallPaused || isGuestWallMobileView()) return;
+  if (!guestWallVisibleCardIds.length || !guestWallCards.length) return;
+
+  const allIds = guestWallCards.map((card) => card.id);
+  const hiddenIds = allIds.filter((id) => !guestWallVisibleCardIds.includes(id));
+  if (!hiddenIds.length) return;
+
+  const replaceCount = Math.min(GUEST_WALL_ROTATE_SWAP_COUNT, guestWallVisibleCardIds.length, hiddenIds.length);
+  const slotIndices = chooseRandomIndices(guestWallVisibleCardIds.length, replaceCount);
+  const replacements = shuffleItems(hiddenIds).slice(0, replaceCount);
+
+  slotIndices.forEach((slotIndex, idx) => {
+    const nextCardId = replacements[idx];
+    if (!nextCardId) return;
+    guestWallVisibleCardIds[slotIndex] = nextCardId;
+    swapGuestWallSlotCard(slotIndex, nextCardId);
+  });
+}
+
+function scheduleGuestWallDesktopRotation() {
+  clearGuestWallDesktopTimer();
+  if (guestWallPaused || isGuestWallMobileView() || !guestWallVisibleCardIds.length) return;
+  guestWallRotationTimer = window.setTimeout(() => {
+    rotateGuestWallDesktopSubset();
+    scheduleGuestWallDesktopRotation();
+  }, getGuestWallRandomDelay());
+}
+
+function normalizeGuestWallMobileIndex(nextIndex) {
+  if (!guestWallCards.length) return 0;
+  const max = guestWallCards.length;
+  return ((Number(nextIndex) || 0) % max + max) % max;
+}
+
+function renderGuestWallMobile() {
+  if (!(guestWallMobile instanceof HTMLElement)) return;
+  guestWallMobile.innerHTML = "";
+
+  if (!guestWallCards.length) {
+    const empty = document.createElement("p");
+    empty.className = "guestwall-status";
+    empty.textContent = "Guest Wall opens once approved uploads come in.";
+    guestWallMobile.appendChild(empty);
+    return;
+  }
+
+  guestWallMobileIndex = normalizeGuestWallMobileIndex(guestWallMobileIndex);
+  const card = guestWallCards[guestWallMobileIndex];
+  if (!card) return;
+
+  const stage = document.createElement("div");
+  stage.className = "guestwall-mobile-stage";
+  stage.appendChild(buildGuestWallCard(card, "mobile"));
+
+  const controls = document.createElement("div");
+  controls.className = "guestwall-mobile-nav";
+
+  const prevButton = document.createElement("button");
+  prevButton.type = "button";
+  prevButton.className = "guestwall-mobile-nav-btn";
+  prevButton.textContent = "Previous";
+  prevButton.addEventListener("click", () => {
+    guestWallMobileIndex = normalizeGuestWallMobileIndex(guestWallMobileIndex - 1);
+    renderGuestWallMobile();
+    scheduleGuestWallMobileRotation();
+  });
+
+  const counter = document.createElement("span");
+  counter.className = "guestwall-mobile-count";
+  counter.textContent = `${guestWallMobileIndex + 1} / ${guestWallCards.length}`;
+
+  const nextButton = document.createElement("button");
+  nextButton.type = "button";
+  nextButton.className = "guestwall-mobile-nav-btn";
+  nextButton.textContent = "Next";
+  nextButton.addEventListener("click", () => {
+    guestWallMobileIndex = normalizeGuestWallMobileIndex(guestWallMobileIndex + 1);
+    renderGuestWallMobile();
+    scheduleGuestWallMobileRotation();
+  });
+
+  stage.addEventListener(
+    "touchstart",
+    (event) => {
+      guestWallTouchStartX = event.changedTouches && event.changedTouches[0] ? event.changedTouches[0].clientX : null;
+    },
+    { passive: true },
+  );
+
+  stage.addEventListener(
+    "touchend",
+    (event) => {
+      const endX = event.changedTouches && event.changedTouches[0] ? event.changedTouches[0].clientX : null;
+      if (guestWallTouchStartX === null || endX === null) return;
+      const deltaX = endX - guestWallTouchStartX;
+      guestWallTouchStartX = null;
+      if (Math.abs(deltaX) < 45) return;
+      guestWallMobileIndex = deltaX > 0 ? normalizeGuestWallMobileIndex(guestWallMobileIndex - 1) : normalizeGuestWallMobileIndex(guestWallMobileIndex + 1);
+      renderGuestWallMobile();
+      scheduleGuestWallMobileRotation();
+    },
+    { passive: true },
+  );
+
+  controls.appendChild(prevButton);
+  controls.appendChild(counter);
+  controls.appendChild(nextButton);
+
+  guestWallMobile.appendChild(stage);
+  guestWallMobile.appendChild(controls);
+}
+
+function scheduleGuestWallMobileRotation() {
+  clearGuestWallMobileTimer();
+  if (guestWallPaused || !isGuestWallMobileView() || guestWallCards.length <= 1) return;
+  guestWallMobileTimer = window.setTimeout(() => {
+    guestWallMobileIndex = normalizeGuestWallMobileIndex(guestWallMobileIndex + 1);
+    renderGuestWallMobile();
+    scheduleGuestWallMobileRotation();
+  }, GUEST_WALL_MOBILE_AUTO_MS);
+}
+
+function syncGuestWallLayout({ reshuffle = false } = {}) {
+  if (!(guestWallPinboard instanceof HTMLElement) || !(guestWallMobile instanceof HTMLElement)) return;
+
+  const mobile = isGuestWallMobileView();
+  setHiddenClass(guestWallPinboard, mobile);
+  setHiddenClass(guestWallMobile, !mobile);
+
+  if (mobile) {
+    clearGuestWallDesktopTimer();
+    renderGuestWallMobile();
+    scheduleGuestWallMobileRotation();
+    return;
+  }
+
+  clearGuestWallMobileTimer();
+  renderGuestWallDesktop({ reshuffle });
+  scheduleGuestWallDesktopRotation();
+}
+
+function isGuestWallModalOpen() {
+  if (!guestWallModal) return false;
+  return !guestWallModal.classList.contains("hidden") && guestWallModal.getAttribute("aria-hidden") !== "true";
+}
+
+function buildGuestWallModalEntry(entry) {
+  const node = document.createElement("article");
+  node.className = "guestwall-modal-entry";
+
+  const media = Array.isArray(entry.media) ? entry.media[0] : null;
+  if (media && media.url) {
+    node.appendChild(
+      buildGuestWallMediaNode(
+        {
+          kind: "media",
+          name: entry.name,
+          media: {
+            fileType: media.fileType,
+            url: media.url,
+            driveViewUrl: media.driveViewUrl,
+          },
+        },
+        "modal",
+      ),
+    );
+  }
+
+  const text = entry.message || (entry.primaryFunFacts ? `Fun fact: ${entry.primaryFunFacts}` : "");
+  if (text) {
+    const messageNode = document.createElement("p");
+    messageNode.className = "guestwall-note-text";
+    messageNode.textContent = truncateGuestWallText(text, 480);
+    node.appendChild(messageNode);
+  }
+
+  const sign = document.createElement("p");
+  sign.className = "guestwall-note-sign";
+  sign.textContent = `— ${entry.name}`;
+  node.appendChild(sign);
+
+  return node;
+}
+
+async function loadGuestWallModalPage({ reset = false } = {}) {
+  if (!(guestWallModalList instanceof HTMLElement) || !(guestWallModalLoadMore instanceof HTMLButtonElement)) return;
+  if (guestWallModalLoading) return;
+
+  if (reset) {
+    guestWallModalOffset = 0;
+    guestWallModalHasMore = true;
+    guestWallModalList.innerHTML = "";
+  }
+
+  if (!guestWallModalHasMore) return;
+
+  guestWallModalLoading = true;
+  guestWallModalLoadMore.disabled = true;
+  guestWallModalLoadMore.textContent = "Loading…";
+
+  try {
+    const payload = await fetchGuestbookPage({
+      limit: GUEST_WALL_MODAL_PAGE_SIZE,
+      offset: guestWallModalOffset,
+    });
+    const normalizedEntries = payload.items.map((item) => normalizeGuestWallEntry(item)).filter(Boolean);
+
+    if (!normalizedEntries.length && guestWallModalOffset === 0) {
+      const empty = document.createElement("p");
+      empty.className = "guestwall-status";
+      empty.textContent = "No approved uploads yet.";
+      guestWallModalList.appendChild(empty);
+    } else {
+      normalizedEntries.forEach((entry) => {
+        guestWallModalList.appendChild(buildGuestWallModalEntry(entry));
+      });
+    }
+
+    guestWallModalOffset += normalizedEntries.length;
+    guestWallModalHasMore = payload.next_offset !== null && payload.next_offset !== undefined;
+
+    if (!guestWallModalHasMore) {
+      guestWallModalLoadMore.disabled = true;
+      guestWallModalLoadMore.textContent = "All loaded";
+      return;
+    }
+
+    guestWallModalLoadMore.disabled = false;
+    guestWallModalLoadMore.textContent = "Load more";
+  } catch (error) {
+    guestWallModalLoadMore.disabled = false;
+    guestWallModalLoadMore.textContent = "Retry";
+    if (!guestWallModalList.children.length) {
+      const message = document.createElement("p");
+      message.className = "guestwall-status";
+      message.textContent = error instanceof Error ? error.message : "Could not load guest wall entries.";
+      guestWallModalList.appendChild(message);
+    }
+  } finally {
+    guestWallModalLoading = false;
+  }
+}
+
+function closeGuestWallModal() {
+  if (!guestWallModal) return;
+  guestWallModal.classList.add("hidden");
+  guestWallModal.setAttribute("aria-hidden", "true");
+  if (!isGalleryLightboxOpen() && !isStoryLightboxOpen()) {
+    document.body.classList.remove("modal-open");
+  }
+}
+
+function openGuestWallModal() {
+  if (!guestWallModal || !(guestWallModalList instanceof HTMLElement)) return;
+  closeGalleryLightbox();
+  closeStoryLightbox();
+
+  guestWallModal.classList.remove("hidden");
+  guestWallModal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+  loadGuestWallModalPage({ reset: true });
+}
+
+function setGuestWallPaused(paused) {
+  guestWallPaused = Boolean(paused);
+
+  if (guestWallPause instanceof HTMLButtonElement) {
+    guestWallPause.classList.toggle("is-paused", guestWallPaused);
+    guestWallPause.setAttribute("aria-pressed", guestWallPaused ? "true" : "false");
+    guestWallPause.textContent = guestWallPaused ? "Resume" : "Pause";
+  }
+
+  if (guestWallPaused) {
+    clearGuestWallDesktopTimer();
+    clearGuestWallMobileTimer();
+    return;
+  }
+
+  if (isGuestWallMobileView()) scheduleGuestWallMobileRotation();
+  else scheduleGuestWallDesktopRotation();
+}
+
+function bindGuestWallEvents() {
+  if (!(guestWallPinboard instanceof HTMLElement)) return;
+  if (guestWallPinboard.dataset.bound === "true") return;
+
+  if (guestWallShuffle instanceof HTMLButtonElement) {
+    guestWallShuffle.addEventListener("click", () => {
+      if (!guestWallCards.length) return;
+      if (isGuestWallMobileView()) {
+        guestWallMobileIndex = Math.floor(Math.random() * guestWallCards.length);
+        renderGuestWallMobile();
+        scheduleGuestWallMobileRotation();
+        return;
+      }
+      syncGuestWallLayout({ reshuffle: true });
+    });
+  }
+
+  if (guestWallPause instanceof HTMLButtonElement) {
+    guestWallPause.addEventListener("click", () => {
+      setGuestWallPaused(!guestWallPaused);
+    });
+  }
+
+  if (guestWallViewAll instanceof HTMLButtonElement) {
+    guestWallViewAll.addEventListener("click", () => {
+      openGuestWallModal();
+    });
+  }
+
+  guestWallModalCloseControls.forEach((control) => {
+    control.addEventListener("click", () => {
+      closeGuestWallModal();
+    });
+  });
+
+  if (guestWallModalLoadMore instanceof HTMLButtonElement) {
+    guestWallModalLoadMore.addEventListener("click", () => {
+      loadGuestWallModalPage();
+    });
+  }
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !isGuestWallModalOpen()) return;
+    closeGuestWallModal();
+  });
+
+  window.addEventListener(
+    "resize",
+    () => {
+      if (guestWallResizeRaf) return;
+      guestWallResizeRaf = window.requestAnimationFrame(() => {
+        guestWallResizeRaf = null;
+        syncGuestWallLayout();
+      });
+    },
+    { passive: true },
+  );
+
+  guestWallPinboard.dataset.bound = "true";
+}
+
+async function initGuestWall() {
+  if (!(guestWallPinboard instanceof HTMLElement)) return;
+
+  bindGuestWallEvents();
+  setGuestWallStatus("Loading approved uploads…");
+  setGuestWallControlsDisabled(true);
+
+  try {
+    const payload = await fetchGuestbookPage({ limit: GUEST_WALL_INITIAL_FETCH_LIMIT, offset: 0 });
+    const entries = payload.items.map((item) => normalizeGuestWallEntry(item)).filter(Boolean);
+    const cards = buildGuestWallCards(entries);
+
+    guestWallEntries = entries;
+    guestWallCards = cards;
+    guestWallCardById = new Map(cards.map((card) => [card.id, card]));
+    guestWallApiTotal = Number.isFinite(Number(payload.total)) ? Number(payload.total) : entries.length;
+
+    if (!cards.length) {
+      setGuestWallStatus("Guest Wall will appear once approved uploads are available.");
+      syncGuestWallLayout({ reshuffle: true });
+      return;
+    }
+
+    const totalLabel = guestWallApiTotal > 0 ? guestWallApiTotal : entries.length;
+    setGuestWallStatus(`Showing approved uploads (${totalLabel} submission${totalLabel === 1 ? "" : "s"}).`);
+    setGuestWallControlsDisabled(false);
+    guestWallVisibleCardIds = [];
+    guestWallMobileIndex = 0;
+    setGuestWallPaused(false);
+    syncGuestWallLayout({ reshuffle: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Guest Wall failed to load.";
+    setGuestWallStatus(message);
+    setGuestWallControlsDisabled(true);
+  }
+}
+
 async function loadManifest() {
   try {
     const response = await fetch(withBasePath("/photos/manifest.json"), { cache: "no-store" });
@@ -5438,6 +6201,7 @@ async function init() {
   initFaqAccordionGroups();
   initFaqWearImageDebug();
   await initGallery();
+  await initGuestWall();
 
   inviteState.token = getTokenFromUrl();
   await lookupToken(inviteState.token);

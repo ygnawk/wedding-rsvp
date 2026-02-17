@@ -1220,6 +1220,25 @@
           <div class="gallery-dots" id="galleryDots" aria-hidden="true"></div>
         </div>
       </section>
+
+      <section id="guest-wall" class="section section--light motif-host" data-title="Guest Wall">
+        <div class="content guestwall-content">
+          <div class="motif-layer motif-layer--section motif-layer--cream motif-layer--both" aria-hidden="true">
+            <img class="motif-layer__item motif-layer__item--topRight" src="public/motifs/peony-bud.svg" alt="" />
+            <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/bamboo-bud.svg" alt="" />
+          </div>
+          <h2 class="section-title section-title-reveal reveal settle">Guest Wall</h2>
+          <p class="guestwall-subtitle reveal">Photos and notes uploaded in the RSVP form will appear here (after a quick review).</p>
+          <div class="guestwall-controls reveal" aria-label="Guest wall controls">
+            <button id="guestWallShuffle" class="guestwall-control-btn" type="button">Shuffle</button>
+            <button id="guestWallPause" class="guestwall-control-btn" type="button" aria-pressed="false">Pause</button>
+            <button id="guestWallViewAll" class="guestwall-control-btn" type="button">View all</button>
+          </div>
+          <p id="guestWallStatus" class="guestwall-status reveal" aria-live="polite">Loading approved uploads…</p>
+          <div id="guestWallPinboard" class="guestwall-pinboard reveal" aria-live="polite"></div>
+          <div id="guestWallMobile" class="guestwall-mobile hidden reveal" aria-live="polite"></div>
+        </div>
+      </section>
     </main>
 
     <div id="jumpMenuWrap" class="jump-menu-wrap" aria-live="polite">
@@ -1261,6 +1280,18 @@
       </div>
     </div>
 
+    <div id="guestWallModal" class="guestwall-modal hidden" aria-hidden="true">
+      <div class="guestwall-modal-backdrop" data-guestwall-close></div>
+      <div class="guestwall-modal-panel" role="dialog" aria-modal="true" aria-labelledby="guestWallModalTitle">
+        <button id="guestWallModalClose" class="guestwall-modal-close" type="button" aria-label="Close guest wall" data-guestwall-close>×</button>
+        <h3 id="guestWallModalTitle">Guest Wall — all approved posts</h3>
+        <div id="guestWallModalList" class="guestwall-modal-list"></div>
+        <div class="guestwall-modal-footer">
+          <button id="guestWallModalLoadMore" class="guestwall-modal-more" type="button">Load more</button>
+        </div>
+      </div>
+    </div>
+
     <footer class="site-footer">
       <div class="site-footer-inner">
         <p class="site-footer-main">
@@ -1273,6 +1304,6 @@
 
     <script src="./data/hotels.js?v=20260216-matrix"></script>
     <script src="./data/beijing-food.js?v=20260216-title-reveal-fix1"></script>
-    <script src="./app.js?v=20260216-mobile-story-center3"></script>
+    <script src="./app.js?v=20260217-guest-wall1"></script>
   </body>
 </html>
