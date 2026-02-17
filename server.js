@@ -1197,7 +1197,13 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (pathname === "/guest-wall" || pathname === "/guest-wall/" || pathname === "/guest-wall/all" || pathname === "/guest-wall/all/") {
+  if (pathname === "/guest-wall/all" || pathname === "/guest-wall/all/") {
+    res.writeHead(302, { Location: "/guest-wall" });
+    res.end();
+    return;
+  }
+
+  if (pathname === "/guest-wall" || pathname === "/guest-wall/") {
     serveStaticFile(req, res, path.join(ROOT, "guest-wall.html"));
     return;
   }

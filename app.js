@@ -5,6 +5,8 @@ const IS_LOCAL_DEV = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname
 const RSVP_API_ORIGIN = "https://mikiandyijie-rsvp-api.onrender.com";
 const DEBUG_FOCAL_PARAM = String(new URLSearchParams(window.location.search).get("debugFocal") || "").toLowerCase();
 const ENABLE_FOCAL_TUNER = IS_LOCAL_DEV && ["1", "true", "yes", "on"].includes(DEBUG_FOCAL_PARAM);
+const DEBUG_SLOT_PARAM = String(new URLSearchParams(window.location.search).get("debugSlots") || "").toLowerCase();
+const SHOW_SLOT_DEBUG = IS_LOCAL_DEV && ["1", "true", "yes", "on"].includes(DEBUG_SLOT_PARAM);
 
 const SECTION_IDS = ["top", "interlude", "story", "venue", "schedule", "rsvp", "faq", "stay", "things-to-do", "makan", "travel-visa", "gallery"];
 
@@ -26,10 +28,20 @@ const GUEST_WALL_ROTATE_MAX_MS = 12000;
 const GUEST_WALL_ROTATE_SWAP_COUNT = 3;
 const GUEST_WALL_MOBILE_AUTO_MS = 9000;
 const GUEST_WALL_PINBOARD_LIMIT = 16;
-const GUEST_WALL_ARCHIVE_PAGE_SIZE = 30;
+const GUEST_WALL_DESKTOP_VISIBLE_SLOTS = 16;
+const GUEST_WALL_MOBILE_VISIBLE_SLOTS = 8;
+const GUEST_WALL_DESKTOP_SHUFFLE_REPLACE_MIN = 6;
+const GUEST_WALL_DESKTOP_SHUFFLE_REPLACE_MAX = 7;
+const GUEST_WALL_MOBILE_SHUFFLE_REPLACE = 3;
+const GUEST_WALL_SWAP_FADE_OUT_MS = 200;
+const GUEST_WALL_SWAP_FADE_IN_MS = 260;
 const GUEST_WALL_LOADING_MESSAGE = "Loading guest wall…";
-const GUEST_WALL_EMPTY_MESSAGE = "Nothing approved yet—check back soon.";
+const GUEST_WALL_EMPTY_MESSAGE = "Nothing here yet—check back soon.";
 const GUEST_WALL_UNAVAILABLE_MESSAGE = "Guest Wall is temporarily unavailable.";
+const GUEST_WALL_READY_MESSAGE = "Photos and notes from your guests.";
+const RSVP_SLOW_SUBMIT_DELAY_MS = 4000;
+const RSVP_SLOW_SUBMIT_JOKE =
+  "We know it’s taking a while — Yi Jie was too cheap to pay for a faster server (free plan life). Give it a few more seconds…";
 const UPLOAD_ALLOWED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "heic", "heif", "mp4", "mov", "webm"]);
 const UPLOAD_ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
@@ -217,7 +229,9 @@ const rsvpFields = document.getElementById("rsvpFields");
 const rsvpForm = document.getElementById("rsvpForm");
 const submitButton = document.getElementById("submitButton");
 const rsvpSubmitHelper = document.getElementById("rsvpSubmitHelper");
+const rsvpSubmitSlowHelper = document.getElementById("rsvpSubmitSlowHelper");
 const rsvpConfirmation = document.getElementById("rsvpConfirmation");
+const rsvpPanel = document.querySelector("#rsvp .rsvp-panel");
 
 const fullNameInput = document.getElementById("fullName");
 const emailInput = document.getElementById("email");
@@ -297,18 +311,14 @@ const galleryLightboxCloseButtons = galleryLightbox
 const guestWallPinboard = document.getElementById("guestWallPinboard");
 const guestWallMobile = document.getElementById("guestWallMobile");
 const guestWallStatus = document.getElementById("guestWallStatus");
-const guestWallArchiveStatus = document.getElementById("guestWallArchiveStatus");
 const guestWallPinboardView = document.getElementById("guestWallPinboardView");
-const guestWallArchiveView = document.getElementById("guestWallArchiveView");
-const guestWallArchiveList = document.getElementById("guestWallArchiveList");
-const guestWallArchiveLoadMore = document.getElementById("guestWallArchiveLoadMore");
-const guestWallSearchInput = document.getElementById("guestWallSearchInput");
-const guestWallFilterButtons = Array.from(document.querySelectorAll("[data-filter]"));
-const guestWallModePinboard = document.getElementById("guestWallModePinboard");
-const guestWallModeArchive = document.getElementById("guestWallModeArchive");
 const guestWallShuffle = document.getElementById("guestWallShuffle");
 const guestWallPause = document.getElementById("guestWallPause");
-const guestWallViewAll = document.getElementById("guestWallViewAll");
+const guestWallDetailModal = document.getElementById("guestWallDetailModal");
+const guestWallDetailClose = document.getElementById("guestWallDetailClose");
+const guestWallDetailMedia = document.getElementById("guestWallDetailMedia");
+const guestWallDetailNote = document.getElementById("guestWallDetailNote");
+const guestWallDetailName = document.getElementById("guestWallDetailName");
 
 let galleryImages = [];
 let currentGalleryIndex = 0;
@@ -318,21 +328,31 @@ let guestWallCards = [];
 let guestWallCardById = new Map();
 let guestWallVisibleCardIds = [];
 let guestWallSlotNodes = [];
+let guestWallActiveSlotNode = null;
 let guestWallRotationTimer = null;
 let guestWallMobileTimer = null;
 let guestWallMobileIndex = 0;
 let guestWallPaused = false;
-let guestWallMode = "pinboard";
-let guestWallArchiveFilter = "all";
-let guestWallArchiveQuery = "";
-let guestWallArchiveCursor = null;
-let guestWallArchiveHasMore = false;
-let guestWallArchiveItems = [];
-let guestWallArchiveSearchTimer = null;
+let guestWallDetailOpen = false;
 let guestWallResizeRaf = null;
 let guestWallRequestInFlight = null;
-let guestWallArchiveRequestInFlight = null;
 let overflowDebugResizeTimer = null;
+let desktopMoreCloseTimer = null;
+let rsvpSlowSubmitTimer = null;
+
+function clearRsvpSlowSubmitTimer() {
+  if (!rsvpSlowSubmitTimer) return;
+  window.clearTimeout(rsvpSlowSubmitTimer);
+  rsvpSlowSubmitTimer = null;
+}
+
+function resetRsvpSlowSubmitJoke() {
+  clearRsvpSlowSubmitTimer();
+  if (rsvpSubmitSlowHelper) {
+    rsvpSubmitSlowHelper.textContent = RSVP_SLOW_SUBMIT_JOKE;
+    setHiddenClass(rsvpSubmitSlowHelper, true);
+  }
+}
 
 function logHorizontalOverflowOffenders(context = "runtime") {
   if (!IS_LOCAL_DEV || window.innerWidth > 900) return [];
@@ -388,7 +408,6 @@ function initOverflowDebugHelper() {
 
   window.setTimeout(() => logHorizontalOverflowOffenders("post-init"), 180);
 }
-let guestWallTouchStartX = null;
 
 const storySection = document.getElementById("story");
 const storyViewport = document.getElementById("storyViewport");
@@ -406,7 +425,8 @@ const storyChronologyStart = document.getElementById("storyChronologyStart");
 const storyChronologyNow = document.getElementById("storyChronologyNow");
 const storyMobileStage = document.getElementById("storyMobileStage");
 const storyMobileCard = document.getElementById("storyMobileCard");
-const storyMobileImg = document.getElementById("storyMobileImg");
+const storyMobileImgCurrent = document.getElementById("storyMobileImgCurrent");
+const storyMobileImgNext = document.getElementById("storyMobileImgNext");
 const storyMobileYear = document.getElementById("storyMobileYear");
 const storyMobileBlurb = document.getElementById("storyMobileBlurb");
 const storyScrollyTrack = document.getElementById("storyScrollyTrack");
@@ -441,6 +461,8 @@ let storyYearButtons = [];
 let storyYearObserver = null;
 let storyMobileIndex = 0;
 let storyMobileTouchStartX = null;
+let storyMobileSwapToken = 0;
+const STORY_MOBILE_CROSSFADE_MS = 320;
 let storyPathTargets = [];
 let storyPathRaf = null;
 let storyPathResizeBound = false;
@@ -477,21 +499,34 @@ const travelPassportClear = document.getElementById("travelPassportClear");
 const travelPassportResult = document.getElementById("travelPassportResult");
 const travelSourcesDisclosure = document.querySelector(".travel-sources-disclosure");
 
-const GUEST_WALL_DESKTOP_SLOTS = [
-  { left: 4.5, top: 7, width: 19, rotate: -4.5, z: 4 },
-  { left: 23, top: 4, width: 16, rotate: 2.2, z: 3 },
-  { left: 39, top: 9, width: 20, rotate: -1.8, z: 5 },
-  { left: 60, top: 5, width: 17, rotate: 3.1, z: 3 },
-  { left: 76.5, top: 10, width: 18, rotate: -2.2, z: 4 },
-  { left: 8, top: 37, width: 18, rotate: 3.4, z: 3 },
-  { left: 26, top: 35, width: 16.5, rotate: -3.8, z: 4 },
-  { left: 43, top: 37, width: 18.5, rotate: 2.1, z: 5 },
-  { left: 62, top: 36, width: 17.5, rotate: -2.9, z: 4 },
-  { left: 79, top: 40, width: 15.5, rotate: 2.8, z: 3 },
-  { left: 13, top: 67, width: 17.5, rotate: -2.3, z: 4 },
-  { left: 31.5, top: 70, width: 16, rotate: 3.2, z: 3 },
-  { left: 49, top: 66, width: 19.5, rotate: -1.5, z: 4 },
-  { left: 69.5, top: 69, width: 17, rotate: 2.4, z: 3 },
+const SLOT_MAP_DESKTOP = [
+  { id: "d1", xPct: 14, yPct: 18, size: "M", baseZ: 3, tiltBase: -2.2 },
+  { id: "d2", xPct: 32, yPct: 15, size: "S", baseZ: 2, tiltBase: 1.8 },
+  { id: "d3", xPct: 49, yPct: 19, size: "L", baseZ: 4, tiltBase: -1.7 },
+  { id: "d4", xPct: 66, yPct: 15, size: "S", baseZ: 2, tiltBase: 1.9 },
+  { id: "d5", xPct: 83, yPct: 19, size: "M", baseZ: 3, tiltBase: -2.1 },
+  { id: "d6", xPct: 12, yPct: 39, size: "S", baseZ: 2, tiltBase: 2.4 },
+  { id: "d7", xPct: 28, yPct: 38, size: "M", baseZ: 3, tiltBase: -2.8 },
+  { id: "d8", xPct: 45, yPct: 40, size: "S", baseZ: 2, tiltBase: 1.4 },
+  { id: "d9", xPct: 62, yPct: 38, size: "M", baseZ: 3, tiltBase: -1.9 },
+  { id: "d10", xPct: 79, yPct: 41, size: "S", baseZ: 2, tiltBase: 2.2 },
+  { id: "d11", xPct: 15, yPct: 62, size: "M", baseZ: 3, tiltBase: -1.7 },
+  { id: "d12", xPct: 32, yPct: 65, size: "S", baseZ: 2, tiltBase: 2.1 },
+  { id: "d13", xPct: 49, yPct: 61, size: "L", baseZ: 4, tiltBase: -1.4 },
+  { id: "d14", xPct: 67, yPct: 64, size: "S", baseZ: 2, tiltBase: 1.8 },
+  { id: "d15", xPct: 84, yPct: 62, size: "M", baseZ: 3, tiltBase: -2.3 },
+  { id: "d16", xPct: 50, yPct: 82, size: "S", baseZ: 1, tiltBase: 1.2 },
+];
+
+const SLOT_MAP_MOBILE = [
+  { id: "m1", xPct: 26, yPct: 19, size: "M", baseZ: 2, tiltBase: -1.4 },
+  { id: "m2", xPct: 74, yPct: 21, size: "S", baseZ: 1, tiltBase: 1.6 },
+  { id: "m3", xPct: 25, yPct: 40, size: "S", baseZ: 1, tiltBase: 1.9 },
+  { id: "m4", xPct: 74, yPct: 41, size: "L", baseZ: 3, tiltBase: -1.8 },
+  { id: "m5", xPct: 26, yPct: 61, size: "M", baseZ: 2, tiltBase: -1.5 },
+  { id: "m6", xPct: 74, yPct: 62, size: "S", baseZ: 1, tiltBase: 1.7 },
+  { id: "m7", xPct: 26, yPct: 82, size: "S", baseZ: 1, tiltBase: 1.4 },
+  { id: "m8", xPct: 74, yPct: 81, size: "M", baseZ: 2, tiltBase: -1.6 },
 ];
 
 const HOTELS_DATA = Array.isArray(window.HOTELS_DATA) ? window.HOTELS_DATA : [];
@@ -883,14 +918,30 @@ function closeMobileMenu() {
 
 function closeDesktopMoreMenu() {
   if (!desktopMoreToggle || !desktopMoreMenu) return;
+  if (desktopMoreCloseTimer) {
+    window.clearTimeout(desktopMoreCloseTimer);
+    desktopMoreCloseTimer = null;
+  }
   setAriaExpanded(desktopMoreToggle, false);
   desktopMoreMenu.hidden = true;
 }
 
 function openDesktopMoreMenu() {
   if (!desktopMoreToggle || !desktopMoreMenu) return;
+  if (desktopMoreCloseTimer) {
+    window.clearTimeout(desktopMoreCloseTimer);
+    desktopMoreCloseTimer = null;
+  }
   setAriaExpanded(desktopMoreToggle, true);
   desktopMoreMenu.hidden = false;
+}
+
+function scheduleDesktopMoreClose(delayMs = 160) {
+  if (desktopMoreCloseTimer) window.clearTimeout(desktopMoreCloseTimer);
+  desktopMoreCloseTimer = window.setTimeout(() => {
+    desktopMoreCloseTimer = null;
+    closeDesktopMoreMenu();
+  }, delayMs);
 }
 
 function toggleDesktopMoreMenu() {
@@ -914,6 +965,7 @@ function initHeader() {
   }
 
   if (desktopMoreToggle && desktopMoreMenu && desktopNavMore) {
+    const canHover = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
     closeDesktopMoreMenu();
 
     desktopMoreToggle.addEventListener("click", (event) => {
@@ -930,6 +982,26 @@ function initHeader() {
     document.addEventListener("keydown", (event) => {
       if (event.key !== "Escape") return;
       closeDesktopMoreMenu();
+    });
+
+    if (canHover) {
+      desktopNavMore.addEventListener("mouseenter", () => {
+        openDesktopMoreMenu();
+      });
+
+      desktopNavMore.addEventListener("mouseleave", () => {
+        scheduleDesktopMoreClose(160);
+      });
+    }
+
+    desktopMoreToggle.addEventListener("focus", () => {
+      openDesktopMoreMenu();
+    });
+
+    desktopNavMore.addEventListener("focusout", (event) => {
+      const nextTarget = event.relatedTarget;
+      if (nextTarget instanceof Node && desktopNavMore.contains(nextTarget)) return;
+      scheduleDesktopMoreClose(120);
     });
 
     document.addEventListener(
@@ -3103,11 +3175,19 @@ function setRsvpSubmittingState(isSubmitting) {
   submitButton.textContent = active ? "Submitting…" : getSubmitButtonLabel(attendanceChoice ? attendanceChoice.value : "");
 
   if (rsvpSubmitHelper) setHiddenClass(rsvpSubmitHelper, !active);
+  resetRsvpSlowSubmitJoke();
+  if (!active) return;
+
+  rsvpSlowSubmitTimer = window.setTimeout(() => {
+    if (!rsvpIsSubmitting || !rsvpSubmitSlowHelper) return;
+    setHiddenClass(rsvpSubmitSlowHelper, false);
+  }, RSVP_SLOW_SUBMIT_DELAY_MS);
 }
 
 function setRsvpSubmittedState() {
   if (!submitButton) return;
   rsvpIsSubmitting = false;
+  resetRsvpSlowSubmitJoke();
   submitButton.classList.remove("is-loading");
   submitButton.disabled = true;
   submitButton.setAttribute("aria-disabled", "true");
@@ -3120,6 +3200,8 @@ function clearRsvpChoice() {
   if (!attendanceChoice || !rsvpFields || !submitButton || !yesFields || !workingFields || !noFields || !youFunFactsFields) return;
 
   if (rsvpForm) rsvpForm.reset();
+  if (rsvpForm) setHiddenClass(rsvpForm, false);
+  if (rsvpPanel) rsvpPanel.classList.remove("is-success");
 
   attendanceChoice.value = "";
   rsvpFields.classList.add("hidden");
@@ -3400,7 +3482,9 @@ function confirmationMessage(choice) {
 function hideRsvpConfirmation() {
   if (!rsvpConfirmation) return;
   setHiddenClass(rsvpConfirmation, true);
+  rsvpConfirmation.classList.remove("confirmation--success");
   rsvpConfirmation.innerHTML = "";
+  if (rsvpPanel) rsvpPanel.classList.remove("is-success");
 }
 
 function showRsvpConfirmation(message, options = {}) {
@@ -3410,6 +3494,9 @@ function showRsvpConfirmation(message, options = {}) {
   rsvpConfirmation.innerHTML = "";
 
   if (variant === "success") {
+    rsvpConfirmation.classList.add("confirmation--success");
+    if (rsvpPanel) rsvpPanel.classList.add("is-success");
+
     const title = document.createElement("h3");
     title.className = "confirmation-title";
     title.textContent = "RSVP received — thank you!";
@@ -3417,7 +3504,7 @@ function showRsvpConfirmation(message, options = {}) {
 
     const subtitle = document.createElement("p");
     subtitle.className = "confirmation-subtitle";
-    subtitle.textContent = "Uploads show up on the Guest Wall after a quick review.";
+    subtitle.textContent = "We’ll review uploads and post them to the Guest Wall shortly.";
     rsvpConfirmation.appendChild(subtitle);
 
     if (message) {
@@ -3444,6 +3531,9 @@ function showRsvpConfirmation(message, options = {}) {
 
     rsvpConfirmation.appendChild(actions);
   } else {
+    rsvpConfirmation.classList.remove("confirmation--success");
+    if (rsvpPanel) rsvpPanel.classList.remove("is-success");
+
     const copy = document.createElement("p");
     copy.className = "confirmation-copy";
     copy.textContent = String(message || "");
@@ -3468,7 +3558,9 @@ function showRsvpConfirmation(message, options = {}) {
 
 function initRsvpForm() {
   if (!rsvpForm || !attendanceChoice || !rsvpConfirmation) return;
+  setHiddenClass(rsvpForm, false);
   if (rsvpSubmitHelper) setHiddenClass(rsvpSubmitHelper, true);
+  resetRsvpSlowSubmitJoke();
   updateSubmitButtonLabel();
 
   rsvpForm.addEventListener("submit", async (event) => {
@@ -3515,7 +3607,7 @@ function initRsvpForm() {
         includeGuestWallLink: true,
         variant: "success",
       });
-      if (rsvpFields) setHiddenClass(rsvpFields, true);
+      setHiddenClass(rsvpForm, true);
     } finally {
       if (!submissionSucceeded) {
         setRsvpSubmittingState(false);
@@ -3526,19 +3618,6 @@ function initRsvpForm() {
 
 function isGuestWallMobileView() {
   return window.matchMedia("(max-width: 768px)").matches;
-}
-
-function detectGuestWallModeFromPath() {
-  const pathname = String(window.location.pathname || "").toLowerCase().replace(/\/+$/, "");
-  return pathname.endsWith("/guest-wall/all") ? "archive" : "pinboard";
-}
-
-function getGuestWallDesktopVisibleCount() {
-  const width = window.innerWidth || 1280;
-  if (width >= 1380) return 14;
-  if (width >= 1200) return 12;
-  if (width >= 980) return 10;
-  return 8;
 }
 
 function shuffleItems(items) {
@@ -3553,6 +3632,13 @@ function shuffleItems(items) {
 function chooseRandomIndices(total, count) {
   const indices = Array.from({ length: Math.max(0, total) }, (_, index) => index);
   return shuffleItems(indices).slice(0, Math.max(0, count));
+}
+
+function randomIntInclusive(min, max) {
+  const floorMin = Math.floor(min);
+  const floorMax = Math.floor(max);
+  if (floorMax <= floorMin) return floorMin;
+  return floorMin + Math.floor(Math.random() * (floorMax - floorMin + 1));
 }
 
 function resolveGuestbookApiUrl(params = {}) {
@@ -3573,18 +3659,12 @@ function resolveGuestbookApiUrl(params = {}) {
 
 async function fetchGuestbookPage({
   mode = "pinboard",
-  limit = mode === "archive" ? GUEST_WALL_ARCHIVE_PAGE_SIZE : GUEST_WALL_PINBOARD_LIMIT,
-  cursor = "",
-  type = "all",
-  q = "",
+  limit = GUEST_WALL_PINBOARD_LIMIT,
   refresh = false,
 } = {}) {
   const apiUrl = resolveGuestbookApiUrl({
     mode,
     limit,
-    cursor,
-    type,
-    q,
     refresh: refresh ? "1" : "",
   });
   console.info(`[guestwall] request ${apiUrl}`);
@@ -3622,9 +3702,7 @@ async function fetchGuestbookPage({
   return {
     ...data,
     items,
-    mode: String(data.mode || mode || "pinboard").toLowerCase() === "archive" ? "archive" : "pinboard",
     total: Number.isFinite(Number(data.total)) ? Number(data.total) : items.length,
-    nextCursor: String(data.nextCursor || "").trim() || null,
   };
 }
 
@@ -3809,39 +3887,13 @@ function normalizeGuestWallCards(rawItems) {
   });
 }
 
-function applyArchiveFiltersLocally(cards, type = "all", query = "") {
-  const normalizedType = String(type || "all").toLowerCase();
-  const needle = String(query || "").trim().toLowerCase();
-
-  return (cards || []).filter((card) => {
-    if (normalizedType === "photos" && card.kind !== "media") return false;
-    if (normalizedType === "notes" && card.kind !== "note") return false;
-    if (!needle) return true;
-    const haystack = `${String(card.name || "")} ${String(card.text || card.message || "")}`.toLowerCase();
-    return haystack.includes(needle);
-  });
-}
-
 function clearGuestWallBoards() {
+  setGuestWallActiveSlot(null);
   if (guestWallPinboard instanceof HTMLElement) guestWallPinboard.innerHTML = "";
   if (guestWallMobile instanceof HTMLElement) guestWallMobile.innerHTML = "";
 }
 
-function renderGuestWallLoadingSkeleton(mode = "pinboard") {
-  if (mode === "archive") {
-    if (!(guestWallArchiveList instanceof HTMLElement)) return;
-    guestWallArchiveList.innerHTML = "";
-    const wrap = document.createElement("div");
-    wrap.className = "guestwall-archive-loading";
-    for (let i = 0; i < 6; i += 1) {
-      const block = document.createElement("div");
-      block.className = "guestwall-skeleton";
-      wrap.appendChild(block);
-    }
-    guestWallArchiveList.appendChild(wrap);
-    return;
-  }
-
+function renderGuestWallLoadingSkeleton() {
   clearGuestWallBoards();
   if (guestWallPinboard instanceof HTMLElement) {
     const wrap = document.createElement("div");
@@ -3864,7 +3916,7 @@ function renderGuestWallLoadingSkeleton(mode = "pinboard") {
   }
 }
 
-function renderGuestWallErrorState(mode = "pinboard") {
+function renderGuestWallErrorState() {
   const makePanel = () => {
     const panel = document.createElement("div");
     panel.className = "guestwall-error";
@@ -3879,20 +3931,11 @@ function renderGuestWallErrorState(mode = "pinboard") {
     button.className = "guestwall-control-btn guestwall-retry-btn";
     button.textContent = "Retry";
     button.addEventListener("click", () => {
-      if (mode === "archive") loadGuestWallArchive({ reset: true, refresh: true });
-      else loadGuestWallPinboard({ refresh: true });
+      loadGuestWallPinboard({ refresh: true });
     });
     panel.appendChild(button);
     return panel;
   };
-
-  if (mode === "archive") {
-    if (guestWallArchiveList instanceof HTMLElement) {
-      guestWallArchiveList.innerHTML = "";
-      guestWallArchiveList.appendChild(makePanel());
-    }
-    return;
-  }
 
   clearGuestWallBoards();
   if (guestWallPinboard instanceof HTMLElement) guestWallPinboard.appendChild(makePanel());
@@ -3908,7 +3951,7 @@ function truncateGuestWallText(value, maxChars = 180) {
 
 function buildGuestWallMediaNode(card, context = "board") {
   const mediaWrap = document.createElement("div");
-  mediaWrap.className = context === "archive" ? "guestwall-archive-media" : "guestwall-polaroid-media";
+  mediaWrap.className = "guestwall-polaroid-media";
 
   if (card.media.fileType === "video") {
     const fallback = document.createElement("div");
@@ -3998,7 +4041,7 @@ function buildGuestWallCard(card, context = "board") {
   node.className = "guestwall-item guestwall-item--note";
   const text = document.createElement("p");
   text.className = "guestwall-note-text";
-  text.textContent = truncateGuestWallText(card.text, context === "mobile" ? 260 : context === "archive" ? 360 : 190);
+  text.textContent = truncateGuestWallText(card.text, context === "mobile" ? 260 : 190);
 
   const sign = document.createElement("p");
   sign.className = "guestwall-note-sign";
@@ -4044,14 +4087,14 @@ function ensureGuestWallVisibleIds(slotCount, reshuffle = false) {
   guestWallVisibleCardIds = next;
 }
 
+function getGuestWallVisibleCardId(slotIndex) {
+  if (!Number.isFinite(slotIndex) || slotIndex < 0) return "";
+  return String(guestWallVisibleCardIds[slotIndex] || "");
+}
+
 function setGuestWallStatus(message) {
   if (!guestWallStatus) return;
   guestWallStatus.textContent = String(message || "");
-}
-
-function setGuestWallArchiveStatus(message) {
-  if (!guestWallArchiveStatus) return;
-  guestWallArchiveStatus.textContent = String(message || "");
 }
 
 function setGuestWallControlsDisabled(disabled) {
@@ -4059,19 +4102,212 @@ function setGuestWallControlsDisabled(disabled) {
     if (!(button instanceof HTMLButtonElement)) return;
     button.disabled = Boolean(disabled);
   });
+}
 
-  if (guestWallViewAll instanceof HTMLElement) {
-    guestWallViewAll.classList.toggle("is-disabled", Boolean(disabled));
-    guestWallViewAll.setAttribute("aria-disabled", disabled ? "true" : "false");
+function setGuestWallActiveSlot(nextSlotNode) {
+  if (guestWallActiveSlotNode instanceof HTMLElement && guestWallActiveSlotNode !== nextSlotNode) {
+    guestWallActiveSlotNode.classList.remove("is-active");
+  }
+  guestWallActiveSlotNode = nextSlotNode instanceof HTMLElement ? nextSlotNode : null;
+  if (guestWallActiveSlotNode) {
+    guestWallActiveSlotNode.classList.add("is-active");
   }
 }
 
+function closeGuestWallDetail() {
+  if (!(guestWallDetailModal instanceof HTMLElement) || !guestWallDetailOpen) return;
+  setHiddenClass(guestWallDetailModal, true);
+  guestWallDetailModal.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("modal-open");
+  guestWallDetailOpen = false;
+}
+
+function renderGuestWallDetailMedia(card) {
+  if (!(guestWallDetailMedia instanceof HTMLElement)) return;
+  guestWallDetailMedia.innerHTML = "";
+
+  if (!card || card.kind !== "media" || !card.media) {
+    const placeholder = document.createElement("div");
+    placeholder.className = "guestwall-media-fallback";
+    placeholder.innerHTML = "<p>No photo attached.</p>";
+    guestWallDetailMedia.appendChild(placeholder);
+    return;
+  }
+
+  const mediaKind = String(card.media.fileType || "").toLowerCase();
+  if (mediaKind === "video") {
+    const fallback = document.createElement("div");
+    fallback.className = "guestwall-media-fallback guestwall-media-fallback--video";
+    fallback.innerHTML = "<p>Video upload</p>";
+    const openUrl = String(card.media.viewUrl || card.media.driveViewUrl || "").trim();
+    if (openUrl) {
+      fallback.appendChild(createExternalAnchor(openUrl, "Open video in Drive", "guestwall-media-retry"));
+    }
+    guestWallDetailMedia.appendChild(fallback);
+    return;
+  }
+
+  const candidates = buildGuestWallImageCandidates(card.media);
+  if (!candidates.length) {
+    const placeholder = document.createElement("div");
+    placeholder.className = "guestwall-media-fallback";
+    placeholder.innerHTML = "<p>Photo unavailable.</p>";
+    guestWallDetailMedia.appendChild(placeholder);
+    return;
+  }
+
+  const img = document.createElement("img");
+  img.alt = `Uploaded by ${card.name || "Guest"}`;
+  img.decoding = "async";
+  img.loading = "eager";
+  img.src = candidates[0];
+  img.addEventListener("error", () => {
+    const placeholder = document.createElement("div");
+    placeholder.className = "guestwall-media-fallback";
+    placeholder.innerHTML = "<p>Photo unavailable.</p>";
+    guestWallDetailMedia.replaceChildren(placeholder);
+  });
+  guestWallDetailMedia.appendChild(img);
+}
+
+function openGuestWallDetail(card) {
+  if (!(guestWallDetailModal instanceof HTMLElement) || !card) return;
+
+  const fullNote = String(card.kind === "note" ? card.text : card.message || "").trim();
+  if (guestWallDetailNote instanceof HTMLElement) {
+    guestWallDetailNote.textContent = fullNote || "No note provided.";
+  }
+  if (guestWallDetailName instanceof HTMLElement) {
+    guestWallDetailName.textContent = `— ${String(card.name || "Guest")}`;
+  }
+  renderGuestWallDetailMedia(card);
+
+  setHiddenClass(guestWallDetailModal, false);
+  guestWallDetailModal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+  guestWallDetailOpen = true;
+
+  if (guestWallDetailClose instanceof HTMLButtonElement) {
+    window.setTimeout(() => {
+      guestWallDetailClose.focus({ preventScroll: true });
+    }, 0);
+  }
+}
+
+function bindGuestWallDetailModalEvents() {
+  if (!(guestWallDetailModal instanceof HTMLElement)) return;
+  if (guestWallDetailModal.dataset.bound === "true") return;
+
+  guestWallDetailModal.addEventListener("click", (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target) return;
+    if (target.closest("[data-guestwall-close='true']")) {
+      closeGuestWallDetail();
+    }
+  });
+
+  if (guestWallDetailClose instanceof HTMLButtonElement) {
+    guestWallDetailClose.addEventListener("click", closeGuestWallDetail);
+  }
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !guestWallDetailOpen) return;
+    closeGuestWallDetail();
+  });
+
+  guestWallDetailModal.dataset.bound = "true";
+}
+
+function bindGuestWallSlotInteraction(slotNode) {
+  if (!(slotNode instanceof HTMLElement) || slotNode.dataset.interactionBound === "true") return;
+  slotNode.dataset.interactionBound = "true";
+  slotNode.tabIndex = 0;
+
+  slotNode.addEventListener("pointerdown", (event) => {
+    const pointerType = String(event.pointerType || "").toLowerCase();
+    if (pointerType === "touch" || pointerType === "pen") {
+      setGuestWallActiveSlot(slotNode);
+    }
+  });
+
+  slotNode.addEventListener("click", () => {
+    const cardId = String(slotNode.dataset.cardId || "").trim();
+    if (!cardId) return;
+    const card = guestWallCardById.get(cardId);
+    if (!card) return;
+    setGuestWallActiveSlot(slotNode);
+    openGuestWallDetail(card);
+  });
+
+  slotNode.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const cardId = String(slotNode.dataset.cardId || "").trim();
+    if (!cardId) return;
+    const card = guestWallCardById.get(cardId);
+    if (!card) return;
+    event.preventDefault();
+    setGuestWallActiveSlot(slotNode);
+    openGuestWallDetail(card);
+  });
+}
+
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function hashStringToUint32(value) {
+  const input = String(value || "");
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function seededRandomFromHash(seedValue) {
+  let state = Number(seedValue) >>> 0;
+  state = Math.imul(state ^ 61, state | 1);
+  state ^= state + Math.imul(state ^ (state >>> 7), state | 61);
+  const normalized = ((state ^ (state >>> 14)) >>> 0) / 4294967295;
+  return clampNumber(normalized, 0, 1);
+}
+
+function getStableGuestWallSlotRotation(slotNode, cardId) {
+  if (!(slotNode instanceof HTMLElement)) return 0;
+  const slotId = String(slotNode.dataset.slotId || "");
+  const tiltBase = Number(slotNode.dataset.tiltBase || 0);
+  const seed = hashStringToUint32(`${String(cardId || "")}:${slotId}`);
+  const seededUnit = seededRandomFromHash(seed);
+  const tiltJitter = -2 + seededUnit * 4;
+  return clampNumber(tiltBase + tiltJitter, -4, 4);
+}
+
+function getGuestWallSlotWidth(size) {
+  if (size === "S") return "clamp(150px, 18vw, 190px)";
+  if (size === "L") return "clamp(210px, 26vw, 280px)";
+  return "clamp(180px, 22vw, 230px)";
+}
+
 function placeGuestWallSlot(slotNode, slotConfig) {
-  slotNode.style.setProperty("--gw-left", String(slotConfig.left));
-  slotNode.style.setProperty("--gw-top", String(slotConfig.top));
-  slotNode.style.setProperty("--gw-width", String(slotConfig.width));
-  slotNode.style.setProperty("--gw-rotate", `${slotConfig.rotate}deg`);
-  slotNode.style.setProperty("--gw-z", String(slotConfig.z));
+  slotNode.style.setProperty("--gw-left", String(slotConfig.xPct));
+  slotNode.style.setProperty("--gw-top", String(slotConfig.yPct));
+  slotNode.style.setProperty("--gw-card-width", getGuestWallSlotWidth(slotConfig.size));
+  slotNode.style.setProperty("--gw-rotate", `${slotConfig.tiltBase}deg`);
+  slotNode.style.setProperty("--gw-z", String(slotConfig.baseZ));
+  slotNode.dataset.slotId = String(slotConfig.id || "");
+  slotNode.dataset.slotSize = String(slotConfig.size || "M");
+  slotNode.dataset.tiltBase = String(slotConfig.tiltBase || 0);
+  slotNode.classList.toggle("slot-size-s", slotConfig.size === "S");
+  slotNode.classList.toggle("slot-size-m", slotConfig.size === "M");
+  slotNode.classList.toggle("slot-size-l", slotConfig.size === "L");
+
+  if (SHOW_SLOT_DEBUG && !slotNode.querySelector(".guestwall-slot-debug")) {
+    const debugNode = document.createElement("div");
+    debugNode.className = "guestwall-slot-debug";
+    debugNode.textContent = String(slotConfig.id || "");
+    slotNode.appendChild(debugNode);
+  }
 }
 
 function mountGuestWallSlotCard(slotNode, cardId, animate = false) {
@@ -4079,17 +4315,31 @@ function mountGuestWallSlotCard(slotNode, cardId, animate = false) {
   const card = guestWallCardById.get(cardId);
   if (!card) return;
 
+  const stableRotate = getStableGuestWallSlotRotation(slotNode, cardId);
+  slotNode.style.setProperty("--gw-rotate", `${stableRotate}deg`);
+  slotNode.dataset.cardId = String(card.id || cardId || "");
+
+  const debugNode = slotNode.querySelector(".guestwall-slot-debug");
   const node = buildGuestWallCard(card, "board");
   if (animate && !prefersReducedMotion()) {
     node.classList.add("is-entering");
-    slotNode.replaceChildren(node);
+    slotNode.replaceChildren(node, ...(debugNode ? [debugNode] : []));
     window.requestAnimationFrame(() => {
       node.classList.remove("is-entering");
     });
     return;
   }
 
-  slotNode.replaceChildren(node);
+  slotNode.replaceChildren(node, ...(debugNode ? [debugNode] : []));
+}
+
+function mountGuestWallSlotPlaceholder(slotNode) {
+  if (!(slotNode instanceof HTMLElement)) return;
+  const debugNode = slotNode.querySelector(".guestwall-slot-debug");
+  const placeholder = document.createElement("article");
+  placeholder.className = "guestwall-item guestwall-item--placeholder";
+  slotNode.dataset.cardId = "";
+  slotNode.replaceChildren(placeholder, ...(debugNode ? [debugNode] : []));
 }
 
 function swapGuestWallSlotCard(slotIndex, nextCardId) {
@@ -4102,10 +4352,16 @@ function swapGuestWallSlotCard(slotIndex, nextCardId) {
     return;
   }
 
+  slotNode.classList.add("is-swapping-out");
   current.classList.add("is-leaving");
   window.setTimeout(() => {
+    slotNode.classList.remove("is-swapping-out");
+    slotNode.classList.add("is-swapping-in");
     mountGuestWallSlotCard(slotNode, nextCardId, true);
-  }, 210);
+    window.setTimeout(() => {
+      slotNode.classList.remove("is-swapping-in");
+    }, GUEST_WALL_SWAP_FADE_IN_MS + 40);
+  }, GUEST_WALL_SWAP_FADE_OUT_MS);
 }
 
 function renderGuestWallDesktop({ reshuffle = false } = {}) {
@@ -4114,8 +4370,9 @@ function renderGuestWallDesktop({ reshuffle = false } = {}) {
   guestWallPinboard.innerHTML = "";
   guestWallSlotNodes = [];
 
-  const slotCount = Math.min(16, getGuestWallDesktopVisibleCount(), GUEST_WALL_DESKTOP_SLOTS.length, guestWallCards.length);
-  if (!slotCount) {
+  const slotMap = SLOT_MAP_DESKTOP;
+  const slotCount = Math.min(GUEST_WALL_DESKTOP_VISIBLE_SLOTS, slotMap.length);
+  if (!guestWallCards.length) {
     const empty = document.createElement("p");
     empty.className = "guestwall-empty";
     empty.textContent = GUEST_WALL_EMPTY_MESSAGE;
@@ -4128,8 +4385,15 @@ function renderGuestWallDesktop({ reshuffle = false } = {}) {
   for (let slotIndex = 0; slotIndex < slotCount; slotIndex += 1) {
     const slotNode = document.createElement("div");
     slotNode.className = "guestwall-slot";
-    placeGuestWallSlot(slotNode, GUEST_WALL_DESKTOP_SLOTS[slotIndex]);
-    mountGuestWallSlotCard(slotNode, guestWallVisibleCardIds[slotIndex], false);
+    bindGuestWallSlotInteraction(slotNode);
+    placeGuestWallSlot(slotNode, slotMap[slotIndex]);
+    const cardId = getGuestWallVisibleCardId(slotIndex);
+    if (cardId) {
+      mountGuestWallSlotCard(slotNode, cardId, false);
+    } else {
+      slotNode.classList.add("guestwall-slot--empty");
+      mountGuestWallSlotPlaceholder(slotNode);
+    }
     guestWallPinboard.appendChild(slotNode);
     guestWallSlotNodes.push(slotNode);
   }
@@ -4141,7 +4405,7 @@ function getGuestWallRandomDelay() {
 }
 
 function rotateGuestWallDesktopSubset() {
-  if (guestWallPaused || isGuestWallMobileView()) return;
+  if (guestWallPaused) return;
   if (!guestWallVisibleCardIds.length || !guestWallCards.length) return;
 
   const allIds = guestWallCards.map((card) => card.id);
@@ -4169,12 +4433,6 @@ function scheduleGuestWallDesktopRotation() {
   }, getGuestWallRandomDelay());
 }
 
-function normalizeGuestWallMobileIndex(nextIndex) {
-  if (!guestWallCards.length) return 0;
-  const max = guestWallCards.length;
-  return ((Number(nextIndex) || 0) % max + max) % max;
-}
-
 function renderGuestWallMobile() {
   if (!(guestWallMobile instanceof HTMLElement)) return;
   guestWallMobile.innerHTML = "";
@@ -4187,78 +4445,38 @@ function renderGuestWallMobile() {
     return;
   }
 
-  guestWallMobileIndex = normalizeGuestWallMobileIndex(guestWallMobileIndex);
-  const card = guestWallCards[guestWallMobileIndex];
-  if (!card) return;
-
   const stage = document.createElement("div");
-  stage.className = "guestwall-mobile-stage";
-  stage.appendChild(buildGuestWallCard(card, "mobile"));
+  stage.className = "guestwall-mobile-stage guestwall-mobile-stage--collage";
+  guestWallSlotNodes = [];
 
-  const controls = document.createElement("div");
-  controls.className = "guestwall-mobile-nav";
+  const slotMap = SLOT_MAP_MOBILE;
+  const slotCount = Math.min(GUEST_WALL_MOBILE_VISIBLE_SLOTS, slotMap.length);
+  ensureGuestWallVisibleIds(slotCount, false);
 
-  const prevButton = document.createElement("button");
-  prevButton.type = "button";
-  prevButton.className = "guestwall-mobile-nav-btn";
-  prevButton.textContent = "Previous";
-  prevButton.addEventListener("click", () => {
-    guestWallMobileIndex = normalizeGuestWallMobileIndex(guestWallMobileIndex - 1);
-    renderGuestWallMobile();
-    scheduleGuestWallMobileRotation();
-  });
-
-  const counter = document.createElement("span");
-  counter.className = "guestwall-mobile-count";
-  counter.textContent = `${guestWallMobileIndex + 1} / ${guestWallCards.length}`;
-
-  const nextButton = document.createElement("button");
-  nextButton.type = "button";
-  nextButton.className = "guestwall-mobile-nav-btn";
-  nextButton.textContent = "Next";
-  nextButton.addEventListener("click", () => {
-    guestWallMobileIndex = normalizeGuestWallMobileIndex(guestWallMobileIndex + 1);
-    renderGuestWallMobile();
-    scheduleGuestWallMobileRotation();
-  });
-
-  stage.addEventListener(
-    "touchstart",
-    (event) => {
-      guestWallTouchStartX = event.changedTouches && event.changedTouches[0] ? event.changedTouches[0].clientX : null;
-    },
-    { passive: true },
-  );
-
-  stage.addEventListener(
-    "touchend",
-    (event) => {
-      const endX = event.changedTouches && event.changedTouches[0] ? event.changedTouches[0].clientX : null;
-      if (guestWallTouchStartX === null || endX === null) return;
-      const deltaX = endX - guestWallTouchStartX;
-      guestWallTouchStartX = null;
-      if (Math.abs(deltaX) < 45) return;
-      guestWallMobileIndex = deltaX > 0 ? normalizeGuestWallMobileIndex(guestWallMobileIndex - 1) : normalizeGuestWallMobileIndex(guestWallMobileIndex + 1);
-      renderGuestWallMobile();
-      scheduleGuestWallMobileRotation();
-    },
-    { passive: true },
-  );
-
-  controls.appendChild(prevButton);
-  controls.appendChild(counter);
-  controls.appendChild(nextButton);
+  for (let slotIndex = 0; slotIndex < slotCount; slotIndex += 1) {
+    const slotNode = document.createElement("div");
+    slotNode.className = "guestwall-slot";
+    bindGuestWallSlotInteraction(slotNode);
+    placeGuestWallSlot(slotNode, slotMap[slotIndex]);
+    const cardId = getGuestWallVisibleCardId(slotIndex);
+    if (cardId) {
+      mountGuestWallSlotCard(slotNode, cardId, false);
+    } else {
+      slotNode.classList.add("guestwall-slot--empty");
+      mountGuestWallSlotPlaceholder(slotNode);
+    }
+    stage.appendChild(slotNode);
+    guestWallSlotNodes.push(slotNode);
+  }
 
   guestWallMobile.appendChild(stage);
-  guestWallMobile.appendChild(controls);
 }
 
 function scheduleGuestWallMobileRotation() {
   clearGuestWallMobileTimer();
   if (guestWallPaused || !isGuestWallMobileView() || guestWallCards.length <= 1) return;
   guestWallMobileTimer = window.setTimeout(() => {
-    guestWallMobileIndex = normalizeGuestWallMobileIndex(guestWallMobileIndex + 1);
-    renderGuestWallMobile();
+    rotateGuestWallDesktopSubset();
     scheduleGuestWallMobileRotation();
   }, GUEST_WALL_MOBILE_AUTO_MS);
 }
@@ -4272,6 +4490,7 @@ function syncGuestWallLayout({ reshuffle = false } = {}) {
 
   if (mobile) {
     clearGuestWallDesktopTimer();
+    if (reshuffle) guestWallVisibleCardIds = [];
     renderGuestWallMobile();
     scheduleGuestWallMobileRotation();
     return;
@@ -4280,53 +4499,6 @@ function syncGuestWallLayout({ reshuffle = false } = {}) {
   clearGuestWallMobileTimer();
   renderGuestWallDesktop({ reshuffle });
   scheduleGuestWallDesktopRotation();
-}
-
-function buildGuestWallArchiveCard(card) {
-  const node = document.createElement("article");
-  node.className = "guestwall-archive-item";
-
-  if (card.kind === "media") {
-    node.appendChild(buildGuestWallMediaNode(card, "archive"));
-  }
-
-  const body = document.createElement("div");
-  body.className = "guestwall-archive-body";
-
-  const text = card.kind === "note" ? card.text : card.message;
-  if (text) {
-    const messageNode = document.createElement("p");
-    messageNode.className = "guestwall-archive-text";
-    messageNode.textContent = truncateGuestWallText(text, 320);
-    body.appendChild(messageNode);
-  }
-
-  const sign = document.createElement("p");
-  sign.className = "guestwall-archive-sign";
-  sign.textContent = `— ${card.name}`;
-  body.appendChild(sign);
-
-  node.appendChild(body);
-  return node;
-}
-
-function renderGuestWallArchive() {
-  if (!(guestWallArchiveList instanceof HTMLElement)) return;
-  guestWallArchiveList.innerHTML = "";
-
-  if (!guestWallArchiveItems.length) {
-    const empty = document.createElement("p");
-    empty.className = "guestwall-empty";
-    empty.textContent = GUEST_WALL_EMPTY_MESSAGE;
-    guestWallArchiveList.appendChild(empty);
-    return;
-  }
-
-  const fragment = document.createDocumentFragment();
-  guestWallArchiveItems.forEach((card) => {
-    fragment.appendChild(buildGuestWallArchiveCard(card));
-  });
-  guestWallArchiveList.appendChild(fragment);
 }
 
 function setGuestWallPaused(paused) {
@@ -4348,42 +4520,33 @@ function setGuestWallPaused(paused) {
   else scheduleGuestWallDesktopRotation();
 }
 
-function setGuestWallModeLinks() {
-  if (guestWallModePinboard instanceof HTMLElement) {
-    guestWallModePinboard.classList.toggle("is-active", guestWallMode === "pinboard");
-    if (guestWallMode === "pinboard") guestWallModePinboard.setAttribute("aria-current", "page");
-    else guestWallModePinboard.removeAttribute("aria-current");
-  }
-  if (guestWallModeArchive instanceof HTMLElement) {
-    guestWallModeArchive.classList.toggle("is-active", guestWallMode === "archive");
-    if (guestWallMode === "archive") guestWallModeArchive.setAttribute("aria-current", "page");
-    else guestWallModeArchive.removeAttribute("aria-current");
-  }
-}
-
-function setGuestWallMode(mode) {
-  guestWallMode = mode === "archive" ? "archive" : "pinboard";
-  setGuestWallModeLinks();
-
-  if (guestWallPinboardView instanceof HTMLElement) {
-    setHiddenClass(guestWallPinboardView, guestWallMode !== "pinboard");
-  }
-  if (guestWallArchiveView instanceof HTMLElement) {
-    setHiddenClass(guestWallArchiveView, guestWallMode !== "archive");
+function shuffleGuestWallVisibleSubset() {
+  if (!guestWallVisibleCardIds.length || !guestWallCards.length || !guestWallSlotNodes.length) {
+    syncGuestWallLayout({ reshuffle: true });
+    return;
   }
 
-  if (guestWallMode === "archive") {
-    clearGuestWallDesktopTimer();
-    clearGuestWallMobileTimer();
+  const allIds = guestWallCards.map((card) => card.id);
+  const targetSlotCount = isGuestWallMobileView() ? GUEST_WALL_MOBILE_VISIBLE_SLOTS : GUEST_WALL_DESKTOP_VISIBLE_SLOTS;
+  if (allIds.length < targetSlotCount) {
+    return;
   }
-}
 
-function updateGuestWallFilterButtons() {
-  guestWallFilterButtons.forEach((button) => {
-    if (!(button instanceof HTMLButtonElement)) return;
-    const isActive = String(button.dataset.filter || "").toLowerCase() === guestWallArchiveFilter;
-    button.classList.toggle("is-active", isActive);
-    button.setAttribute("aria-pressed", isActive ? "true" : "false");
+  const hiddenIds = allIds.filter((id) => !guestWallVisibleCardIds.includes(id));
+  if (!hiddenIds.length) return;
+
+  const desiredReplaceCount = isGuestWallMobileView()
+    ? GUEST_WALL_MOBILE_SHUFFLE_REPLACE
+    : randomIntInclusive(GUEST_WALL_DESKTOP_SHUFFLE_REPLACE_MIN, GUEST_WALL_DESKTOP_SHUFFLE_REPLACE_MAX);
+  const replaceCount = Math.min(desiredReplaceCount, guestWallVisibleCardIds.length, hiddenIds.length);
+  const slotIndices = chooseRandomIndices(guestWallVisibleCardIds.length, replaceCount);
+  const replacements = shuffleItems(hiddenIds).slice(0, replaceCount);
+
+  slotIndices.forEach((slotIndex, idx) => {
+    const nextCardId = replacements[idx];
+    if (!nextCardId) return;
+    guestWallVisibleCardIds[slotIndex] = nextCardId;
+    swapGuestWallSlotCard(slotIndex, nextCardId);
   });
 }
 
@@ -4394,13 +4557,9 @@ function bindGuestWallEvents() {
   if (guestWallShuffle instanceof HTMLButtonElement) {
     guestWallShuffle.addEventListener("click", () => {
       if (!guestWallCards.length) return;
-      if (isGuestWallMobileView()) {
-        guestWallMobileIndex = Math.floor(Math.random() * guestWallCards.length);
-        renderGuestWallMobile();
-        scheduleGuestWallMobileRotation();
-        return;
-      }
-      syncGuestWallLayout({ reshuffle: true });
+      shuffleGuestWallVisibleSubset();
+      if (isGuestWallMobileView()) scheduleGuestWallMobileRotation();
+      else scheduleGuestWallDesktopRotation();
     });
   }
 
@@ -4410,53 +4569,23 @@ function bindGuestWallEvents() {
     });
   }
 
-  if (guestWallViewAll instanceof HTMLElement) {
-    guestWallViewAll.addEventListener("click", (event) => {
-      if (guestWallViewAll.getAttribute("aria-disabled") === "true") {
-        event.preventDefault();
-      }
-    });
-  }
-
-  if (guestWallFilterButtons.length) {
-    guestWallFilterButtons.forEach((button) => {
-      if (!(button instanceof HTMLButtonElement)) return;
-      button.addEventListener("click", () => {
-        const nextFilter = String(button.dataset.filter || "all").toLowerCase();
-        guestWallArchiveFilter = ["all", "photos", "notes"].includes(nextFilter) ? nextFilter : "all";
-        updateGuestWallFilterButtons();
-        loadGuestWallArchive({ reset: true });
-      });
-    });
-  }
-
-  if (guestWallSearchInput instanceof HTMLInputElement) {
-    guestWallSearchInput.addEventListener("input", () => {
-      window.clearTimeout(guestWallArchiveSearchTimer);
-      guestWallArchiveSearchTimer = window.setTimeout(() => {
-        guestWallArchiveQuery = String(guestWallSearchInput.value || "").trim();
-        loadGuestWallArchive({ reset: true });
-      }, 260);
-    });
-  }
-
-  if (guestWallArchiveLoadMore instanceof HTMLButtonElement) {
-    guestWallArchiveLoadMore.addEventListener("click", () => {
-      loadGuestWallArchive({ reset: false });
-    });
-  }
-
   window.addEventListener(
     "resize",
     () => {
       if (guestWallResizeRaf) return;
       guestWallResizeRaf = window.requestAnimationFrame(() => {
         guestWallResizeRaf = null;
-        if (guestWallMode === "pinboard") syncGuestWallLayout();
+        syncGuestWallLayout();
       });
     },
     { passive: true },
   );
+
+  document.addEventListener("pointerdown", (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (target && target.closest(".guestwall-slot")) return;
+    setGuestWallActiveSlot(null);
+  });
 
   guestWallPinboard.dataset.bound = "true";
 }
@@ -4464,16 +4593,10 @@ function bindGuestWallEvents() {
 async function initGuestWall() {
   if (!(guestWallPinboard instanceof HTMLElement)) return;
 
+  bindGuestWallDetailModalEvents();
   bindGuestWallEvents();
-  guestWallMode = detectGuestWallModeFromPath();
-  setGuestWallMode(guestWallMode);
-  updateGuestWallFilterButtons();
-
-  if (guestWallMode === "archive") {
-    await loadGuestWallArchive({ reset: true, refresh: false });
-  } else {
-    await loadGuestWallPinboard({ refresh: false });
-  }
+  if (guestWallPinboardView instanceof HTMLElement) setHiddenClass(guestWallPinboardView, false);
+  await loadGuestWallPinboard({ refresh: false });
 }
 
 async function loadGuestWallPinboard({ refresh = false } = {}) {
@@ -4481,7 +4604,7 @@ async function loadGuestWallPinboard({ refresh = false } = {}) {
 
   setGuestWallStatus(GUEST_WALL_LOADING_MESSAGE);
   setGuestWallControlsDisabled(true);
-  renderGuestWallLoadingSkeleton("pinboard");
+  renderGuestWallLoadingSkeleton();
 
   const request = (async () => {
     try {
@@ -4489,18 +4612,15 @@ async function loadGuestWallPinboard({ refresh = false } = {}) {
       const cards = normalizeGuestWallCards(payload.items);
       guestWallCards = cards;
       guestWallCardById = new Map(cards.map((card) => [card.id, card]));
-      const apiTotal = Number.isFinite(Number(payload.total)) ? Number(payload.total) : cards.length;
-
       if (!cards.length) {
         setGuestWallStatus(GUEST_WALL_EMPTY_MESSAGE);
         syncGuestWallLayout({ reshuffle: true });
         return;
       }
 
-      setGuestWallStatus(`Showing approved uploads (${apiTotal} item${apiTotal === 1 ? "" : "s"}).`);
+      setGuestWallStatus(GUEST_WALL_READY_MESSAGE);
       setGuestWallControlsDisabled(false);
       guestWallVisibleCardIds = [];
-      guestWallMobileIndex = 0;
       setGuestWallPaused(false);
       syncGuestWallLayout({ reshuffle: true });
     } catch (error) {
@@ -4513,85 +4633,13 @@ async function loadGuestWallPinboard({ refresh = false } = {}) {
       });
       setGuestWallStatus(GUEST_WALL_UNAVAILABLE_MESSAGE);
       setGuestWallControlsDisabled(true);
-      renderGuestWallErrorState("pinboard");
+      renderGuestWallErrorState();
     } finally {
       guestWallRequestInFlight = null;
     }
   })();
 
   guestWallRequestInFlight = request;
-  return request;
-}
-
-async function loadGuestWallArchive({ reset = false, refresh = false } = {}) {
-  if (guestWallArchiveRequestInFlight) return guestWallArchiveRequestInFlight;
-  if (!(guestWallArchiveList instanceof HTMLElement)) return null;
-
-  if (reset) {
-    guestWallArchiveCursor = null;
-    guestWallArchiveHasMore = true;
-    guestWallArchiveItems = [];
-    setGuestWallArchiveStatus(GUEST_WALL_LOADING_MESSAGE);
-    renderGuestWallLoadingSkeleton("archive");
-  }
-
-  if (!reset && !guestWallArchiveHasMore) return null;
-
-  if (guestWallArchiveLoadMore instanceof HTMLButtonElement) {
-    guestWallArchiveLoadMore.disabled = true;
-    guestWallArchiveLoadMore.textContent = "Loading…";
-  }
-
-  const request = (async () => {
-    try {
-      const payload = await fetchGuestbookPage({
-        mode: "archive",
-        limit: GUEST_WALL_ARCHIVE_PAGE_SIZE,
-        cursor: guestWallArchiveCursor || "",
-        type: guestWallArchiveFilter,
-        q: guestWallArchiveQuery,
-        refresh,
-      });
-
-      let cards = normalizeGuestWallCards(payload.items);
-      if (payload.mode !== "archive") {
-        cards = applyArchiveFiltersLocally(cards, guestWallArchiveFilter, guestWallArchiveQuery).slice(0, GUEST_WALL_ARCHIVE_PAGE_SIZE);
-      }
-
-      if (reset) guestWallArchiveItems = cards;
-      else guestWallArchiveItems.push(...cards);
-
-      const total = Number.isFinite(Number(payload.total)) ? Number(payload.total) : guestWallArchiveItems.length;
-      const nextCursor = String(payload.nextCursor || "").trim() || null;
-      guestWallArchiveCursor = nextCursor;
-      guestWallArchiveHasMore = Boolean(nextCursor);
-
-      if (!guestWallArchiveItems.length) setGuestWallArchiveStatus(GUEST_WALL_EMPTY_MESSAGE);
-      else setGuestWallArchiveStatus(`Showing approved uploads (${total} item${total === 1 ? "" : "s"}).`);
-
-      renderGuestWallArchive();
-      if (guestWallArchiveLoadMore instanceof HTMLButtonElement) {
-        guestWallArchiveLoadMore.disabled = !guestWallArchiveHasMore;
-        guestWallArchiveLoadMore.textContent = guestWallArchiveHasMore ? "Load more" : "All loaded";
-      }
-    } catch (error) {
-      console.error("[guestwall:archive] load failed", {
-        message: error instanceof Error ? error.message : String(error),
-        status: error && typeof error === "object" ? error.status : undefined,
-        url: error && typeof error === "object" ? error.url : undefined,
-      });
-      setGuestWallArchiveStatus(GUEST_WALL_UNAVAILABLE_MESSAGE);
-      renderGuestWallErrorState("archive");
-      if (guestWallArchiveLoadMore instanceof HTMLButtonElement) {
-        guestWallArchiveLoadMore.disabled = false;
-        guestWallArchiveLoadMore.textContent = "Retry";
-      }
-    } finally {
-      guestWallArchiveRequestInFlight = null;
-    }
-  })();
-
-  guestWallArchiveRequestInFlight = request;
   return request;
 }
 
@@ -5216,7 +5264,11 @@ function normalizeStoryEntry(entry) {
     fit: String(entry.fit || "").trim(),
     cropMode: normalizeCropMode(entry.cropMode || entry.fit),
     rotationDeg: Number.isFinite(Number(entry.rotationDeg)) ? Number(entry.rotationDeg) : NaN,
-    rotation: Number.isFinite(Number(entry.rotation)) ? Number(entry.rotation) : 0,
+    rotation: Number.isFinite(Number(entry.rotation))
+      ? Number(entry.rotation)
+      : Number.isFinite(Number(entry.rotationDeg))
+        ? Number(entry.rotationDeg)
+        : 0,
     year: Number.isFinite(Number(entry.year)) ? Number(entry.year) : NaN,
     focalX: Number.isFinite(Number(entry.focalX)) ? clamp01(Number(entry.focalX)) : NaN,
     focalY: Number.isFinite(Number(entry.focalY)) ? clamp01(Number(entry.focalY), STORY_DEFAULT_FOCAL_Y) : NaN,
@@ -5621,8 +5673,74 @@ function bindStoryChronologyResize() {
   }
 }
 
-function setStoryMobileSlide(index, options = {}) {
-  if (!storyItems.length || !storyMobileImg || !storyMobileYear) return;
+function applyStoryImagePresentation(img, item, mobileView, fallbackSrc) {
+  if (!(img instanceof HTMLImageElement) || !item) return;
+  img.style.objectPosition = mobileView
+    ? item.mobileObjectPosition || item.objectPosition || "50% 20%"
+    : item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
+  img.style.imageOrientation = "from-image";
+  img.style.objectFit = "contain";
+  img.style.transformOrigin = "50% 50%";
+  applyStoryImageRotation(img, item.rotation, "--storyScale", {
+    quarterTurn: 1.05,
+    halfTurn: 1.01,
+    defaultScale: 1,
+  });
+  attachStoryFallback(img, fallbackSrc);
+  img.alt = item.alt || `Story photo ${item.yearLabel}`;
+}
+
+function preloadStoryImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.decoding = "async";
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+function waitForImageElementReady(img, src) {
+  return new Promise((resolve, reject) => {
+    if (!(img instanceof HTMLImageElement) || !src) {
+      reject(new Error("invalid image source"));
+      return;
+    }
+
+    let settled = false;
+    const cleanup = () => {
+      img.onload = null;
+      img.onerror = null;
+    };
+
+    img.onload = async () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      try {
+        await img.decode();
+      } catch (_error) {
+        // Safari may reject decode even after onload; keep rendering path uninterrupted.
+      }
+      resolve();
+    };
+
+    img.onerror = (error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(error || new Error("image load failed"));
+    };
+
+    img.src = src;
+    if (img.complete) {
+      img.onload?.();
+    }
+  });
+}
+
+async function setStoryMobileSlide(index, options = {}) {
+  if (!storyItems.length || !storyMobileImgCurrent || !storyMobileImgNext || !storyMobileYear) return;
 
   const { scrollPill = true } = options;
   const mobileView = isStoryMobileView();
@@ -5630,26 +5748,49 @@ function setStoryMobileSlide(index, options = {}) {
   const safeIndex = ((Number(index) || 0) % total + total) % total;
   const item = storyItems[safeIndex];
   storyMobileIndex = safeIndex;
+  const swapToken = ++storyMobileSwapToken;
   const imageSources = storyImageSources(item, true);
   const imageSrc = imageSources.original || imageSources.preferred;
+  const fallbackSrc = imageSources.fallback;
 
-  storyMobileImg.style.objectPosition = mobileView
-    ? item.mobileObjectPosition || item.objectPosition || "50% 20%"
-    : item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
-  storyMobileImg.style.imageOrientation = "from-image";
-  storyMobileImg.style.objectFit = mobileView ? "contain" : "cover";
-  storyMobileImg.style.transformOrigin = "50% 50%";
-  applyStoryImageRotation(storyMobileImg, item.rotation, "--storyScale", {
-    quarterTurn: 1.05,
-    halfTurn: 1.01,
-    defaultScale: 1,
-  });
-  attachStoryFallback(storyMobileImg, imageSources.fallback);
-  storyMobileImg.alt = item.alt || `Story photo ${item.yearLabel}`;
-  storyMobileImg.src = imageSrc;
-  if (storyMobileCard) {
-    storyMobileCard.classList.toggle("is-contain", mobileView);
-    storyMobileCard.style.setProperty("--storyMobileBgImage", imageSrc ? `url("${imageSrc}")` : "none");
+  applyStoryImagePresentation(storyMobileImgCurrent, item, mobileView, fallbackSrc);
+  applyStoryImagePresentation(storyMobileImgNext, item, mobileView, fallbackSrc);
+
+  try {
+    await preloadStoryImage(imageSrc);
+  } catch (_error) {
+    // Fallback still handles broken source.
+  }
+  if (swapToken !== storyMobileSwapToken) return;
+
+  let imageReady = false;
+  try {
+    await waitForImageElementReady(storyMobileImgNext, imageSrc);
+    imageReady = true;
+  } catch (_error) {
+    // Broken preferred source is handled by fallback on the element itself.
+    storyMobileImgNext.src = imageSrc;
+  }
+  if (swapToken !== storyMobileSwapToken) return;
+
+  if (!storyMobileImgCurrent.src || !storyMobileImgCurrent.getAttribute("src")) {
+    storyMobileImgCurrent.src = imageSrc;
+    if (storyMobileCard) {
+      storyMobileCard.classList.remove("is-swapping");
+      storyMobileCard.classList.toggle("is-contain", true);
+      storyMobileCard.style.setProperty("--storyMobileBgImage", imageSrc ? `url("${imageSrc}")` : "none");
+    }
+  } else if (imageReady) {
+    if (storyMobileCard) {
+      storyMobileCard.classList.add("is-swapping");
+      storyMobileCard.classList.toggle("is-contain", true);
+      storyMobileCard.style.setProperty("--storyMobileBgImage", imageSrc ? `url("${imageSrc}")` : "none");
+    }
+
+    await new Promise((resolve) => window.setTimeout(resolve, STORY_MOBILE_CROSSFADE_MS));
+    if (swapToken !== storyMobileSwapToken) return;
+    storyMobileImgCurrent.src = imageSrc;
+    if (storyMobileCard) storyMobileCard.classList.remove("is-swapping");
   }
 
   storyMobileYear.textContent = item.yearLabel;

@@ -162,7 +162,12 @@
 
           <div id="storyMobileStage" class="story-mobile-stage reveal" data-delay="110" hidden>
             <button id="storyMobileCard" class="story-mobile-card" type="button" aria-label="Open story photo">
-              <img id="storyMobileImg" src="" alt="" loading="lazy" decoding="async" />
+              <span class="story-mobile-layer is-current">
+                <img id="storyMobileImgCurrent" src="" alt="" loading="eager" decoding="async" />
+              </span>
+              <span class="story-mobile-layer is-next" aria-hidden="true">
+                <img id="storyMobileImgNext" src="" alt="" loading="lazy" decoding="async" />
+              </span>
               <span id="storyMobileYear" class="story-mobile-year"></span>
             </button>
             <p id="storyMobileBlurb" class="story-mobile-blurb"></p>
@@ -434,6 +439,9 @@
                 <div class="form-actions form-actions--stacked">
                   <button id="submitButton" type="submit" class="btn btn-maroon">Send reply</button>
                   <p id="rsvpSubmitHelper" class="field-helper rsvp-submit-helper hidden">Hang tight — we’re saving your RSVP.</p>
+                  <p id="rsvpSubmitSlowHelper" class="field-helper rsvp-submit-helper rsvp-submit-helper--slow hidden">
+                    We know it’s taking a while — Yi Jie was too cheap to pay for a faster server (free plan life). Give it a few more seconds…
+                  </p>
                 </div>
               </div>
             </form>
@@ -764,7 +772,10 @@
                 <span class="hotel-map-legend-swatch"></span>
                 <span class="hotel-map-legend-copy">
                   <span class="hotel-map-legend-title">Best value</span>
-                  <span class="hotel-map-legend-subtitle">Closest + most affordable sweet spot.</span>
+                  <span class="hotel-map-legend-subtitle">
+                    <span class="hotel-map-bestvalue-copy-desktop">Closest + most affordable sweet spot.</span>
+                    <span class="hotel-map-bestvalue-copy-mobile">Closest + most affordable</span>
+                  </span>
                 </span>
               </div>
               <div class="hotel-map-bestvalue-accordion" role="note" aria-label="Best value zone">
@@ -772,7 +783,10 @@
                   <span class="hotel-map-legend-swatch"></span>
                   <span class="hotel-map-bestvalue-title">Best value</span>
                 </span>
-                <span class="hotel-map-bestvalue-preview">Closest + most affordable sweet spot.</span>
+                <span class="hotel-map-bestvalue-preview">
+                  <span class="hotel-map-bestvalue-copy-desktop">Closest + most affordable sweet spot.</span>
+                  <span class="hotel-map-bestvalue-copy-mobile">Closest + most affordable</span>
+                </span>
               </div>
 
               <div id="hotelMatrixShell" class="hotel-map-shell">

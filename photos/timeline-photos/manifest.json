@@ -1,82 +1,94 @@
 {
   "timeline": [
     {
-      "file": "1995-yi-jie-born.png",
+      "file": "/our-story-normalized/1995-yi-jie-born.webp",
       "year": 1995,
       "alt": "Yi Jie as a child in 1995",
-      "objectPosition": "50% 34%"
+      "objectPosition": "50% 34%",
+      "originalFile": "1995-yi-jie-born.png"
     },
     {
-      "file": "1998-miki-born-opt.jpg",
+      "file": "/our-story-normalized/1998-miki-born-opt.webp",
       "year": 1998,
       "alt": "Miki as a child in 1998",
-      "objectPosition": "50% 47%"
+      "objectPosition": "50% 47%",
+      "originalFile": "1998-miki-born-opt.jpg"
     },
     {
-      "file": "2001-stools.jpg",
+      "file": "/our-story-normalized/2001-stools.webp",
       "year": 2001,
       "alt": "Yi Jie and siblings on tiny stools in 2001",
-      "objectPosition": "50% 45%"
+      "objectPosition": "50% 45%",
+      "originalFile": "2001-stools.jpg"
     },
     {
-      "file": "2008-miki-moves-beijing-upright.jpg",
+      "file": "/our-story-normalized/2008-miki-moves-beijing-upright.webp",
       "year": 2008,
       "alt": "Miki in 2008",
       "objectPosition": "50% 36%",
-      "rotationDeg": -90
+      "rotationDeg": -90,
+      "originalFile": "2008-miki-moves-beijing-upright.jpg"
     },
     {
-      "file": "2013-army.jpg",
+      "file": "/our-story-normalized/2013-army.webp",
       "year": 2013,
       "alt": "Yi Jie in military uniform in 2013",
       "objectPosition": "50% 50%",
-      "mobileObjectPosition": "50% 35%"
+      "mobileObjectPosition": "50% 35%",
+      "originalFile": "2013-army.jpg"
     },
     {
-      "file": "2016-wesleyan.jpg",
+      "file": "/our-story-normalized/2016-wesleyan.webp",
       "year": 2016,
       "alt": "Miki and Yi Jie at Wesleyan in 2016",
-      "objectPosition": "50% 40%"
+      "objectPosition": "50% 40%",
+      "originalFile": "2016-wesleyan.jpg"
     },
     {
-      "file": "2020-covid-upright.jpg",
+      "file": "/our-story-normalized/2020-covid-upright.webp",
       "year": 2020,
       "alt": "Miki and Yi Jie in masks in 2020",
       "objectPosition": "50% 25%",
       "mobileObjectPosition": "50% 25%",
-      "rotationDeg": 180
+      "rotationDeg": 180,
+      "originalFile": "2020-covid-upright.jpg"
     },
     {
-      "file": "2021-sf.jpg",
+      "file": "/our-story-normalized/2021-sf.webp",
       "year": 2021,
       "alt": "Miki and Yi Jie in San Francisco in 2021",
       "fit": "contain",
-      "objectPosition": "50% 50%"
+      "objectPosition": "50% 50%",
+      "originalFile": "2021-sf.jpg"
     },
     {
-      "file": "2023-japan.jpg",
+      "file": "/our-story-normalized/2023-japan.webp",
       "year": 2023,
       "alt": "Miki and Yi Jie in 2023",
-      "objectPosition": "50% 42%"
+      "objectPosition": "50% 42%",
+      "originalFile": "2023-japan.jpg"
     },
     {
-      "file": "2024-proposal-upright.jpg",
+      "file": "/our-story-normalized/2024-proposal-upright.webp",
       "year": 2024,
       "alt": "Proposal moment in 2024",
       "objectPosition": "50% 36%",
-      "rotationDeg": -90
+      "rotationDeg": -90,
+      "originalFile": "2024-proposal-upright.jpg"
     },
     {
-      "file": "2025-cats.jpg",
+      "file": "/our-story-normalized/2025-cats.webp",
       "year": 2025,
       "alt": "Miki and Yi Jie with Leo and Luna in 2025",
-      "objectPosition": "50% 42%"
+      "objectPosition": "50% 42%",
+      "originalFile": "2025-cats.jpg"
     },
     {
-      "file": "2027-whats-next.png",
+      "file": "/our-story-normalized/2027-whats-next.webp",
       "year": 2027,
       "alt": "2027 what is next illustration with Miki, Yi Jie, and two cats",
-      "objectPosition": "50% 44%"
+      "objectPosition": "50% 44%",
+      "originalFile": "2027-whats-next.png"
     }
   ]
 }
