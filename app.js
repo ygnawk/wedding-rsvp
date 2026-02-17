@@ -1082,6 +1082,14 @@ function toggleDesktopMoreMenu() {
 }
 
 function initHeader() {
+  const syncHeaderBrandState = () => {
+    if (!floatingHeader) return;
+    floatingHeader.classList.toggle("is-scrolled", window.scrollY > 24);
+  };
+
+  syncHeaderBrandState();
+  window.addEventListener("scroll", syncHeaderBrandState, { passive: true });
+
   if (menuToggle && mobileNavSheet) {
     menuToggle.addEventListener("click", () => {
       const isOpen = mobileNavSheet.classList.toggle("open");
