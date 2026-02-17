@@ -2,6 +2,7 @@ const SHEETS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwpfLq3hB_mRi
 const RSVP_LOCAL_FALLBACK_KEY = "wedding_rsvp_fallback";
 const BASE_PATH = window.location.hostname === "ygnawk.github.io" ? "/wedding-rsvp" : "";
 const IS_LOCAL_DEV = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
+const RSVP_API_ORIGIN = "https://mikiandyijie-rsvp-api.onrender.com";
 const DEBUG_FOCAL_PARAM = String(new URLSearchParams(window.location.search).get("debugFocal") || "").toLowerCase();
 const ENABLE_FOCAL_TUNER = IS_LOCAL_DEV && ["1", "true", "yes", "on"].includes(DEBUG_FOCAL_PARAM);
 
@@ -3156,8 +3157,17 @@ function buildRsvpFormData(payload) {
   return formData;
 }
 
+function resolveRsvpApiUrl() {
+  if (IS_LOCAL_DEV) return withBasePath("/api/rsvp");
+  const host = String(window.location.hostname || "").toLowerCase();
+  if (host === "www.mikiandyijie.com" || host === "mikiandyijie.com" || host === "ygnawk.github.io") {
+    return `${RSVP_API_ORIGIN}/api/rsvp`;
+  }
+  return withBasePath("/api/rsvp");
+}
+
 async function submitToRsvpApi(payload) {
-  const response = await fetch(withBasePath("/api/rsvp"), {
+  const response = await fetch(resolveRsvpApiUrl(), {
     method: "POST",
     body: buildRsvpFormData(payload),
   });
