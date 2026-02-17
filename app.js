@@ -47,8 +47,8 @@ const GUEST_WALL_ARRANGE_DEOVERLAP_STEPS = 20;
 const GUEST_WALL_ARRANGE_DEOVERLAP_GAP = 8;
 const GUEST_WALL_SLOW_MESSAGE_DELAY_MS = 5000;
 const GUEST_WALL_SLOW_MESSAGE_ROTATE_MS = 3000;
-const GUEST_WALL_HARD_TIMEOUT_MS = 20000;
-const GUEST_WALL_INITIAL_REQUEST_TIMEOUT_MS = 30000;
+const GUEST_WALL_HARD_TIMEOUT_MS = 12000;
+const GUEST_WALL_INITIAL_REQUEST_TIMEOUT_MS = 10000;
 const GUEST_WALL_RETRY_DELAY_MS = 1000;
 const GUEST_WALL_MAX_FETCH_ATTEMPTS = 2;
 const GUEST_WALL_LOADING_MESSAGE = "Loading guest wall…";
@@ -85,6 +85,8 @@ const RSVP_SLOW_SUBMIT_JOKE =
   "We know it’s taking a while — Yi Jie was too cheap to pay for a faster server (free plan life). Give it a few more seconds…";
 const STORY_IMAGE_PLACEHOLDER_DATA_URI =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="%23efe7da"/><stop offset="100%" stop-color="%23e4d7c1"/></linearGradient></defs><rect width="1200" height="900" fill="url(%23g)"/><circle cx="600" cy="390" r="92" fill="%23ceb998" opacity="0.45"/><rect x="356" y="548" width="488" height="22" rx="11" fill="%239b7d52" opacity="0.4"/><rect x="418" y="594" width="364" height="18" rx="9" fill="%239b7d52" opacity="0.28"/></svg>';
+const PHOTO_MANIFEST_TIMEOUT_MS = 8000;
+const INIT_STEP_WARN_MS = 1200;
 const UPLOAD_ALLOWED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "heic", "heif", "mp4", "mov", "webm"]);
 const UPLOAD_ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
@@ -362,6 +364,7 @@ let currentGalleryIndex = 0;
 let galleryTouchStartX = null;
 let bodyScrollLockCount = 0;
 let bodyScrollLockY = 0;
+let bodyScrollBehaviorBeforeLock = "";
 let galleryScrollRaf = null;
 let guestWallCards = [];
 let guestWallCardById = new Map();
@@ -672,11 +675,6 @@ const TRAVEL_PASSPORT_RULES = {
     outcome: "Visa-free (typical)",
     detail: "Visa-free entry up to 30 days through Dec 31, 2026.",
   },
-  other: {
-    title: "Other passport",
-    outcome: "Varies by passport",
-    detail: "Rules vary by passport. Please check official sources below.",
-  },
 };
 
 const STORY_COPY = {
@@ -970,6 +968,8 @@ function scrollToElement(target, options = {}) {
 function lockBodyScroll() {
   if (bodyScrollLockCount === 0) {
     bodyScrollLockY = window.scrollY || window.pageYOffset || 0;
+    bodyScrollBehaviorBeforeLock = document.documentElement.style.scrollBehavior || "";
+    document.documentElement.style.scrollBehavior = "auto";
     document.body.classList.add("modal-open");
     document.body.style.position = "fixed";
     document.body.style.top = `-${bodyScrollLockY}px`;
@@ -985,13 +985,29 @@ function unlockBodyScroll() {
   bodyScrollLockCount -= 1;
   if (bodyScrollLockCount > 0) return;
 
+  const restoreY = Number.isFinite(bodyScrollLockY) ? Math.max(0, Math.round(bodyScrollLockY)) : 0;
   document.body.classList.remove("modal-open");
   document.body.style.position = "";
   document.body.style.top = "";
   document.body.style.left = "";
   document.body.style.right = "";
   document.body.style.width = "";
-  window.scrollTo(0, bodyScrollLockY);
+  const root = document.documentElement;
+  const restoreBehavior = () => {
+    root.style.scrollBehavior = bodyScrollBehaviorBeforeLock;
+  };
+  const restoreScroll = () => {
+    window.scrollTo(0, restoreY);
+  };
+
+  window.requestAnimationFrame(() => {
+    if (bodyScrollLockCount > 0) return;
+    restoreScroll();
+    window.requestAnimationFrame(() => {
+      if (bodyScrollLockCount > 0) return;
+      restoreBehavior();
+    });
+  });
 }
 
 function setAriaExpanded(node, expanded) {
@@ -2238,6 +2254,10 @@ function openHotelMatrixSheet(item) {
 
 function closeHotelMatrixSheet() {
   if (!hotelMatrixSheet || !hotelSheetOpen) return;
+  const active = document.activeElement;
+  if (active instanceof HTMLElement && hotelMatrixSheet.contains(active)) {
+    active.blur();
+  }
   hotelMatrixSheet.hidden = true;
   hotelSheetOpen = false;
   unlockBodyScroll();
@@ -2671,7 +2691,9 @@ function initHotelMatrix() {
   }
 
   hotelMatrixSheetCloseControls.forEach((control) => {
-    control.addEventListener("click", () => {
+    control.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
       closeHotelMatrixSheet();
       hotelMatrixPinnedId = "";
       applyHotelMatrixSelection();
@@ -3920,6 +3942,14 @@ function classifyGuestWallError(error) {
       reason: "rate_limited",
     };
   }
+  if (status === 502 || status === 503 || status === 504) {
+    return {
+      state: "error",
+      statusMessage: "Guest Wall server is waking up. Please retry in a moment.",
+      panelMessage: "Guest Wall server is waking up. Please retry in a moment.",
+      reason: "cold_start_or_gateway",
+    };
+  }
   if (status >= 500) {
     return {
       state: "error",
@@ -3945,13 +3975,18 @@ function isGuestWallRetryableError(error) {
 }
 
 function getGuestWallRequestTimeoutMs(attemptIndex = 0) {
-  if (!guestWallHasSuccessfulLoad && Number(attemptIndex) <= 0) return GUEST_WALL_INITIAL_REQUEST_TIMEOUT_MS;
-  return GUEST_WALL_HARD_TIMEOUT_MS;
+  const normalizedAttempt = Math.max(0, Number(attemptIndex) || 0);
+  if (!guestWallHasSuccessfulLoad) {
+    return Math.max(6000, GUEST_WALL_INITIAL_REQUEST_TIMEOUT_MS - normalizedAttempt * 2000);
+  }
+  return Math.max(7000, GUEST_WALL_HARD_TIMEOUT_MS - normalizedAttempt * 1500);
 }
 
 function waitGuestWallRetryDelay(attemptIndex = 0) {
   const factor = Math.max(1, Number(attemptIndex) + 1);
-  const waitMs = GUEST_WALL_RETRY_DELAY_MS * factor;
+  const baseDelay = GUEST_WALL_RETRY_DELAY_MS * factor;
+  const jitter = randomInt(80, 220);
+  const waitMs = baseDelay + jitter;
   return new Promise((resolve) => {
     window.setTimeout(resolve, waitMs);
   });
@@ -4049,6 +4084,7 @@ async function fetchGuestbookPage({
     const error = new Error(GUEST_WALL_UNAVAILABLE_MESSAGE);
     error.url = apiUrl;
     error.status = response.status;
+    error.statusText = String(response.statusText || "").trim();
     error.durationMs = durationMs;
     error.ttfbMs = ttfbMs;
     error.responseBytes = responseBytes;
@@ -4056,6 +4092,8 @@ async function fetchGuestbookPage({
     error.isTimeout = false;
     error.responseBody = text.slice(0, 500);
     if (data && data.error) error.cause = String(data.error);
+    if (data && data.code) error.code = String(data.code);
+    if (data && data.detail) error.detail = String(data.detail);
     throw error;
   }
 
@@ -4959,18 +4997,38 @@ function buildGuestWallDetailPhotoBlock(card, name) {
   if (!(mediaNode instanceof HTMLElement)) return null;
 
   const photoBlock = document.createElement("article");
-  photoBlock.className = "guestwall-detail-block guestwall-detail-block--photo";
+  photoBlock.className = "guestwall-detail-polaroid guestwall-item guestwall-item--polaroid";
+  const format = normalizeGuestWallPolaroidFormat(getGuestWallPolaroidFormat(card.id));
+  photoBlock.classList.add(`guestwall-polaroid--${format}`);
+  if (shouldShowGuestWallPolaroidTape(card.id)) photoBlock.classList.add("guestwall-polaroid--taped");
+
+  const detailTiltSeed = hashStringToUint32(`detail-polaroid-tilt:${String(card.id || "")}`);
+  const detailTilt = ((seededRandomFromHash(detailTiltSeed) * 2) - 1).toFixed(2);
+  photoBlock.style.setProperty("--gwPolaroidTilt", `${detailTilt}deg`);
+  photoBlock.style.setProperty("--gwPolaroidTiltMobile", `${detailTilt}deg`);
+
+  const mat = document.createElement("div");
+  mat.className = "guestwall-polaroid-mat guestwall-detail-polaroid-mat";
 
   const mediaWrap = document.createElement("div");
-  mediaWrap.className = "guestwall-modal-media guestwall-detail-media";
+  mediaWrap.className = "guestwall-polaroid-media guestwall-detail-polaroid-media";
   mediaWrap.appendChild(mediaNode);
-  photoBlock.appendChild(mediaWrap);
 
+  const signatureStyle = getGuestWallSignatureStyle(card.id);
   const photoNameNode = document.createElement("p");
-  photoNameNode.className = "guestwall-note-sign guestwall-detail-name";
+  photoNameNode.className = `guestwall-polaroid-signature guestwall-polaroid-signature--${signatureStyle.side} guestwall-polaroid-signature--border guestwall-detail-polaroid-signature`;
   photoNameNode.textContent = `— ${name}`;
-  photoBlock.appendChild(photoNameNode);
+  photoNameNode.style.setProperty("--gwSigAngle", signatureStyle.angle);
+  photoNameNode.style.setProperty("--gwSigOffset", signatureStyle.horizontalOffset);
+  photoNameNode.style.setProperty("--gwSigLetterSpacing", signatureStyle.letterSpacing);
+  photoNameNode.style.setProperty("--gwSigInk", signatureStyle.ink);
+  photoNameNode.style.setProperty("--gwSigStroke", signatureStyle.stroke);
+  photoNameNode.style.setProperty("--gwSigShadowX", signatureStyle.shadowX);
+  photoNameNode.style.setProperty("--gwSigShadowY", signatureStyle.shadowY);
 
+  mat.appendChild(mediaWrap);
+  mat.appendChild(photoNameNode);
+  photoBlock.appendChild(mat);
   return photoBlock;
 }
 
@@ -4978,23 +5036,19 @@ function openGuestWallDetail(card) {
   if (!(guestWallDetailModal instanceof HTMLElement) || !(guestWallDetailContent instanceof HTMLElement) || !card) return;
   const wasOpen = guestWallDetailOpen;
   const guestName = String(card.name || "Guest");
+  const isMediaCard = card.kind === "media";
   const fullNote = String(card.kind === "note" ? card.text : card.message || "").trim();
-  const hasMedia = card.kind === "media" && !!card.media;
-  const hasNote = fullNote.length > 0;
-  if (!hasMedia && !hasNote) return;
 
   guestWallDetailContent.innerHTML = "";
-  if (hasMedia && hasNote) {
+  if (isMediaCard) {
     const photoBlock = buildGuestWallDetailPhotoBlock(card, guestName);
+    if (!photoBlock) return;
     if (photoBlock) guestWallDetailContent.appendChild(photoBlock);
+  } else if (fullNote) {
     const noteBlock = buildGuestWallDetailNoteBlock(fullNote, guestName);
     guestWallDetailContent.appendChild(noteBlock);
-  } else if (hasMedia) {
-    const photoBlock = buildGuestWallDetailPhotoBlock(card, guestName);
-    if (photoBlock) guestWallDetailContent.appendChild(photoBlock);
-  } else if (hasNote) {
-    const noteBlock = buildGuestWallDetailNoteBlock(fullNote, guestName);
-    guestWallDetailContent.appendChild(noteBlock);
+  } else {
+    return;
   }
 
   setHiddenClass(guestWallDetailModal, false);
@@ -6225,12 +6279,14 @@ async function loadGuestWallPinboard({ refresh = false } = {}) {
       console.error("[guestwall] load failed", {
         message: error instanceof Error ? error.message : String(error),
         status: error && typeof error === "object" ? error.status : undefined,
+        statusText: error && typeof error === "object" ? error.statusText : undefined,
         url: error && typeof error === "object" ? error.url : undefined,
         durationMs: error && typeof error === "object" ? error.durationMs : undefined,
         ttfbMs: error && typeof error === "object" ? error.ttfbMs : undefined,
         responseBytes: error && typeof error === "object" ? error.responseBytes : undefined,
         itemCount: error && typeof error === "object" ? error.itemCount : undefined,
         isTimeout: error && typeof error === "object" ? error.isTimeout : undefined,
+        detail: error && typeof error === "object" ? error.detail : undefined,
         cause: error && typeof error === "object" ? error.cause : undefined,
         responseBody: error && typeof error === "object" ? error.responseBody : undefined,
       });
@@ -6257,12 +6313,33 @@ async function loadGuestWallPinboard({ refresh = false } = {}) {
 }
 
 async function loadManifest() {
+  const startedAt = typeof performance !== "undefined" && performance && typeof performance.now === "function" ? performance.now() : Date.now();
+  const controller = typeof AbortController === "function" ? new AbortController() : null;
+  const timeoutId = controller ? window.setTimeout(() => controller.abort("photo-manifest-timeout"), PHOTO_MANIFEST_TIMEOUT_MS) : null;
   try {
-    const response = await fetch(withBasePath("/photos/manifest.json"), { cache: "no-store" });
-    if (!response.ok) return null;
-    return await response.json();
-  } catch (_error) {
+    const url = withBasePath("/photos/manifest.json");
+    const response = await fetch(url, { cache: "no-store", ...(controller ? { signal: controller.signal } : {}) });
+    const durationMs = Math.round(
+      (typeof performance !== "undefined" && performance && typeof performance.now === "function" ? performance.now() : Date.now()) - startedAt,
+    );
+    if (!response.ok) {
+      console.warn(`[manifest] status=${response.status} duration_ms=${durationMs} url=${url}`);
+      return null;
+    }
+    const payload = await response.json();
+    const itemCount =
+      payload && typeof payload === "object" && Array.isArray(payload.images) ? payload.images.length : payload && payload.images ? Object.keys(payload.images).length : 0;
+    console.info(`[manifest] status=${response.status} duration_ms=${durationMs} url=${url} items=${itemCount}`);
+    return payload;
+  } catch (error) {
+    const durationMs = Math.round(
+      (typeof performance !== "undefined" && performance && typeof performance.now === "function" ? performance.now() : Date.now()) - startedAt,
+    );
+    const timedOut = Boolean(error && typeof error === "object" && error.name === "AbortError");
+    console.warn(`[manifest] failed duration_ms=${durationMs} timeout=${timedOut} message=${error instanceof Error ? error.message : String(error)}`);
     return null;
+  } finally {
+    if (timeoutId) window.clearTimeout(timeoutId);
   }
 }
 
@@ -8804,6 +8881,31 @@ function initInterludeCurtainReveal() {
 }
 
 async function init() {
+  const initStartedAt = typeof performance !== "undefined" && performance && typeof performance.now === "function" ? performance.now() : Date.now();
+  const runInitStep = async (label, step, { critical = false } = {}) => {
+    const startedAt = typeof performance !== "undefined" && performance && typeof performance.now === "function" ? performance.now() : Date.now();
+    console.info(`[init] start step=${label}`);
+    try {
+      const result = await step();
+      const durationMs = Math.round(
+        (typeof performance !== "undefined" && performance && typeof performance.now === "function" ? performance.now() : Date.now()) - startedAt,
+      );
+      const logLine = `[init] done step=${label} duration_ms=${durationMs}`;
+      if (durationMs > INIT_STEP_WARN_MS) console.warn(logLine);
+      else console.info(logLine);
+      return result;
+    } catch (error) {
+      const durationMs = Math.round(
+        (typeof performance !== "undefined" && performance && typeof performance.now === "function" ? performance.now() : Date.now()) - startedAt,
+      );
+      console.error(
+        `[init] failed step=${label} duration_ms=${durationMs} message=${error instanceof Error ? error.message : String(error)}`,
+      );
+      if (critical) throw error;
+      return null;
+    }
+  };
+
   initOverflowDebugHelper();
   removeLegacyGalleryLightbox();
   const currentPath = String(window.location.pathname || "").replace(/\/+$/, "") || "/";
@@ -8821,22 +8923,29 @@ async function init() {
   initMosaicHoverInteractions();
   document.body.classList.add("is-app-ready");
   initScheduleReveal();
-  await initStoryMosaicLayout();
   initRsvpCards();
   initRsvpForm();
-
-  photoManifest = await loadManifest();
-  applyInviteContext();
-  applyStaticPhotoManifest();
   initInterludeCurtainReveal();
   initCutoutParallax();
   initFaqAccordionGroups();
   initFaqWearImageDebug();
-  await initGallery();
-  await initGuestWall();
 
   inviteState.token = getTokenFromUrl();
-  await lookupToken(inviteState.token);
+  applyInviteContext();
+
+  void runInitStep("story-mosaic-layout", () => initStoryMosaicLayout());
+  void runInitStep("photo-manifest-gallery", async () => {
+    photoManifest = await loadManifest();
+    applyStaticPhotoManifest();
+    await initGallery();
+  });
+  void runInitStep("guest-wall", () => initGuestWall());
+  void runInitStep("invite-token-lookup", () => lookupToken(inviteState.token));
+
+  const initDurationMs = Math.round(
+    (typeof performance !== "undefined" && performance && typeof performance.now === "function" ? performance.now() : Date.now()) - initStartedAt,
+  );
+  console.info(`[init] interactive-ready duration_ms=${initDurationMs}`);
 }
 
 init();

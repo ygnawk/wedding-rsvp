@@ -2219,14 +2219,15 @@ a:focus-visible,
   inset: 50% auto auto 50%;
   transform: translate(-50%, -50%);
   width: min(1020px, 93vw);
-  max-height: min(90vh, 860px);
+  height: min(90vh, 860px);
+  height: min(90dvh, 860px);
   padding: 12px 14px 14px;
   border-radius: 22px;
   border: 1px solid rgba(201, 174, 116, 0.35);
   background: rgba(247, 241, 230, 0.97);
-  overflow: auto;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
 }
 
@@ -2239,15 +2240,27 @@ a:focus-visible,
 
 .story-lightbox-figure {
   margin: 0;
+  flex: 1 1 auto;
+  min-height: 0;
   display: grid;
-  gap: 10px;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 0;
+  overflow: hidden;
+  border-radius: 16px;
+  background: rgba(247, 241, 230, 0.98);
+  isolation: isolate;
 }
 
 .story-lightbox-media {
   position: relative;
+  grid-row: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   width: 100%;
-  aspect-ratio: 4 / 3;
-  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px 16px 0 0;
   overflow: hidden;
   background: rgba(75, 15, 23, 0.08);
 }
@@ -2273,8 +2286,10 @@ a:focus-visible,
 }
 
 .story-lightbox-img {
-  width: 100%;
-  height: 100%;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
   object-position: center center;
   image-orientation: none;
@@ -2291,8 +2306,17 @@ a:focus-visible,
 
 .story-lightbox-caption {
   margin: 0;
+  grid-row: 2;
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 1;
   display: grid;
-  gap: 4px;
+  gap: 5px;
+  border-top: 1px solid rgba(201, 174, 116, 0.28);
+  background: rgba(247, 241, 230, 0.99);
+  padding: 14px 16px 12px;
+  max-height: min(30dvh, 240px);
+  overflow: auto;
 }
 
 .story-lightbox-title {
@@ -2315,6 +2339,7 @@ a:focus-visible,
 }
 
 .story-lightbox-footer {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -7413,9 +7438,10 @@ a.guestwall-media-retry {
   border-radius: 999px;
   border: 0;
   background: transparent;
-  font-size: 22px;
+  font-size: 23px;
+  font-weight: 500;
   line-height: 1;
-  color: rgba(75, 15, 23, 0.9);
+  color: rgba(75, 15, 23, 0.86);
   cursor: pointer;
   display: grid;
   place-items: center;
@@ -7426,19 +7452,25 @@ a.guestwall-media-retry {
 .guestwall-modal-close::before {
   content: "";
   position: absolute;
-  width: 34px;
-  height: 34px;
+  width: 35px;
+  height: 35px;
   border-radius: 999px;
-  border: 1px solid rgba(75, 15, 23, 0.24);
-  background: rgba(246, 239, 230, 0.92);
-  box-shadow: 0 6px 12px rgba(12, 5, 7, 0.14);
+  border: 1px solid rgba(75, 15, 23, 0.3);
+  background: rgba(249, 242, 230, 0.98);
+  box-shadow: 0 2px 4px rgba(12, 5, 7, 0.09);
   z-index: -1;
+  transition: border-color 180ms ease, background-color 180ms ease;
 }
 
 .guestwall-modal-close:hover::before,
 .guestwall-modal-close:focus-visible::before {
-  border-color: rgba(75, 15, 23, 0.45);
-  background: rgba(252, 247, 239, 0.98);
+  border-color: rgba(75, 15, 23, 0.48);
+  background: rgba(255, 249, 239, 1);
+}
+
+.guestwall-modal-close:focus-visible {
+  outline: 2px solid rgba(201, 174, 116, 0.7);
+  outline-offset: 1px;
 }
 
 .guestwall-detail-content {
@@ -7527,6 +7559,33 @@ a.guestwall-media-retry {
 
 .guestwall-detail-media {
   aspect-ratio: 4 / 3;
+}
+
+.guestwall-detail-polaroid {
+  justify-self: center;
+  width: min(560px, calc(100vw - 72px));
+  --gw-item-tilt: var(--gwPolaroidTilt, 0deg);
+  box-shadow: 0 20px 36px rgba(12, 6, 8, 0.24), 0 3px 8px rgba(12, 6, 8, 0.1);
+}
+
+.guestwall-detail-polaroid .guestwall-polaroid-mat {
+  --gw-m-side: 12px;
+  --gw-m-top: 12px;
+  --gw-m-bottom: 34px;
+}
+
+.guestwall-detail-polaroid .guestwall-polaroid-media {
+  border-radius: 2px;
+}
+
+.guestwall-detail-polaroid-media {
+  aspect-ratio: 4 / 3;
+}
+
+.guestwall-detail-polaroid-signature {
+  font-size: clamp(20px, 2.1vw, 30px);
+  bottom: 10px;
+  max-width: 85%;
 }
 
 .guestwall-detail-note {
@@ -7840,6 +7899,21 @@ a.guestwall-media-retry {
     width: min(560px, calc(100vw - 20px));
     max-height: min(88vh, 880px);
     padding: 16px 14px 14px;
+  }
+
+  .guestwall-detail-polaroid {
+    width: min(92vw, 470px);
+  }
+
+  .guestwall-detail-polaroid .guestwall-polaroid-mat {
+    --gw-m-side: 10px;
+    --gw-m-top: 10px;
+    --gw-m-bottom: 30px;
+  }
+
+  .guestwall-detail-polaroid-signature {
+    font-size: clamp(18px, 6vw, 24px);
+    bottom: 8px;
   }
 
   .guestwall-detail-postcard {
@@ -8803,6 +8877,8 @@ body.modal-open {
 
   .story-lightbox-frame {
     width: min(96vw, 760px);
+    height: min(92vh, 820px);
+    height: min(92dvh, 820px);
     padding: 10px 12px 12px;
     gap: 8px;
   }
@@ -8819,12 +8895,10 @@ body.modal-open {
     font-size: 18px;
   }
 
-  .story-lightbox-media {
-    aspect-ratio: 4 / 3;
-  }
-
   .story-lightbox-caption {
     gap: 3px;
+    padding: 12px 12px 10px;
+    max-height: min(34dvh, 250px);
   }
 
   .story-lightbox-title {
@@ -8859,6 +8933,7 @@ body.modal-open {
 
   .story-lightbox-frame {
     width: min(96vw, 520px);
+    height: min(92vh, 760px);
   }
 
   .story-lightbox-footer {

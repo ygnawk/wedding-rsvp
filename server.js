@@ -66,6 +66,7 @@ const GUESTBOOK_RESPONSE_CACHE_SECONDS = Math.max(
 const GUESTBOOK_PINBOARD_DEFAULT_LIMIT = 16;
 const GUESTBOOK_ARCHIVE_DEFAULT_LIMIT = 30;
 const STATIC_BODY_CACHE_MAX_BYTES = 512 * 1024;
+const GOOGLE_API_CALL_TIMEOUT_MS = Math.max(3000, Number.parseInt(process.env.GOOGLE_API_CALL_TIMEOUT_MS || "10000", 10) || 10000);
 const staticBodyCache = new Map();
 const guestbookCache = {
   expiresAt: 0,
@@ -73,6 +74,7 @@ const guestbookCache = {
   pending: null,
   refreshing: null,
 };
+let guestbookWarmupPromise = null;
 
 function extractYearPrefix(filename) {
   const match = String(filename || "").match(/(?:^|[^0-9])((?:19|20)\d{2})(?!\d)/);
@@ -463,10 +465,12 @@ function createGoogleClients() {
 }
 
 async function getSheetHeaders(sheets, spreadsheetId, tabName) {
-  const response = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: `${tabName}!1:1`,
-  });
+  const response = await runSheetsCall(`values.get(headers:${tabName})`, () =>
+    sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: `${tabName}!1:1`,
+    }),
+  );
 
   const row = Array.isArray(response.data.values) ? response.data.values[0] : null;
   if (!Array.isArray(row) || !row.length) {
@@ -478,10 +482,12 @@ async function getSheetHeaders(sheets, spreadsheetId, tabName) {
 
 async function getSheetObjects(sheets, spreadsheetId, tabName) {
   const startedAt = Date.now();
-  const response = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: `${tabName}!A:ZZ`,
-  });
+  const response = await runSheetsCall(`values.get(rows:${tabName})`, () =>
+    sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: `${tabName}!A:ZZ`,
+    }),
+  );
 
   const values = Array.isArray(response.data.values) ? response.data.values : [];
   const [headerRow, ...rows] = values;
@@ -594,7 +600,25 @@ function getErrorCode(error) {
 
 function isRetryableDriveError(error) {
   const code = getErrorCode(error);
-  return code === 403 || code === 429;
+  if (code === 403 || code === 408 || code === 429) return true;
+  if (code >= 500) return true;
+  const message = String(error instanceof Error ? error.message : error || "").toLowerCase();
+  return message.includes("timeout") || message.includes("timed out") || message.includes("network");
+}
+
+function isRetryableSheetsError(error) {
+  const code = getErrorCode(error);
+  if (code === 429 || code === 408) return true;
+  if (code >= 500) return true;
+  const message = String(error instanceof Error ? error.message : error || "").toLowerCase();
+  return (
+    message.includes("econnreset") ||
+    message.includes("etimedout") ||
+    message.includes("eai_again") ||
+    message.includes("enotfound") ||
+    message.includes("socket hang up") ||
+    message.includes("network")
+  );
 }
 
 async function runDriveCall(label, operation) {
@@ -604,7 +628,7 @@ async function runDriveCall(label, operation) {
   while (attempt < 3) {
     const attemptStartedAt = Date.now();
     try {
-      const response = await operation();
+      const response = await withOperationTimeout(label, operation);
       const elapsed = Date.now() - attemptStartedAt;
       const data = response && response.data ? response.data : null;
       const itemCount = data && Array.isArray(data.files) ? data.files.length : 0;
@@ -634,6 +658,51 @@ async function runDriveCall(label, operation) {
 
   console.warn(`[drive] call=${label} exhausted retries duration_ms=${Date.now() - startedAt}`);
   throw new Error("Drive request failed after retries");
+}
+
+async function runSheetsCall(label, operation) {
+  let attempt = 0;
+  while (attempt < 3) {
+    const attemptStartedAt = Date.now();
+    try {
+      const response = await withOperationTimeout(label, operation);
+      const elapsed = Date.now() - attemptStartedAt;
+      const values = response && response.data && Array.isArray(response.data.values) ? response.data.values : [];
+      const rows = values.length;
+      const cols = rows > 0 && Array.isArray(values[0]) ? values[0].length : 0;
+      console.info(`[sheets] call=${label} attempt=${attempt + 1} duration_ms=${elapsed} rows=${rows} cols=${cols}`);
+      return response;
+    } catch (error) {
+      const elapsed = Date.now() - attemptStartedAt;
+      const code = getErrorCode(error);
+      const retryable = isRetryableSheetsError(error);
+      console.warn(`[sheets] call=${label} attempt=${attempt + 1} duration_ms=${elapsed} status=${code || "unknown"} retryable=${retryable}`);
+      if (!retryable || attempt >= 2) throw error;
+      const backoffMs = 250 * 2 ** attempt + Math.floor(Math.random() * 120);
+      await new Promise((resolve) => setTimeout(resolve, backoffMs));
+      attempt += 1;
+    }
+  }
+  throw new Error("Sheets request failed after retries");
+}
+
+function withOperationTimeout(label, operation) {
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      const timeoutError = new Error(`${label} timed out after ${GOOGLE_API_CALL_TIMEOUT_MS}ms`);
+      timeoutError.code = "ETIMEDOUT";
+      timeoutError.statusCode = 408;
+      reject(timeoutError);
+    }, GOOGLE_API_CALL_TIMEOUT_MS);
+
+    Promise.resolve()
+      .then(operation)
+      .then(resolve)
+      .catch(reject)
+      .finally(() => {
+        clearTimeout(timeoutId);
+      });
+  });
 }
 
 async function loadDriveMetadataByFileId(drive, fileIds) {
@@ -1107,6 +1176,22 @@ async function loadGuestbookItems({ forceRefresh = false } = {}) {
   }
 }
 
+function scheduleGuestbookWarmup() {
+  if (guestbookWarmupPromise) return guestbookWarmupPromise;
+  guestbookWarmupPromise = loadGuestbookItems({ forceRefresh: true })
+    .then((items) => {
+      console.info(`[guestbook] warmup success items=${Array.isArray(items) ? items.length : 0}`);
+    })
+    .catch((error) => {
+      const message = error instanceof Error ? error.message : String(error || "unknown");
+      console.warn(`[guestbook] warmup failed message=${message}`);
+    })
+    .finally(() => {
+      guestbookWarmupPromise = null;
+    });
+  return guestbookWarmupPromise;
+}
+
 function parseGuestbookMode(value) {
   const normalized = normalizeFieldValue(value).toLowerCase();
   return normalized === "archive" ? "archive" : "pinboard";
@@ -1314,10 +1399,21 @@ async function handleGuestbookRequest(req, res) {
     console.error(
       `[guestbook] error code=${classified.code} detail=${classified.detail} message=${message} duration_ms=${Date.now() - requestStartedAt}`,
     );
-    send(res, 500, JSON.stringify({ ok: false, error: message }), MIME_TYPES[".json"], {
-      req,
-      cacheControl: "no-store",
-    });
+    send(
+      res,
+      500,
+      JSON.stringify({
+        ok: false,
+        error: message,
+        code: classified.code,
+        detail: classified.detail,
+      }),
+      MIME_TYPES[".json"],
+      {
+        req,
+        cacheControl: "no-store",
+      },
+    );
   }
 }
 
@@ -1481,4 +1577,5 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`Wedding site running at http://localhost:${PORT}`);
   console.log("RSVP submissions will be written to Google Sheets + Google Drive");
+  scheduleGuestbookWarmup();
 });
