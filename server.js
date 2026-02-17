@@ -1249,6 +1249,7 @@ function filterArchiveItems(items, { typeFilter = "all", query = "" } = {}) {
 }
 
 async function handleGuestbookRequest(req, res) {
+  const requestStartedAt = Date.now();
   try {
     const requestUrl = new URL(req.url || "/api/guestbook", `http://${req.headers.host || "localhost"}`);
     const mode = parseGuestbookMode(requestUrl.searchParams.get("mode"));
@@ -1261,7 +1262,9 @@ async function handleGuestbookRequest(req, res) {
     const offset = parseBoundedInt(requestUrl.searchParams.get("offset"), cursorOffset, 0, 1000000);
     const refresh = ["1", "true", "yes"].includes(normalizeFieldValue(requestUrl.searchParams.get("refresh")).toLowerCase());
     console.info(
-      `[guestbook] request mode=${mode} limit=${limit} offset=${offset} type=${typeFilter} q=${query ? "yes" : "no"} refresh=${refresh}`,
+      `[guestbook] request url=${requestUrl.pathname}${requestUrl.search} mode=${mode} limit=${limit} offset=${offset} type=${typeFilter} q=${
+        query ? "yes" : "no"
+      } refresh=${refresh}`,
     );
 
     const approvedSubmissions = await loadGuestbookItems({ forceRefresh: refresh });
@@ -1277,7 +1280,9 @@ async function handleGuestbookRequest(req, res) {
     const nextOffset = offset + items.length < workingItems.length ? offset + items.length : null;
     const nextCursor = nextOffset === null ? null : encodeGuestbookCursor(nextOffset);
     console.info(
-      `[guestbook] response mode=${mode} total=${workingItems.length} returned=${items.length} next_offset=${nextOffset === null ? "none" : nextOffset}`,
+      `[guestbook] response mode=${mode} total=${workingItems.length} returned=${items.length} next_offset=${
+        nextOffset === null ? "none" : nextOffset
+      } duration_ms=${Date.now() - requestStartedAt}`,
     );
 
     send(
@@ -1306,7 +1311,9 @@ async function handleGuestbookRequest(req, res) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Guestbook request failed";
     const classified = classifyGuestbookError(error);
-    console.error(`[guestbook] error code=${classified.code} detail=${classified.detail} message=${message}`);
+    console.error(
+      `[guestbook] error code=${classified.code} detail=${classified.detail} message=${message} duration_ms=${Date.now() - requestStartedAt}`,
+    );
     send(res, 500, JSON.stringify({ ok: false, error: message }), MIME_TYPES[".json"], {
       req,
       cacheControl: "no-store",

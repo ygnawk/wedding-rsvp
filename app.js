@@ -31,10 +31,13 @@ const GUEST_WALL_PINBOARD_BUFFER_MOBILE = 16;
 const GUEST_WALL_PREFETCH_THRESHOLD = 4;
 const GUEST_WALL_DESKTOP_VISIBLE_SLOTS = 14;
 const GUEST_WALL_MOBILE_VISIBLE_SLOTS = 6;
-const GUEST_WALL_SLOT_GAP_DESKTOP = -10;
-const GUEST_WALL_SLOT_GAP_MOBILE = -8;
+const GUEST_WALL_SLOT_GAP_DESKTOP = -4;
+const GUEST_WALL_SLOT_GAP_MOBILE = -3;
 const GUEST_WALL_SLOT_JITTER_DESKTOP = 10;
 const GUEST_WALL_SLOT_JITTER_MOBILE = 6;
+const GUEST_WALL_MAX_OVERLAP_RATIO_DESKTOP = 0.12;
+const GUEST_WALL_MAX_OVERLAP_RATIO_MOBILE = 0.1;
+const GUEST_WALL_NOTE_SIZE_MULTIPLIER_DESKTOP = 1.26;
 const GUEST_WALL_SWAP_FADE_OUT_MS = 200;
 const GUEST_WALL_SWAP_FADE_IN_MS = 260;
 const GUEST_WALL_SHUFFLE_REPLACE_RATIO = 0.4;
@@ -45,6 +48,9 @@ const GUEST_WALL_ARRANGE_DEOVERLAP_GAP = 8;
 const GUEST_WALL_SLOW_MESSAGE_DELAY_MS = 5000;
 const GUEST_WALL_SLOW_MESSAGE_ROTATE_MS = 3000;
 const GUEST_WALL_HARD_TIMEOUT_MS = 20000;
+const GUEST_WALL_INITIAL_REQUEST_TIMEOUT_MS = 30000;
+const GUEST_WALL_RETRY_DELAY_MS = 1000;
+const GUEST_WALL_MAX_FETCH_ATTEMPTS = 2;
 const GUEST_WALL_LOADING_MESSAGE = "Loading guest wall…";
 const GUEST_WALL_EMPTY_MESSAGE = "Nothing here yet—check back soon.";
 const GUEST_WALL_UNAVAILABLE_MESSAGE = "Guest Wall is temporarily unavailable.";
@@ -342,8 +348,8 @@ const guestWallStatus = document.getElementById("guestWallStatus");
 const guestWallPinboardView = document.getElementById("guestWallPinboardView");
 const guestWallShuffle = document.getElementById("guestWallShuffle");
 const guestWallArrangeToggle = document.getElementById("guestWallArrangeToggle");
-const guestWallArrangeHint = document.getElementById("guestWallArrangeHint");
-const guestWallArrangeAutoplayHint = document.getElementById("guestWallArrangeAutoplayHint");
+const guestWallArrangeControl = document.querySelector(".guestwall-arrange-control");
+const guestWallArrangeState = document.getElementById("guestWallArrangeState");
 const guestWallAutoplayToggle = document.getElementById("guestWallAutoplayToggle");
 const guestWallAutoplayControl = document.querySelector(".guestwall-autoplay-control");
 const guestWallAutoplayState = document.getElementById("guestWallAutoplayState");
@@ -382,6 +388,7 @@ let guestWallSlowMessageIndex = 0;
 let guestWallArrangeMode = false;
 let guestWallDragState = null;
 let guestWallArrangementByCardId = new Map();
+let guestWallHasSuccessfulLoad = false;
 let overflowDebugResizeTimer = null;
 let desktopMoreCloseTimer = null;
 let activeSectionId = "top";
@@ -3929,6 +3936,27 @@ function classifyGuestWallError(error) {
   };
 }
 
+function isGuestWallRetryableError(error) {
+  const status = Number(error?.status || 0);
+  if (error?.isTimeout || status === 408 || status === 429) return true;
+  if (status >= 500) return true;
+  if (status === 0) return true;
+  return false;
+}
+
+function getGuestWallRequestTimeoutMs(attemptIndex = 0) {
+  if (!guestWallHasSuccessfulLoad && Number(attemptIndex) <= 0) return GUEST_WALL_INITIAL_REQUEST_TIMEOUT_MS;
+  return GUEST_WALL_HARD_TIMEOUT_MS;
+}
+
+function waitGuestWallRetryDelay(attemptIndex = 0) {
+  const factor = Math.max(1, Number(attemptIndex) + 1);
+  const waitMs = GUEST_WALL_RETRY_DELAY_MS * factor;
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, waitMs);
+  });
+}
+
 function resolveGuestbookApiUrl(params = {}) {
   const search = new URLSearchParams();
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -3950,6 +3978,8 @@ async function fetchGuestbookPage({
   limit = GUEST_WALL_PINBOARD_LIMIT,
   refresh = false,
   cursor = "",
+  timeoutMs = GUEST_WALL_HARD_TIMEOUT_MS,
+  attempt = 1,
 } = {}) {
   const startedAt = performance.now();
   const apiUrl = resolveGuestbookApiUrl({
@@ -3961,16 +3991,16 @@ async function fetchGuestbookPage({
   const controller = new AbortController();
   const timeoutHandle = window.setTimeout(() => {
     controller.abort("guestwall-timeout");
-  }, GUEST_WALL_HARD_TIMEOUT_MS);
+  }, Math.max(1000, Number(timeoutMs) || GUEST_WALL_HARD_TIMEOUT_MS));
   let response = null;
   let text = "";
+  let ttfbMs = 0;
 
-  if (IS_LOCAL_DEV) {
-    console.info(`[guestwall][request] endpoint=GET /api/guestbook url=${apiUrl}`);
-  }
+  console.info(`[guestwall][request] endpoint=GET /api/guestbook attempt=${attempt} timeoutMs=${Math.round(timeoutMs)} url=${apiUrl}`);
 
   try {
     response = await fetch(apiUrl, { cache: "default", signal: controller.signal });
+    ttfbMs = Math.round(performance.now() - startedAt);
     text = await response.text();
   } catch (error) {
     const durationMs = Math.round(performance.now() - startedAt);
@@ -3981,14 +4011,13 @@ async function fetchGuestbookPage({
     wrappedError.status = isTimeout ? 408 : 0;
     wrappedError.code = isTimeout ? "timeout" : "network";
     wrappedError.durationMs = durationMs;
+    wrappedError.ttfbMs = ttfbMs;
     wrappedError.responseBytes = 0;
     wrappedError.itemCount = 0;
     wrappedError.isTimeout = isTimeout;
-    if (IS_LOCAL_DEV) {
-      console.error(
-        `[guestwall][fetch] endpoint=GET /api/guestbook status=${wrappedError.status} durationMs=${durationMs} bytes=0 items=0 error=${wrappedError.code}`,
-      );
-    }
+    console.error(
+      `[guestwall][fetch] endpoint=GET /api/guestbook attempt=${attempt} status=${wrappedError.status} ttfbMs=${ttfbMs} durationMs=${durationMs} bytes=0 items=0 error=${wrappedError.code}`,
+    );
     throw wrappedError;
   } finally {
     window.clearTimeout(timeoutHandle);
@@ -4012,17 +4041,16 @@ async function fetchGuestbookPage({
         ? data.results
         : null;
 
-  if (IS_LOCAL_DEV) {
-    console.info(
-      `[guestwall][fetch] endpoint=GET /api/guestbook status=${response.status} durationMs=${durationMs} bytes=${responseBytes} items=${Array.isArray(items) ? items.length : "invalid"}`,
-    );
-  }
+  console.info(
+    `[guestwall][fetch] endpoint=GET /api/guestbook attempt=${attempt} status=${response.status} ttfbMs=${ttfbMs} durationMs=${durationMs} bytes=${responseBytes} items=${Array.isArray(items) ? items.length : "invalid"}`,
+  );
 
   if (!response.ok || !data || data.ok !== true || !Array.isArray(items)) {
     const error = new Error(GUEST_WALL_UNAVAILABLE_MESSAGE);
     error.url = apiUrl;
     error.status = response.status;
     error.durationMs = durationMs;
+    error.ttfbMs = ttfbMs;
     error.responseBytes = responseBytes;
     error.itemCount = Array.isArray(items) ? items.length : 0;
     error.isTimeout = false;
@@ -4263,13 +4291,8 @@ function renderGuestWallErrorStateWithMessage(message) {
 
     const body = document.createElement("p");
     body.className = "guestwall-error-body";
-    body.textContent = 'Sorry — it’s kinda buggy (we built it vibe-coded on a free hosting plan). Hit “Try again”.';
+    body.textContent = "Please try again in a moment. If it still doesn’t load, refresh the page.";
     panel.appendChild(body);
-
-    const helper = document.createElement("p");
-    helper.className = "guestwall-error-helper";
-    helper.textContent = "If it still fails, refresh the page. We promise the notes are worth it.";
-    panel.appendChild(helper);
 
     const button = document.createElement("button");
     button.type = "button";
@@ -4294,6 +4317,18 @@ function renderGuestWallErrorStateWithMessage(message) {
   if (guestWallMobile instanceof HTMLElement) guestWallMobile.appendChild(makePanel());
 }
 renderGuestWallErrorStateWithMessage.lastDetail = "";
+
+function syncGuestWallPolaroidCompactVariant(imgNode) {
+  if (!(imgNode instanceof HTMLImageElement)) return;
+  const polaroidNode = imgNode.closest(".guestwall-item--polaroid");
+  if (!(polaroidNode instanceof HTMLElement)) return;
+  const width = Number(imgNode.naturalWidth || 0);
+  const height = Number(imgNode.naturalHeight || 0);
+  if (width <= 0 || height <= 0) return;
+  const ratio = width / height;
+  const isExtreme = ratio >= 1.65 || ratio <= 0.7;
+  polaroidNode.classList.toggle("guestwall-polaroid--compact", isExtreme);
+}
 
 function buildGuestWallMediaNode(card, context = "board") {
   const mediaWrap = document.createElement("div");
@@ -4342,6 +4377,7 @@ function buildGuestWallMediaNode(card, context = "board") {
     img.addEventListener("load", () => {
       img.classList.remove("is-loading");
       setHiddenClass(fallback, true);
+      syncGuestWallPolaroidCompactVariant(img);
     });
 
     img.addEventListener("error", () => {
@@ -4763,39 +4799,38 @@ function setGuestWallArrangeMode(enabled) {
     guestWallPinboard.classList.toggle("is-arrange-mode", nextMode);
   }
   if (guestWallArrangeToggle instanceof HTMLButtonElement) {
-    guestWallArrangeToggle.classList.toggle("is-active", nextMode);
-    guestWallArrangeToggle.textContent = nextMode ? "Done arranging ✓" : "Arrange cards";
-    guestWallArrangeToggle.setAttribute("aria-pressed", nextMode ? "true" : "false");
+    guestWallArrangeToggle.classList.toggle("is-on", nextMode);
+    guestWallArrangeToggle.classList.toggle("is-off", !nextMode);
+    guestWallArrangeToggle.setAttribute("aria-checked", nextMode ? "true" : "false");
+    guestWallArrangeToggle.setAttribute("aria-label", nextMode ? "Arrange on" : "Arrange off");
   }
-  if (guestWallArrangeHint instanceof HTMLElement) {
-    setHiddenClass(guestWallArrangeHint, !nextMode);
+  if (guestWallArrangeControl instanceof HTMLElement) {
+    guestWallArrangeControl.dataset.state = nextMode ? "ON" : "OFF";
+    guestWallArrangeControl.classList.toggle("is-on", nextMode);
+    guestWallArrangeControl.classList.toggle("is-off", !nextMode);
+  }
+  if (guestWallArrangeState instanceof HTMLElement) {
+    guestWallArrangeState.textContent = nextMode ? "ON" : "OFF";
+    guestWallArrangeState.classList.toggle("is-on", nextMode);
+    guestWallArrangeState.classList.toggle("is-off", !nextMode);
   }
 }
 
 function syncGuestWallArrangeAvailability() {
   if (!(guestWallArrangeToggle instanceof HTMLButtonElement)) return;
   const capability = isGuestWallArrangeCapable();
-  const blockedByAutoplay = capability && !guestWallPaused;
-  setHiddenClass(guestWallArrangeToggle, !capability);
+  if (guestWallArrangeControl instanceof HTMLElement) {
+    setHiddenClass(guestWallArrangeControl, !capability);
+  } else {
+    setHiddenClass(guestWallArrangeToggle, !capability);
+  }
   if (!capability) {
     setGuestWallArrangeMode(false);
-    if (guestWallArrangeHint instanceof HTMLElement) setHiddenClass(guestWallArrangeHint, true);
-    if (guestWallArrangeAutoplayHint instanceof HTMLElement) setHiddenClass(guestWallArrangeAutoplayHint, true);
     return;
   }
-
-  if (blockedByAutoplay) {
-    if (guestWallArrangeMode) setGuestWallArrangeMode(false);
-    guestWallArrangeToggle.disabled = true;
-    guestWallArrangeToggle.setAttribute("aria-disabled", "true");
-    guestWallArrangeToggle.classList.add("is-muted");
-    if (guestWallArrangeAutoplayHint instanceof HTMLElement) setHiddenClass(guestWallArrangeAutoplayHint, false);
-  } else {
-    guestWallArrangeToggle.disabled = false;
-    guestWallArrangeToggle.setAttribute("aria-disabled", "false");
-    guestWallArrangeToggle.classList.remove("is-muted");
-    if (guestWallArrangeAutoplayHint instanceof HTMLElement) setHiddenClass(guestWallArrangeAutoplayHint, true);
-  }
+  guestWallArrangeToggle.disabled = false;
+  guestWallArrangeToggle.setAttribute("aria-disabled", "false");
+  guestWallArrangeToggle.classList.remove("is-muted");
 }
 
 function cancelGuestWallDrag(commit = false) {
@@ -4833,9 +4868,16 @@ function setGuestWallActiveSlot(nextSlotNode) {
 
 function closeGuestWallDetail() {
   if (!(guestWallDetailModal instanceof HTMLElement) || !guestWallDetailOpen) return;
-  setHiddenClass(guestWallDetailModal, true);
-  guestWallDetailModal.setAttribute("aria-hidden", "true");
-  unlockBodyScroll();
+  guestWallDetailModal.classList.remove("is-open");
+  guestWallDetailModal.classList.add("is-closing");
+  window.setTimeout(() => {
+    if (!(guestWallDetailModal instanceof HTMLElement)) return;
+    if (guestWallDetailOpen) return;
+    setHiddenClass(guestWallDetailModal, true);
+    guestWallDetailModal.classList.remove("is-closing");
+    guestWallDetailModal.setAttribute("aria-hidden", "true");
+    unlockBodyScroll();
+  }, 240);
   guestWallDetailOpen = false;
 }
 
@@ -4879,18 +4921,36 @@ function buildGuestWallDetailMediaNode(card) {
 
 function buildGuestWallDetailNoteBlock(noteText, name) {
   const noteBlock = document.createElement("article");
-  noteBlock.className = "guestwall-detail-block guestwall-detail-block--note";
+  noteBlock.className = "guestwall-detail-postcard";
+
+  const inner = document.createElement("div");
+  inner.className = "guestwall-detail-postcard-inner";
+
+  const messagePane = document.createElement("div");
+  messagePane.className = "guestwall-detail-postcard-message";
 
   const noteTextNode = document.createElement("p");
-  noteTextNode.className = "guestwall-note-text guestwall-detail-note";
+  noteTextNode.className = "guestwall-note-text guestwall-detail-note guestwall-detail-note-full";
   noteTextNode.textContent = noteText;
-  noteBlock.appendChild(noteTextNode);
+  messagePane.appendChild(noteTextNode);
 
-  const noteNameNode = document.createElement("p");
-  noteNameNode.className = "guestwall-note-sign guestwall-detail-name";
-  noteNameNode.textContent = `— ${name}`;
-  noteBlock.appendChild(noteNameNode);
+  const metaPane = document.createElement("div");
+  metaPane.className = "guestwall-detail-postcard-meta";
 
+  const stamp = document.createElement("span");
+  stamp.className = "guestwall-note-stamp";
+  stamp.setAttribute("aria-hidden", "true");
+
+  const sign = document.createElement("p");
+  sign.className = "guestwall-note-sign guestwall-detail-name guestwall-note-sign--postcard";
+  sign.textContent = `— ${name}`;
+
+  metaPane.appendChild(stamp);
+  metaPane.appendChild(sign);
+
+  inner.appendChild(messagePane);
+  inner.appendChild(metaPane);
+  noteBlock.appendChild(inner);
   return noteBlock;
 }
 
@@ -4938,6 +4998,12 @@ function openGuestWallDetail(card) {
   }
 
   setHiddenClass(guestWallDetailModal, false);
+  guestWallDetailModal.classList.remove("is-closing");
+  guestWallDetailModal.classList.remove("is-open");
+  window.requestAnimationFrame(() => {
+    if (!(guestWallDetailModal instanceof HTMLElement) || !guestWallDetailOpen) return;
+    guestWallDetailModal.classList.add("is-open");
+  });
   guestWallDetailModal.setAttribute("aria-hidden", "false");
   if (!wasOpen) lockBodyScroll();
   guestWallDetailOpen = true;
@@ -5429,7 +5495,9 @@ function getGuestWallSlotRole(slotConfig) {
 }
 
 function getGuestWallSlotRect(slotConfig, containerRect, mobile = false) {
-  const width = getGuestWallSlotWidthPx(containerRect.width, slotConfig.size, mobile);
+  const kind = getGuestWallSlotKind(slotConfig);
+  const baseWidth = getGuestWallSlotWidthPx(containerRect.width, slotConfig.size, mobile);
+  const width = !mobile && kind === "note" ? baseWidth * GUEST_WALL_NOTE_SIZE_MULTIPLIER_DESKTOP : baseWidth;
   const aspectRatio = getGuestWallSlotAspectRatio(slotConfig);
   const height = width / Math.max(0.58, aspectRatio) + 8;
   const centerX = (containerRect.width * Number(slotConfig.xPct || 0)) / 100 + Number(slotConfig.xOffsetPx || 0);
@@ -5446,6 +5514,53 @@ function getGuestWallSlotRect(slotConfig, containerRect, mobile = false) {
 
 function rectsOverlap(a, b, gap) {
   return !(a.right + gap <= b.left || a.left >= b.right + gap || a.bottom + gap <= b.top || a.top >= b.bottom + gap);
+}
+
+function getRectArea(rect) {
+  if (!rect) return 0;
+  const width = Math.max(0, Number(rect.right) - Number(rect.left));
+  const height = Math.max(0, Number(rect.bottom) - Number(rect.top));
+  return width * height;
+}
+
+function getRectIntersection(a, b) {
+  if (!a || !b) return null;
+  const left = Math.max(Number(a.left), Number(b.left));
+  const right = Math.min(Number(a.right), Number(b.right));
+  const top = Math.max(Number(a.top), Number(b.top));
+  const bottom = Math.min(Number(a.bottom), Number(b.bottom));
+  if (right <= left || bottom <= top) return null;
+  return { left, right, top, bottom };
+}
+
+function getGuestWallProtectedRect(rect, kind) {
+  if (!rect) return rect;
+  const width = Math.max(0, rect.right - rect.left);
+  const height = Math.max(0, rect.bottom - rect.top);
+  if (kind === "media") {
+    // Reserve the lower signature/caption band from being covered.
+    return {
+      left: rect.left + width * 0.08,
+      right: rect.right - width * 0.08,
+      top: rect.top + height * 0.08,
+      bottom: rect.bottom - height * 0.26,
+    };
+  }
+  if (kind === "note") {
+    // Protect the central writing area on postcards/notes.
+    return {
+      left: rect.left + width * 0.08,
+      right: rect.left + width * 0.74,
+      top: rect.top + height * 0.14,
+      bottom: rect.bottom - height * 0.14,
+    };
+  }
+  return {
+    left: rect.left + width * 0.1,
+    right: rect.right - width * 0.1,
+    top: rect.top + height * 0.1,
+    bottom: rect.bottom - height * 0.1,
+  };
 }
 
 function getGuestWallSlotJitter(slotConfig, slotIndex, jitterMaxPx, jitterSeed, attempt = 0) {
@@ -5469,48 +5584,93 @@ function resolveGuestWallSlotLayout(slotMap, containerRect, mobile = false, opti
   const crossKindGap = mobile ? 14 : 20;
   const heroNoOverlapGap = mobile ? 16 : 24;
   const edgePadding = mobile ? 8 : 12;
+  const maxOverlapRatio = mobile ? GUEST_WALL_MAX_OVERLAP_RATIO_MOBILE : GUEST_WALL_MAX_OVERLAP_RATIO_DESKTOP;
   const jitterMaxPx = Number(options.jitterMaxPx || 0);
   const jitterSeed = String(options.jitterSeed || "");
   const placed = [];
   const result = [];
 
-  const isValidPlacement = (candidateRect, candidateRole, candidateKind) => {
+  const getPlacementPenalty = (candidateRect, candidateRole, candidateKind) => {
     if (
       candidateRect.left < edgePadding ||
       candidateRect.top < edgePadding ||
       candidateRect.right > containerRect.width - edgePadding ||
       candidateRect.bottom > containerRect.height - edgePadding
     ) {
-      return false;
+      return Number.POSITIVE_INFINITY;
     }
-    return !placed.some((entry) => {
+    const candidateArea = getRectArea(candidateRect);
+    const candidateProtectedRect = getGuestWallProtectedRect(candidateRect, candidateKind);
+    let penalty = 0;
+    placed.forEach((entry) => {
       const protectHero = candidateRole === "hero" || entry.role === "hero";
       const kindGap = entry.kind === candidateKind ? gap : crossKindGap;
-      return rectsOverlap(entry.rect, candidateRect, protectHero ? Math.max(heroNoOverlapGap, kindGap) : kindGap);
+      const enforcedGap = protectHero ? Math.max(heroNoOverlapGap, kindGap) : kindGap;
+      if (!rectsOverlap(entry.rect, candidateRect, enforcedGap)) return;
+
+      const overlapRect = getRectIntersection(entry.rect, candidateRect);
+      if (!overlapRect) return;
+      const overlapArea = getRectArea(overlapRect);
+      const entryArea = getRectArea(entry.rect);
+      if (overlapArea <= 0) return;
+
+      const candidateRatio = candidateArea > 0 ? overlapArea / candidateArea : 0;
+      const entryRatio = entryArea > 0 ? overlapArea / entryArea : 0;
+      if (candidateRatio > maxOverlapRatio || entryRatio > maxOverlapRatio) {
+        penalty += 1000 + overlapArea;
+        return;
+      }
+
+      const entryProtectedRect = getGuestWallProtectedRect(entry.rect, entry.kind);
+      const protectedOverlapA = getRectIntersection(candidateProtectedRect, entry.rect);
+      if (protectedOverlapA && getRectArea(protectedOverlapA) > candidateArea * 0.04) {
+        penalty += 1000 + getRectArea(protectedOverlapA);
+        return;
+      }
+      const protectedOverlapB = getRectIntersection(entryProtectedRect, candidateRect);
+      if (protectedOverlapB && getRectArea(protectedOverlapB) > entryArea * 0.04) {
+        penalty += 1000 + getRectArea(protectedOverlapB);
+        return;
+      }
+
+      penalty += overlapArea * 0.2;
     });
+    return penalty;
   };
 
   slotMap.forEach((slotConfig, slotIndex) => {
-    const attempts = jitterMaxPx > 0 ? 5 : 1;
+    const attempts = jitterMaxPx > 0 ? 10 : 1;
     const role = getGuestWallSlotRole(slotConfig);
     const kind = getGuestWallSlotKind(slotConfig);
     let selectedOffset = { xOffsetPx: 0, yOffsetPx: 0 };
     let selectedRect = null;
+    let bestFallback = null;
+    let bestPenalty = Number.POSITIVE_INFINITY;
 
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       const offset = getGuestWallSlotJitter(slotConfig, slotIndex, jitterMaxPx, jitterSeed, attempt);
       const candidate = { ...slotConfig, ...offset };
       const candidateRect = getGuestWallSlotRect(candidate, containerRect, mobile);
-      if (!isValidPlacement(candidateRect, role, kind)) continue;
+      const penalty = getPlacementPenalty(candidateRect, role, kind);
+      if (penalty < bestPenalty) {
+        bestPenalty = penalty;
+        bestFallback = { rect: candidateRect, offset };
+      }
+      if (penalty > 0) continue;
       selectedOffset = offset;
       selectedRect = candidateRect;
       break;
     }
 
     if (!selectedRect) {
-      const fallbackCandidate = { ...slotConfig, xOffsetPx: 0, yOffsetPx: 0 };
-      selectedRect = getGuestWallSlotRect(fallbackCandidate, containerRect, mobile);
-      selectedOffset = { xOffsetPx: 0, yOffsetPx: 0 };
+      if (bestFallback && Number.isFinite(bestPenalty)) {
+        selectedRect = bestFallback.rect;
+        selectedOffset = bestFallback.offset;
+      } else {
+        const fallbackCandidate = { ...slotConfig, xOffsetPx: 0, yOffsetPx: 0 };
+        selectedRect = getGuestWallSlotRect(fallbackCandidate, containerRect, mobile);
+        selectedOffset = { xOffsetPx: 0, yOffsetPx: 0 };
+      }
     }
 
     placed.push({ rect: selectedRect, role, kind });
@@ -5896,14 +6056,22 @@ function bindGuestWallEvents() {
 
   if (guestWallAutoplayToggle instanceof HTMLButtonElement) {
     guestWallAutoplayToggle.addEventListener("click", () => {
-      setGuestWallPaused(!guestWallPaused);
+      const nextPaused = !guestWallPaused;
+      if (!nextPaused && guestWallArrangeMode) {
+        setGuestWallArrangeMode(false);
+      }
+      setGuestWallPaused(nextPaused);
     });
   }
 
   if (guestWallArrangeToggle instanceof HTMLButtonElement) {
     guestWallArrangeToggle.addEventListener("click", () => {
       if (!isGuestWallArrangeCapable()) return;
-      setGuestWallArrangeMode(!guestWallArrangeMode);
+      const nextArrangeMode = !guestWallArrangeMode;
+      if (nextArrangeMode && !guestWallPaused) {
+        setGuestWallPaused(true);
+      }
+      setGuestWallArrangeMode(nextArrangeMode);
     });
   }
 
@@ -5999,17 +6167,43 @@ async function loadGuestWallPinboard({ refresh = false } = {}) {
 
   const request = (async () => {
     try {
-      const payload = await fetchGuestbookPage({
-        mode: "pinboard",
-        limit: getGuestWallPinboardRequestLimit(),
-        refresh,
-      });
+      let payload = null;
+      let attemptError = null;
+      const maxAttempts = Math.max(1, GUEST_WALL_MAX_FETCH_ATTEMPTS);
+      for (let attemptIndex = 0; attemptIndex < maxAttempts; attemptIndex += 1) {
+        const attemptNumber = attemptIndex + 1;
+        try {
+          payload = await fetchGuestbookPage({
+            mode: "pinboard",
+            limit: getGuestWallPinboardRequestLimit(),
+            refresh,
+            timeoutMs: getGuestWallRequestTimeoutMs(attemptIndex),
+            attempt: attemptNumber,
+          });
+          break;
+        } catch (error) {
+          attemptError = error;
+          const retryable = isGuestWallRetryableError(error);
+          const hasRetryRemaining = attemptIndex < maxAttempts - 1;
+          console.warn(
+            `[guestwall][retry] attempt=${attemptNumber} retryable=${retryable} remaining=${hasRetryRemaining} status=${
+              error && typeof error === "object" ? error.status || 0 : 0
+            }`,
+          );
+          if (!retryable || !hasRetryRemaining) break;
+          setGuestWallStatus(`${GUEST_WALL_LOADING_MESSAGE} Retrying once…`);
+          await waitGuestWallRetryDelay(attemptIndex);
+        }
+      }
+      if (!payload) throw attemptError || new Error(GUEST_WALL_UNAVAILABLE_MESSAGE);
+
       const cards = normalizeGuestWallCards(payload.items);
       guestWallCards = [];
       guestWallCardById = new Map();
       mergeGuestWallCards(cards);
       guestWallNextCursor = payload.nextCursor;
       guestWallPrefetchInFlight = null;
+      guestWallHasSuccessfulLoad = true;
       if (!cards.length) {
         clearGuestWallSlowMessageTimers();
         setGuestWallLoadState("success");
@@ -6033,6 +6227,7 @@ async function loadGuestWallPinboard({ refresh = false } = {}) {
         status: error && typeof error === "object" ? error.status : undefined,
         url: error && typeof error === "object" ? error.url : undefined,
         durationMs: error && typeof error === "object" ? error.durationMs : undefined,
+        ttfbMs: error && typeof error === "object" ? error.ttfbMs : undefined,
         responseBytes: error && typeof error === "object" ? error.responseBytes : undefined,
         itemCount: error && typeof error === "object" ? error.itemCount : undefined,
         isTimeout: error && typeof error === "object" ? error.isTimeout : undefined,
@@ -8544,13 +8739,15 @@ function initInterludeCurtainReveal() {
   const interludeSection = document.getElementById("interlude");
   if (!(interludeSection instanceof HTMLElement)) return;
   if (interludeSection.dataset.curtainBound === "true") return;
+  const curtainLeft = interludeSection.querySelector(".interlude-curtain--left");
+  const curtainRight = interludeSection.querySelector(".interlude-curtain--right");
 
   const clamp01 = (value) => Math.max(0, Math.min(1, value));
   const isMobileCurtain = () => window.matchMedia("(max-width: 640px)").matches;
   const getCurtainBounds = () =>
     isMobileCurtain()
-      ? { max: 0.18, min: 0.06 }
-      : { max: 0.22, min: 0.04 };
+      ? { max: 0.18, min: 0 }
+      : { max: 0.22, min: 0 };
 
   let rafId = null;
   let inViewport = true;
@@ -8562,6 +8759,7 @@ function initInterludeCurtainReveal() {
     if (prefersReducedMotion()) {
       const staticWidth = min + (max - min) * 0.45;
       interludeSection.style.setProperty("--interlude-curtain-width", `${(staticWidth * 100).toFixed(3)}%`);
+      interludeSection.classList.remove("is-fully-open");
       return;
     }
 
@@ -8574,8 +8772,12 @@ function initInterludeCurtainReveal() {
     const t = (start - rect.top) / Math.max(1, start - end);
     const progress = clamp01(t);
     const width = min + (max - min) * (1 - progress);
+    const fullyOpen = progress >= 0.98;
 
     interludeSection.style.setProperty("--interlude-curtain-width", `${(width * 100).toFixed(3)}%`);
+    interludeSection.classList.toggle("is-fully-open", fullyOpen);
+    if (curtainLeft instanceof HTMLElement) curtainLeft.classList.toggle("is-hidden", fullyOpen);
+    if (curtainRight instanceof HTMLElement) curtainRight.classList.toggle("is-hidden", fullyOpen);
   };
 
   const requestApply = () => {

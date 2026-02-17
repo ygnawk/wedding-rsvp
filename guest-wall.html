@@ -22,9 +22,11 @@
       <div class="header-pill">
         <a class="brand" href="/" aria-label="Back to home">
           <span class="brand-pill" aria-hidden="true">
-            <img class="brand-logo brand-logo--mark" src="/public/brand/logo-mark.svg" alt="" width="84" height="22" decoding="async" />
-            <img class="brand-logo brand-logo--long" src="/public/brand/logo-long.svg" alt="" width="220" height="22" decoding="async" />
-            <span class="brand-text-fallback" aria-hidden="true">Miki &amp; Yi Jie</span>
+            <span class="brand-wordmark" aria-hidden="true">
+              <span class="brand-wordmark-core">M</span><span class="brand-wordmark-rest brand-wordmark-rest--m">iki</span>
+              <span class="brand-wordmark-amp">&amp;</span>
+              <span class="brand-wordmark-core">Y</span><span class="brand-wordmark-rest brand-wordmark-rest--y">i Jie</span>
+            </span>
           </span>
           <span class="sr-only">Miki &amp; Yi Jie</span>
         </a>
@@ -91,57 +93,44 @@
           <p class="guestwall-subtitle reveal">A small gallery of the love you sent our way (we’re not crying, you are).</p>
           <div id="guestWallPinboardView" class="guestwall-pinboard-view">
             <div class="guestwall-controls reveal" aria-label="Guest wall controls">
-              <div class="guestwall-control-group guestwall-control-group--play">
-                <p class="guestwall-control-group-title">
-                  Play
-                  <span class="guestwall-control-help" title="Shuffle now randomizes once. Auto-shuffle keeps refreshing.">i</span>
-                </p>
-                <div class="guestwall-control-row">
-                  <button
-                    id="guestWallShuffle"
-                    class="guestwall-control-btn guestwall-control-btn--primary"
-                    type="button"
-                    aria-busy="false"
-                    aria-label="Shuffle guest wall"
-                  >
-                    <span class="guestwall-control-btn__icon" aria-hidden="true">↻</span>
-                    <span class="guestwall-control-btn__label">Shuffle now</span>
-                    <span class="guestwall-control-btn__spinner" aria-hidden="true"></span>
-                  </button>
-                  <div class="guestwall-autoplay-control">
-                    <span class="guestwall-autoplay-label">Auto-shuffle</span>
-                    <button
-                      id="guestWallAutoplayToggle"
-                      class="guestwall-toggle is-on"
-                      type="button"
-                      role="switch"
-                      aria-checked="true"
-                      aria-label="Auto-shuffle"
-                    >
-                      <span class="guestwall-toggle-track" aria-hidden="true"><span class="guestwall-toggle-thumb"></span></span>
-                    </button>
-                    <span id="guestWallAutoplayState" class="guestwall-autoplay-state" aria-hidden="true">ON</span>
-                  </div>
-                </div>
-                <p class="guestwall-control-subline">Shuffles every ~10s.</p>
+              <div class="guestwall-autoplay-control">
+                <span class="guestwall-autoplay-label">Auto-shuffle (10s)</span>
+                <button
+                  id="guestWallAutoplayToggle"
+                  class="guestwall-toggle is-on"
+                  type="button"
+                  role="switch"
+                  aria-checked="true"
+                  aria-label="Auto-shuffle (10s)"
+                >
+                  <span class="guestwall-toggle-track" aria-hidden="true"><span class="guestwall-toggle-thumb"></span></span>
+                </button>
+                <span id="guestWallAutoplayState" class="guestwall-autoplay-state" aria-hidden="true">ON</span>
               </div>
-              <div class="guestwall-control-group guestwall-control-group--arrange">
-                <p class="guestwall-control-group-title">Arrange</p>
+              <button
+                id="guestWallShuffle"
+                class="guestwall-control-btn guestwall-control-btn--primary"
+                type="button"
+                aria-busy="false"
+                aria-label="Shuffle now"
+              >
+                <span class="guestwall-control-btn__icon" aria-hidden="true">↻</span>
+                <span class="guestwall-control-btn__label">Shuffle now</span>
+                <span class="guestwall-control-btn__spinner" aria-hidden="true"></span>
+              </button>
+              <div class="guestwall-arrange-control hidden">
+                <span class="guestwall-autoplay-label">Arrange</span>
                 <button
                   id="guestWallArrangeToggle"
-                  class="guestwall-control-btn guestwall-control-btn--secondary hidden"
+                  class="guestwall-toggle is-off"
                   type="button"
-                  aria-pressed="false"
-                  aria-label="Arrange cards"
+                  role="switch"
+                  aria-checked="false"
+                  aria-label="Arrange"
                 >
-                  Arrange cards
+                  <span class="guestwall-toggle-track" aria-hidden="true"><span class="guestwall-toggle-thumb"></span></span>
                 </button>
-                <p id="guestWallArrangeHint" class="guestwall-arrange-hint hidden" aria-live="polite">
-                  Arrange mode: drag the cards to move them. Tip: press and hold, then drag.
-                </p>
-                <p id="guestWallArrangeAutoplayHint" class="guestwall-arrange-hint guestwall-arrange-hint--muted hidden" aria-live="polite">
-                  Turn off Auto-shuffle to arrange manually.
-                </p>
+                <span id="guestWallArrangeState" class="guestwall-autoplay-state is-off" aria-hidden="true">OFF</span>
               </div>
             </div>
             <p id="guestWallStatus" class="guestwall-status reveal" aria-live="polite">Loading guest wall…</p>
