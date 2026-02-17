@@ -5718,6 +5718,25 @@ a.makan-copy-icon-btn {
   gap: 8px;
 }
 
+.guestwall-control-btn--primary {
+  border-color: rgba(128, 70, 70, 0.5);
+  background: var(--gw-ivory-surface);
+  color: var(--gw-text-on-ivory);
+  box-shadow: 0 4px 12px rgba(19, 8, 8, 0.12);
+}
+
+.guestwall-control-btn__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  font-size: 13px;
+  line-height: 1;
+  color: currentColor;
+  opacity: 0.92;
+}
+
 .guestwall-control-btn__spinner {
   width: 14px;
   height: 14px;
@@ -5735,6 +5754,10 @@ a.makan-copy-icon-btn {
   animation: guestwallSpinner 800ms linear infinite;
 }
 
+.guestwall-control-btn.is-loading .guestwall-control-btn__icon {
+  opacity: 0.6;
+}
+
 .guestwall-control-link {
   display: inline-flex;
   align-items: center;
@@ -5746,6 +5769,7 @@ a.makan-copy-icon-btn {
 .guestwall-control-btn:focus-visible {
   border-color: rgba(128, 70, 70, 0.55);
   background: var(--gw-ivory-surface);
+  color: var(--gw-text-on-ivory);
   box-shadow: 0 6px 16px rgba(19, 8, 8, 0.14);
 }
 
@@ -5755,7 +5779,7 @@ a.makan-copy-icon-btn {
   cursor: not-allowed;
   box-shadow: none;
   background: var(--gw-ivory-surface-disabled);
-  color: rgba(75, 15, 23, 0.76);
+  color: rgba(75, 15, 23, 0.78);
   border-color: rgba(128, 70, 70, 0.3);
 }
 

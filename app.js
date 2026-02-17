@@ -4405,13 +4405,14 @@ function setGuestWallShuffleState(isShuffling) {
   if (!(guestWallShuffle instanceof HTMLButtonElement)) return;
   const labelNode = guestWallShuffle.querySelector(".guestwall-control-btn__label");
   guestWallShuffle.disabled = guestWallIsShuffling;
+  guestWallShuffle.setAttribute("aria-disabled", guestWallIsShuffling ? "true" : "false");
   guestWallShuffle.classList.remove("is-pressed");
   guestWallShuffle.classList.toggle("is-loading", guestWallIsShuffling);
   guestWallShuffle.setAttribute("aria-busy", guestWallIsShuffling ? "true" : "false");
   if (labelNode instanceof HTMLElement) {
-    labelNode.textContent = guestWallIsShuffling ? "Shuffling..." : "Shuffle";
+    labelNode.textContent = guestWallIsShuffling ? "Shuffling…" : "Shuffle";
   } else {
-    guestWallShuffle.textContent = guestWallIsShuffling ? "Shuffling..." : "Shuffle";
+    guestWallShuffle.textContent = guestWallIsShuffling ? "Shuffling…" : "Shuffle";
   }
 }
 
