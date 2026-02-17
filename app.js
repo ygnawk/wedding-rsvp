@@ -25,8 +25,8 @@ const GUEST_WALL_ROTATE_MIN_MS = 8000;
 const GUEST_WALL_ROTATE_MAX_MS = 12000;
 const GUEST_WALL_ROTATE_SWAP_COUNT = 3;
 const GUEST_WALL_MOBILE_AUTO_MS = 9000;
-const GUEST_WALL_INITIAL_FETCH_LIMIT = 20;
-const GUEST_WALL_MODAL_PAGE_SIZE = 24;
+const GUEST_WALL_PINBOARD_LIMIT = 16;
+const GUEST_WALL_ARCHIVE_PAGE_SIZE = 30;
 const GUEST_WALL_LOADING_MESSAGE = "Loading guest wall…";
 const GUEST_WALL_EMPTY_MESSAGE = "Nothing approved yet—check back soon.";
 const GUEST_WALL_UNAVAILABLE_MESSAGE = "Guest Wall is temporarily unavailable.";
@@ -297,19 +297,23 @@ const galleryLightboxCloseButtons = galleryLightbox
 const guestWallPinboard = document.getElementById("guestWallPinboard");
 const guestWallMobile = document.getElementById("guestWallMobile");
 const guestWallStatus = document.getElementById("guestWallStatus");
+const guestWallArchiveStatus = document.getElementById("guestWallArchiveStatus");
+const guestWallPinboardView = document.getElementById("guestWallPinboardView");
+const guestWallArchiveView = document.getElementById("guestWallArchiveView");
+const guestWallArchiveList = document.getElementById("guestWallArchiveList");
+const guestWallArchiveLoadMore = document.getElementById("guestWallArchiveLoadMore");
+const guestWallSearchInput = document.getElementById("guestWallSearchInput");
+const guestWallFilterButtons = Array.from(document.querySelectorAll("[data-filter]"));
+const guestWallModePinboard = document.getElementById("guestWallModePinboard");
+const guestWallModeArchive = document.getElementById("guestWallModeArchive");
 const guestWallShuffle = document.getElementById("guestWallShuffle");
 const guestWallPause = document.getElementById("guestWallPause");
 const guestWallViewAll = document.getElementById("guestWallViewAll");
-const guestWallModal = document.getElementById("guestWallModal");
-const guestWallModalList = document.getElementById("guestWallModalList");
-const guestWallModalLoadMore = document.getElementById("guestWallModalLoadMore");
-const guestWallModalCloseControls = guestWallModal ? Array.from(guestWallModal.querySelectorAll("[data-guestwall-close]")) : [];
 
 let galleryImages = [];
 let currentGalleryIndex = 0;
 let galleryTouchStartX = null;
 let galleryScrollRaf = null;
-let guestWallEntries = [];
 let guestWallCards = [];
 let guestWallCardById = new Map();
 let guestWallVisibleCardIds = [];
@@ -318,12 +322,16 @@ let guestWallRotationTimer = null;
 let guestWallMobileTimer = null;
 let guestWallMobileIndex = 0;
 let guestWallPaused = false;
-let guestWallApiTotal = 0;
-let guestWallModalOffset = 0;
-let guestWallModalHasMore = false;
-let guestWallModalLoading = false;
+let guestWallMode = "pinboard";
+let guestWallArchiveFilter = "all";
+let guestWallArchiveQuery = "";
+let guestWallArchiveCursor = null;
+let guestWallArchiveHasMore = false;
+let guestWallArchiveItems = [];
+let guestWallArchiveSearchTimer = null;
 let guestWallResizeRaf = null;
 let guestWallRequestInFlight = null;
+let guestWallArchiveRequestInFlight = null;
 let overflowDebugResizeTimer = null;
 
 function logHorizontalOverflowOffenders(context = "runtime") {
@@ -3520,6 +3528,11 @@ function isGuestWallMobileView() {
   return window.matchMedia("(max-width: 768px)").matches;
 }
 
+function detectGuestWallModeFromPath() {
+  const pathname = String(window.location.pathname || "").toLowerCase().replace(/\/+$/, "");
+  return pathname.endsWith("/guest-wall/all") ? "archive" : "pinboard";
+}
+
 function getGuestWallDesktopVisibleCount() {
   const width = window.innerWidth || 1280;
   if (width >= 1380) return 14;
@@ -3558,8 +3571,22 @@ function resolveGuestbookApiUrl(params = {}) {
   return `${withBasePath("/api/guestbook")}${suffix}`;
 }
 
-async function fetchGuestbookPage({ limit = GUEST_WALL_INITIAL_FETCH_LIMIT, offset = 0, refresh = false } = {}) {
-  const apiUrl = resolveGuestbookApiUrl({ limit, offset, refresh: refresh ? "1" : "" });
+async function fetchGuestbookPage({
+  mode = "pinboard",
+  limit = mode === "archive" ? GUEST_WALL_ARCHIVE_PAGE_SIZE : GUEST_WALL_PINBOARD_LIMIT,
+  cursor = "",
+  type = "all",
+  q = "",
+  refresh = false,
+} = {}) {
+  const apiUrl = resolveGuestbookApiUrl({
+    mode,
+    limit,
+    cursor,
+    type,
+    q,
+    refresh: refresh ? "1" : "",
+  });
   console.info(`[guestwall] request ${apiUrl}`);
   const response = await fetch(apiUrl, { cache: "no-store" });
   const text = await response.text();
@@ -3595,11 +3622,13 @@ async function fetchGuestbookPage({ limit = GUEST_WALL_INITIAL_FETCH_LIMIT, offs
   return {
     ...data,
     items,
+    mode: String(data.mode || mode || "pinboard").toLowerCase() === "archive" ? "archive" : "pinboard",
     total: Number.isFinite(Number(data.total)) ? Number(data.total) : items.length,
+    nextCursor: String(data.nextCursor || "").trim() || null,
   };
 }
 
-function normalizeGuestWallEntry(entry) {
+function normalizeGuestWallLegacyEntry(entry) {
   if (!entry || typeof entry !== "object") return null;
 
   const submissionId = String(entry.submission_id || entry.submissionId || "").trim();
@@ -3642,6 +3671,56 @@ function normalizeGuestWallEntry(entry) {
   };
 }
 
+function normalizeGuestWallCardFromApi(item) {
+  if (!item || typeof item !== "object") return null;
+
+  const id = String(item.id || "").trim();
+  if (!id) return null;
+
+  const type = String(item.type || "").toLowerCase() === "note" ? "note" : "media";
+  const name = String(item.name || "").trim() || "Guest";
+  const submittedAt = String(item.submitted_at || item.submittedAt || "").trim();
+  const message = String(item.message || "").trim();
+
+  if (type === "note") {
+    if (!message) return null;
+    return {
+      id,
+      kind: "note",
+      submissionId: id.split(":")[0],
+      name,
+      submittedAt,
+      text: message,
+    };
+  }
+
+  const media = item.media && typeof item.media === "object" ? item.media : {};
+  const mediaKind = String(media.kind || media.file_type || "").toLowerCase() === "video" ? "video" : "image";
+  const thumbnailUrl = String(media.thumbUrl || media.thumbnailUrl || media.thumbnail_url || media.url || "").trim();
+  const viewUrl = String(media.viewUrl || media.driveViewUrl || media.drive_view_url || "").trim();
+  const fileId = String(media.file_id || media.fileId || "").trim();
+
+  if (mediaKind === "image" && !thumbnailUrl && !viewUrl && !fileId) return null;
+  if (mediaKind === "video" && !viewUrl) return null;
+
+  return {
+    id,
+    kind: "media",
+    submissionId: id.split(":")[0],
+    name,
+    submittedAt,
+    message,
+    media: {
+      fileType: mediaKind,
+      file_id: fileId,
+      url: thumbnailUrl || viewUrl || "",
+      thumbnailUrl,
+      driveViewUrl: viewUrl,
+      viewUrl,
+    },
+  };
+}
+
 function buildGuestWallImageCandidates(mediaItem) {
   if (!mediaItem || typeof mediaItem !== "object") return [];
   const fileId = String(mediaItem.file_id || mediaItem.fileId || "").trim();
@@ -3667,62 +3746,7 @@ function buildGuestWallImageCandidates(mediaItem) {
   return candidates;
 }
 
-function clearGuestWallBoards() {
-  if (guestWallPinboard instanceof HTMLElement) guestWallPinboard.innerHTML = "";
-  if (guestWallMobile instanceof HTMLElement) guestWallMobile.innerHTML = "";
-}
-
-function renderGuestWallLoadingSkeleton() {
-  clearGuestWallBoards();
-  if (guestWallPinboard instanceof HTMLElement) {
-    const wrap = document.createElement("div");
-    wrap.className = "guestwall-loading";
-    for (let i = 0; i < 6; i += 1) {
-      const block = document.createElement("div");
-      block.className = "guestwall-skeleton";
-      wrap.appendChild(block);
-    }
-    guestWallPinboard.appendChild(wrap);
-  }
-
-  if (guestWallMobile instanceof HTMLElement) {
-    const stage = document.createElement("div");
-    stage.className = "guestwall-mobile-stage";
-    const block = document.createElement("div");
-    block.className = "guestwall-skeleton guestwall-skeleton--mobile";
-    stage.appendChild(block);
-    guestWallMobile.appendChild(stage);
-  }
-}
-
-function renderGuestWallErrorState() {
-  clearGuestWallBoards();
-  const createPanel = () => {
-    const panel = document.createElement("div");
-    panel.className = "guestwall-error";
-
-    const text = document.createElement("p");
-    text.className = "guestwall-error-text";
-    text.textContent = GUEST_WALL_UNAVAILABLE_MESSAGE;
-    panel.appendChild(text);
-
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "guestwall-control-btn guestwall-retry-btn";
-    button.textContent = "Retry";
-    button.addEventListener("click", () => {
-      void loadGuestWall({ refresh: true });
-    });
-    panel.appendChild(button);
-
-    return panel;
-  };
-
-  if (guestWallPinboard instanceof HTMLElement) guestWallPinboard.appendChild(createPanel());
-  if (guestWallMobile instanceof HTMLElement) guestWallMobile.appendChild(createPanel());
-}
-
-function buildGuestWallCards(entries) {
+function buildGuestWallCardsFromLegacyEntries(entries) {
   const cards = [];
 
   (entries || []).forEach((entry) => {
@@ -3761,12 +3785,118 @@ function buildGuestWallCards(entries) {
     }
   });
 
+  return cards;
+}
+
+function normalizeGuestWallCards(rawItems) {
+  const items = Array.isArray(rawItems) ? rawItems : [];
+  if (!items.length) return [];
+
+  const first = items[0];
+  let cards;
+  if (first && typeof first === "object" && typeof first.id === "string" && typeof first.type === "string") {
+    cards = items.map((item) => normalizeGuestWallCardFromApi(item)).filter(Boolean);
+  } else {
+    const legacyEntries = items.map((item) => normalizeGuestWallLegacyEntry(item)).filter(Boolean);
+    cards = buildGuestWallCardsFromLegacyEntries(legacyEntries);
+  }
+
   const seen = new Set();
   return cards.filter((card) => {
     if (!card || !card.id || seen.has(card.id)) return false;
     seen.add(card.id);
     return true;
   });
+}
+
+function applyArchiveFiltersLocally(cards, type = "all", query = "") {
+  const normalizedType = String(type || "all").toLowerCase();
+  const needle = String(query || "").trim().toLowerCase();
+
+  return (cards || []).filter((card) => {
+    if (normalizedType === "photos" && card.kind !== "media") return false;
+    if (normalizedType === "notes" && card.kind !== "note") return false;
+    if (!needle) return true;
+    const haystack = `${String(card.name || "")} ${String(card.text || card.message || "")}`.toLowerCase();
+    return haystack.includes(needle);
+  });
+}
+
+function clearGuestWallBoards() {
+  if (guestWallPinboard instanceof HTMLElement) guestWallPinboard.innerHTML = "";
+  if (guestWallMobile instanceof HTMLElement) guestWallMobile.innerHTML = "";
+}
+
+function renderGuestWallLoadingSkeleton(mode = "pinboard") {
+  if (mode === "archive") {
+    if (!(guestWallArchiveList instanceof HTMLElement)) return;
+    guestWallArchiveList.innerHTML = "";
+    const wrap = document.createElement("div");
+    wrap.className = "guestwall-archive-loading";
+    for (let i = 0; i < 6; i += 1) {
+      const block = document.createElement("div");
+      block.className = "guestwall-skeleton";
+      wrap.appendChild(block);
+    }
+    guestWallArchiveList.appendChild(wrap);
+    return;
+  }
+
+  clearGuestWallBoards();
+  if (guestWallPinboard instanceof HTMLElement) {
+    const wrap = document.createElement("div");
+    wrap.className = "guestwall-loading";
+    for (let i = 0; i < 6; i += 1) {
+      const block = document.createElement("div");
+      block.className = "guestwall-skeleton";
+      wrap.appendChild(block);
+    }
+    guestWallPinboard.appendChild(wrap);
+  }
+
+  if (guestWallMobile instanceof HTMLElement) {
+    const stage = document.createElement("div");
+    stage.className = "guestwall-mobile-stage";
+    const block = document.createElement("div");
+    block.className = "guestwall-skeleton guestwall-skeleton--mobile";
+    stage.appendChild(block);
+    guestWallMobile.appendChild(stage);
+  }
+}
+
+function renderGuestWallErrorState(mode = "pinboard") {
+  const makePanel = () => {
+    const panel = document.createElement("div");
+    panel.className = "guestwall-error";
+
+    const text = document.createElement("p");
+    text.className = "guestwall-error-text";
+    text.textContent = GUEST_WALL_UNAVAILABLE_MESSAGE;
+    panel.appendChild(text);
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "guestwall-control-btn guestwall-retry-btn";
+    button.textContent = "Retry";
+    button.addEventListener("click", () => {
+      if (mode === "archive") loadGuestWallArchive({ reset: true, refresh: true });
+      else loadGuestWallPinboard({ refresh: true });
+    });
+    panel.appendChild(button);
+    return panel;
+  };
+
+  if (mode === "archive") {
+    if (guestWallArchiveList instanceof HTMLElement) {
+      guestWallArchiveList.innerHTML = "";
+      guestWallArchiveList.appendChild(makePanel());
+    }
+    return;
+  }
+
+  clearGuestWallBoards();
+  if (guestWallPinboard instanceof HTMLElement) guestWallPinboard.appendChild(makePanel());
+  if (guestWallMobile instanceof HTMLElement) guestWallMobile.appendChild(makePanel());
 }
 
 function truncateGuestWallText(value, maxChars = 180) {
@@ -3778,7 +3908,7 @@ function truncateGuestWallText(value, maxChars = 180) {
 
 function buildGuestWallMediaNode(card, context = "board") {
   const mediaWrap = document.createElement("div");
-  mediaWrap.className = context === "modal" ? "guestwall-modal-media" : "guestwall-polaroid-media";
+  mediaWrap.className = context === "archive" ? "guestwall-archive-media" : "guestwall-polaroid-media";
 
   if (card.media.fileType === "video") {
     const fallback = document.createElement("div");
@@ -3800,7 +3930,7 @@ function buildGuestWallMediaNode(card, context = "board") {
     img.decoding = "async";
     const fallback = document.createElement("div");
     fallback.className = "guestwall-media-fallback hidden";
-    fallback.innerHTML = `<p>Image failed to load</p>`;
+    fallback.innerHTML = "<p>Image failed to load</p>";
     const retry = document.createElement("button");
     retry.type = "button";
     retry.className = "guestwall-media-retry";
@@ -3868,7 +3998,7 @@ function buildGuestWallCard(card, context = "board") {
   node.className = "guestwall-item guestwall-item--note";
   const text = document.createElement("p");
   text.className = "guestwall-note-text";
-  text.textContent = truncateGuestWallText(card.text, context === "modal" ? 480 : context === "mobile" ? 260 : 190);
+  text.textContent = truncateGuestWallText(card.text, context === "mobile" ? 260 : context === "archive" ? 360 : 190);
 
   const sign = document.createElement("p");
   sign.className = "guestwall-note-sign";
@@ -3919,11 +4049,21 @@ function setGuestWallStatus(message) {
   guestWallStatus.textContent = String(message || "");
 }
 
+function setGuestWallArchiveStatus(message) {
+  if (!guestWallArchiveStatus) return;
+  guestWallArchiveStatus.textContent = String(message || "");
+}
+
 function setGuestWallControlsDisabled(disabled) {
-  [guestWallShuffle, guestWallPause, guestWallViewAll].forEach((button) => {
+  [guestWallShuffle, guestWallPause].forEach((button) => {
     if (!(button instanceof HTMLButtonElement)) return;
     button.disabled = Boolean(disabled);
   });
+
+  if (guestWallViewAll instanceof HTMLElement) {
+    guestWallViewAll.classList.toggle("is-disabled", Boolean(disabled));
+    guestWallViewAll.setAttribute("aria-disabled", disabled ? "true" : "false");
+  }
 }
 
 function placeGuestWallSlot(slotNode, slotConfig) {
@@ -3974,7 +4114,7 @@ function renderGuestWallDesktop({ reshuffle = false } = {}) {
   guestWallPinboard.innerHTML = "";
   guestWallSlotNodes = [];
 
-  const slotCount = Math.min(getGuestWallDesktopVisibleCount(), GUEST_WALL_DESKTOP_SLOTS.length, guestWallCards.length);
+  const slotCount = Math.min(16, getGuestWallDesktopVisibleCount(), GUEST_WALL_DESKTOP_SLOTS.length, guestWallCards.length);
   if (!slotCount) {
     const empty = document.createElement("p");
     empty.className = "guestwall-empty";
@@ -4142,126 +4282,51 @@ function syncGuestWallLayout({ reshuffle = false } = {}) {
   scheduleGuestWallDesktopRotation();
 }
 
-function isGuestWallModalOpen() {
-  if (!guestWallModal) return false;
-  return !guestWallModal.classList.contains("hidden") && guestWallModal.getAttribute("aria-hidden") !== "true";
-}
-
-function buildGuestWallModalEntry(entry) {
+function buildGuestWallArchiveCard(card) {
   const node = document.createElement("article");
-  node.className = "guestwall-modal-entry";
+  node.className = "guestwall-archive-item";
 
-  const media = Array.isArray(entry.media) ? entry.media[0] : null;
-  if (media && media.url) {
-    node.appendChild(
-      buildGuestWallMediaNode(
-        {
-          kind: "media",
-          name: entry.name,
-          media: {
-            fileType: media.fileType,
-            url: media.url,
-            driveViewUrl: media.driveViewUrl,
-          },
-        },
-        "modal",
-      ),
-    );
+  if (card.kind === "media") {
+    node.appendChild(buildGuestWallMediaNode(card, "archive"));
   }
 
-  const text = entry.message || (entry.primaryFunFacts ? `Fun fact: ${entry.primaryFunFacts}` : "");
+  const body = document.createElement("div");
+  body.className = "guestwall-archive-body";
+
+  const text = card.kind === "note" ? card.text : card.message;
   if (text) {
     const messageNode = document.createElement("p");
-    messageNode.className = "guestwall-note-text";
-    messageNode.textContent = truncateGuestWallText(text, 480);
-    node.appendChild(messageNode);
+    messageNode.className = "guestwall-archive-text";
+    messageNode.textContent = truncateGuestWallText(text, 320);
+    body.appendChild(messageNode);
   }
 
   const sign = document.createElement("p");
-  sign.className = "guestwall-note-sign";
-  sign.textContent = `— ${entry.name}`;
-  node.appendChild(sign);
+  sign.className = "guestwall-archive-sign";
+  sign.textContent = `— ${card.name}`;
+  body.appendChild(sign);
 
+  node.appendChild(body);
   return node;
 }
 
-async function loadGuestWallModalPage({ reset = false } = {}) {
-  if (!(guestWallModalList instanceof HTMLElement) || !(guestWallModalLoadMore instanceof HTMLButtonElement)) return;
-  if (guestWallModalLoading) return;
+function renderGuestWallArchive() {
+  if (!(guestWallArchiveList instanceof HTMLElement)) return;
+  guestWallArchiveList.innerHTML = "";
 
-  if (reset) {
-    guestWallModalOffset = 0;
-    guestWallModalHasMore = true;
-    guestWallModalList.innerHTML = "";
+  if (!guestWallArchiveItems.length) {
+    const empty = document.createElement("p");
+    empty.className = "guestwall-empty";
+    empty.textContent = GUEST_WALL_EMPTY_MESSAGE;
+    guestWallArchiveList.appendChild(empty);
+    return;
   }
 
-  if (!guestWallModalHasMore) return;
-
-  guestWallModalLoading = true;
-  guestWallModalLoadMore.disabled = true;
-  guestWallModalLoadMore.textContent = "Loading…";
-
-  try {
-    const payload = await fetchGuestbookPage({
-      limit: GUEST_WALL_MODAL_PAGE_SIZE,
-      offset: guestWallModalOffset,
-    });
-    const normalizedEntries = payload.items.map((item) => normalizeGuestWallEntry(item)).filter(Boolean);
-
-    if (!normalizedEntries.length && guestWallModalOffset === 0) {
-      const empty = document.createElement("p");
-      empty.className = "guestwall-status";
-      empty.textContent = GUEST_WALL_EMPTY_MESSAGE;
-      guestWallModalList.appendChild(empty);
-    } else {
-      normalizedEntries.forEach((entry) => {
-        guestWallModalList.appendChild(buildGuestWallModalEntry(entry));
-      });
-    }
-
-    guestWallModalOffset += normalizedEntries.length;
-    guestWallModalHasMore = payload.next_offset !== null && payload.next_offset !== undefined;
-
-    if (!guestWallModalHasMore) {
-      guestWallModalLoadMore.disabled = true;
-      guestWallModalLoadMore.textContent = "All loaded";
-      return;
-    }
-
-    guestWallModalLoadMore.disabled = false;
-    guestWallModalLoadMore.textContent = "Load more";
-  } catch (error) {
-    guestWallModalLoadMore.disabled = false;
-    guestWallModalLoadMore.textContent = "Retry";
-    if (!guestWallModalList.children.length) {
-      const message = document.createElement("p");
-      message.className = "guestwall-status";
-      message.textContent = error instanceof Error ? error.message : "Could not load guest wall entries.";
-      guestWallModalList.appendChild(message);
-    }
-  } finally {
-    guestWallModalLoading = false;
-  }
-}
-
-function closeGuestWallModal() {
-  if (!guestWallModal) return;
-  guestWallModal.classList.add("hidden");
-  guestWallModal.setAttribute("aria-hidden", "true");
-  if (!isGalleryLightboxOpen() && !isStoryLightboxOpen()) {
-    document.body.classList.remove("modal-open");
-  }
-}
-
-function openGuestWallModal() {
-  if (!guestWallModal || !(guestWallModalList instanceof HTMLElement)) return;
-  closeGalleryLightbox();
-  closeStoryLightbox();
-
-  guestWallModal.classList.remove("hidden");
-  guestWallModal.setAttribute("aria-hidden", "false");
-  document.body.classList.add("modal-open");
-  loadGuestWallModalPage({ reset: true });
+  const fragment = document.createDocumentFragment();
+  guestWallArchiveItems.forEach((card) => {
+    fragment.appendChild(buildGuestWallArchiveCard(card));
+  });
+  guestWallArchiveList.appendChild(fragment);
 }
 
 function setGuestWallPaused(paused) {
@@ -4281,6 +4346,45 @@ function setGuestWallPaused(paused) {
 
   if (isGuestWallMobileView()) scheduleGuestWallMobileRotation();
   else scheduleGuestWallDesktopRotation();
+}
+
+function setGuestWallModeLinks() {
+  if (guestWallModePinboard instanceof HTMLElement) {
+    guestWallModePinboard.classList.toggle("is-active", guestWallMode === "pinboard");
+    if (guestWallMode === "pinboard") guestWallModePinboard.setAttribute("aria-current", "page");
+    else guestWallModePinboard.removeAttribute("aria-current");
+  }
+  if (guestWallModeArchive instanceof HTMLElement) {
+    guestWallModeArchive.classList.toggle("is-active", guestWallMode === "archive");
+    if (guestWallMode === "archive") guestWallModeArchive.setAttribute("aria-current", "page");
+    else guestWallModeArchive.removeAttribute("aria-current");
+  }
+}
+
+function setGuestWallMode(mode) {
+  guestWallMode = mode === "archive" ? "archive" : "pinboard";
+  setGuestWallModeLinks();
+
+  if (guestWallPinboardView instanceof HTMLElement) {
+    setHiddenClass(guestWallPinboardView, guestWallMode !== "pinboard");
+  }
+  if (guestWallArchiveView instanceof HTMLElement) {
+    setHiddenClass(guestWallArchiveView, guestWallMode !== "archive");
+  }
+
+  if (guestWallMode === "archive") {
+    clearGuestWallDesktopTimer();
+    clearGuestWallMobileTimer();
+  }
+}
+
+function updateGuestWallFilterButtons() {
+  guestWallFilterButtons.forEach((button) => {
+    if (!(button instanceof HTMLButtonElement)) return;
+    const isActive = String(button.dataset.filter || "").toLowerCase() === guestWallArchiveFilter;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", isActive ? "true" : "false");
+  });
 }
 
 function bindGuestWallEvents() {
@@ -4306,28 +4410,41 @@ function bindGuestWallEvents() {
     });
   }
 
-  if (guestWallViewAll instanceof HTMLButtonElement) {
-    guestWallViewAll.addEventListener("click", () => {
-      openGuestWallModal();
+  if (guestWallViewAll instanceof HTMLElement) {
+    guestWallViewAll.addEventListener("click", (event) => {
+      if (guestWallViewAll.getAttribute("aria-disabled") === "true") {
+        event.preventDefault();
+      }
     });
   }
 
-  guestWallModalCloseControls.forEach((control) => {
-    control.addEventListener("click", () => {
-      closeGuestWallModal();
-    });
-  });
-
-  if (guestWallModalLoadMore instanceof HTMLButtonElement) {
-    guestWallModalLoadMore.addEventListener("click", () => {
-      loadGuestWallModalPage();
+  if (guestWallFilterButtons.length) {
+    guestWallFilterButtons.forEach((button) => {
+      if (!(button instanceof HTMLButtonElement)) return;
+      button.addEventListener("click", () => {
+        const nextFilter = String(button.dataset.filter || "all").toLowerCase();
+        guestWallArchiveFilter = ["all", "photos", "notes"].includes(nextFilter) ? nextFilter : "all";
+        updateGuestWallFilterButtons();
+        loadGuestWallArchive({ reset: true });
+      });
     });
   }
 
-  document.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape" || !isGuestWallModalOpen()) return;
-    closeGuestWallModal();
-  });
+  if (guestWallSearchInput instanceof HTMLInputElement) {
+    guestWallSearchInput.addEventListener("input", () => {
+      window.clearTimeout(guestWallArchiveSearchTimer);
+      guestWallArchiveSearchTimer = window.setTimeout(() => {
+        guestWallArchiveQuery = String(guestWallSearchInput.value || "").trim();
+        loadGuestWallArchive({ reset: true });
+      }, 260);
+    });
+  }
+
+  if (guestWallArchiveLoadMore instanceof HTMLButtonElement) {
+    guestWallArchiveLoadMore.addEventListener("click", () => {
+      loadGuestWallArchive({ reset: false });
+    });
+  }
 
   window.addEventListener(
     "resize",
@@ -4335,7 +4452,7 @@ function bindGuestWallEvents() {
       if (guestWallResizeRaf) return;
       guestWallResizeRaf = window.requestAnimationFrame(() => {
         guestWallResizeRaf = null;
-        syncGuestWallLayout();
+        if (guestWallMode === "pinboard") syncGuestWallLayout();
       });
     },
     { passive: true },
@@ -4348,26 +4465,31 @@ async function initGuestWall() {
   if (!(guestWallPinboard instanceof HTMLElement)) return;
 
   bindGuestWallEvents();
-  await loadGuestWall({ refresh: false });
+  guestWallMode = detectGuestWallModeFromPath();
+  setGuestWallMode(guestWallMode);
+  updateGuestWallFilterButtons();
+
+  if (guestWallMode === "archive") {
+    await loadGuestWallArchive({ reset: true, refresh: false });
+  } else {
+    await loadGuestWallPinboard({ refresh: false });
+  }
 }
 
-async function loadGuestWall({ refresh = false } = {}) {
+async function loadGuestWallPinboard({ refresh = false } = {}) {
   if (guestWallRequestInFlight) return guestWallRequestInFlight;
 
   setGuestWallStatus(GUEST_WALL_LOADING_MESSAGE);
   setGuestWallControlsDisabled(true);
-  renderGuestWallLoadingSkeleton();
+  renderGuestWallLoadingSkeleton("pinboard");
 
   const request = (async () => {
     try {
-      const payload = await fetchGuestbookPage({ limit: GUEST_WALL_INITIAL_FETCH_LIMIT, offset: 0, refresh });
-      const entries = payload.items.map((item) => normalizeGuestWallEntry(item)).filter(Boolean);
-      const cards = buildGuestWallCards(entries);
-
-      guestWallEntries = entries;
+      const payload = await fetchGuestbookPage({ mode: "pinboard", limit: GUEST_WALL_PINBOARD_LIMIT, refresh });
+      const cards = normalizeGuestWallCards(payload.items);
       guestWallCards = cards;
       guestWallCardById = new Map(cards.map((card) => [card.id, card]));
-      guestWallApiTotal = Number.isFinite(Number(payload.total)) ? Number(payload.total) : entries.length;
+      const apiTotal = Number.isFinite(Number(payload.total)) ? Number(payload.total) : cards.length;
 
       if (!cards.length) {
         setGuestWallStatus(GUEST_WALL_EMPTY_MESSAGE);
@@ -4375,8 +4497,7 @@ async function loadGuestWall({ refresh = false } = {}) {
         return;
       }
 
-      const totalLabel = guestWallApiTotal > 0 ? guestWallApiTotal : entries.length;
-      setGuestWallStatus(`Showing approved uploads (${totalLabel} submission${totalLabel === 1 ? "" : "s"}).`);
+      setGuestWallStatus(`Showing approved uploads (${apiTotal} item${apiTotal === 1 ? "" : "s"}).`);
       setGuestWallControlsDisabled(false);
       guestWallVisibleCardIds = [];
       guestWallMobileIndex = 0;
@@ -4392,13 +4513,85 @@ async function loadGuestWall({ refresh = false } = {}) {
       });
       setGuestWallStatus(GUEST_WALL_UNAVAILABLE_MESSAGE);
       setGuestWallControlsDisabled(true);
-      renderGuestWallErrorState();
+      renderGuestWallErrorState("pinboard");
     } finally {
       guestWallRequestInFlight = null;
     }
   })();
 
   guestWallRequestInFlight = request;
+  return request;
+}
+
+async function loadGuestWallArchive({ reset = false, refresh = false } = {}) {
+  if (guestWallArchiveRequestInFlight) return guestWallArchiveRequestInFlight;
+  if (!(guestWallArchiveList instanceof HTMLElement)) return null;
+
+  if (reset) {
+    guestWallArchiveCursor = null;
+    guestWallArchiveHasMore = true;
+    guestWallArchiveItems = [];
+    setGuestWallArchiveStatus(GUEST_WALL_LOADING_MESSAGE);
+    renderGuestWallLoadingSkeleton("archive");
+  }
+
+  if (!reset && !guestWallArchiveHasMore) return null;
+
+  if (guestWallArchiveLoadMore instanceof HTMLButtonElement) {
+    guestWallArchiveLoadMore.disabled = true;
+    guestWallArchiveLoadMore.textContent = "Loading…";
+  }
+
+  const request = (async () => {
+    try {
+      const payload = await fetchGuestbookPage({
+        mode: "archive",
+        limit: GUEST_WALL_ARCHIVE_PAGE_SIZE,
+        cursor: guestWallArchiveCursor || "",
+        type: guestWallArchiveFilter,
+        q: guestWallArchiveQuery,
+        refresh,
+      });
+
+      let cards = normalizeGuestWallCards(payload.items);
+      if (payload.mode !== "archive") {
+        cards = applyArchiveFiltersLocally(cards, guestWallArchiveFilter, guestWallArchiveQuery).slice(0, GUEST_WALL_ARCHIVE_PAGE_SIZE);
+      }
+
+      if (reset) guestWallArchiveItems = cards;
+      else guestWallArchiveItems.push(...cards);
+
+      const total = Number.isFinite(Number(payload.total)) ? Number(payload.total) : guestWallArchiveItems.length;
+      const nextCursor = String(payload.nextCursor || "").trim() || null;
+      guestWallArchiveCursor = nextCursor;
+      guestWallArchiveHasMore = Boolean(nextCursor);
+
+      if (!guestWallArchiveItems.length) setGuestWallArchiveStatus(GUEST_WALL_EMPTY_MESSAGE);
+      else setGuestWallArchiveStatus(`Showing approved uploads (${total} item${total === 1 ? "" : "s"}).`);
+
+      renderGuestWallArchive();
+      if (guestWallArchiveLoadMore instanceof HTMLButtonElement) {
+        guestWallArchiveLoadMore.disabled = !guestWallArchiveHasMore;
+        guestWallArchiveLoadMore.textContent = guestWallArchiveHasMore ? "Load more" : "All loaded";
+      }
+    } catch (error) {
+      console.error("[guestwall:archive] load failed", {
+        message: error instanceof Error ? error.message : String(error),
+        status: error && typeof error === "object" ? error.status : undefined,
+        url: error && typeof error === "object" ? error.url : undefined,
+      });
+      setGuestWallArchiveStatus(GUEST_WALL_UNAVAILABLE_MESSAGE);
+      renderGuestWallErrorState("archive");
+      if (guestWallArchiveLoadMore instanceof HTMLButtonElement) {
+        guestWallArchiveLoadMore.disabled = false;
+        guestWallArchiveLoadMore.textContent = "Retry";
+      }
+    } finally {
+      guestWallArchiveRequestInFlight = null;
+    }
+  })();
+
+  guestWallArchiveRequestInFlight = request;
   return request;
 }
 

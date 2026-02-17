@@ -5396,6 +5396,34 @@ a.makan-copy-icon-btn {
   line-height: 1.55;
 }
 
+.guestwall-mode-nav {
+  margin-top: 14px;
+  display: inline-flex;
+  gap: 8px;
+}
+
+.guestwall-mode-link {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(75, 15, 23, 0.2);
+  background: rgba(255, 255, 255, 0.66);
+  color: rgba(75, 15, 23, 0.86);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.guestwall-mode-link.is-active {
+  border-color: rgba(201, 174, 116, 0.86);
+  background: rgba(201, 174, 116, 0.2);
+  color: var(--maroonDeep);
+}
+
 .guestwall-controls {
   margin-top: 14px;
   display: flex;
@@ -5417,6 +5445,13 @@ a.makan-copy-icon-btn {
   transition: border-color 180ms ease, background-color 180ms ease, color 180ms ease;
 }
 
+.guestwall-control-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
 .guestwall-control-btn:hover,
 .guestwall-control-btn:focus-visible {
   border-color: rgba(201, 174, 116, 0.8);
@@ -5427,6 +5462,12 @@ a.makan-copy-icon-btn {
 .guestwall-control-btn.is-paused {
   border-color: rgba(201, 174, 116, 0.82);
   background: rgba(201, 174, 116, 0.24);
+}
+
+.guestwall-control-btn.is-disabled,
+.guestwall-control-btn[aria-disabled="true"] {
+  opacity: 0.5;
+  pointer-events: none;
 }
 
 .guestwall-status {
@@ -5746,6 +5787,123 @@ a.guestwall-media-retry {
   transform: none;
 }
 
+.guestwall-archive-view {
+  margin-top: 12px;
+}
+
+.guestwall-archive-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.guestwall-archive-filter-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.guestwall-archive-filter-row .guestwall-control-btn.is-active {
+  border-color: rgba(201, 174, 116, 0.9);
+  background: rgba(201, 174, 116, 0.24);
+  color: var(--maroonDeep);
+}
+
+.guestwall-archive-search input {
+  min-height: 36px;
+  width: min(320px, 72vw);
+  border-radius: 999px;
+  border: 1px solid rgba(75, 15, 23, 0.2);
+  background: rgba(255, 255, 255, 0.76);
+  color: rgba(21, 21, 21, 0.92);
+  padding: 0 14px;
+  font: inherit;
+}
+
+.guestwall-archive-search {
+  display: grid;
+  gap: 6px;
+}
+
+.guestwall-archive-search-label {
+  font-size: 0.88rem;
+  color: rgba(21, 21, 21, 0.88);
+  font-weight: 500;
+}
+
+.guestwall-archive-search input:focus-visible {
+  outline: 2px solid rgba(201, 174, 116, 0.7);
+  outline-offset: 1px;
+}
+
+.guestwall-archive-list {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.guestwall-archive-list .guestwall-empty,
+.guestwall-archive-list .guestwall-error {
+  position: static;
+  transform: none;
+  width: 100%;
+}
+
+.guestwall-archive-item {
+  border-radius: 14px;
+  border: 1px solid rgba(201, 174, 116, 0.34);
+  background: rgba(255, 252, 247, 0.95);
+  box-shadow: 0 8px 20px rgba(23, 8, 10, 0.08);
+  overflow: hidden;
+}
+
+.guestwall-archive-media {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: rgba(21, 21, 21, 0.08);
+  border-bottom: 1px solid rgba(75, 15, 23, 0.1);
+}
+
+.guestwall-archive-media img,
+.guestwall-archive-media video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.guestwall-archive-body {
+  padding: 10px 11px 12px;
+}
+
+.guestwall-archive-text {
+  margin: 0;
+  font-size: 0.9rem;
+  color: rgba(21, 21, 21, 0.9);
+  line-height: 1.5;
+}
+
+.guestwall-archive-sign {
+  margin: 9px 0 0;
+  font-size: 0.82rem;
+  color: rgba(75, 15, 23, 0.8);
+}
+
+.guestwall-archive-loading {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.guestwall-archive-footer {
+  margin-top: 12px;
+  display: flex;
+  justify-content: center;
+}
+
 .guestwall-modal.hidden {
   display: none;
 }
@@ -5968,6 +6126,11 @@ a.guestwall-media-retry {
   .guestwall-modal-list {
     grid-template-columns: 1fr;
   }
+
+  .guestwall-archive-list,
+  .guestwall-archive-loading {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (min-width: 769px) {
@@ -5994,6 +6157,15 @@ a.guestwall-media-retry {
 
   .guestwall-mobile {
     display: grid;
+  }
+
+  .guestwall-archive-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .guestwall-archive-search input {
+    width: 100%;
   }
 
   .guestwall-error {

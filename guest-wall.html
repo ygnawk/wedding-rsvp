@@ -13,15 +13,15 @@
       href="https://fonts.googleapis.com/css2?family=Allura&family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="icon" type="image/svg+xml" href="public/favicon.svg" />
-    <link rel="icon" type="image/png" href="public/favicon-32.png" />
-    <link rel="stylesheet" href="./styles.css?v=20260217-guestwall-route1" />
+    <link rel="icon" type="image/svg+xml" href="/public/favicon.svg" />
+    <link rel="icon" type="image/png" href="/public/favicon-32.png" />
+    <link rel="stylesheet" href="/styles.css?v=20260217-guestwall-archive3" />
   </head>
   <body>
     <header id="floatingHeader" class="floating-header" aria-label="Site navigation">
       <div class="header-pill">
         <a class="brand" href="/" aria-label="Back to home">
-          <img src="public/logo.svg" alt="M and Y monogram" width="92" height="44" decoding="async" />
+          <img src="/public/logo.svg" alt="M and Y monogram" width="92" height="44" decoding="async" />
         </a>
 
         <button id="menuToggle" class="menu-toggle" aria-expanded="false" aria-controls="mobileNavSheet" aria-label="Open menu">☰</button>
@@ -79,34 +79,48 @@
       <section id="guest-wall" class="section section--light motif-host" data-title="Guest Wall">
         <div class="content guestwall-content">
           <div class="motif-layer motif-layer--section motif-layer--cream motif-layer--both" aria-hidden="true">
-            <img class="motif-layer__item motif-layer__item--topRight" src="public/motifs/peony-bud.svg" alt="" />
-            <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/bamboo-bud.svg" alt="" />
+            <img class="motif-layer__item motif-layer__item--topRight" src="/public/motifs/peony-bud.svg" alt="" />
+            <img class="motif-layer__item motif-layer__item--bottomLeft" src="/public/motifs/bamboo-bud.svg" alt="" />
           </div>
           <h2 class="section-title section-title-reveal reveal settle">Guest Wall</h2>
           <p class="guestwall-subtitle reveal">Photos and notes uploaded in the RSVP form will appear here (after a quick review).</p>
-          <div class="guestwall-controls reveal" aria-label="Guest wall controls">
-            <button id="guestWallShuffle" class="guestwall-control-btn" type="button">Shuffle</button>
-            <button id="guestWallPause" class="guestwall-control-btn" type="button" aria-pressed="false">Pause</button>
-            <button id="guestWallViewAll" class="guestwall-control-btn" type="button">View all</button>
+          <div class="guestwall-mode-nav reveal" aria-label="Guest wall modes">
+            <a id="guestWallModePinboard" class="guestwall-mode-link" href="/guest-wall">Pinboard</a>
+            <a id="guestWallModeArchive" class="guestwall-mode-link" href="/guest-wall/all">Archive</a>
           </div>
-          <p id="guestWallStatus" class="guestwall-status reveal" aria-live="polite">Loading guest wall…</p>
-          <div id="guestWallPinboard" class="guestwall-pinboard reveal" aria-live="polite"></div>
-          <div id="guestWallMobile" class="guestwall-mobile hidden reveal" aria-live="polite"></div>
+
+          <div id="guestWallPinboardView" class="guestwall-pinboard-view">
+            <div class="guestwall-controls reveal" aria-label="Guest wall controls">
+              <button id="guestWallShuffle" class="guestwall-control-btn" type="button">Shuffle</button>
+              <button id="guestWallPause" class="guestwall-control-btn" type="button" aria-pressed="false">Pause</button>
+              <a id="guestWallViewAll" class="guestwall-control-btn guestwall-control-link" href="/guest-wall/all">View all</a>
+            </div>
+            <p id="guestWallStatus" class="guestwall-status reveal" aria-live="polite">Loading guest wall…</p>
+            <div id="guestWallPinboard" class="guestwall-pinboard reveal" aria-live="polite"></div>
+            <div id="guestWallMobile" class="guestwall-mobile hidden reveal" aria-live="polite"></div>
+          </div>
+
+          <div id="guestWallArchiveView" class="guestwall-archive-view hidden" aria-live="polite">
+            <div class="guestwall-archive-controls reveal">
+              <div class="guestwall-archive-filter-row" role="tablist" aria-label="Archive filters">
+                <button id="guestWallFilterAll" class="guestwall-control-btn is-active" data-filter="all" type="button">All</button>
+                <button id="guestWallFilterPhotos" class="guestwall-control-btn" data-filter="photos" type="button">Photos</button>
+                <button id="guestWallFilterNotes" class="guestwall-control-btn" data-filter="notes" type="button">Notes</button>
+              </div>
+              <label class="guestwall-archive-search">
+                <span class="guestwall-archive-search-label">Search guest wall</span>
+                <input id="guestWallSearchInput" type="search" placeholder="Search by name or note" autocomplete="off" />
+              </label>
+            </div>
+            <p id="guestWallArchiveStatus" class="guestwall-status reveal">Loading guest wall…</p>
+            <div id="guestWallArchiveList" class="guestwall-archive-list reveal"></div>
+            <div class="guestwall-archive-footer reveal">
+              <button id="guestWallArchiveLoadMore" class="guestwall-control-btn" type="button">Load more</button>
+            </div>
+          </div>
         </div>
       </section>
     </main>
-
-    <div id="guestWallModal" class="guestwall-modal hidden" aria-hidden="true">
-      <div class="guestwall-modal-backdrop" data-guestwall-close></div>
-      <div class="guestwall-modal-panel" role="dialog" aria-modal="true" aria-labelledby="guestWallModalTitle">
-        <button id="guestWallModalClose" class="guestwall-modal-close" type="button" aria-label="Close guest wall" data-guestwall-close>×</button>
-        <h3 id="guestWallModalTitle">Guest Wall — all approved posts</h3>
-        <div id="guestWallModalList" class="guestwall-modal-list"></div>
-        <div class="guestwall-modal-footer">
-          <button id="guestWallModalLoadMore" class="guestwall-modal-more" type="button">Load more</button>
-        </div>
-      </div>
-    </div>
 
     <footer class="site-footer">
       <div class="site-footer-inner">
@@ -118,6 +132,6 @@
       </div>
     </footer>
 
-    <script src="./app.js?v=20260217-guestwall-route1"></script>
+    <script src="/app.js?v=20260217-guestwall-archive3"></script>
   </body>
 </html>

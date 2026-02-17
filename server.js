@@ -59,6 +59,8 @@ const TAB_SCHEMAS = {
 };
 
 const GUESTBOOK_CACHE_TTL_MS = Math.max(60, Number.parseInt(process.env.GUESTBOOK_CACHE_TTL_SECONDS || "180", 10) || 180) * 1000;
+const GUESTBOOK_PINBOARD_DEFAULT_LIMIT = 16;
+const GUESTBOOK_ARCHIVE_DEFAULT_LIMIT = 30;
 const guestbookCache = {
   expiresAt: 0,
   items: [],
@@ -898,29 +900,174 @@ async function loadGuestbookItems({ forceRefresh = false } = {}) {
   }
 }
 
+function parseGuestbookMode(value) {
+  const normalized = normalizeFieldValue(value).toLowerCase();
+  return normalized === "archive" ? "archive" : "pinboard";
+}
+
+function parseGuestbookTypeFilter(value) {
+  const normalized = normalizeFieldValue(value).toLowerCase();
+  if (normalized === "photos" || normalized === "media") return "photos";
+  if (normalized === "notes" || normalized === "note") return "notes";
+  return "all";
+}
+
+function decodeGuestbookCursor(rawCursor) {
+  const value = normalizeFieldValue(rawCursor);
+  if (!value) return 0;
+  if (/^\d+$/.test(value)) return parseBoundedInt(value, 0, 0, 1000000);
+
+  try {
+    const decoded = Buffer.from(value, "base64").toString("utf8");
+    if (!/^\d+$/.test(decoded)) return 0;
+    return parseBoundedInt(decoded, 0, 0, 1000000);
+  } catch (_error) {
+    return 0;
+  }
+}
+
+function encodeGuestbookCursor(offset) {
+  if (!Number.isFinite(offset) || offset <= 0) return null;
+  return Buffer.from(String(offset), "utf8").toString("base64");
+}
+
+function buildGuestbookNormalizedItems(approvedSubmissions) {
+  const normalized = [];
+
+  (approvedSubmissions || []).forEach((entry) => {
+    const submissionId = normalizeFieldValue(entry.submission_id);
+    if (!submissionId) return;
+
+    const name = normalizeFieldValue(entry.name) || "Guest";
+    const submittedAt = normalizeFieldValue(entry.submitted_at);
+    const message = normalizeFieldValue(entry.message);
+    const funFacts = normalizeFieldValue(entry.primary_fun_facts);
+    const mediaItems = Array.isArray(entry.media) ? entry.media : [];
+
+    mediaItems.forEach((mediaItem, mediaIndex) => {
+      if (!mediaItem || typeof mediaItem !== "object") return;
+      const fileType = normalizeFileType(mediaItem.file_type, mediaItem.mime_type);
+      const viewUrl = normalizeFieldValue(mediaItem.view_url || mediaItem.drive_view_url);
+      const thumbUrl = normalizeFieldValue(mediaItem.thumbnail_url) || buildDriveThumbnailUrl(mediaItem.file_id);
+      if (fileType === "image" && !thumbUrl && !viewUrl) return;
+      if (fileType === "video" && !viewUrl) return;
+
+      normalized.push({
+        id: `${submissionId}:${normalizeFieldValue(mediaItem.file_index) || mediaIndex + 1}`,
+        type: "media",
+        name,
+        message,
+        media: {
+          kind: fileType,
+          thumbUrl: thumbUrl || "",
+          viewUrl: viewUrl || "",
+        },
+        submitted_at: submittedAt,
+      });
+    });
+
+    const noteBody = message || (funFacts ? `Fun fact: ${funFacts}` : "");
+    if (noteBody) {
+      normalized.push({
+        id: `${submissionId}:note`,
+        type: "note",
+        name,
+        message: noteBody,
+        media: null,
+        submitted_at: submittedAt,
+      });
+    }
+  });
+
+  normalized.sort((a, b) => {
+    const tsA = Date.parse(a.submitted_at || "");
+    const tsB = Date.parse(b.submitted_at || "");
+    const validA = Number.isFinite(tsA);
+    const validB = Number.isFinite(tsB);
+    if (validA && validB && tsA !== tsB) return tsB - tsA;
+    if (validA !== validB) return validA ? -1 : 1;
+    return String(b.id).localeCompare(String(a.id));
+  });
+
+  return normalized;
+}
+
+function pickBalancedPinboardItems(items, limit) {
+  const maxItems = parseBoundedInt(limit, GUESTBOOK_PINBOARD_DEFAULT_LIMIT, 1, 32);
+  const mediaItems = (items || []).filter((item) => item.type === "media");
+  const noteItems = (items || []).filter((item) => item.type === "note");
+
+  const targetMedia = Math.min(mediaItems.length, Math.ceil(maxItems * 0.65));
+  const targetNotes = Math.min(noteItems.length, maxItems - targetMedia);
+
+  const picked = [];
+  picked.push(...mediaItems.slice(0, targetMedia));
+  picked.push(...noteItems.slice(0, targetNotes));
+
+  if (picked.length < maxItems) {
+    const spillover = (items || []).filter((item) => !picked.includes(item));
+    picked.push(...spillover.slice(0, maxItems - picked.length));
+  }
+
+  return picked.slice(0, maxItems);
+}
+
+function filterArchiveItems(items, { typeFilter = "all", query = "" } = {}) {
+  const needle = normalizeFieldValue(query).toLowerCase();
+  return (items || []).filter((item) => {
+    if (typeFilter === "photos" && item.type !== "media") return false;
+    if (typeFilter === "notes" && item.type !== "note") return false;
+    if (!needle) return true;
+
+    const haystack = `${normalizeFieldValue(item.name)} ${normalizeFieldValue(item.message)}`.toLowerCase();
+    return haystack.includes(needle);
+  });
+}
+
 async function handleGuestbookRequest(req, res) {
   try {
     const requestUrl = new URL(req.url || "/api/guestbook", `http://${req.headers.host || "localhost"}`);
-    const limit = parseBoundedInt(requestUrl.searchParams.get("limit"), 80, 1, 200);
-    const offset = parseBoundedInt(requestUrl.searchParams.get("offset"), 0, 0, 100000);
+    const mode = parseGuestbookMode(requestUrl.searchParams.get("mode"));
+    const defaultLimit = mode === "archive" ? GUESTBOOK_ARCHIVE_DEFAULT_LIMIT : GUESTBOOK_PINBOARD_DEFAULT_LIMIT;
+    const limit = parseBoundedInt(requestUrl.searchParams.get("limit"), defaultLimit, 1, mode === "archive" ? 60 : 32);
+    const typeFilter = parseGuestbookTypeFilter(requestUrl.searchParams.get("type"));
+    const query = normalizeFieldValue(requestUrl.searchParams.get("q"));
+    const cursor = requestUrl.searchParams.get("cursor");
+    const cursorOffset = decodeGuestbookCursor(cursor);
+    const offset = parseBoundedInt(requestUrl.searchParams.get("offset"), cursorOffset, 0, 1000000);
     const refresh = ["1", "true", "yes"].includes(normalizeFieldValue(requestUrl.searchParams.get("refresh")).toLowerCase());
-    console.info(`[guestbook] request limit=${limit} offset=${offset} refresh=${refresh}`);
+    console.info(
+      `[guestbook] request mode=${mode} limit=${limit} offset=${offset} type=${typeFilter} q=${query ? "yes" : "no"} refresh=${refresh}`,
+    );
 
-    const allItems = await loadGuestbookItems({ forceRefresh: refresh });
-    const items = allItems.slice(offset, offset + limit);
-    const nextOffset = offset + items.length < allItems.length ? offset + items.length : null;
-    console.info(`[guestbook] response total=${allItems.length} returned=${items.length} next_offset=${nextOffset === null ? "none" : nextOffset}`);
+    const approvedSubmissions = await loadGuestbookItems({ forceRefresh: refresh });
+    const normalizedItems = buildGuestbookNormalizedItems(approvedSubmissions);
+    let workingItems = normalizedItems;
+    if (mode === "pinboard") {
+      workingItems = pickBalancedPinboardItems(normalizedItems, limit);
+    } else {
+      workingItems = filterArchiveItems(normalizedItems, { typeFilter, query });
+    }
+
+    const items = mode === "archive" ? workingItems.slice(offset, offset + limit) : workingItems;
+    const nextOffset = mode === "archive" && offset + items.length < workingItems.length ? offset + items.length : null;
+    const nextCursor = nextOffset === null ? null : encodeGuestbookCursor(nextOffset);
+    console.info(
+      `[guestbook] response mode=${mode} total=${workingItems.length} returned=${items.length} next_offset=${nextOffset === null ? "none" : nextOffset}`,
+    );
 
     send(
       res,
       200,
       JSON.stringify({
         ok: true,
+        mode,
         items,
-        total: allItems.length,
+        total: workingItems.length,
         offset,
         limit,
         next_offset: nextOffset,
+        nextCursor,
         cached_until: guestbookCache.expiresAt ? new Date(guestbookCache.expiresAt).toISOString() : null,
       }),
       MIME_TYPES[".json"],
@@ -1050,7 +1197,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (pathname === "/guest-wall" || pathname === "/guest-wall/") {
+  if (pathname === "/guest-wall" || pathname === "/guest-wall/" || pathname === "/guest-wall/all" || pathname === "/guest-wall/all/") {
     serveStaticFile(req, res, path.join(ROOT, "guest-wall.html"));
     return;
   }
