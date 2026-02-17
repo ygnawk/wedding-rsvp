@@ -318,6 +318,62 @@ let guestWallModalOffset = 0;
 let guestWallModalHasMore = false;
 let guestWallModalLoading = false;
 let guestWallResizeRaf = null;
+let overflowDebugResizeTimer = null;
+
+function logHorizontalOverflowOffenders(context = "runtime") {
+  if (!IS_LOCAL_DEV || window.innerWidth > 900) return [];
+
+  const viewportWidth = window.innerWidth;
+  const offenders = [];
+
+  document.querySelectorAll("body *").forEach((el) => {
+    const style = window.getComputedStyle(el);
+    if (style.display === "none" || style.visibility === "hidden") return;
+
+    const rect = el.getBoundingClientRect();
+    if (!Number.isFinite(rect.left) || !Number.isFinite(rect.right) || rect.width <= 0 || rect.height <= 0) return;
+
+    if (rect.right > viewportWidth + 1 || rect.left < -1) {
+      offenders.push({
+        el,
+        left: rect.left,
+        right: rect.right,
+        width: rect.width,
+        className: el.className || "",
+      });
+    }
+  });
+
+  if (offenders.length) {
+    const printable = offenders
+      .slice(0, 25)
+      .map((item) => ({
+        node: item.el.tagName.toLowerCase(),
+        className: String(item.className).trim(),
+        left: Math.round(item.left * 100) / 100,
+        right: Math.round(item.right * 100) / 100,
+        width: Math.round(item.width * 100) / 100,
+      }));
+
+    console.groupCollapsed(`[overflow-debug:${context}] ${offenders.length} element(s) exceed viewport ${viewportWidth}px`);
+    console.table(printable);
+    console.groupEnd();
+  }
+
+  return offenders;
+}
+
+function initOverflowDebugHelper() {
+  if (!IS_LOCAL_DEV) return;
+  window.__logOverflowOffenders = (label = "manual") => logHorizontalOverflowOffenders(label);
+
+  window.addEventListener("resize", () => {
+    window.clearTimeout(overflowDebugResizeTimer);
+    overflowDebugResizeTimer = window.setTimeout(() => logHorizontalOverflowOffenders("resize"), 140);
+  });
+
+  window.setTimeout(() => logHorizontalOverflowOffenders("post-init"), 180);
+}
 let guestWallTouchStartX = null;
 
 const storySection = document.getElementById("story");
@@ -4716,6 +4772,7 @@ function normalizeStoryEntry(entry) {
       file: entry.trim(),
       mosaicFile: "",
       objectPosition: "",
+      mobileObjectPosition: "",
       alt: "",
       year: NaN,
       focalX: NaN,
@@ -4730,6 +4787,7 @@ function normalizeStoryEntry(entry) {
       file: "",
       mosaicFile: "",
       objectPosition: "",
+      mobileObjectPosition: "",
       alt: "",
       year: NaN,
       focalX: NaN,
@@ -4743,6 +4801,7 @@ function normalizeStoryEntry(entry) {
     file: String(entry.file || "").trim(),
     mosaicFile: String(entry.mosaicFile || "").trim(),
     objectPosition: String(entry.objectPosition || "").trim(),
+    mobileObjectPosition: String(entry.mobileObjectPosition || "").trim(),
     fit: String(entry.fit || "").trim(),
     cropMode: normalizeCropMode(entry.cropMode || entry.fit),
     rotationDeg: Number.isFinite(Number(entry.rotationDeg)) ? Number(entry.rotationDeg) : NaN,
@@ -4767,6 +4826,7 @@ function sortStoryEntries(entries) {
     .map((entry) => ({
       file: entry.file,
       objectPosition: entry.objectPosition,
+      mobileObjectPosition: entry.mobileObjectPosition,
       mosaicFile: entry.mosaicFile,
       fit: entry.fit,
       cropMode: entry.cropMode,
@@ -4869,6 +4929,22 @@ function attachStoryFallback(img, fallbackSrc) {
   };
 }
 
+function applyStoryImageRotation(img, rotation, scaleVarName, scales = {}) {
+  if (!(img instanceof HTMLElement)) return;
+  const normalizedRotation = Number.isFinite(Number(rotation)) ? Number(rotation) : 0;
+  const isQuarterTurn = Math.abs(normalizedRotation) === 90;
+  const isHalfTurn = Math.abs(normalizedRotation) === 180;
+  const scaleValue = isQuarterTurn
+    ? Number(scales.quarterTurn ?? 1.05)
+    : isHalfTurn
+      ? Number(scales.halfTurn ?? 1.01)
+      : Number(scales.defaultScale ?? 1);
+
+  img.style.setProperty("--storyRotate", `${normalizedRotation}deg`);
+  img.style.setProperty(scaleVarName, String(scaleValue));
+  img.classList.toggle("story-image--quarter-turn", isQuarterTurn);
+}
+
 function buildStoryTimelineSlide(item, index) {
   const slide = document.createElement("article");
   slide.className = "story-slide";
@@ -4879,27 +4955,19 @@ function buildStoryTimelineSlide(item, index) {
 
   const img = document.createElement("img");
   const imageSources = storyImageSources(item, false);
+  img.style.imageOrientation = "from-image";
+  img.style.objectPosition = item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
+  img.style.objectFit = item.cropMode === "contain" || item.fit === "contain" ? "contain" : "cover";
+  applyStoryImageRotation(img, item.rotation, "--storyScale", {
+    quarterTurn: 1.05,
+    halfTurn: 1.01,
+    defaultScale: 1,
+  });
+  attachStoryFallback(img, imageSources.fallback);
   img.src = imageSources.preferred;
   img.alt = item.alt || `Story photo ${item.yearLabel}`;
   img.loading = "lazy";
   img.decoding = "async";
-  img.style.objectPosition = item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
-  img.style.imageOrientation = "from-image";
-  img.style.objectFit = item.cropMode === "contain" || item.fit === "contain" ? "contain" : "cover";
-
-  if (item.rotation === 90) {
-    img.style.setProperty("--storyRotate", "90deg");
-    img.style.setProperty("--storyScale", "1.12");
-  } else if (item.rotation === -90) {
-    img.style.setProperty("--storyRotate", "-90deg");
-    img.style.setProperty("--storyScale", "1.12");
-  } else if (item.rotation === 180) {
-    img.style.setProperty("--storyRotate", "180deg");
-    img.style.setProperty("--storyScale", "1.03");
-  } else {
-    img.style.setProperty("--storyRotate", "0deg");
-    img.style.setProperty("--storyScale", "1");
-  }
 
   const year = document.createElement("span");
   year.className = "story-slide-year";
@@ -5154,34 +5222,23 @@ function setStoryMobileSlide(index, options = {}) {
   const imageSources = storyImageSources(item, true);
   const imageSrc = imageSources.original || imageSources.preferred;
 
-  storyMobileImg.src = imageSrc;
-  attachStoryFallback(storyMobileImg, imageSources.fallback);
-  storyMobileImg.alt = item.alt || `Story photo ${item.yearLabel}`;
   storyMobileImg.style.objectPosition = mobileView
     ? item.mobileObjectPosition || item.objectPosition || "50% 50%"
     : item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
   storyMobileImg.style.imageOrientation = "from-image";
   storyMobileImg.style.objectFit = "cover";
   storyMobileImg.style.transformOrigin = "50% 50%";
-  storyMobileImg.style.setProperty("--storyRotate", "0deg");
-  storyMobileImg.style.transform = "none";
+  applyStoryImageRotation(storyMobileImg, item.rotation, "--storyScale", {
+    quarterTurn: 1.05,
+    halfTurn: 1.01,
+    defaultScale: 1,
+  });
+  attachStoryFallback(storyMobileImg, imageSources.fallback);
+  storyMobileImg.alt = item.alt || `Story photo ${item.yearLabel}`;
+  storyMobileImg.src = imageSrc;
   if (storyMobileCard) {
     storyMobileCard.classList.remove("is-contain");
     storyMobileCard.style.setProperty("--storyMobileBgImage", "none");
-  }
-
-  if (item.rotation === 90) {
-    storyMobileImg.style.setProperty("--storyRotate", "90deg");
-    storyMobileImg.style.transform = mobileView ? "rotate(90deg)" : "rotate(90deg) scale(1.1)";
-  } else if (item.rotation === -90) {
-    storyMobileImg.style.setProperty("--storyRotate", "-90deg");
-    storyMobileImg.style.transform = mobileView ? "rotate(-90deg)" : "rotate(-90deg) scale(1.1)";
-  } else if (item.rotation === 180) {
-    storyMobileImg.style.setProperty("--storyRotate", "180deg");
-    storyMobileImg.style.transform = mobileView ? "rotate(180deg)" : "rotate(180deg) scale(1.02)";
-  } else {
-    storyMobileImg.style.setProperty("--storyRotate", "0deg");
-    storyMobileImg.style.transform = "none";
   }
 
   storyMobileYear.textContent = item.yearLabel;
@@ -5446,27 +5503,19 @@ function buildStoryMosaicCard(item, slot, index) {
 
   const img = document.createElement("img");
   img.className = "story-mosaic-image";
-  img.src = imageSrc;
-  attachStoryFallback(img, imageSources.fallback);
-  img.alt = item.alt || `Story photo ${item.yearLabel}`;
-  img.loading = "lazy";
-  img.decoding = "async";
   img.style.objectPosition = item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
   img.style.objectFit = item.cropMode === "contain" ? "contain" : "cover";
   img.style.imageOrientation = "from-image";
-  if (item.rotation === 90) {
-    img.style.setProperty("--storyRotate", "90deg");
-    img.style.setProperty("--storyTileScale", "1.1");
-  } else if (item.rotation === -90) {
-    img.style.setProperty("--storyRotate", "-90deg");
-    img.style.setProperty("--storyTileScale", "1.1");
-  } else if (item.rotation === 180) {
-    img.style.setProperty("--storyRotate", "180deg");
-    img.style.setProperty("--storyTileScale", "1.03");
-  } else {
-    img.style.setProperty("--storyRotate", "0deg");
-    img.style.setProperty("--storyTileScale", "1");
-  }
+  applyStoryImageRotation(img, item.rotation, "--storyTileScale", {
+    quarterTurn: 1.05,
+    halfTurn: 1.01,
+    defaultScale: 1,
+  });
+  attachStoryFallback(img, imageSources.fallback);
+  img.src = imageSrc;
+  img.alt = item.alt || `Story photo ${item.yearLabel}`;
+  img.loading = "lazy";
+  img.decoding = "async";
 
   const overlay = document.createElement("span");
   overlay.className = "story-card-overlay";
@@ -5632,12 +5681,17 @@ function isStoryLightboxOpen() {
 function updateStoryLightboxView() {
   if (!storyLightboxImg || !storyItems.length) return;
   const item = storyItems[currentStoryIndex];
-  storyLightboxImg.src = storyImageSources(item, false).original;
+  const imageSources = storyImageSources(item, false);
+  attachStoryFallback(storyLightboxImg, imageSources.fallback);
+  storyLightboxImg.style.imageOrientation = "from-image";
+  storyLightboxImg.style.objectPosition = item.objectPosition || "50% 50%";
+  applyStoryImageRotation(storyLightboxImg, item.rotation, "--storyScale", {
+    quarterTurn: 0.95,
+    halfTurn: 0.99,
+    defaultScale: 1,
+  });
+  storyLightboxImg.src = imageSources.original;
   storyLightboxImg.alt = item.alt || `Story photo ${item.year}`;
-  if (item.rotation === 90) storyLightboxImg.style.transform = "rotate(90deg) scale(0.95)";
-  else if (item.rotation === -90) storyLightboxImg.style.transform = "rotate(-90deg) scale(0.95)";
-  else if (item.rotation === 180) storyLightboxImg.style.transform = "rotate(180deg) scale(0.99)";
-  else storyLightboxImg.style.transform = "none";
   if (storyLightboxTitle) storyLightboxTitle.textContent = item.title;
   if (storyLightboxBlurb) storyLightboxBlurb.textContent = item.blurb;
   if (storyLightboxLong) storyLightboxLong.textContent = item.longCaption;
@@ -5803,26 +5857,18 @@ function createStoryMosaicTile(item, index, totalCount) {
 
   const img = document.createElement("img");
   const imageSources = storyImageSources(item, true);
-  img.src = imageSources.preferred || imageSources.original;
+  img.style.objectPosition = item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
+  img.style.imageOrientation = "from-image";
+  applyStoryImageRotation(img, item.rotation, "--storyScale", {
+    quarterTurn: 1.05,
+    halfTurn: 1.01,
+    defaultScale: 1,
+  });
   attachStoryFallback(img, imageSources.fallback);
+  img.src = imageSources.preferred || imageSources.original;
   img.alt = item.alt || `Story photo ${item.yearLabel}`;
   img.loading = "lazy";
   img.decoding = "async";
-  img.style.objectPosition = item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
-  img.style.imageOrientation = "from-image";
-  if (item.rotation === 90) {
-    img.style.setProperty("--storyRotate", "90deg");
-    img.style.setProperty("--storyScale", "1.1");
-  } else if (item.rotation === -90) {
-    img.style.setProperty("--storyRotate", "-90deg");
-    img.style.setProperty("--storyScale", "1.1");
-  } else if (item.rotation === 180) {
-    img.style.setProperty("--storyRotate", "180deg");
-    img.style.setProperty("--storyScale", "1.03");
-  } else {
-    img.style.setProperty("--storyRotate", "0deg");
-    img.style.setProperty("--storyScale", "1");
-  }
 
   const overlay = document.createElement("span");
   overlay.className = "story-mosaic-overlay";
@@ -5891,24 +5937,16 @@ function setStoryOverlayRect(rect) {
 function applyStoryOverlayImage(item) {
   if (!storyFocusImage || !item) return;
   const imageSources = storyImageSources(item, true);
-  storyFocusImage.src = imageSources.preferred || imageSources.original;
-  attachStoryFallback(storyFocusImage, imageSources.fallback);
-  storyFocusImage.alt = item.alt || `Story photo ${item.yearLabel}`;
+  storyFocusImage.style.imageOrientation = "from-image";
   storyFocusImage.style.objectPosition = item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
-
-  if (item.rotation === 90) {
-    storyFocusImage.style.setProperty("--storyRotate", "90deg");
-    storyFocusImage.style.setProperty("--storyScaleFactor", "1.16");
-  } else if (item.rotation === -90) {
-    storyFocusImage.style.setProperty("--storyRotate", "-90deg");
-    storyFocusImage.style.setProperty("--storyScaleFactor", "1.16");
-  } else if (item.rotation === 180) {
-    storyFocusImage.style.setProperty("--storyRotate", "180deg");
-    storyFocusImage.style.setProperty("--storyScaleFactor", "1.04");
-  } else {
-    storyFocusImage.style.setProperty("--storyRotate", "0deg");
-    storyFocusImage.style.setProperty("--storyScaleFactor", "1.03");
-  }
+  applyStoryImageRotation(storyFocusImage, item.rotation, "--storyScaleFactor", {
+    quarterTurn: 1.05,
+    halfTurn: 1.02,
+    defaultScale: 1.03,
+  });
+  attachStoryFallback(storyFocusImage, imageSources.fallback);
+  storyFocusImage.src = imageSources.preferred || imageSources.original;
+  storyFocusImage.alt = item.alt || `Story photo ${item.yearLabel}`;
 }
 
 function hideStoryFocus() {
@@ -6209,6 +6247,7 @@ function initCutoutParallax() {
 }
 
 async function init() {
+  initOverflowDebugHelper();
   removeLegacyGalleryLightbox();
   setActiveLink("top");
   initHeader();
@@ -6221,6 +6260,7 @@ async function init() {
   initMakanSection();
   initStorySkipLink();
   initReveals();
+  document.body.classList.add("is-app-ready");
   initScheduleReveal();
   await initStoryMosaicLayout();
   initRsvpCards();

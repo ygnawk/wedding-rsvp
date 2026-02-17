@@ -15,7 +15,7 @@
     />
     <link rel="icon" type="image/svg+xml" href="public/favicon.svg" />
     <link rel="icon" type="image/png" href="public/favicon-32.png" />
-    <link rel="stylesheet" href="./styles.css?v=20260216-title-reveal-fix1" />
+    <link rel="stylesheet" href="./styles.css?v=20260217-story-orientation1" />
   </head>
   <body>
     <header id="floatingHeader" class="floating-header" aria-label="Site navigation">
@@ -81,6 +81,13 @@
             <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/bamboo-branch.svg" alt="" />
           </div>
           <div class="hero-lockup">
+            <div class="hero-mobile-skeleton" aria-hidden="true">
+              <span class="hero-mobile-skeleton__line hero-mobile-skeleton__line--kicker"></span>
+              <span class="hero-mobile-skeleton__line hero-mobile-skeleton__line--title"></span>
+              <span class="hero-mobile-skeleton__line hero-mobile-skeleton__line--title"></span>
+              <span class="hero-mobile-skeleton__line hero-mobile-skeleton__line--meta"></span>
+              <span class="hero-mobile-skeleton__line hero-mobile-skeleton__line--pill"></span>
+            </div>
             <div class="hero-group hero-group--identity">
               <p class="hero-kicker reveal">You’re invited to the wedding of</p>
               <h1 class="hero-names reveal reveal-left" data-delay="80">
@@ -111,7 +118,7 @@
         <div class="interlude-shell interlude-bleed">
           <div class="interlude-band">
             <figure class="interlude-photo-half reveal reveal-scale">
-              <img src="photos/LMN_2546.jpg" alt="Miki and Yi Jie" loading="lazy" decoding="async" />
+              <img src="photos/LMN_2546.jpg" alt="Miki and Yi Jie" loading="eager" fetchpriority="high" decoding="async" />
             </figure>
             <div class="interlude-color-half">
               <div class="motif-layer motif-layer--maroon motif-layer--both" aria-hidden="true">
@@ -1304,6 +1311,6 @@
 
     <script src="./data/hotels.js?v=20260216-matrix"></script>
     <script src="./data/beijing-food.js?v=20260216-title-reveal-fix1"></script>
-    <script src="./app.js?v=20260217-guest-wall1"></script>
+    <script src="./app.js?v=20260217-story-focal1"></script>
   </body>
 </html>
