@@ -731,6 +731,22 @@ function prefersReducedMotion() {
   return reducedMotion || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
+function isMobileViewport() {
+  return window.matchMedia("(max-width: 768px)").matches;
+}
+
+function scrollToElement(target, options = {}) {
+  if (!(target instanceof Element)) return;
+  const allowMobile = options.allowMobile === true;
+  if (!allowMobile && isMobileViewport()) return;
+
+  target.scrollIntoView({
+    behavior: options.behavior || getScrollBehavior(),
+    block: options.block || "start",
+    inline: options.inline || "nearest",
+  });
+}
+
 function setAriaExpanded(node, expanded) {
   node.setAttribute("aria-expanded", String(expanded));
 }
@@ -906,7 +922,13 @@ function initJumpMenu() {
       const href = link.getAttribute("href") || "";
       const id = href.startsWith("#") ? href.slice(1) : href;
       const target = id ? document.getElementById(id) : null;
-      if (target) target.scrollIntoView({ behavior: getScrollBehavior(), block: "start" });
+      if (target) {
+        if (isMobileViewport()) {
+          window.location.hash = `#${id}`;
+        } else {
+          scrollToElement(target, { block: "start" });
+        }
+      }
       closeJumpMenu();
     });
   });
@@ -964,7 +986,11 @@ function initStorySkipLink() {
     const targetId = href.startsWith("#") ? href.slice(1) : href;
     const target = targetId ? document.getElementById(targetId) : null;
     if (!target) return;
-    target.scrollIntoView({ behavior: getScrollBehavior(), block: "start" });
+    if (isMobileViewport()) {
+      window.location.hash = `#${targetId}`;
+      return;
+    }
+    scrollToElement(target, { block: "start" });
   });
 
   storySkipLink.dataset.bound = "true";
@@ -4571,7 +4597,7 @@ function renderGalleryDots() {
     dot.addEventListener("click", () => {
       if (!galleryGrid || !isGalleryMobileView()) return;
       const left = index * galleryGrid.clientWidth;
-      galleryGrid.scrollTo({ left, behavior: reducedMotion ? "auto" : "smooth" });
+      galleryGrid.scrollLeft = left;
       setActiveGalleryDot(index);
     });
     galleryDots.appendChild(dot);
@@ -4990,7 +5016,7 @@ function renderStoryYearScrubber(items, yearTargets = [], onSelect = null) {
 
       const target = targetsByIndex.get(index);
       if (target instanceof HTMLElement) {
-        target.scrollIntoView({ behavior: getScrollBehavior(), block: "center" });
+        scrollToElement(target, { block: "center", allowMobile: false });
         highlightStoryMosaicTile(target);
       }
       setActiveStoryScrubberIndex(index);
@@ -5161,11 +5187,11 @@ function setStoryMobileSlide(index, options = {}) {
   setActiveStoryScrubberIndex(safeIndex);
 
   if (scrollPill && storyYearButtons[safeIndex]) {
-    storyYearButtons[safeIndex].scrollIntoView({
-      behavior: reducedMotion ? "auto" : "smooth",
-      inline: "center",
-      block: "nearest",
-    });
+    const pill = storyYearButtons[safeIndex];
+    if (storyYearScrubber) {
+      const centeredLeft = pill.offsetLeft - Math.max(0, (storyYearScrubber.clientWidth - pill.clientWidth) / 2);
+      storyYearScrubber.scrollLeft = Math.max(0, centeredLeft);
+    }
   }
 }
 
@@ -5279,10 +5305,14 @@ function scrollStoryTimelineTo(index, behavior = getScrollBehavior()) {
   if (!slides.length) return;
   const clamped = Math.max(0, Math.min(slides.length - 1, Number(index) || 0));
   const target = slides[clamped];
-  storyViewport.scrollTo({
-    left: target.offsetLeft,
-    behavior,
-  });
+  if (isMobileViewport()) {
+    storyViewport.scrollLeft = target.offsetLeft;
+  } else {
+    storyViewport.scrollTo({
+      left: target.offsetLeft,
+      behavior,
+    });
+  }
   updateStoryTimelineUI(clamped);
 }
 
