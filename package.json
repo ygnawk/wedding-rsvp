@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "prebuild": "npm run validate:story-assets",
+    "build": "npm run validate:story-assets",
     "prestart": "npm run validate:story-assets",
     "start": "node server.js",
     "normalize:our-story": "node tools/normalize-our-story.js",

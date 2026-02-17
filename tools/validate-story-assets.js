@@ -29,17 +29,20 @@ function resolveAssetPath(src) {
   if (!value) return null;
   if (/^https?:\/\//i.test(value)) return { error: `Absolute URL not allowed: ${value}` };
 
-  if (value.startsWith("/our-story/")) {
+  if (value.startsWith("/public/our-story/")) {
     const extension = path.extname(value).toLowerCase();
     if (!allowedExtensions.has(extension)) {
       return { error: `Unsupported extension for Our Story asset: ${value}` };
     }
     return {
-      path: path.join(root, "public", "our-story", value.replace(/^\/our-story\//, "")),
+      path: path.join(root, "public", "our-story", value.replace(/^\/public\/our-story\//, "")),
     };
   }
+  if (value.startsWith("/our-story/")) {
+    return { error: `Use /public/our-story/... path for static hosting (${value})` };
+  }
   if (value.startsWith("/our-story-normalized/")) {
-    return { error: `Use /our-story/... path, not legacy /our-story-normalized/... (${value})` };
+    return { error: `Use /public/our-story/... path, not legacy /our-story-normalized/... (${value})` };
   }
   if (value.startsWith("/public/")) {
     return { path: path.join(root, "public", value.replace(/^\/public\//, "")) };

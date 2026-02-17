@@ -66,7 +66,7 @@ async function normalizeEntry(entry, index) {
   const outputName = `${yearPrefix}${stem}.webp`;
   const outputPath = path.join(OUTPUT_DIR, outputName);
   const publicPath = path.join(PUBLIC_DIR, outputName);
-  const publicRef = `/our-story/${outputName}`;
+  const publicRef = `/public/our-story/${outputName}`;
 
   const buffer = await sharp(sourcePath)
     .rotate()

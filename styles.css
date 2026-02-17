@@ -1108,7 +1108,7 @@ a:focus-visible,
   display: block;
   object-fit: contain;
   object-position: var(--objPos, 50% 50%);
-  image-orientation: from-image;
+  image-orientation: none;
   filter: var(--photoGradeFilter);
   transform: rotate(var(--storyRotate, 0deg)) scale(var(--storyScale, 1));
   transform-origin: center center;
@@ -1357,7 +1357,7 @@ a:focus-visible,
   display: block;
   object-fit: cover;
   object-position: var(--objPos, 50% 50%);
-  image-orientation: from-image;
+  image-orientation: none;
   filter: var(--photoGradeFilter);
   transform: rotate(var(--storyRotate, 0deg)) scale(var(--storyTileScale));
   transform-origin: center center;
@@ -1494,6 +1494,55 @@ a:focus-visible,
   color: rgba(21, 21, 21, 0.72);
 }
 
+.story-mosaic-empty--error {
+  min-height: 220px;
+  padding: 24px 20px;
+  text-align: center;
+  gap: 12px;
+  align-content: center;
+  justify-items: center;
+}
+
+.story-mosaic-empty__message {
+  margin: 0;
+  max-width: 36ch;
+  color: rgba(75, 15, 23, 0.88);
+  font-family: var(--bodyFont);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.story-status-retry {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(75, 15, 23, 0.34);
+  background: rgba(247, 241, 230, 0.92);
+  color: rgba(75, 15, 23, 0.92);
+  font-family: var(--bodyFont);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+
+.story-status-retry:hover,
+.story-status-retry:focus-visible {
+  border-color: rgba(75, 15, 23, 0.6);
+  background: rgba(247, 241, 230, 1);
+}
+
+.story-mosaic-empty__debug {
+  margin: 0;
+  max-width: 38ch;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  color: rgba(75, 15, 23, 0.66);
+  word-break: break-word;
+}
+
 .story-timeline-wrap {
   position: relative;
   display: grid;
@@ -1561,7 +1610,7 @@ a:focus-visible,
   object-fit: cover;
   object-position: var(--objPos, 50% 50%);
   display: block;
-  image-orientation: from-image;
+  image-orientation: none;
   filter: var(--photoGradeFilter);
   transform: rotate(var(--storyRotate, 0deg)) scale(var(--storyScale, 1));
 }
@@ -1701,7 +1750,7 @@ a:focus-visible,
   display: block;
   object-fit: cover;
   object-position: var(--objPos, 50% 50%);
-  image-orientation: from-image;
+  image-orientation: none;
   filter: var(--photoGradeFilter);
   transform: rotate(var(--storyRotate, 0deg)) scale(var(--storyScale));
   transition: opacity 180ms var(--ease-out);
@@ -1824,7 +1873,7 @@ a:focus-visible,
   display: block;
   object-fit: cover;
   object-position: var(--objPos, 50% 50%);
-  image-orientation: from-image;
+  image-orientation: none;
   filter: var(--photoGradeFilter);
   transform: rotate(var(--storyRotate, 0deg)) scale(var(--storyScaleFactor, 1.03));
 }
@@ -1946,7 +1995,7 @@ a:focus-visible,
   height: 100%;
   object-fit: contain;
   object-position: center center;
-  image-orientation: from-image;
+  image-orientation: none;
   transform: rotate(var(--storyRotate, 0deg)) scale(var(--storyScale, 1));
   transform-origin: center center;
   background: transparent;
@@ -5587,6 +5636,13 @@ a.makan-copy-icon-btn {
 
 .guestwall-section {
   background: var(--color-maroon);
+  --gw-text-on-maroon: #f6efe6;
+  --gw-text-on-maroon-muted: rgba(246, 239, 230, 0.92);
+  --gw-text-on-ivory: #4b0f17;
+  --gw-ivory-surface: #f6f0e6;
+  --gw-ivory-surface-pressed: #efe6d8;
+  --gw-ivory-surface-disabled: #ece1cf;
+  --gw-control-border: rgba(128, 70, 70, 0.42);
 }
 
 .guestwall-section .section-title {
@@ -5600,9 +5656,9 @@ a.makan-copy-icon-btn {
 .guestwall-subtitle {
   margin: 12px 0 0;
   max-width: 72ch;
-  color: rgba(246, 239, 230, 0.78);
+  color: var(--gw-text-on-maroon-muted);
   font-family: var(--bodyFont);
-  font-weight: 450;
+  font-weight: 500;
   font-size: clamp(16px, 1.35vw, 18px);
   line-height: 1.62;
 }
@@ -5647,9 +5703,9 @@ a.makan-copy-icon-btn {
   min-height: 40px;
   padding: 0 14px;
   border-radius: 999px;
-  border: 1px solid rgba(128, 70, 70, 0.35);
-  background: #f6f0e6;
-  color: var(--maroonDeep);
+  border: 1px solid var(--gw-control-border);
+  background: var(--gw-ivory-surface);
+  color: var(--gw-text-on-ivory);
   font-size: 14px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -5689,28 +5745,38 @@ a.makan-copy-icon-btn {
 .guestwall-control-btn:hover,
 .guestwall-control-btn:focus-visible {
   border-color: rgba(128, 70, 70, 0.55);
-  background: rgba(246, 240, 230, 0.92);
+  background: var(--gw-ivory-surface);
   box-shadow: 0 6px 16px rgba(19, 8, 8, 0.14);
 }
 
 .guestwall-control-btn.is-disabled,
 .guestwall-control-btn[aria-disabled="true"],
 .guestwall-control-btn:disabled {
-  opacity: 0.6;
   cursor: not-allowed;
   box-shadow: none;
+  background: var(--gw-ivory-surface-disabled);
+  color: rgba(75, 15, 23, 0.76);
+  border-color: rgba(128, 70, 70, 0.3);
 }
 
 .guestwall-control-btn:active {
   transform: scale(0.98);
-  background: #efe6d8;
-  color: var(--maroonDeep);
+  background: var(--gw-ivory-surface-pressed);
+  color: var(--gw-text-on-ivory);
   box-shadow: 0 4px 12px rgba(19, 8, 8, 0.12);
 }
 
 .guestwall-control-btn.flash {
-  background: rgba(246, 240, 230, 0.85);
+  background: var(--gw-ivory-surface);
+  color: var(--gw-text-on-ivory);
   box-shadow: 0 6px 18px rgba(19, 8, 8, 0.18);
+}
+
+.guestwall-control-btn.is-pressed {
+  transform: scale(0.98);
+  background: var(--gw-ivory-surface-pressed);
+  color: var(--gw-text-on-ivory);
+  box-shadow: 0 4px 12px rgba(19, 8, 8, 0.12);
 }
 
 .guestwall-control-btn:focus-visible {
@@ -5727,7 +5793,7 @@ a.makan-copy-icon-btn {
 .guestwall-autoplay-label {
   font-size: 0.84rem;
   letter-spacing: 0.045em;
-  color: rgba(247, 241, 230, 0.94);
+  color: var(--gw-text-on-maroon);
   font-weight: 650;
   display: inline-flex;
   align-items: center;
@@ -5739,7 +5805,7 @@ a.makan-copy-icon-btn {
   font-size: 0.68rem;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  opacity: 0.88;
+  opacity: 0.94;
 }
 
 .guestwall-toggle {
@@ -5811,7 +5877,8 @@ a.makan-copy-icon-btn {
 .guestwall-status {
   margin: 12px 0 0;
   font-size: 0.9rem;
-  color: rgba(247, 241, 230, 0.82);
+  color: var(--gw-text-on-maroon);
+  font-weight: 500;
 }
 
 .guestwall-pinboard {
@@ -6630,7 +6697,15 @@ a.guestwall-media-retry {
 .guestwall-error-text {
   margin: 0;
   font-size: 0.92rem;
-  color: rgba(75, 15, 23, 0.82);
+  color: rgba(75, 15, 23, 0.94);
+}
+
+.guestwall-error-detail {
+  margin: 2px 0 0;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: rgba(75, 15, 23, 0.68);
+  word-break: break-word;
 }
 
 .guestwall-retry-btn {

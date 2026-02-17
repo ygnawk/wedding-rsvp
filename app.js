@@ -481,6 +481,7 @@ const storyLightboxNext = storyLightbox ? storyLightbox.querySelector(".story-li
 const storyLightboxFrame = storyLightbox ? storyLightbox.querySelector(".story-lightbox-frame") : null;
 const storyLightboxCloseButtons = storyLightbox ? Array.from(storyLightbox.querySelectorAll("[data-story-close], .story-lightbox-close")) : [];
 let storyDebugNode = null;
+let storyFetchErrorState = null;
 
 let storyItems = [];
 let currentStoryIndex = 0;
@@ -755,6 +756,10 @@ const MAKAN_PLACEHOLDER_COPY = {
   ],
 };
 const STORY_ASSET_VERSION = "20260216-2135";
+const STORY_FETCH_TIMEOUT_MS = 12000;
+const STORY_LOADING_MESSAGE = "Loading Our Story…";
+const STORY_TIMEOUT_MESSAGE = "Our Story is taking longer than usual.";
+const STORY_ERROR_MESSAGE = "Our Story is temporarily unavailable.";
 const STORY_DEFAULT_FOCAL_X = 0.5;
 const STORY_DEFAULT_FOCAL_Y = 0.28;
 const STORY_OVERRIDES = {
@@ -4162,6 +4167,7 @@ function renderGuestWallLoadingSkeleton() {
 
 function renderGuestWallErrorStateWithMessage(message) {
   const fallbackMessage = String(message || "").trim() || GUEST_WALL_UNAVAILABLE_MESSAGE;
+  const detailMessage = String(renderGuestWallErrorStateWithMessage.lastDetail || "").trim();
   const makePanel = () => {
     const panel = document.createElement("div");
     panel.className = "guestwall-error";
@@ -4179,6 +4185,13 @@ function renderGuestWallErrorStateWithMessage(message) {
       loadGuestWallPinboard({ refresh: true });
     });
     panel.appendChild(button);
+
+    if (IS_LOCAL_DEV && detailMessage) {
+      const detail = document.createElement("p");
+      detail.className = "guestwall-error-detail";
+      detail.textContent = detailMessage;
+      panel.appendChild(detail);
+    }
     return panel;
   };
 
@@ -4186,6 +4199,7 @@ function renderGuestWallErrorStateWithMessage(message) {
   if (guestWallPinboard instanceof HTMLElement) guestWallPinboard.appendChild(makePanel());
   if (guestWallMobile instanceof HTMLElement) guestWallMobile.appendChild(makePanel());
 }
+renderGuestWallErrorStateWithMessage.lastDetail = "";
 
 function buildGuestWallMediaNode(card, context = "board") {
   const mediaWrap = document.createElement("div");
@@ -4376,6 +4390,10 @@ function setGuestWallControlsDisabled(disabled) {
 
 function flashGuestWallButton(button) {
   if (!(button instanceof HTMLButtonElement)) return;
+  button.classList.add("is-pressed");
+  window.setTimeout(() => {
+    button.classList.remove("is-pressed");
+  }, 120);
   button.classList.add("flash");
   window.setTimeout(() => {
     button.classList.remove("flash");
@@ -4387,6 +4405,7 @@ function setGuestWallShuffleState(isShuffling) {
   if (!(guestWallShuffle instanceof HTMLButtonElement)) return;
   const labelNode = guestWallShuffle.querySelector(".guestwall-control-btn__label");
   guestWallShuffle.disabled = guestWallIsShuffling;
+  guestWallShuffle.classList.remove("is-pressed");
   guestWallShuffle.classList.toggle("is-loading", guestWallIsShuffling);
   guestWallShuffle.setAttribute("aria-busy", guestWallIsShuffling ? "true" : "false");
   if (labelNode instanceof HTMLElement) {
@@ -5235,11 +5254,11 @@ function setGuestWallPaused(paused) {
     const isOn = !guestWallPaused;
     guestWallAutoplayToggle.classList.toggle("is-on", isOn);
     guestWallAutoplayToggle.classList.toggle("is-off", !isOn);
-    guestWallAutoplayToggle.dataset.state = isOn ? "on" : "off";
+    guestWallAutoplayToggle.dataset.state = isOn ? "ON" : "OFF";
     guestWallAutoplayToggle.setAttribute("aria-checked", isOn ? "true" : "false");
     guestWallAutoplayToggle.setAttribute("aria-label", isOn ? "Auto-shuffle on" : "Auto-shuffle off");
     if (guestWallAutoplayControl instanceof HTMLElement) {
-      guestWallAutoplayControl.dataset.state = isOn ? "on" : "off";
+      guestWallAutoplayControl.dataset.state = isOn ? "ON" : "OFF";
     }
   }
 
@@ -5512,6 +5531,10 @@ async function loadGuestWallPinboard({ refresh = false } = {}) {
       });
       clearGuestWallSlowMessageTimers();
       const classified = classifyGuestWallError(error);
+      renderGuestWallErrorStateWithMessage.lastDetail =
+        `[dev] status=${error && typeof error === "object" ? error.status || 0 : 0} reason=${classified.reason} durationMs=${
+          error && typeof error === "object" ? error.durationMs || 0 : 0
+        } url=${error && typeof error === "object" ? error.url || "n/a" : "n/a"}`;
       setGuestWallLoadState(classified.state);
       setGuestWallStatus(classified.statusMessage);
       setGuestWallControlsDisabled(true);
@@ -5541,6 +5564,11 @@ async function loadManifest() {
 function toPhotoSrc(name) {
   if (!name) return "";
   if (/^https?:\/\//i.test(name)) return name;
+  if (name.startsWith("/public/our-story/")) return withBasePath(name);
+  if (name.startsWith("/our-story/") || name.startsWith("/our-story-normalized/")) {
+    const fileName = name.split("/").pop() || "";
+    return withBasePath(`/public/our-story/${fileName}`);
+  }
   if (name.startsWith("/public/")) return withBasePath(name.replace(/^\/public(?=\/)/, ""));
   if (name.startsWith("/")) return withBasePath(name);
   return withBasePath(`/photos/${name.replace(/^\.\//, "")}`);
@@ -6201,9 +6229,53 @@ function sortStoryEntries(entries) {
 }
 
 async function loadStoryEntriesFromManifest() {
+  const manifestUrl = withBasePath("/photos/timeline-photos/manifest.json");
+  const startedAt = typeof performance !== "undefined" && performance && typeof performance.now === "function" ? performance.now() : Date.now();
+  storyFetchErrorState = null;
+
+  const normalizeManifestStoryPath = (rawPath, fallbackFolder = "/photos/timeline-photos/") => {
+    const value = String(rawPath || "").trim();
+    if (!value) return "";
+
+    if (/^https?:\/\//i.test(value)) {
+      try {
+        const url = new URL(value);
+        const pathname = url.pathname || "";
+        if (pathname.startsWith("/our-story-normalized/") || pathname.startsWith("/our-story/") || pathname.startsWith("/public/our-story/")) {
+          const fileName = pathname.split("/").pop() || "";
+          return `/public/our-story/${fileName}`;
+        }
+        if (pathname.startsWith("/public/") || pathname.startsWith("/photos/")) {
+          return pathname;
+        }
+        return pathname || "";
+      } catch (_error) {
+        return "";
+      }
+    }
+
+    if (value.startsWith("/our-story-normalized/") || value.startsWith("/our-story/") || value.startsWith("/public/our-story/")) {
+      const fileName = value.split("/").pop() || "";
+      return `/public/our-story/${fileName}`;
+    }
+    if (value.startsWith("/public/") || value.startsWith("/photos/")) return value;
+    if (value.startsWith("/")) return value;
+    return `${fallbackFolder}${encodeURIComponent(value)}`;
+  };
+
+  const controller = typeof AbortController === "function" ? new AbortController() : null;
+  const timeoutId = controller ? window.setTimeout(() => controller.abort(), STORY_FETCH_TIMEOUT_MS) : null;
+
   try {
-    const response = await fetch(withBasePath("/photos/timeline-photos/manifest.json"), { cache: "no-store" });
-    if (!response.ok) return [];
+    const response = await fetch(manifestUrl, {
+      cache: "no-store",
+      ...(controller ? { signal: controller.signal } : {}),
+    });
+    if (!response.ok) {
+      const error = new Error(`Story manifest request failed with status ${response.status}`);
+      error.status = response.status;
+      throw error;
+    }
     const payload = await response.json();
 
     const rows = Array.isArray(payload)
@@ -6214,37 +6286,7 @@ async function loadStoryEntriesFromManifest() {
           ? payload.files
           : [];
 
-    const normalizeManifestStoryPath = (rawPath, fallbackFolder = "/photos/timeline-photos/") => {
-      const value = String(rawPath || "").trim();
-      if (!value) return "";
-
-      if (/^https?:\/\//i.test(value)) {
-        try {
-          const url = new URL(value);
-          const pathname = url.pathname || "";
-          if (pathname.startsWith("/our-story-normalized/") || pathname.startsWith("/our-story/")) {
-            const fileName = pathname.split("/").pop() || "";
-            return withBasePath(`/our-story/${fileName}`);
-          }
-          if (pathname.startsWith("/public/") || pathname.startsWith("/photos/")) {
-            return withBasePath(pathname);
-          }
-          return withBasePath(pathname || "");
-        } catch (_error) {
-          return "";
-        }
-      }
-
-      if (value.startsWith("/our-story-normalized/") || value.startsWith("/our-story/")) {
-        const fileName = value.split("/").pop() || "";
-        return withBasePath(`/our-story/${fileName}`);
-      }
-      if (value.startsWith("/public/") || value.startsWith("/photos/")) return withBasePath(value);
-      if (value.startsWith("/")) return withBasePath(value);
-      return withBasePath(`${fallbackFolder}${encodeURIComponent(value)}`);
-    };
-
-    return rows
+    const normalized = rows
       .map((entry) => normalizeStoryEntry(entry))
       .filter((entry) => entry.file)
       .map((entry) => ({
@@ -6254,8 +6296,57 @@ async function loadStoryEntriesFromManifest() {
           ? normalizeManifestStoryPath(entry.mosaicFile, "/images/story-crops/")
           : normalizeManifestStoryPath(entry.file),
       }));
-  } catch (_error) {
+
+    const durationMs = Math.round(
+      (typeof performance !== "undefined" && performance && typeof performance.now === "function" ? performance.now() : Date.now()) - startedAt,
+    );
+    console.info("[story] manifest loaded", {
+      url: manifestUrl,
+      status: response.status,
+      durationMs,
+      itemCount: normalized.length,
+    });
+
+    return normalized;
+  } catch (error) {
+    const durationMs = Math.round(
+      (typeof performance !== "undefined" && performance && typeof performance.now === "function" ? performance.now() : Date.now()) - startedAt,
+    );
+    const statusCode = Number(error?.status) || 0;
+    const timedOut = Boolean(error?.name === "AbortError");
+    const reason = timedOut
+      ? "timeout"
+      : statusCode === 401 || statusCode === 403
+        ? "permission"
+        : statusCode === 404
+          ? "not_found"
+          : statusCode === 429
+            ? "rate_limit"
+            : statusCode >= 500
+              ? "server"
+              : "network";
+    const panelMessage = timedOut ? STORY_TIMEOUT_MESSAGE : STORY_ERROR_MESSAGE;
+
+    storyFetchErrorState = {
+      state: timedOut ? "timeout" : "error",
+      reason,
+      statusCode,
+      url: manifestUrl,
+      durationMs,
+      panelMessage,
+    };
+
+    console.error("[story] manifest load failed", {
+      url: manifestUrl,
+      status: statusCode,
+      reason,
+      durationMs,
+      error: error?.message || String(error),
+    });
+
     return [];
+  } finally {
+    if (timeoutId) window.clearTimeout(timeoutId);
   }
 }
 
@@ -6405,7 +6496,7 @@ function buildStoryTimelineSlide(item, index) {
 
   const img = document.createElement("img");
   const imageSources = storyImageSources(item, false);
-  img.style.imageOrientation = "from-image";
+  img.style.imageOrientation = "none";
   img.style.objectPosition = item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
   img.style.objectFit = item.cropMode === "contain" || item.fit === "contain" ? "contain" : "cover";
   applyStoryImageRotation(img, item.rotation, "--storyScale", {
@@ -6665,7 +6756,7 @@ function applyStoryImagePresentation(img, item, mobileView, fallbackSrc, origina
   img.style.objectPosition = mobileView
     ? item.mobileObjectPosition || item.objectPosition || "50% 20%"
     : item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
-  img.style.imageOrientation = "from-image";
+  img.style.imageOrientation = "none";
   img.style.objectFit = "contain";
   img.style.transformOrigin = "50% 50%";
   applyStoryImageRotation(img, item.rotation, "--storyScale", {
@@ -7052,7 +7143,7 @@ function buildStoryMosaicCard(item, slot, index) {
   img.className = "story-mosaic-image";
   img.style.objectPosition = item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
   img.style.objectFit = item.cropMode === "contain" ? "contain" : "cover";
-  img.style.imageOrientation = "from-image";
+  img.style.imageOrientation = "none";
   applyStoryImageRotation(img, item.rotation, "--storyTileScale", {
     quarterTurn: 1.05,
     halfTurn: 1.01,
@@ -7152,17 +7243,25 @@ function getStoryMosaicSlot(item, index) {
 
 async function initStoryMosaicLayout() {
   if (!storyMosaicLayout) return;
-
+  storyMosaicLayout.innerHTML = "";
+  storyMosaicLayout.appendChild(buildStoryLoadStateCard(STORY_LOADING_MESSAGE, false));
   const entries = sortStoryEntries(await loadStoryEntriesFromManifest());
   storyItems = entries.map((entry) => buildStoryItem(entry));
   storyMosaicLayout.innerHTML = "";
   bindStoryLightboxEvents();
 
+  if (storyFetchErrorState) {
+    storyMosaicLayout.appendChild(buildStoryLoadStateCard(storyFetchErrorState.panelMessage || STORY_ERROR_MESSAGE, true));
+    storyPathTargets = [];
+    clearStoryChronologyPath();
+    renderStoryYearScrubber([], []);
+    bindStoryYearObserver([]);
+    syncStoryResponsiveMode();
+    return;
+  }
+
   if (!storyItems.length) {
-    const empty = document.createElement("div");
-    empty.className = "story-mosaic-empty";
-    empty.textContent = "Story photos coming soon.";
-    storyMosaicLayout.appendChild(empty);
+    storyMosaicLayout.appendChild(buildStoryPlaceholder());
     storyPathTargets = [];
     clearStoryChronologyPath();
     renderStoryYearScrubber([], []);
@@ -7230,7 +7329,7 @@ function updateStoryLightboxView() {
   const item = storyItems[currentStoryIndex];
   const imageSources = storyImageSources(item, false);
   attachStoryFallback(storyLightboxImg, imageSources.fallback, imageSources.original, { year: item.yearLabel });
-  storyLightboxImg.style.imageOrientation = "from-image";
+  storyLightboxImg.style.imageOrientation = "none";
   storyLightboxImg.style.objectPosition = item.objectPosition || "50% 50%";
   applyStoryImageRotation(storyLightboxImg, item.rotation, "--storyScale", {
     quarterTurn: 0.95,
@@ -7398,7 +7497,7 @@ function createStoryMosaicTile(item, index, totalCount) {
   const img = document.createElement("img");
   const imageSources = storyImageSources(item, true);
   img.style.objectPosition = item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
-  img.style.imageOrientation = "from-image";
+  img.style.imageOrientation = "none";
   applyStoryImageRotation(img, item.rotation, "--storyScale", {
     quarterTurn: 1.05,
     halfTurn: 1.01,
@@ -7454,6 +7553,36 @@ function buildStoryPlaceholder() {
   return tile;
 }
 
+function buildStoryLoadStateCard(message, canRetry = false) {
+  const tile = document.createElement("div");
+  tile.className = "story-mosaic-empty story-mosaic-empty--error";
+
+  const text = document.createElement("p");
+  text.className = "story-mosaic-empty__message";
+  text.textContent = String(message || STORY_ERROR_MESSAGE);
+  tile.appendChild(text);
+
+  if (canRetry) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "story-status-retry";
+    button.textContent = "Retry";
+    button.addEventListener("click", () => {
+      initStoryMosaicLayout();
+    });
+    tile.appendChild(button);
+  }
+
+  if (IS_LOCAL_DEV && storyFetchErrorState) {
+    const details = document.createElement("p");
+    details.className = "story-mosaic-empty__debug";
+    details.textContent = `[dev] ${storyFetchErrorState.reason} status=${storyFetchErrorState.statusCode || 0} durationMs=${storyFetchErrorState.durationMs || 0}`;
+    tile.appendChild(details);
+  }
+
+  return tile;
+}
+
 function getStoryFocusRect(stageRect) {
   const isMobile = window.innerWidth <= 760;
   const maxWidth = isMobile ? stageRect.width * 0.92 : Math.min(860, stageRect.width * 0.82);
@@ -7477,7 +7606,7 @@ function setStoryOverlayRect(rect) {
 function applyStoryOverlayImage(item) {
   if (!storyFocusImage || !item) return;
   const imageSources = storyImageSources(item, true);
-  storyFocusImage.style.imageOrientation = "from-image";
+  storyFocusImage.style.imageOrientation = "none";
   storyFocusImage.style.objectPosition = item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
   applyStoryImageRotation(storyFocusImage, item.rotation, "--storyScaleFactor", {
     quarterTurn: 1.05,
