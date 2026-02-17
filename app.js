@@ -3610,19 +3610,24 @@ function normalizeGuestWallEntry(entry) {
     .map((item, index) => {
       if (!item || typeof item !== "object") return null;
       const fileType = String(item.file_type || item.type || "").toLowerCase() === "video" ? "video" : "image";
-      const driveViewUrl = String(item.drive_view_url || item.url || "").trim();
-      const embedUrl = String(item.embed_url || "").trim();
-      const mediaUrl = embedUrl || driveViewUrl;
-      if (!mediaUrl) return null;
+      const fileId = String(item.file_id || item.fileId || "").trim();
+      const driveViewUrl = String(item.view_url || item.drive_view_url || item.url || "").trim();
+      const thumbnailUrl =
+        String(item.thumbnail_url || item.thumbnailUrl || "").trim() || (fileId ? `https://lh3.googleusercontent.com/d/${fileId}=w1600` : "");
+
+      if (fileType === "image" && !thumbnailUrl && !driveViewUrl) return null;
+      if (fileType === "video" && !driveViewUrl) return null;
 
       return {
         id: `${submissionId}:media:${index + 1}`,
-        file_id: String(item.file_id || item.fileId || "").trim(),
+        file_id: fileId,
         fileName: String(item.file_name || "").trim(),
         mimeType: String(item.mime_type || "").trim(),
         fileType,
-        url: mediaUrl,
+        url: thumbnailUrl || driveViewUrl,
+        thumbnailUrl,
         driveViewUrl,
+        viewUrl: driveViewUrl,
       };
     })
     .filter(Boolean);
@@ -3640,8 +3645,8 @@ function normalizeGuestWallEntry(entry) {
 function buildGuestWallImageCandidates(mediaItem) {
   if (!mediaItem || typeof mediaItem !== "object") return [];
   const fileId = String(mediaItem.file_id || mediaItem.fileId || "").trim();
-  const directUrl = String(mediaItem.url || "").trim();
-  const driveViewUrl = String(mediaItem.driveViewUrl || mediaItem.drive_view_url || "").trim();
+  const directUrl = String(mediaItem.thumbnailUrl || mediaItem.url || "").trim();
+  const driveThumbnailUrl = String(mediaItem.thumbnail_url || "").trim();
 
   const candidates = [];
   const addCandidate = (value) => {
@@ -3653,15 +3658,12 @@ function buildGuestWallImageCandidates(mediaItem) {
   };
 
   addCandidate(directUrl);
+  addCandidate(driveThumbnailUrl);
 
   if (fileId) {
     addCandidate(`https://lh3.googleusercontent.com/d/${fileId}=w1600`);
     addCandidate(`https://drive.google.com/thumbnail?id=${fileId}&sz=w1600`);
-    addCandidate(`https://drive.google.com/uc?export=view&id=${fileId}`);
-    addCandidate(`https://drive.google.com/uc?export=download&id=${fileId}`);
   }
-
-  addCandidate(driveViewUrl);
   return candidates;
 }
 
@@ -3779,16 +3781,20 @@ function buildGuestWallMediaNode(card, context = "board") {
   mediaWrap.className = context === "modal" ? "guestwall-modal-media" : "guestwall-polaroid-media";
 
   if (card.media.fileType === "video") {
-    const video = document.createElement("video");
-    video.src = card.media.url;
-    video.preload = "metadata";
-    video.muted = true;
-    video.playsInline = true;
-    if (context !== "board") video.controls = true;
-    mediaWrap.appendChild(video);
+    const fallback = document.createElement("div");
+    fallback.className = "guestwall-media-fallback guestwall-media-fallback--video";
+    fallback.innerHTML = "<p>Video upload</p>";
+
+    const openUrl = String(card.media.viewUrl || card.media.driveViewUrl || "").trim();
+    if (openUrl) {
+      const openLink = createExternalAnchor(openUrl, "Open video in Drive", "guestwall-media-retry");
+      fallback.appendChild(openLink);
+    }
+
+    mediaWrap.appendChild(fallback);
   } else {
     const img = document.createElement("img");
-    img.classList.add("hidden");
+    img.classList.add("guestwall-media-img", "is-loading");
     img.alt = `Uploaded by ${card.name}`;
     img.loading = "lazy";
     img.decoding = "async";
@@ -3806,7 +3812,8 @@ function buildGuestWallMediaNode(card, context = "board") {
 
     const loadCurrentCandidate = () => {
       if (candidateIndex >= imageCandidates.length) {
-        img.classList.add("hidden");
+        img.removeAttribute("src");
+        img.classList.add("is-loading");
         setHiddenClass(fallback, false);
         return;
       }
@@ -3814,7 +3821,7 @@ function buildGuestWallMediaNode(card, context = "board") {
     };
 
     img.addEventListener("load", () => {
-      img.classList.remove("hidden");
+      img.classList.remove("is-loading");
       setHiddenClass(fallback, true);
     });
 
@@ -3832,7 +3839,7 @@ function buildGuestWallMediaNode(card, context = "board") {
 
     retry.addEventListener("click", () => {
       candidateIndex = 0;
-      img.classList.remove("hidden");
+      img.classList.add("is-loading");
       setHiddenClass(fallback, true);
       loadCurrentCandidate();
     });
@@ -3850,11 +3857,6 @@ function buildGuestWallCard(card, context = "board") {
   if (card.kind === "media") {
     node.className = "guestwall-item guestwall-item--polaroid";
     node.appendChild(buildGuestWallMediaNode(card, context));
-
-    if (card.media.fileType === "video" && card.media.driveViewUrl) {
-      const link = createExternalAnchor(card.media.driveViewUrl, "Open video", "guestwall-polaroid-link");
-      node.appendChild(link);
-    }
 
     const caption = document.createElement("p");
     caption.className = "guestwall-polaroid-caption";

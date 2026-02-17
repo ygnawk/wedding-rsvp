@@ -5516,6 +5516,15 @@ a.makan-copy-icon-btn {
   display: block;
 }
 
+.guestwall-media-img {
+  opacity: 1;
+  transition: opacity 220ms ease;
+}
+
+.guestwall-media-img.is-loading {
+  opacity: 0;
+}
+
 .guestwall-polaroid-media video {
   background: rgba(21, 21, 21, 0.18);
 }
@@ -5535,6 +5544,10 @@ a.makan-copy-icon-btn {
   color: rgba(75, 15, 23, 0.86);
 }
 
+.guestwall-media-fallback--video {
+  min-height: 190px;
+}
+
 .guestwall-media-fallback p {
   margin: 0;
   font-size: 0.86rem;
@@ -5549,6 +5562,13 @@ a.makan-copy-icon-btn {
   padding: 0 12px;
   font-size: 0.8rem;
   letter-spacing: 0.03em;
+}
+
+a.guestwall-media-retry {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
 }
 
 .guestwall-media-retry:hover,

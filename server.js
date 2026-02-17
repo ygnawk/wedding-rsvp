@@ -441,6 +441,50 @@ function buildDriveEmbedUrl(fileId, driveViewUrl, fileType) {
   return driveViewUrl || "";
 }
 
+function buildDriveThumbnailUrl(fileId) {
+  if (!fileId) return "";
+  return `https://lh3.googleusercontent.com/d/${fileId}=w1600`;
+}
+
+function normalizeDriveThumbnailLink(url) {
+  const value = normalizeFieldValue(url);
+  if (!value) return "";
+  if (!/^https:\/\//i.test(value)) return "";
+  if (value.includes("=s")) {
+    return value.replace(/=s\d+/, "=w1600");
+  }
+  return value;
+}
+
+async function loadDriveMetadataByFileId(drive, fileIds) {
+  const uniqueIds = [...new Set((fileIds || []).map((id) => normalizeFieldValue(id)).filter(Boolean))];
+  if (!uniqueIds.length) return new Map();
+
+  const map = new Map();
+  await Promise.all(
+    uniqueIds.map(async (fileId) => {
+      try {
+        const response = await drive.files.get({
+          fileId,
+          supportsAllDrives: true,
+          fields: "id,mimeType,thumbnailLink,webViewLink",
+        });
+
+        map.set(fileId, {
+          mimeType: normalizeFieldValue(response.data && response.data.mimeType),
+          thumbnailLink: normalizeFieldValue(response.data && response.data.thumbnailLink),
+          webViewLink: normalizeFieldValue(response.data && response.data.webViewLink),
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error || "unknown");
+        console.warn(`[guestbook] drive metadata lookup failed file_id=${fileId} message=${message}`);
+      }
+    }),
+  );
+
+  return map;
+}
+
 async function makeDriveFilePublic(drive, fileId) {
   const shouldPublish = String(process.env.GOOGLE_DRIVE_PUBLIC_MEDIA || "true").toLowerCase() !== "false";
   if (!shouldPublish) return;
@@ -709,7 +753,7 @@ async function handleRsvpSubmission(req, res) {
   }
 }
 
-function buildGuestbookItems(rsvpRows, guestRows, mediaRows) {
+function buildGuestbookItems(rsvpRows, guestRows, mediaRows, driveMetadataByFileId = new Map()) {
   const primaryGuestBySubmissionId = new Map();
   guestRows.forEach((row) => {
     const submissionId = normalizeFieldValue(row.submission_id);
@@ -732,8 +776,11 @@ function buildGuestbookItems(rsvpRows, guestRows, mediaRows) {
     const fileId = normalizeFieldValue(row.file_id);
     const fileName = normalizeFieldValue(row.file_name);
     const mimeType = normalizeFieldValue(row.mime_type);
-    const fileType = normalizeFileType(row.file_type, mimeType);
-    const driveViewUrl = buildDriveViewUrl(fileId, normalizeFieldValue(row.drive_view_url));
+    const metadata = fileId ? driveMetadataByFileId.get(fileId) : null;
+    const fileType = normalizeFileType(row.file_type, metadata ? metadata.mimeType : mimeType);
+    const driveViewUrl = buildDriveViewUrl(fileId, normalizeFieldValue(row.drive_view_url) || (metadata ? metadata.webViewLink : ""));
+    const thumbnailUrl =
+      fileType === "image" ? normalizeDriveThumbnailLink(metadata ? metadata.thumbnailLink : "") || buildDriveThumbnailUrl(fileId) : "";
     if (!driveViewUrl && !fileId) return;
 
     const item = {
@@ -743,6 +790,8 @@ function buildGuestbookItems(rsvpRows, guestRows, mediaRows) {
       mime_type: mimeType,
       file_type: fileType,
       drive_view_url: driveViewUrl,
+      view_url: driveViewUrl,
+      thumbnail_url: thumbnailUrl,
       embed_url: buildDriveEmbedUrl(fileId, driveViewUrl, fileType),
       created_at: normalizeFieldValue(row.created_at),
     };
@@ -814,7 +863,7 @@ async function loadGuestbookItems({ forceRefresh = false } = {}) {
 
   const pending = (async () => {
     const spreadsheetId = getRequiredSpreadsheetId();
-    const { sheets } = createGoogleClients();
+    const { sheets, drive } = createGoogleClients();
 
     const [rsvpRows, guestRows, mediaRows] = await Promise.all([
       getSheetObjects(sheets, spreadsheetId, "rsvps"),
@@ -826,7 +875,11 @@ async function loadGuestbookItems({ forceRefresh = false } = {}) {
       `[guestbook] source rows rsvps=${rsvpRows.length} approved=${approvedRows} guests=${guestRows.length} media=${mediaRows.length}`,
     );
 
-    const items = buildGuestbookItems(rsvpRows, guestRows, mediaRows);
+    const driveMetadataByFileId = await loadDriveMetadataByFileId(
+      drive,
+      mediaRows.map((row) => row.file_id),
+    );
+    const items = buildGuestbookItems(rsvpRows, guestRows, mediaRows, driveMetadataByFileId);
     guestbookCache.items = items;
     guestbookCache.expiresAt = Date.now() + GUESTBOOK_CACHE_TTL_MS;
     if (!items.length) {
