@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="index,follow" />
+    <link rel="canonical" href="https://www.mikiandyijie.com/guest-wall" />
+    <meta property="og:url" content="https://www.mikiandyijie.com/guest-wall" />
+    <title>Guest Wall — Miki Yang & Yi Jie Kwang</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Allura&family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="icon" type="image/svg+xml" href="public/favicon.svg" />
+    <link rel="icon" type="image/png" href="public/favicon-32.png" />
+    <link rel="stylesheet" href="./styles.css?v=20260217-guestwall-route1" />
+  </head>
+  <body>
+    <header id="floatingHeader" class="floating-header" aria-label="Site navigation">
+      <div class="header-pill">
+        <a class="brand" href="/" aria-label="Back to home">
+          <img src="public/logo.svg" alt="M and Y monogram" width="92" height="44" decoding="async" />
+        </a>
+
+        <button id="menuToggle" class="menu-toggle" aria-expanded="false" aria-controls="mobileNavSheet" aria-label="Open menu">☰</button>
+
+        <nav class="desktop-nav" aria-label="Primary">
+          <a href="/#top" data-link="top">Home</a>
+          <a href="/#story" data-link="story">Our story</a>
+          <a href="/#venue" data-link="venue">Venue</a>
+          <a href="/#schedule" data-link="schedule">Schedule</a>
+          <div id="desktopNavMore" class="desktop-nav-more">
+            <button
+              id="desktopMoreToggle"
+              class="desktop-nav-more-toggle"
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="desktopMoreMenu"
+            >
+              More
+            </button>
+            <div id="desktopMoreMenu" class="desktop-nav-more-menu" role="menu" hidden>
+              <a href="/#faq" data-link="faq" role="menuitem">FAQ</a>
+              <a href="/#stay" data-link="stay" role="menuitem">Where to stay</a>
+              <a href="/#things-to-do" data-link="things-to-do" role="menuitem">Things to do</a>
+              <a href="/#makan" data-link="makan" role="menuitem">What to eat</a>
+              <a href="/#travel-visa" data-link="travel-visa" role="menuitem">Travel &amp; Visa</a>
+              <a href="/#gallery" data-link="gallery" role="menuitem">Recent moments</a>
+              <a href="/guest-wall" role="menuitem" aria-current="page">Guest Wall</a>
+            </div>
+          </div>
+        </nav>
+
+        <a class="header-rsvp" href="/#rsvp">RSVP</a>
+      </div>
+    </header>
+
+    <aside id="mobileNavSheet" class="mobile-sheet" aria-label="Mobile menu">
+      <nav class="mobile-nav">
+        <a href="/#top" data-link="top">Home</a>
+        <a href="/#story" data-link="story">Our story</a>
+        <a href="/#venue" data-link="venue">Venue</a>
+        <a href="/#schedule" data-link="schedule">Schedule</a>
+        <a href="/#rsvp" data-link="rsvp">RSVP</a>
+        <a href="/#faq" data-link="faq">FAQ</a>
+        <a href="/#stay" data-link="stay">Where to stay</a>
+        <a href="/#things-to-do" data-link="things-to-do">Things to do</a>
+        <a href="/#makan" data-link="makan">What to eat</a>
+        <a href="/#travel-visa" data-link="travel-visa">Travel &amp; Visa</a>
+        <a href="/#gallery" data-link="gallery">Recent moments</a>
+        <a href="/guest-wall" aria-current="page">Guest Wall</a>
+      </nav>
+    </aside>
+
+    <main class="min-h-dvh">
+      <section id="guest-wall" class="section section--light motif-host" data-title="Guest Wall">
+        <div class="content guestwall-content">
+          <div class="motif-layer motif-layer--section motif-layer--cream motif-layer--both" aria-hidden="true">
+            <img class="motif-layer__item motif-layer__item--topRight" src="public/motifs/peony-bud.svg" alt="" />
+            <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/bamboo-bud.svg" alt="" />
+          </div>
+          <h2 class="section-title section-title-reveal reveal settle">Guest Wall</h2>
+          <p class="guestwall-subtitle reveal">Photos and notes uploaded in the RSVP form will appear here (after a quick review).</p>
+          <div class="guestwall-controls reveal" aria-label="Guest wall controls">
+            <button id="guestWallShuffle" class="guestwall-control-btn" type="button">Shuffle</button>
+            <button id="guestWallPause" class="guestwall-control-btn" type="button" aria-pressed="false">Pause</button>
+            <button id="guestWallViewAll" class="guestwall-control-btn" type="button">View all</button>
+          </div>
+          <p id="guestWallStatus" class="guestwall-status reveal" aria-live="polite">Loading guest wall…</p>
+          <div id="guestWallPinboard" class="guestwall-pinboard reveal" aria-live="polite"></div>
+          <div id="guestWallMobile" class="guestwall-mobile hidden reveal" aria-live="polite"></div>
+        </div>
+      </section>
+    </main>
+
+    <div id="guestWallModal" class="guestwall-modal hidden" aria-hidden="true">
+      <div class="guestwall-modal-backdrop" data-guestwall-close></div>
+      <div class="guestwall-modal-panel" role="dialog" aria-modal="true" aria-labelledby="guestWallModalTitle">
+        <button id="guestWallModalClose" class="guestwall-modal-close" type="button" aria-label="Close guest wall" data-guestwall-close>×</button>
+        <h3 id="guestWallModalTitle">Guest Wall — all approved posts</h3>
+        <div id="guestWallModalList" class="guestwall-modal-list"></div>
+        <div class="guestwall-modal-footer">
+          <button id="guestWallModalLoadMore" class="guestwall-modal-more" type="button">Load more</button>
+        </div>
+      </div>
+    </div>
+
+    <footer class="site-footer">
+      <div class="site-footer-inner">
+        <p class="site-footer-main">
+          <span class="site-footer-main-label">Questions?</span>
+          <a class="site-footer-email" href="mailto:sub.kyj123@gmail.com">sub.kyj123@gmail.com</a>
+        </p>
+        <p class="site-footer-copy">© 2026 Miki &amp; Yi Jie</p>
+      </div>
+    </footer>
+
+    <script src="./app.js?v=20260217-guestwall-route1"></script>
+  </body>
+</html>

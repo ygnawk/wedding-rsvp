@@ -25,7 +25,7 @@ const GUEST_WALL_ROTATE_MIN_MS = 8000;
 const GUEST_WALL_ROTATE_MAX_MS = 12000;
 const GUEST_WALL_ROTATE_SWAP_COUNT = 3;
 const GUEST_WALL_MOBILE_AUTO_MS = 9000;
-const GUEST_WALL_INITIAL_FETCH_LIMIT = 120;
+const GUEST_WALL_INITIAL_FETCH_LIMIT = 20;
 const GUEST_WALL_MODAL_PAGE_SIZE = 24;
 const GUEST_WALL_LOADING_MESSAGE = "Loading guest wall…";
 const GUEST_WALL_EMPTY_MESSAGE = "Nothing approved yet—check back soon.";
@@ -264,6 +264,7 @@ const makanCollapseAll = document.getElementById("makanCollapseAll");
 const makanLegalTrigger = document.getElementById("makanLegalTrigger");
 const makanLegalPopover = document.getElementById("makanLegalPopover");
 const makanLegalClose = document.getElementById("makanLegalClose");
+const makanLegalWrapper = makanLegalTrigger ? makanLegalTrigger.closest(".makan-legal-row") : null;
 const hotelMatrixShell = document.getElementById("hotelMatrixShell");
 const hotelMapCard = document.querySelector(".hotel-map-card");
 const hotelMatrixChartCol = document.querySelector(".hotel-map-chart-col");
@@ -275,8 +276,11 @@ const hotelMatrixSheetContent = document.getElementById("hotelMatrixSheetContent
 const hotelMatrixSheetClose = document.getElementById("hotelMatrixSheetClose");
 const hotelMatrixSheetPanel = hotelMatrixSheet ? hotelMatrixSheet.querySelector(".hotel-map-sheet-panel") : null;
 const hotelMatrixSheetCloseControls = hotelMatrixSheet ? Array.from(hotelMatrixSheet.querySelectorAll("[data-sheet-close], #hotelMatrixSheetClose")) : [];
-const hotelMatrixRatingClaim = document.getElementById("hotelMatrixRatingClaim");
 const hotelMethodTrigger = document.getElementById("hotelMethodTrigger");
+const hotelMethodTriggerMobile = document.getElementById("hotelMethodTriggerMobile");
+const hotelMethodSheet = document.getElementById("hotelMethodSheet");
+const hotelMethodSheetPanel = hotelMethodSheet ? hotelMethodSheet.querySelector(".hotel-method-sheet-panel") : null;
+const hotelMethodSheetCloseControls = hotelMethodSheet ? Array.from(hotelMethodSheet.querySelectorAll("[data-method-sheet-close], #hotelMethodSheetClose")) : [];
 let hotelMethodTooltip = null;
 
 const galleryGrid = document.getElementById("galleryGrid");
@@ -446,6 +450,10 @@ let hotelMatrixHeight = 460;
 let hotelMethodOpen = false;
 let hotelMethodCloseTimer = null;
 let hotelMethodPinned = false;
+let hotelMethodSheetOpen = false;
+let hotelMethodSheetSwipeActive = false;
+let hotelMethodSheetStartY = 0;
+let hotelMethodSheetDeltaY = 0;
 let hotelTouchSelectionLockUntil = 0;
 let makanTipOpen = false;
 let makanLegalOpen = false;
@@ -546,8 +554,8 @@ const STORY_COPY = {
   },
   2016: {
     title: "2016 — Wesleyan",
-    blurb: "Plot twist: not for classes.",
-    longCaption: "We meet at Wesleyan in Connecticut. Academics were present. Romance was louder.",
+    blurb: "University ... plot twist: not for classes.",
+    longCaption: "We met at Wesleyan in Connecticut. Academics were present. Romance was louder.",
   },
   2020: {
     title: "2020 — NYC",
@@ -1250,90 +1258,6 @@ function initTravelVisaSection() {
   }
 }
 
-async function copyTextToClipboard(value) {
-  const text = String(value || "").trim();
-  if (!text) return false;
-
-  if (navigator.clipboard && window.isSecureContext) {
-    try {
-      await navigator.clipboard.writeText(text);
-      return true;
-    } catch (_error) {
-      // Fall back to the textarea approach below.
-    }
-  }
-
-  const helper = document.createElement("textarea");
-  helper.value = text;
-  helper.setAttribute("readonly", "true");
-  helper.style.position = "fixed";
-  helper.style.opacity = "0";
-  helper.style.pointerEvents = "none";
-  document.body.appendChild(helper);
-  helper.select();
-
-  let copied = false;
-  try {
-    copied = document.execCommand("copy");
-  } catch (_error) {
-    copied = false;
-  }
-
-  document.body.removeChild(helper);
-  return copied;
-}
-
-function createFoodCopyButton(copyValueInput, options = {}) {
-  const copyValue = String(copyValueInput || "").trim();
-  const label = String(options.label || "Copy name");
-  const copiedLabel = String(options.copiedLabel || "Copied!");
-  const failedLabel = String(options.failedLabel || "Copy failed");
-  const ariaLabel = String(options.ariaLabel || `Copy ${label.toLowerCase()}`);
-  const className = String(options.className || "makan-copy-btn");
-  const title = String(options.title || "Copy");
-  const iconOnly = Boolean(options.iconOnly);
-  const resetDelay = Number.isFinite(options.resetDelay) ? Math.max(300, Number(options.resetDelay)) : 600;
-  const iconMarkup =
-    '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><rect x="5" y="5" width="10" height="10" rx="2"></rect></svg>';
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = className;
-  button.setAttribute("aria-label", ariaLabel);
-  button.title = title;
-  if (iconOnly) {
-    button.innerHTML = iconMarkup;
-    button.dataset.defaultHtml = iconMarkup;
-  } else {
-    button.textContent = label;
-    button.dataset.defaultText = button.textContent;
-  }
-
-  button.addEventListener("click", async () => {
-    if (button.disabled) return;
-    button.disabled = true;
-    const copied = await copyTextToClipboard(copyValue);
-    if (iconOnly) {
-      showToast(copied ? copiedLabel : failedLabel);
-      button.classList.toggle("is-copied", copied);
-    } else {
-      button.textContent = copied ? copiedLabel : failedLabel;
-      button.classList.toggle("is-copied", copied);
-    }
-
-    window.setTimeout(() => {
-      if (iconOnly) {
-        button.innerHTML = button.dataset.defaultHtml || iconMarkup;
-      } else {
-        button.textContent = button.dataset.defaultText || label;
-      }
-      button.classList.remove("is-copied");
-      button.disabled = false;
-    }, resetDelay);
-  });
-
-  return button;
-}
-
 function dedupeMakanDescription(rawText) {
   const normalized = String(rawText || "").replace(/\r\n/g, "\n").trim();
   if (!normalized) return "";
@@ -1369,81 +1293,57 @@ function buildMakanRestaurantItem(place) {
   const meta = document.createElement("div");
   meta.className = "makan-item-main";
 
-  const createMetaRow = ({ label, value, copyValue, valueClass, rowClass }) => {
-    if (!value) return null;
-    const rowEl = document.createElement("div");
-    rowEl.className = `makan-meta-row ${rowClass || ""}`.trim();
-    rowEl.dataset.metaType = String(label || "").toLowerCase();
+  const header = document.createElement("div");
+  header.className = "makan-item-header";
 
-    const metaValue = document.createElement("span");
-    metaValue.className = `makan-meta-value ${valueClass || ""}`.trim();
-    metaValue.textContent = value;
-    rowEl.appendChild(metaValue);
+  const names = document.createElement("div");
+  names.className = "makan-name-stack";
 
-    if (copyValue) {
-      rowEl.appendChild(
-        createFoodCopyButton(copyValue, {
-          className: "makan-copy-icon-btn",
-          ariaLabel: `Copy ${label} for ${nameOnly}`,
-          copiedLabel: "Copied!",
-          failedLabel: "Copy failed",
-          resetDelay: 600,
-          iconOnly: true,
-          title: "Copy",
-        }),
-      );
-    }
-    return rowEl;
-  };
+  const nameEn = document.createElement("p");
+  nameEn.className = "makan-name-en";
+  nameEn.textContent = nameOnly;
+  names.appendChild(nameEn);
 
-  const canonicalName = [nameOnly, place.name_cn].filter(Boolean).join(" / ");
-  meta.appendChild(
-    createMetaRow({
-      label: "EN",
-      value: nameOnly,
-      copyValue: canonicalName,
-      valueClass: "makan-name-en",
-      rowClass: "makan-meta-name-row",
-    }),
-  );
-
-  if (place.name_cn) {
-    meta.appendChild(
-      createMetaRow({
-        label: "中文",
-        value: place.name_cn,
-        copyValue: place.name_cn,
-        valueClass: "makan-name-cn",
-      }),
-    );
-  }
-
-  if (place.address_cn) {
-    meta.appendChild(
-      createMetaRow({
-        label: "地址",
-        value: place.address_cn,
-        copyValue: place.address_cn,
-        valueClass: "makan-address-text",
-      }),
-    );
-  }
+  const nameZh = String(place.name_zh || place.name_cn || "").trim();
+  const nameCn = document.createElement("p");
+  nameCn.className = "makan-name-cn";
+  nameCn.textContent = nameZh || "中文名待补充";
+  names.appendChild(nameCn);
 
   const actions = document.createElement("div");
   actions.className = "makan-item-actions";
-  if (place.dianping_url) {
-    const link = createExternalAnchor(place.dianping_url, "Open in 大众点评", "makan-link");
-    actions.appendChild(link);
+  const dianpingLink = createExternalAnchor(place.dianping_url || "#", "Open in 大众点评", "makan-link");
+  if (!place.dianping_url) {
+    dianpingLink.setAttribute("aria-disabled", "true");
+    dianpingLink.classList.add("is-disabled");
+    dianpingLink.addEventListener("click", (event) => event.preventDefault());
+    dianpingLink.title = "Dianping link missing";
   }
-  meta.appendChild(actions);
+  actions.appendChild(dianpingLink);
+
+  const addressZh = String(place.address_zh || place.address_cn || "").trim();
+
+  header.appendChild(names);
+  header.appendChild(actions);
+
+  const addressRow = document.createElement("div");
+  addressRow.className = "makan-address-row";
+  const addressText = document.createElement("p");
+  addressText.className = "makan-address-text";
+  addressText.textContent = addressZh || "地址待补充";
+  addressRow.appendChild(addressText);
+
+  const description = document.createElement("p");
+  description.className = "makan-item-description";
+  description.textContent = blurbText;
+
+  meta.appendChild(header);
+  meta.appendChild(addressRow);
 
   const panel = document.createElement("div");
   panel.className = "makan-item-panel";
+  panel.appendChild(description);
 
-  const fullDescription = document.createElement("p");
-  fullDescription.className = "makan-item-description";
-  fullDescription.textContent = blurbText;
-  panel.appendChild(fullDescription);
   row.appendChild(meta);
   row.appendChild(panel);
   return row;
@@ -1549,18 +1449,27 @@ function renderMakanMenuRows() {
     makanTypeAccordions.push(accordion);
 
     accordion.addEventListener("toggle", () => {
-      if (!accordion.open || makanBulkToggle) {
-        updateMakanTypeControls();
-        return;
-      }
-      makanTypeAccordions.forEach((peer) => {
-        if (peer !== accordion && peer.open) peer.open = false;
-      });
+      if (makanBulkToggle) return;
       updateMakanTypeControls();
     });
   });
 
   updateMakanTypeControls();
+}
+
+function validateMakanPlacesData() {
+  const issues = [];
+  BEIJING_FOOD_PLACES.forEach((place) => {
+    const id = String(place.id || "").trim() || "(missing-id)";
+    if (!String(place.name_zh || place.name_cn || "").trim()) issues.push(`${id}: missing name_zh`);
+    if (!String(place.address_zh || place.address_cn || "").trim()) issues.push(`${id}: missing address_zh`);
+    if (!String(place.maps_url || "").trim()) issues.push(`${id}: missing maps_url`);
+  });
+  if (!issues.length) return;
+  console.error("[makan:data-validation]", issues);
+  if (IS_LOCAL_DEV) {
+    throw new Error(`Makan data validation failed:\\n${issues.join("\\n")}`);
+  }
 }
 
 function closeMakanTipPopover() {
@@ -1650,6 +1559,7 @@ function closeMakanLegalModal({ restoreFocus = true } = {}) {
   if (!makanLegalPopover || !makanLegalTrigger) return;
   setA11yHidden(makanLegalPopover, true);
   makanLegalPopover.classList.remove("open");
+  if (makanLegalWrapper) makanLegalWrapper.dataset.open = "false";
   setAriaExpanded(makanLegalTrigger, false);
   makanLegalOpen = false;
   if (restoreFocus) {
@@ -1661,6 +1571,7 @@ function openMakanLegalModal() {
   if (!makanLegalPopover || !makanLegalTrigger) return;
   setA11yHidden(makanLegalPopover, false);
   makanLegalPopover.classList.add("open");
+  if (makanLegalWrapper) makanLegalWrapper.dataset.open = "true";
   setAriaExpanded(makanLegalTrigger, true);
   makanLegalOpen = true;
   if (makanLegalClose instanceof HTMLElement) {
@@ -1672,6 +1583,7 @@ function initMakanLegalModal() {
   if (!makanLegalTrigger || !makanLegalPopover) return;
   if (makanLegalTrigger.dataset.boundLegal === "true") return;
 
+  if (makanLegalWrapper) makanLegalWrapper.dataset.open = "false";
   closeMakanLegalModal({ restoreFocus: false });
 
   makanLegalTrigger.addEventListener("click", (event) => {
@@ -1702,6 +1614,7 @@ function initMakanLegalModal() {
 }
 
 function initMakanSection() {
+  validateMakanPlacesData();
   renderMakanMenuRows();
   initMakanTypeControls();
   initMakanTipPopover();
@@ -1729,25 +1642,8 @@ function priceBucketFromNorm(normValue) {
   return "$$$$";
 }
 
-function buildHotelRatingClaim(items) {
-  if (!Array.isArray(items) || !items.length) return "";
-  const ratings = items.map((item) => Number(item.metrics && item.metrics.comfortRating)).filter((value) => Number.isFinite(value));
-  if (!ratings.length) return "";
-
-  const minRating = Math.min(...ratings);
-  const labels = [
-    ...new Set(
-      items
-        .map((item) => String((item.metrics && item.metrics.sourceLabel) || "").trim())
-        .filter(Boolean),
-    ),
-  ];
-  const source = labels.length === 1 ? labels[0] : labels.length ? labels.join(", ") : "listed sources";
-  return `All hotels shown are rated ≥ ${minRating.toFixed(1)} on ${source}.`;
-}
-
 function isHotelMatrixMobile() {
-  return window.matchMedia("(max-width: 860px)").matches || isCoarsePointer();
+  return window.matchMedia("(max-width: 640px)").matches;
 }
 
 function getHotelById(hotelId) {
@@ -1757,6 +1653,11 @@ function getHotelById(hotelId) {
 
 function getActiveHotelMatrixId() {
   return hotelMatrixPinnedId || "";
+}
+
+function setHotelMethodAriaExpanded(expanded) {
+  if (hotelMethodTrigger) setAriaExpanded(hotelMethodTrigger, expanded);
+  if (hotelMethodTriggerMobile) setAriaExpanded(hotelMethodTriggerMobile, expanded);
 }
 
 function ensureHotelMethodOverlay() {
@@ -1804,44 +1705,74 @@ function positionHotelMethodTooltip() {
 }
 
 function closeHotelMethodologyTooltip(resetPinned = true) {
-  if (!hotelMethodTooltip || !hotelMethodTrigger) return;
+  if (!hotelMethodTooltip) return;
   if (hotelMethodCloseTimer) {
     window.clearTimeout(hotelMethodCloseTimer);
     hotelMethodCloseTimer = null;
   }
   setA11yHidden(hotelMethodTooltip, true);
-  setAriaExpanded(hotelMethodTrigger, false);
   hotelMethodOpen = false;
   if (resetPinned) hotelMethodPinned = false;
+  if (!hotelMethodSheetOpen) setHotelMethodAriaExpanded(false);
 }
 
 function openHotelMethodologyTooltip({ pinned = false } = {}) {
-  if (!hotelMethodTrigger) return;
+  if (!hotelMethodTrigger || isHotelMatrixMobile()) return;
   ensureHotelMethodOverlay();
   if (!hotelMethodTooltip) return;
   hotelMethodPinned = pinned;
   setA11yHidden(hotelMethodTooltip, false);
-  setAriaExpanded(hotelMethodTrigger, true);
+  setHotelMethodAriaExpanded(true);
   hotelMethodOpen = true;
   positionHotelMethodTooltip();
 }
 
+function resetHotelMethodSheetPanelPosition() {
+  if (!hotelMethodSheetPanel) return;
+  hotelMethodSheetPanel.style.transition = "transform 220ms ease";
+  hotelMethodSheetPanel.style.transform = "translateY(0px)";
+}
+
+function closeHotelMethodSheet({ focusTrigger = false } = {}) {
+  if (!hotelMethodSheet) return;
+  hotelMethodSheet.hidden = true;
+  hotelMethodSheetOpen = false;
+  hotelMethodSheetSwipeActive = false;
+  hotelMethodSheetDeltaY = 0;
+  resetHotelMethodSheetPanelPosition();
+  if (!hotelMethodOpen) setHotelMethodAriaExpanded(false);
+  if (focusTrigger && hotelMethodTriggerMobile && isHotelMatrixMobile()) {
+    hotelMethodTriggerMobile.focus({ preventScroll: true });
+  }
+}
+
+function openHotelMethodSheet() {
+  if (!hotelMethodSheet || !isHotelMatrixMobile()) return;
+  closeHotelMethodologyTooltip();
+  hotelMethodSheet.hidden = false;
+  hotelMethodSheetOpen = true;
+  hotelMethodSheetSwipeActive = false;
+  hotelMethodSheetDeltaY = 0;
+  resetHotelMethodSheetPanelPosition();
+  setHotelMethodAriaExpanded(true);
+}
+
 function initHotelMethodology() {
-  if (!hotelMethodTrigger) return;
-  if (hotelMethodTrigger.dataset.bound === "true") return;
+  if (!hotelMethodTrigger && !hotelMethodTriggerMobile) return;
+  if ((hotelMethodTrigger && hotelMethodTrigger.dataset.bound === "true") || (hotelMethodTriggerMobile && hotelMethodTriggerMobile.dataset.bound === "true")) return;
   ensureHotelMethodOverlay();
   if (!hotelMethodTooltip) return;
 
   closeHotelMethodologyTooltip();
 
   const openIfDesktop = () => {
-    if (isCoarsePointer()) return;
+    if (isHotelMatrixMobile()) return;
     if (hotelMethodPinned) return;
     openHotelMethodologyTooltip({ pinned: false });
   };
 
   const closeIfDesktop = () => {
-    if (isCoarsePointer()) return;
+    if (isHotelMatrixMobile()) return;
     if (hotelMethodPinned) return;
     if (hotelMethodCloseTimer) window.clearTimeout(hotelMethodCloseTimer);
     hotelMethodCloseTimer = window.setTimeout(() => {
@@ -1850,34 +1781,85 @@ function initHotelMethodology() {
     }, 90);
   };
 
-  hotelMethodTrigger.addEventListener("pointerenter", openIfDesktop);
-  hotelMethodTrigger.addEventListener("pointerleave", (event) => {
-    const related = event.relatedTarget;
-    if (related instanceof Node && hotelMethodTooltip.contains(related)) return;
-    closeIfDesktop();
-  });
+  if (hotelMethodTrigger) {
+    hotelMethodTrigger.addEventListener("pointerenter", openIfDesktop);
+    hotelMethodTrigger.addEventListener("pointerleave", (event) => {
+      const related = event.relatedTarget;
+      if (related instanceof Node && hotelMethodTooltip.contains(related)) return;
+      closeIfDesktop();
+    });
+  }
   hotelMethodTooltip.addEventListener("pointerenter", openIfDesktop);
   hotelMethodTooltip.addEventListener("pointerleave", (event) => {
     const related = event.relatedTarget;
-    if (related instanceof Node && hotelMethodTrigger.contains(related)) return;
+    if (related instanceof Node && hotelMethodTrigger && hotelMethodTrigger.contains(related)) return;
     closeIfDesktop();
   });
-  hotelMethodTrigger.addEventListener("focus", openIfDesktop);
-  hotelMethodTrigger.addEventListener("blur", () => {
-    window.setTimeout(() => {
-      const active = document.activeElement;
-      if (active instanceof Node && (hotelMethodTrigger.contains(active) || hotelMethodTooltip.contains(active))) return;
-      closeHotelMethodologyTooltip();
-    }, 0);
+  if (hotelMethodTrigger) {
+    hotelMethodTrigger.addEventListener("focus", openIfDesktop);
+    hotelMethodTrigger.addEventListener("blur", () => {
+      window.setTimeout(() => {
+        const active = document.activeElement;
+        if (active instanceof Node && (hotelMethodTrigger.contains(active) || hotelMethodTooltip.contains(active))) return;
+        closeHotelMethodologyTooltip();
+      }, 0);
+    });
+
+    hotelMethodTrigger.addEventListener("click", (event) => {
+      event.preventDefault();
+      if (isHotelMatrixMobile()) {
+        if (hotelMethodSheetOpen) closeHotelMethodSheet();
+        else openHotelMethodSheet();
+        return;
+      }
+      if (hotelMethodOpen && hotelMethodPinned) closeHotelMethodologyTooltip();
+      else openHotelMethodologyTooltip({ pinned: true });
+    });
+  }
+
+  if (hotelMethodTriggerMobile) {
+    hotelMethodTriggerMobile.addEventListener("click", (event) => {
+      event.preventDefault();
+      if (hotelMethodSheetOpen) closeHotelMethodSheet({ focusTrigger: true });
+      else openHotelMethodSheet();
+    });
+  }
+
+  hotelMethodSheetCloseControls.forEach((control) => {
+    control.addEventListener("click", () => closeHotelMethodSheet({ focusTrigger: true }));
   });
 
-  hotelMethodTrigger.addEventListener("click", (event) => {
-    event.preventDefault();
-    if (hotelMethodOpen && hotelMethodPinned) closeHotelMethodologyTooltip();
-    else openHotelMethodologyTooltip({ pinned: true });
-  });
+  if (hotelMethodSheetPanel) {
+    hotelMethodSheetPanel.addEventListener("pointerdown", (event) => {
+      if (!isHotelMatrixMobile() || !hotelMethodSheetOpen) return;
+      hotelMethodSheetSwipeActive = true;
+      hotelMethodSheetStartY = event.clientY;
+      hotelMethodSheetDeltaY = 0;
+      hotelMethodSheetPanel.style.transition = "none";
+    });
+
+    hotelMethodSheetPanel.addEventListener("pointermove", (event) => {
+      if (!hotelMethodSheetSwipeActive || !hotelMethodSheetOpen) return;
+      hotelMethodSheetDeltaY = Math.max(0, event.clientY - hotelMethodSheetStartY);
+      hotelMethodSheetPanel.style.transform = `translateY(${Math.min(180, hotelMethodSheetDeltaY)}px)`;
+    });
+
+    const finishSheetSwipe = () => {
+      if (!hotelMethodSheetSwipeActive) return;
+      hotelMethodSheetSwipeActive = false;
+      if (hotelMethodSheetDeltaY > 90) {
+        closeHotelMethodSheet({ focusTrigger: false });
+        return;
+      }
+      resetHotelMethodSheetPanelPosition();
+    };
+    hotelMethodSheetPanel.addEventListener("pointerup", finishSheetSwipe);
+    hotelMethodSheetPanel.addEventListener("pointercancel", finishSheetSwipe);
+    hotelMethodSheetPanel.addEventListener("pointerleave", finishSheetSwipe);
+  }
 
   document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && hotelMethodSheetOpen) closeHotelMethodSheet();
     if (event.key === "Escape" && hotelMethodOpen) {
       closeHotelMethodologyTooltip();
     }
@@ -1889,13 +1871,14 @@ function initHotelMethodology() {
       if (!hotelMethodOpen) return;
       const target = event.target;
       if (!(target instanceof Element)) return;
-      if (hotelMethodTooltip.contains(target) || hotelMethodTrigger.contains(target)) return;
+      if (hotelMethodTooltip.contains(target) || (hotelMethodTrigger && hotelMethodTrigger.contains(target))) return;
       closeHotelMethodologyTooltip();
     },
     { passive: true },
   );
 
   window.addEventListener("resize", () => {
+    if (hotelMethodSheetOpen && !isHotelMatrixMobile()) closeHotelMethodSheet();
     if (hotelMethodOpen) positionHotelMethodTooltip();
   });
   window.addEventListener(
@@ -1906,7 +1889,8 @@ function initHotelMethodology() {
     { passive: true },
   );
 
-  hotelMethodTrigger.dataset.bound = "true";
+  if (hotelMethodTrigger) hotelMethodTrigger.dataset.bound = "true";
+  if (hotelMethodTriggerMobile) hotelMethodTriggerMobile.dataset.bound = "true";
 }
 
 function hideHotelDotTooltip() {
@@ -2093,9 +2077,9 @@ function getHotelMatrixDimensions() {
   }
 
   const width = Math.max(300, Math.round(innerWidth));
-  const compact = width < 560;
-  const aspect = compact ? 0.8 : 760 / 460;
-  const height = compact ? Math.max(390, Math.round(width / aspect)) : Math.max(280, Math.round(width / aspect));
+  const compact = window.matchMedia("(max-width: 640px)").matches || width < 560;
+  const aspect = compact ? 16 / 10 : 760 / 460;
+  const height = compact ? Math.max(300, Math.round(width / aspect)) : Math.max(280, Math.round(width / aspect));
   return { width, height };
 }
 
@@ -2105,14 +2089,14 @@ function renderHotelMatrix() {
   const width = hotelMatrixWidth;
   const height = hotelMatrixHeight;
   const hasSelection = Boolean(hotelMatrixPinnedId) && !isHotelMatrixMobile();
-  const isCompact = width < 560;
+  const isCompact = window.matchMedia("(max-width: 640px)").matches || width < 560;
   const margins = isCompact
-    ? { top: hasSelection ? 30 : 24, right: 18, bottom: hasSelection ? 104 : 92, left: hasSelection ? 90 : 72 }
+    ? { top: 20, right: 10, bottom: 68, left: hasSelection ? 74 : 66 }
     : { top: hasSelection ? 50 : 42, right: 56, bottom: hasSelection ? 116 : 104, left: hasSelection ? 146 : 122 };
   const plotWidth = Math.max(180, width - margins.left - margins.right);
   const plotHeight = Math.max(170, height - margins.top - margins.bottom);
-  const ringRadius = isCompact ? 9.6 : 12;
-  const dotRadius = isCompact ? 5.8 : 7.4;
+  const ringRadius = isCompact ? 8.2 : 12;
+  const dotRadius = isCompact ? 4.8 : 7.4;
 
   hotelMatrixSvg.setAttribute("viewBox", `0 0 ${width} ${height}`);
   hotelMatrixSvg.setAttribute("preserveAspectRatio", "xMidYMid meet");
@@ -2169,10 +2153,11 @@ function renderHotelMatrix() {
   const driveDomainMin = Math.max(0, minDrive - drivePadding);
   const driveDomainMax = maxDrive + drivePadding;
   const driveTicksRaw = [...new Set(driveTimes.map((value) => Math.round(value)))].sort((a, b) => a - b);
-  const driveTicks =
-    isCompact && driveTicksRaw.length > 4
-      ? driveTicksRaw.filter((_, index) => index % 2 === 0 || index === driveTicksRaw.length - 1)
-      : driveTicksRaw;
+  let driveTicks = driveTicksRaw;
+  if (isCompact && driveTicksRaw.length > 3) {
+    const midIndex = Math.floor((driveTicksRaw.length - 1) / 2);
+    driveTicks = [...new Set([driveTicksRaw[0], driveTicksRaw[midIndex], driveTicksRaw[driveTicksRaw.length - 1]])];
+  }
 
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
   const mapPrice = (price) => {
@@ -2254,7 +2239,7 @@ function renderHotelMatrix() {
     const node = createSvgNode("text", {
       class: isCompact ? "hotel-map-tick hotel-map-tick--compact" : "hotel-map-tick",
       x,
-      y: margins.top + plotHeight + (isCompact ? 24 : 31),
+      y: margins.top + plotHeight + (isCompact ? 22 : 31),
       "text-anchor": "middle",
       "dominant-baseline": "hanging",
     });
@@ -2276,7 +2261,7 @@ function renderHotelMatrix() {
 
     const node = createSvgNode("text", {
       class: isCompact ? "hotel-map-tick hotel-map-tick--compact" : "hotel-map-tick",
-      x: margins.left - (isCompact ? 18 : 26),
+      x: margins.left - (isCompact ? 14 : 26),
       y,
       "text-anchor": "end",
       "dominant-baseline": "middle",
@@ -2290,13 +2275,13 @@ function renderHotelMatrix() {
   const xAxisLabel = createSvgNode("text", {
     class: axisLabelClass,
     x: margins.left + plotWidth / 2,
-    y: height - 12,
+    y: height - (isCompact ? 12 : 12),
     "text-anchor": "middle",
   });
-  xAxisLabel.textContent = "Price ($ to $$$$)";
+  xAxisLabel.textContent = isCompact ? "Price" : "Price ($ to $$$$)";
   hotelMatrixSvg.appendChild(xAxisLabel);
 
-  const yAxisLabelX = isCompact ? (hasSelection ? 30 : 22) : hasSelection ? 38 : 28;
+  const yAxisLabelX = isCompact ? (hasSelection ? 30 : 24) : hasSelection ? 38 : 28;
   const yAxisLabel = createSvgNode("text", {
     class: axisLabelClass,
     x: yAxisLabelX,
@@ -2304,7 +2289,7 @@ function renderHotelMatrix() {
     "text-anchor": "middle",
     transform: `rotate(-90 ${yAxisLabelX} ${margins.top + plotHeight / 2})`,
   });
-  yAxisLabel.textContent = isCompact || hasSelection ? "Drive time to venue (mins)" : "Drive time to wedding venue (mins)";
+  yAxisLabel.textContent = isCompact ? "Drive time to venue (min)" : hasSelection ? "Drive time to venue (mins)" : "Drive time to wedding venue (mins)";
   hotelMatrixSvg.appendChild(yAxisLabel);
 
   const layer = createSvgNode("g", { class: "hotel-map-points", "clip-path": "url(#hotelMatrixPlotClip)" });
@@ -2342,6 +2327,7 @@ function renderHotelMatrix() {
       const isSameSelection = hotelMatrixPinnedId === item.id;
       hotelMatrixPinnedId = isSameSelection ? "" : item.id;
       applyHotelMatrixSelection();
+      if (hotelMethodSheetOpen) closeHotelMethodSheet();
 
       if (isHotelMatrixMobile()) {
         if (hotelMatrixPinnedId) openHotelMatrixSheet(item);
@@ -2415,10 +2401,6 @@ function initHotelMatrix() {
 
   hotelMatrixItems = HOTELS_DATA.slice(0, 6);
   if (!hotelMatrixItems.length) return;
-
-  if (hotelMatrixRatingClaim) {
-    hotelMatrixRatingClaim.textContent = buildHotelRatingClaim(hotelMatrixItems);
-  }
 
   if (hotelMatrixTooltip) hideHotelDotTooltip();
   if (hotelMapCard) hotelMapCard.classList.remove("has-selection");
@@ -3410,12 +3392,69 @@ function confirmationMessage(choice) {
 function hideRsvpConfirmation() {
   if (!rsvpConfirmation) return;
   setHiddenClass(rsvpConfirmation, true);
-  rsvpConfirmation.textContent = "";
+  rsvpConfirmation.innerHTML = "";
 }
 
-function showRsvpConfirmation(message) {
+function showRsvpConfirmation(message, options = {}) {
   if (!rsvpConfirmation) return;
-  rsvpConfirmation.textContent = message;
+  const includeGuestWallLink = options.includeGuestWallLink === true;
+  const variant = String(options.variant || "").toLowerCase();
+  rsvpConfirmation.innerHTML = "";
+
+  if (variant === "success") {
+    const title = document.createElement("h3");
+    title.className = "confirmation-title";
+    title.textContent = "RSVP received — thank you!";
+    rsvpConfirmation.appendChild(title);
+
+    const subtitle = document.createElement("p");
+    subtitle.className = "confirmation-subtitle";
+    subtitle.textContent = "Uploads show up on the Guest Wall after a quick review.";
+    rsvpConfirmation.appendChild(subtitle);
+
+    if (message) {
+      const note = document.createElement("p");
+      note.className = "confirmation-copy";
+      note.textContent = String(message);
+      rsvpConfirmation.appendChild(note);
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "confirmation-actions";
+
+    const guestWallLink = document.createElement("a");
+    guestWallLink.className = "btn btn-maroon confirmation-guestwall-link";
+    guestWallLink.href = "/guest-wall";
+    guestWallLink.textContent = "View Guest Wall";
+    actions.appendChild(guestWallLink);
+
+    const backToSite = document.createElement("a");
+    backToSite.className = "btn btn-outline confirmation-back-link";
+    backToSite.href = withBasePath("/");
+    backToSite.textContent = "Back to site";
+    actions.appendChild(backToSite);
+
+    rsvpConfirmation.appendChild(actions);
+  } else {
+    const copy = document.createElement("p");
+    copy.className = "confirmation-copy";
+    copy.textContent = String(message || "");
+    rsvpConfirmation.appendChild(copy);
+
+    if (includeGuestWallLink) {
+      const actions = document.createElement("div");
+      actions.className = "confirmation-actions";
+
+      const guestWallLink = document.createElement("a");
+      guestWallLink.className = "btn btn-maroon confirmation-guestwall-link";
+      guestWallLink.href = "/guest-wall";
+      guestWallLink.textContent = "View Guest Wall";
+      actions.appendChild(guestWallLink);
+
+      rsvpConfirmation.appendChild(actions);
+    }
+  }
+
   setHiddenClass(rsvpConfirmation, false);
 }
 
@@ -3463,9 +3502,12 @@ function initRsvpForm() {
       submissionSucceeded = true;
       setRsvpSubmittedState();
 
-      rsvpForm.classList.add("hidden");
       const baseMessage = confirmationMessage(attendanceChoice.value);
-      showRsvpConfirmation(result.warning ? `${baseMessage} ${result.warning}` : baseMessage);
+      showRsvpConfirmation(result.warning ? `${baseMessage} ${result.warning}` : "", {
+        includeGuestWallLink: true,
+        variant: "success",
+      });
+      if (rsvpFields) setHiddenClass(rsvpFields, true);
     } finally {
       if (!submissionSucceeded) {
         setRsvpSubmittingState(false);
@@ -3575,6 +3617,7 @@ function normalizeGuestWallEntry(entry) {
 
       return {
         id: `${submissionId}:media:${index + 1}`,
+        file_id: String(item.file_id || item.fileId || "").trim(),
         fileName: String(item.file_name || "").trim(),
         mimeType: String(item.mime_type || "").trim(),
         fileType,
@@ -3592,6 +3635,34 @@ function normalizeGuestWallEntry(entry) {
     submittedAt: String(entry.submitted_at || entry.submittedAt || "").trim(),
     media,
   };
+}
+
+function buildGuestWallImageCandidates(mediaItem) {
+  if (!mediaItem || typeof mediaItem !== "object") return [];
+  const fileId = String(mediaItem.file_id || mediaItem.fileId || "").trim();
+  const directUrl = String(mediaItem.url || "").trim();
+  const driveViewUrl = String(mediaItem.driveViewUrl || mediaItem.drive_view_url || "").trim();
+
+  const candidates = [];
+  const addCandidate = (value) => {
+    const url = String(value || "").trim();
+    if (!url) return;
+    if (!/^https:\/\//i.test(url)) return;
+    if (candidates.includes(url)) return;
+    candidates.push(url);
+  };
+
+  addCandidate(directUrl);
+
+  if (fileId) {
+    addCandidate(`https://lh3.googleusercontent.com/d/${fileId}=w1600`);
+    addCandidate(`https://drive.google.com/thumbnail?id=${fileId}&sz=w1600`);
+    addCandidate(`https://drive.google.com/uc?export=view&id=${fileId}`);
+    addCandidate(`https://drive.google.com/uc?export=download&id=${fileId}`);
+  }
+
+  addCandidate(driveViewUrl);
+  return candidates;
 }
 
 function clearGuestWallBoards() {
@@ -3659,6 +3730,7 @@ function buildGuestWallCards(entries) {
       cards.push({
         id: `${entry.submissionId}:media:${mediaIndex + 1}`,
         kind: "media",
+        submissionId: entry.submissionId,
         name: entry.name,
         submittedAt: entry.submittedAt,
         message: entry.message,
@@ -3670,6 +3742,7 @@ function buildGuestWallCards(entries) {
       cards.push({
         id: `${entry.submissionId}:note`,
         kind: "note",
+        submissionId: entry.submissionId,
         name: entry.name,
         submittedAt: entry.submittedAt,
         text: entry.message,
@@ -3678,6 +3751,7 @@ function buildGuestWallCards(entries) {
       cards.push({
         id: `${entry.submissionId}:fun-facts`,
         kind: "note",
+        submissionId: entry.submissionId,
         name: entry.name,
         submittedAt: entry.submittedAt,
         text: `Fun fact: ${entry.primaryFunFacts}`,
@@ -3714,19 +3788,58 @@ function buildGuestWallMediaNode(card, context = "board") {
     mediaWrap.appendChild(video);
   } else {
     const img = document.createElement("img");
-    img.src = card.media.url;
+    img.classList.add("hidden");
     img.alt = `Uploaded by ${card.name}`;
     img.loading = "lazy";
     img.decoding = "async";
-    img.addEventListener(
-      "error",
-      () => {
-        if (!card.media.driveViewUrl || img.src === card.media.driveViewUrl) return;
-        img.src = card.media.driveViewUrl;
-      },
-      { once: true },
-    );
+    const fallback = document.createElement("div");
+    fallback.className = "guestwall-media-fallback hidden";
+    fallback.innerHTML = `<p>Image failed to load</p>`;
+    const retry = document.createElement("button");
+    retry.type = "button";
+    retry.className = "guestwall-media-retry";
+    retry.textContent = "Tap to retry";
+    fallback.appendChild(retry);
+
+    const imageCandidates = buildGuestWallImageCandidates(card.media);
+    let candidateIndex = 0;
+
+    const loadCurrentCandidate = () => {
+      if (candidateIndex >= imageCandidates.length) {
+        img.classList.add("hidden");
+        setHiddenClass(fallback, false);
+        return;
+      }
+      img.src = imageCandidates[candidateIndex];
+    };
+
+    img.addEventListener("load", () => {
+      img.classList.remove("hidden");
+      setHiddenClass(fallback, true);
+    });
+
+    img.addEventListener("error", () => {
+      const currentSrc = imageCandidates[candidateIndex] || img.currentSrc || img.src;
+      console.error("[guestwall:image-load-failed]", {
+        submissionId: card.submissionId || "unknown",
+        cardId: card.id || "unknown",
+        src: currentSrc || "",
+        candidateIndex,
+      });
+      candidateIndex += 1;
+      loadCurrentCandidate();
+    });
+
+    retry.addEventListener("click", () => {
+      candidateIndex = 0;
+      img.classList.remove("hidden");
+      setHiddenClass(fallback, true);
+      loadCurrentCandidate();
+    });
+
+    loadCurrentCandidate();
     mediaWrap.appendChild(img);
+    mediaWrap.appendChild(fallback);
   }
 
   return mediaWrap;
@@ -5326,10 +5439,10 @@ function setStoryMobileSlide(index, options = {}) {
   const imageSrc = imageSources.original || imageSources.preferred;
 
   storyMobileImg.style.objectPosition = mobileView
-    ? item.mobileObjectPosition || item.objectPosition || "50% 50%"
+    ? item.mobileObjectPosition || item.objectPosition || "50% 20%"
     : item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
   storyMobileImg.style.imageOrientation = "from-image";
-  storyMobileImg.style.objectFit = "cover";
+  storyMobileImg.style.objectFit = mobileView ? "contain" : "cover";
   storyMobileImg.style.transformOrigin = "50% 50%";
   applyStoryImageRotation(storyMobileImg, item.rotation, "--storyScale", {
     quarterTurn: 1.05,
@@ -5340,8 +5453,8 @@ function setStoryMobileSlide(index, options = {}) {
   storyMobileImg.alt = item.alt || `Story photo ${item.yearLabel}`;
   storyMobileImg.src = imageSrc;
   if (storyMobileCard) {
-    storyMobileCard.classList.remove("is-contain");
-    storyMobileCard.style.setProperty("--storyMobileBgImage", "none");
+    storyMobileCard.classList.toggle("is-contain", mobileView);
+    storyMobileCard.style.setProperty("--storyMobileBgImage", imageSrc ? `url("${imageSrc}")` : "none");
   }
 
   storyMobileYear.textContent = item.yearLabel;

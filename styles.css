@@ -1035,11 +1035,11 @@ a:focus-visible,
 .story-mobile-card {
   position: relative;
   width: 100%;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 4 / 5;
   margin: 0;
   padding: 0;
   border: 1px solid rgba(201, 174, 116, 0.24);
-  border-radius: 12px;
+  border-radius: 18px;
   overflow: hidden;
   background: rgba(75, 15, 23, 0.08);
   isolation: isolate;
@@ -1055,6 +1055,8 @@ a:focus-visible,
   filter: var(--photoGradeFilter);
   transform: rotate(var(--storyRotate, 0deg)) scale(var(--storyScale, 1));
   transform-origin: center center;
+  position: relative;
+  z-index: 2;
 }
 
 .story-mobile-card.is-contain img {
@@ -1069,9 +1071,9 @@ a:focus-visible,
   background-image: var(--storyMobileBgImage, none);
   background-size: cover;
   background-position: center;
-  filter: blur(14px) saturate(0.9);
-  transform: scale(1.08);
-  opacity: 0.85;
+  filter: blur(18px) saturate(0.9);
+  transform: scale(1.1);
+  opacity: 0.35;
 }
 
 .story-mobile-card::after {
@@ -2136,7 +2138,7 @@ a:focus-visible,
   .story-mobile-card {
     width: 100%;
     max-width: 100%;
-    aspect-ratio: 4 / 3;
+    aspect-ratio: 4 / 5;
     max-height: min(56svh, 460px);
     background: linear-gradient(180deg, rgba(247, 241, 230, 0.98) 0%, rgba(236, 226, 210, 0.92) 100%);
   }
@@ -2144,8 +2146,8 @@ a:focus-visible,
   .story-mobile-card img {
     width: 100%;
     height: 100%;
-    object-fit: cover !important;
-    object-position: center !important;
+    object-fit: contain !important;
+    object-position: center top !important;
     background: transparent;
   }
 
@@ -3120,6 +3122,45 @@ a:focus-visible,
   padding: 12px 14px;
 }
 
+.confirmation-title {
+  margin: 0;
+  font-family: var(--displayFont);
+  font-size: 1.3rem;
+  line-height: 1.2;
+  color: var(--maroonDeep);
+}
+
+.confirmation-subtitle {
+  margin: 6px 0 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: rgba(21, 21, 21, 0.9);
+}
+
+.confirmation-copy {
+  margin: 8px 0 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: rgba(21, 21, 21, 0.82);
+}
+
+.confirmation-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.confirmation-guestwall-link {
+  min-height: 40px;
+  padding: 0 14px;
+}
+
+.confirmation-back-link {
+  min-height: 40px;
+  padding: 0 14px;
+}
+
 /* FAQ */
 .faq-groups {
   display: grid;
@@ -3536,8 +3577,43 @@ details[open] .faq-answer {
   color: rgba(21, 21, 21, 0.84);
 }
 
+.hotel-map-rating-claim-mobile,
 .hotel-map-helper-mobile {
   display: none;
+}
+
+.hotel-map-helper-actions {
+  display: none;
+}
+
+.hotel-method-trigger-desktop {
+  display: inline-flex;
+}
+
+.hotel-method-trigger-mobile {
+  display: none;
+}
+
+.hotel-method-inline-link {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: rgba(75, 15, 23, 0.9);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.hotel-method-inline-link:hover,
+.hotel-method-inline-link:focus-visible {
+  color: rgba(75, 15, 23, 1);
 }
 
 .hotel-map-legend {
@@ -3578,6 +3654,14 @@ details[open] .faq-answer {
   font-size: 0.82rem;
   line-height: 1.3;
   letter-spacing: 0.01em;
+}
+
+.hotel-map-bestvalue-accordion {
+  display: none;
+}
+
+.hotel-map-axis-caption {
+  display: none;
 }
 
 .hotel-map-shell {
@@ -3908,6 +3992,92 @@ details[open] .faq-answer {
   -webkit-overflow-scrolling: touch;
 }
 
+.hotel-method-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 172;
+  display: flex;
+  align-items: flex-end;
+  justify-content: stretch;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.hotel-method-sheet:not([hidden]) {
+  pointer-events: auto;
+}
+
+.hotel-method-sheet[hidden] {
+  display: none !important;
+}
+
+.hotel-method-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: transparent;
+}
+
+.hotel-method-sheet-panel {
+  position: relative;
+  width: 100%;
+  background: rgba(255, 251, 243, 0.99);
+  border-radius: 22px 22px 0 0;
+  border: 1px solid rgba(201, 174, 116, 0.32);
+  border-bottom: 0;
+  padding: max(14px, calc(env(safe-area-inset-top) + 6px)) 16px calc(16px + env(safe-area-inset-bottom));
+  max-height: min(72dvh, 540px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  transform: translateY(0);
+  transition: transform 220ms ease;
+  will-change: transform;
+}
+
+.hotel-method-sheet-grabber {
+  width: 42px;
+  height: 5px;
+  border-radius: 999px;
+  margin: 0 auto 10px;
+  background: rgba(75, 15, 23, 0.18);
+}
+
+.hotel-method-sheet-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 1px solid rgba(201, 174, 116, 0.44);
+  background: rgba(75, 15, 23, 0.08);
+  color: var(--maroon);
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.hotel-method-sheet-title {
+  margin: 0 42px 10px 0;
+  font-family: var(--displayFont);
+  font-size: 1.3rem;
+  color: var(--maroonDeep);
+}
+
+.hotel-method-sheet-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: rgba(21, 21, 21, 0.92);
+}
+
+.hotel-method-sheet-list li {
+  margin: 0;
+}
+
 .hotel-map-dot-tooltip {
   position: fixed;
   z-index: 180;
@@ -4070,48 +4240,131 @@ details[open] .faq-answer {
 }
 
 @media (max-width: 860px) {
-  .hotel-map-helper-desktop {
-    display: none;
-  }
-
-  .hotel-map-helper-mobile {
-    display: inline;
-  }
-
   .hotel-map-details {
     display: none;
   }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 640px) {
   .hotel-map-card,
   .stayInner {
-    padding: 14px;
+    padding: 12px;
     border-radius: 18px;
-    gap: 16px;
-  }
-
-  .hotel-map-svg {
-    aspect-ratio: 4 / 5;
+    gap: 12px;
+    box-shadow: 0 12px 24px rgba(12, 7, 9, 0.14);
   }
 
   .hotel-map-title-row {
     display: flex;
+    align-items: flex-start;
+    gap: 6px;
   }
 
   .hotel-map-heading {
-    font-size: 1.15rem;
+    font-size: 1.04rem;
+    line-height: 1.28;
   }
 
-  .stay-method-trigger {
-    width: 28px;
-    height: 28px;
-    font-size: 0.84rem;
+  .hotel-method-trigger-desktop,
+  .hotel-map-legend-desktop {
+    display: none;
   }
 
   .hotel-map-helper {
-    font-size: 0.82rem;
+    margin: 6px 0 4px;
+    font-size: 0.83rem;
+    line-height: 1.45;
     letter-spacing: 0.01em;
+  }
+
+  .hotel-map-helper-desktop,
+  .hotel-map-rating-claim-desktop {
+    display: none;
+  }
+
+  .hotel-map-helper-mobile,
+  .hotel-map-rating-claim-mobile {
+    display: inline;
+  }
+
+  .hotel-map-helper-actions {
+    display: flex;
+    justify-content: flex-start;
+    margin: 0 0 8px;
+  }
+
+  .hotel-method-inline-link {
+    display: none;
+  }
+
+  .hotel-method-trigger-mobile {
+    display: inline-flex;
+  }
+
+  .hotel-map-bestvalue-accordion {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 8px;
+    min-height: 40px;
+    padding: 8px 10px;
+    border: 1px solid rgba(201, 174, 116, 0.3);
+    border-radius: 999px;
+    background: rgba(247, 241, 230, 0.92);
+  }
+
+  .hotel-map-bestvalue-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    flex: 0 0 auto;
+  }
+
+  .hotel-map-bestvalue-title {
+    font-size: 0.8rem;
+    line-height: 1;
+    letter-spacing: 0.03em;
+    color: rgba(75, 15, 23, 0.96);
+    font-weight: 600;
+  }
+
+  .hotel-map-bestvalue-preview {
+    min-width: 0;
+    flex: 1 1 auto;
+    font-size: 0.8rem;
+    line-height: 1.25;
+    color: rgba(75, 15, 23, 0.86);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .hotel-map-shell {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 2px 0 0;
+  }
+
+  .hotel-map-svg {
+    aspect-ratio: 16 / 10;
+  }
+
+  .hotel-map-axis-caption {
+    display: none;
+  }
+
+  .hotel-method-sheet-panel {
+    max-height: min(76dvh, 560px);
+  }
+
+  .hotel-method-sheet-title {
+    font-size: 1.18rem;
+  }
+
+  .hotel-method-sheet-list {
+    font-size: 0.84rem;
   }
 
   .hotel-map-sheet-content .hotel-map-detail-stats {
@@ -4495,29 +4748,45 @@ details[open] .faq-answer {
   border-radius: 16px;
   border: 1px solid rgba(201, 174, 116, 0.24);
   background: #4b0f17;
-  padding: 16px 18px;
+  padding: 16px;
   display: grid;
-  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
-  grid-template-areas: "meta desc";
-  column-gap: 14px;
-  row-gap: 4px;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  column-gap: 12px;
+  row-gap: 6px;
   align-items: start;
 }
 
-.makan-item-main {
-  grid-area: meta;
+.makan-item-main,
+.makan-item-panel {
   min-width: 0;
-  display: grid;
-  gap: 6px;
-  align-content: start;
 }
 
-.makan-meta-row {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 7px;
-  max-width: 100%;
+.makan-item-main {
+  display: grid;
+  gap: 6px;
+}
+
+.makan-item-header {
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 10px;
+}
+
+.makan-name-stack {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.makan-address-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 8px;
+  row-gap: 0;
 }
 
 .makan-meta-value {
@@ -4540,19 +4809,16 @@ details[open] .faq-answer {
   color: rgba(247, 241, 230, 0.74);
 }
 
-.makan-item-panel {
-  grid-area: desc;
-  display: grid;
-  gap: 8px;
-  align-content: start;
-  min-width: 0;
-}
-
 .makan-item-description {
   margin: 0;
   color: rgba(247, 241, 230, 0.88);
   font-size: 0.94rem;
   line-height: 1.57;
+}
+
+.makan-item-panel {
+  display: grid;
+  align-content: start;
 }
 
 .makan-address-text {
@@ -4563,11 +4829,18 @@ details[open] .faq-answer {
 }
 
 .makan-item-actions {
-  margin-top: 10px;
   display: flex;
-  gap: 8px;
-  flex-wrap: nowrap;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: flex-end;
+  flex-direction: column;
+}
+
+.makan-item-utilities {
+  display: inline-flex;
   align-items: center;
+  gap: 6px;
 }
 
 /* Guard against any stale renderer output that appends actions as a third card column. */
@@ -4585,9 +4858,10 @@ details[open] .faq-answer {
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  border: 1px solid rgba(201, 174, 116, 0.52);
+  border: 1px solid rgba(201, 174, 116, 0.68);
   padding: 4px 9px;
   font-size: 0.74rem;
+  font-weight: 600;
   letter-spacing: 0.04em;
   line-height: 1;
   white-space: nowrap;
@@ -4595,33 +4869,30 @@ details[open] .faq-answer {
 
 .makan-link {
   text-decoration: none;
-  background: rgba(201, 174, 116, 0.12);
+  background: rgba(201, 174, 116, 0.26);
   color: rgba(247, 241, 230, 0.96);
 }
 
 .makan-link:hover,
-.makan-link:focus-visible,
-.makan-copy-icon-btn:hover,
-.makan-copy-icon-btn:focus-visible {
+.makan-link:focus-visible {
   border-color: rgba(201, 174, 116, 0.8);
-  background: rgba(201, 174, 116, 0.22);
+  background: rgba(201, 174, 116, 0.34);
 }
 
-.makan-link:focus-visible,
-.makan-copy-icon-btn:focus-visible {
+.makan-link:focus-visible {
   outline: 2px solid rgba(201, 174, 116, 0.7);
   outline-offset: 2px;
 }
 
 .makan-copy-icon-btn {
   appearance: none;
-  width: 34px;
-  height: 34px;
-  min-width: 34px;
-  border-radius: 10px;
-  border: 1px solid rgba(201, 174, 116, 0.22);
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(201, 174, 116, 0.12);
   background: transparent;
-  color: rgba(247, 241, 230, 0.86);
+  color: rgba(247, 241, 230, 0.64);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -4633,9 +4904,20 @@ details[open] .faq-answer {
   flex: 0 0 auto;
 }
 
+.makan-copy-icon-btn--tiny {
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  border-radius: 7px;
+}
+
+a.makan-copy-icon-btn {
+  text-decoration: none;
+}
+
 .makan-copy-icon-btn svg {
-  width: 15px;
-  height: 15px;
+  width: 13px;
+  height: 13px;
   stroke: currentColor;
   fill: none;
   stroke-width: 1.8;
@@ -4643,12 +4925,52 @@ details[open] .faq-answer {
   stroke-linejoin: round;
 }
 
+.makan-copy-icon-btn:hover,
+.makan-copy-icon-btn:focus-visible {
+  border-color: rgba(201, 174, 116, 0.26);
+  background: rgba(247, 241, 230, 0.06);
+  color: rgba(247, 241, 230, 0.8);
+}
+
+.makan-copy-icon-btn:focus-visible {
+  outline: 1px solid rgba(201, 174, 116, 0.35);
+  outline-offset: 1px;
+}
+
+.makan-link.is-disabled,
+.makan-copy-icon-btn.is-disabled,
+.makan-copy-icon-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .makan-legal-row {
   margin-top: 12px;
+  margin-bottom: 24px;
   position: relative;
   display: inline-flex;
   flex-direction: column;
   align-items: flex-start;
+}
+
+.legalNoteWrapper {
+  margin-bottom: 28px;
+}
+
+.legalNoteContent {
+  padding-bottom: 24px;
+}
+
+.legalNoteWrapper[data-open="true"]::after {
+  content: "";
+  display: block;
+  width: min(420px, 90vw);
+  max-width: 100%;
+  height: 1px;
+  margin-top: 18px;
+  opacity: 0.35;
+  background: rgba(247, 241, 230, 0.82);
 }
 
 .makan-legal-link {
@@ -4678,9 +5000,12 @@ details[open] .faq-answer {
 .makan-legal-popover {
   position: absolute;
   left: 0;
-  top: calc(100% + 8px);
+  top: calc(100% + 12px);
   z-index: 200;
-  width: min(460px, calc(100vw - 28px));
+  width: fit-content;
+  max-width: min(420px, 90vw);
+  max-height: min(220px, 60vh);
+  overflow: auto;
 }
 
 .makan-legal-popover-arrow {
@@ -4697,11 +5022,12 @@ details[open] .faq-answer {
 
 .makan-legal-card {
   position: relative;
-  width: 100%;
+  width: max-content;
+  max-width: min(420px, 90vw);
   border-radius: 16px;
   border: 1px solid rgba(201, 174, 116, 0.36);
   background: rgba(247, 241, 230, 0.98);
-  padding: 18px 18px 16px;
+  padding: 20px 22px;
   color: var(--ink);
 }
 
@@ -4755,9 +5081,9 @@ details[open] .faq-answer {
 
 @media (max-width: 980px) {
   .makan-item {
-    grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
-    column-gap: 14px;
-    row-gap: 10px;
+    grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+    column-gap: 12px;
+    row-gap: 8px;
   }
 }
 
@@ -4781,41 +5107,62 @@ details[open] .faq-answer {
 
   .makan-item {
     grid-template-columns: 1fr;
-    grid-template-areas:
-      "meta"
-      "desc";
     gap: 10px;
     padding: 14px;
   }
 
-  .makan-item-main {
-    gap: 8px;
+  .makan-item-header {
+    align-items: flex-start;
   }
 
-  .makan-item-panel {
-    order: 2;
-    gap: 6px;
+  .makan-address-row {
+    grid-template-columns: minmax(0, 1fr);
   }
-
-  .makan-item-actions { margin-top: 10px; }
 
   .makan-item-description {
     font-size: 0.9rem;
   }
 
   .makan-legal-popover {
-    left: 0;
+    position: static;
+    left: auto;
     right: auto;
-    top: calc(100% + 8px);
-    width: min(360px, calc(100vw - 24px));
+    top: auto;
+    width: min(420px, 90vw);
+    max-width: min(420px, 90vw);
+    max-height: none;
+    overflow: visible;
+    margin-top: 12px;
   }
 
   .makan-legal-popover-arrow {
-    left: 14px;
+    display: none;
   }
 
   .makan-legal-card {
-    padding: 16px 14px 14px;
+    width: max-content;
+    max-width: min(420px, 90vw);
+    padding: 14px 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  .legalNoteWrapper {
+    margin-bottom: 32px;
+  }
+
+  .legalNoteContent {
+    padding-bottom: 28px;
+  }
+}
+
+.sectionBlock {
+  padding-top: 36px;
+}
+
+@media (max-width: 640px) {
+  .sectionBlock {
+    padding-top: 42px;
   }
 }
 
@@ -5173,6 +5520,43 @@ details[open] .faq-answer {
   background: rgba(21, 21, 21, 0.18);
 }
 
+.guestwall-media-fallback {
+  width: 100%;
+  height: 100%;
+  min-height: 160px;
+  border-radius: 8px;
+  border: 1px dashed rgba(75, 15, 23, 0.28);
+  background: rgba(75, 15, 23, 0.05);
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  padding: 12px;
+  text-align: center;
+  color: rgba(75, 15, 23, 0.86);
+}
+
+.guestwall-media-fallback p {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.guestwall-media-retry {
+  min-height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(75, 15, 23, 0.34);
+  background: rgba(255, 255, 255, 0.9);
+  color: rgba(75, 15, 23, 0.95);
+  padding: 0 12px;
+  font-size: 0.8rem;
+  letter-spacing: 0.03em;
+}
+
+.guestwall-media-retry:hover,
+.guestwall-media-retry:focus-visible {
+  border-color: rgba(75, 15, 23, 0.6);
+  background: rgba(247, 241, 230, 0.96);
+}
+
 .guestwall-polaroid-link {
   display: inline-flex;
   margin-top: 8px;
@@ -5430,6 +5814,10 @@ details[open] .faq-answer {
   height: 100%;
   display: block;
   object-fit: cover;
+}
+
+.guestwall-modal-media .guestwall-media-fallback {
+  min-height: 220px;
 }
 
 .guestwall-modal-footer {

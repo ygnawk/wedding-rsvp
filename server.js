@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const http = require("http");
+const zlib = require("zlib");
 const { randomUUID } = require("crypto");
 const { formidable } = require("formidable");
 const { google } = require("googleapis");
@@ -111,7 +112,28 @@ function safeMountedPath(urlPath, mountPath, targetDir) {
   return resolved;
 }
 
-function serveStaticFile(res, filePath) {
+function isCompressibleMime(mime) {
+  return /^(text\/|application\/javascript|application\/json|image\/svg\+xml)/.test(mime);
+}
+
+function encodeBody(body, acceptEncodingHeader) {
+  const acceptEncoding = String(acceptEncodingHeader || "").toLowerCase();
+  if (!body || body.length < 1024) {
+    return { body, encoding: null };
+  }
+
+  if (acceptEncoding.includes("br")) {
+    return { body: zlib.brotliCompressSync(body), encoding: "br" };
+  }
+
+  if (acceptEncoding.includes("gzip")) {
+    return { body: zlib.gzipSync(body), encoding: "gzip" };
+  }
+
+  return { body, encoding: null };
+}
+
+function serveStaticFile(req, res, filePath) {
   if (!filePath) {
     send(res, 403, "Forbidden");
     return;
@@ -124,7 +146,25 @@ function serveStaticFile(res, filePath) {
 
   const ext = path.extname(filePath).toLowerCase();
   const mime = MIME_TYPES[ext] || "application/octet-stream";
-  send(res, 200, fs.readFileSync(filePath), mime);
+  const isHtml = ext === ".html";
+  const cacheControl = isHtml ? "no-cache" : "public, max-age=31536000, immutable";
+  const rawBody = fs.readFileSync(filePath);
+  const canCompress = isCompressibleMime(mime);
+  const { body, encoding } = canCompress ? encodeBody(rawBody, req.headers["accept-encoding"]) : { body: rawBody, encoding: null };
+
+  const headers = {
+    "Content-Type": mime,
+    "Access-Control-Allow-Origin": "*",
+    "Cache-Control": cacheControl,
+  };
+
+  if (encoding) {
+    headers["Content-Encoding"] = encoding;
+    headers.Vary = "Accept-Encoding";
+  }
+
+  res.writeHead(200, headers);
+  res.end(body);
 }
 
 function normalizeFieldValue(value) {
@@ -920,45 +960,50 @@ const server = http.createServer(async (req, res) => {
 
   const photosPath = safeMountedPath(req.url || "", "/photos", path.join(ROOT, "photos"));
   if (photosPath) {
-    serveStaticFile(res, photosPath);
+    serveStaticFile(req, res, photosPath);
     return;
   }
 
   const publicPath = safeMountedPath(req.url || "", "/public", path.join(ROOT, "public"));
   if (publicPath) {
-    serveStaticFile(res, publicPath);
+    serveStaticFile(req, res, publicPath);
     return;
   }
 
   const motifsPath = safeMountedPath(req.url || "", "/motifs", path.join(ROOT, "public", "motifs"));
   if (motifsPath) {
-    serveStaticFile(res, motifsPath);
+    serveStaticFile(req, res, motifsPath);
     return;
   }
 
   const iconsPath = safeMountedPath(req.url || "", "/icons", path.join(ROOT, "public", "icons"));
   if (iconsPath) {
-    serveStaticFile(res, iconsPath);
+    serveStaticFile(req, res, iconsPath);
     return;
   }
 
   if (pathname === "/logo.svg") {
-    serveStaticFile(res, path.join(ROOT, "public", "logo.svg"));
+    serveStaticFile(req, res, path.join(ROOT, "public", "logo.svg"));
     return;
   }
 
   if (pathname === "/favicon.svg") {
-    serveStaticFile(res, path.join(ROOT, "public", "favicon.svg"));
+    serveStaticFile(req, res, path.join(ROOT, "public", "favicon.svg"));
     return;
   }
 
   if (pathname === "/favicon-32.png") {
-    serveStaticFile(res, path.join(ROOT, "public", "favicon-32.png"));
+    serveStaticFile(req, res, path.join(ROOT, "public", "favicon-32.png"));
+    return;
+  }
+
+  if (pathname === "/guest-wall" || pathname === "/guest-wall/") {
+    serveStaticFile(req, res, path.join(ROOT, "guest-wall.html"));
     return;
   }
 
   const filePath = safePath(req.url || "/");
-  serveStaticFile(res, filePath);
+  serveStaticFile(req, res, filePath);
 });
 
 server.listen(PORT, () => {

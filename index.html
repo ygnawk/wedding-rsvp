@@ -7,15 +7,24 @@
     <link rel="canonical" href="https://www.mikiandyijie.com/" />
     <meta property="og:url" content="https://www.mikiandyijie.com/" />
     <title>Miki Yang & Yi Jie Kwang</title>
+    <link rel="preload" as="image" href="photos/LMN_2546-opt.jpg" fetchpriority="high" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Allura&family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&display=swap"
       rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
     />
+    <noscript>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Allura&family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet"
+      />
+    </noscript>
     <link rel="icon" type="image/svg+xml" href="public/favicon.svg" />
     <link rel="icon" type="image/png" href="public/favicon-32.png" />
-    <link rel="stylesheet" href="./styles.css?v=20260217-matrix-axis-clip1" />
+    <link rel="stylesheet" href="./styles.css?v=20260217-guestwall-route1" />
   </head>
   <body>
     <header id="floatingHeader" class="floating-header" aria-label="Site navigation">
@@ -49,6 +58,7 @@
               <a href="#makan" data-link="makan" role="menuitem">What to eat</a>
               <a href="#travel-visa" data-link="travel-visa" role="menuitem">Travel &amp; Visa</a>
               <a href="#gallery" data-link="gallery" role="menuitem">Recent moments</a>
+              <a href="/guest-wall" role="menuitem">Guest Wall</a>
             </div>
           </div>
         </nav>
@@ -70,6 +80,7 @@
         <a href="#makan" data-link="makan">What to eat</a>
         <a href="#travel-visa" data-link="travel-visa">Travel &amp; Visa</a>
         <a href="#gallery" data-link="gallery">Recent moments</a>
+        <a href="/guest-wall">Guest Wall</a>
       </nav>
     </aside>
 
@@ -118,7 +129,7 @@
         <div class="interlude-shell interlude-bleed">
           <div class="interlude-band">
             <figure class="interlude-photo-half reveal reveal-scale">
-              <img src="photos/LMN_2546.jpg" alt="Miki and Yi Jie" loading="eager" fetchpriority="high" decoding="async" />
+              <img src="photos/LMN_2546-opt.jpg" alt="Miki and Yi Jie" loading="eager" fetchpriority="high" decoding="async" />
             </figure>
             <div class="interlude-color-half">
               <div class="motif-layer motif-layer--maroon motif-layer--both" aria-hidden="true">
@@ -186,7 +197,7 @@
 
                 <figure class="cutout-parallax venue-hero reveal reveal-scale" data-parallax-speed="0.18">
                   <div class="cutout-parallax__media cutout-parallax__media--arch">
-                    <img data-photo-key="venueMain" src="photos/Location-main.jpg" alt="Zhengyang Mansion, Mandarin Oriental Qianmen" loading="lazy" />
+                    <img data-photo-key="venueMain" src="photos/Location-main-opt.jpg" alt="Zhengyang Mansion, Mandarin Oriental Qianmen" loading="lazy" />
                   </div>
                 </figure>
               </div>
@@ -726,7 +737,7 @@
                 <h3 id="stayChartHeading" class="hotel-map-heading">Top rated hotels mapped by price and distance</h3>
                 <button
                   id="hotelMethodTrigger"
-                  class="makan-tip-trigger hotel-method-pill"
+                  class="makan-tip-trigger hotel-method-pill hotel-method-trigger-desktop"
                   type="button"
                   aria-expanded="false"
                   aria-controls="hotelMethodOverlay"
@@ -735,15 +746,33 @@
                 </button>
               </div>
               <p class="hotel-map-helper">
-                Click a dot for hotel details.
-                <span id="hotelMatrixRatingClaim" class="hotel-map-rating-claim">All hotels shown are rated ≥ 9.0 on Expedia.</span>
+                <span class="hotel-map-helper-desktop">Click a dot for hotel details.</span>
+                <span class="hotel-map-helper-mobile">Tap a dot for details.</span>
               </p>
-              <div class="hotel-map-legend" aria-hidden="true">
+              <div class="hotel-map-helper-actions">
+                <button
+                  id="hotelMethodTriggerMobile"
+                  class="makan-tip-trigger hotel-method-pill hotel-method-trigger-mobile"
+                  type="button"
+                  aria-expanded="false"
+                  aria-controls="hotelMethodSheet"
+                >
+                  ⓘ Methodology
+                </button>
+              </div>
+              <div class="hotel-map-legend hotel-map-legend-desktop" aria-hidden="true">
                 <span class="hotel-map-legend-swatch"></span>
                 <span class="hotel-map-legend-copy">
                   <span class="hotel-map-legend-title">Best value</span>
                   <span class="hotel-map-legend-subtitle">Closest + most affordable sweet spot.</span>
                 </span>
+              </div>
+              <div class="hotel-map-bestvalue-accordion" role="note" aria-label="Best value zone">
+                <span class="hotel-map-bestvalue-chip">
+                  <span class="hotel-map-legend-swatch"></span>
+                  <span class="hotel-map-bestvalue-title">Best value</span>
+                </span>
+                <span class="hotel-map-bestvalue-preview">Closest + most affordable sweet spot.</span>
               </div>
 
               <div id="hotelMatrixShell" class="hotel-map-shell">
@@ -771,6 +800,21 @@
             <button id="hotelMatrixSheetClose" class="hotel-map-sheet-close" type="button" aria-label="Close">×</button>
             <h3 id="hotelMatrixSheetTitle" class="hotel-map-sheet-title">Hotel details</h3>
             <div id="hotelMatrixSheetContent" class="hotel-map-sheet-content"></div>
+          </div>
+        </div>
+
+        <div id="hotelMethodSheet" class="hotel-method-sheet" hidden>
+          <button type="button" class="hotel-method-sheet-backdrop" data-method-sheet-close aria-label="Close methodology"></button>
+          <div class="hotel-method-sheet-panel" role="dialog" aria-modal="true" aria-labelledby="hotelMethodSheetTitle">
+            <div class="hotel-method-sheet-grabber" aria-hidden="true"></div>
+            <button id="hotelMethodSheetClose" class="hotel-method-sheet-close" type="button" aria-label="Close">×</button>
+            <h3 id="hotelMethodSheetTitle" class="hotel-method-sheet-title">Methodology</h3>
+            <ul class="hotel-method-sheet-list">
+              <li>Y-axis: estimated drive time (min) to the wedding venue (traffic dependent).</li>
+              <li>X-axis: nightly price bands in USD ($: under 150, $$: 150–300, $$$: 301–500, $$$$: 500+).</li>
+              <li>Only hotels rated ≥ 9.0 on Expedia are shown.</li>
+              <li>Shaded area = best value zone (lower price + shorter drive time).</li>
+            </ul>
           </div>
         </div>
       </section>
@@ -1090,11 +1134,11 @@
               <div id="makanMenuRows" class="makan-type-list" aria-label="Beijing food categories"></div>
             </div>
 
-            <div class="makan-legal-row">
+            <div class="makan-legal-row legalNoteWrapper" data-open="false">
               <button id="makanLegalTrigger" class="makan-legal-link" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="makanLegalPopover">
                 ⚖️ Legal-ish note
               </button>
-              <div id="makanLegalPopover" class="makan-legal-popover" role="dialog" aria-modal="false" aria-labelledby="makanLegalTitle" hidden aria-hidden="true">
+              <div id="makanLegalPopover" class="makan-legal-popover legalNoteContent" role="dialog" aria-modal="false" aria-labelledby="makanLegalTitle" hidden aria-hidden="true">
                 <span class="makan-legal-popover-arrow" aria-hidden="true"></span>
                 <div class="makan-legal-card" role="document">
                   <h3 id="makanLegalTitle">Legal-ish note (said with love)</h3>
@@ -1110,7 +1154,7 @@
         </div>
       </section>
 
-      <section id="travel-visa" class="section section--light motif-host" data-title="Travel &amp; Visa">
+      <section id="travel-visa" class="section section--light motif-host sectionBlock" data-title="Travel &amp; Visa">
         <div class="content travel-wrap">
           <div class="motif-layer motif-layer--section motif-layer--cream motif-layer--topRight" aria-hidden="true">
             <img class="motif-layer__item motif-layer__item--topRight" src="public/motifs/orchid-bud.svg" alt="" />
@@ -1228,24 +1272,6 @@
         </div>
       </section>
 
-      <section id="guest-wall" class="section section--light motif-host" data-title="Guest Wall">
-        <div class="content guestwall-content">
-          <div class="motif-layer motif-layer--section motif-layer--cream motif-layer--both" aria-hidden="true">
-            <img class="motif-layer__item motif-layer__item--topRight" src="public/motifs/peony-bud.svg" alt="" />
-            <img class="motif-layer__item motif-layer__item--bottomLeft" src="public/motifs/bamboo-bud.svg" alt="" />
-          </div>
-          <h2 class="section-title section-title-reveal reveal settle">Guest Wall</h2>
-          <p class="guestwall-subtitle reveal">Photos and notes uploaded in the RSVP form will appear here (after a quick review).</p>
-          <div class="guestwall-controls reveal" aria-label="Guest wall controls">
-            <button id="guestWallShuffle" class="guestwall-control-btn" type="button">Shuffle</button>
-            <button id="guestWallPause" class="guestwall-control-btn" type="button" aria-pressed="false">Pause</button>
-            <button id="guestWallViewAll" class="guestwall-control-btn" type="button">View all</button>
-          </div>
-          <p id="guestWallStatus" class="guestwall-status reveal" aria-live="polite">Loading guest wall…</p>
-          <div id="guestWallPinboard" class="guestwall-pinboard reveal" aria-live="polite"></div>
-          <div id="guestWallMobile" class="guestwall-mobile hidden reveal" aria-live="polite"></div>
-        </div>
-      </section>
     </main>
 
     <div id="jumpMenuWrap" class="jump-menu-wrap" aria-live="polite">
@@ -1287,18 +1313,6 @@
       </div>
     </div>
 
-    <div id="guestWallModal" class="guestwall-modal hidden" aria-hidden="true">
-      <div class="guestwall-modal-backdrop" data-guestwall-close></div>
-      <div class="guestwall-modal-panel" role="dialog" aria-modal="true" aria-labelledby="guestWallModalTitle">
-        <button id="guestWallModalClose" class="guestwall-modal-close" type="button" aria-label="Close guest wall" data-guestwall-close>×</button>
-        <h3 id="guestWallModalTitle">Guest Wall — all approved posts</h3>
-        <div id="guestWallModalList" class="guestwall-modal-list"></div>
-        <div class="guestwall-modal-footer">
-          <button id="guestWallModalLoadMore" class="guestwall-modal-more" type="button">Load more</button>
-        </div>
-      </div>
-    </div>
-
     <footer class="site-footer">
       <div class="site-footer-inner">
         <p class="site-footer-main">
@@ -1311,6 +1325,6 @@
 
     <script src="./data/hotels.js?v=20260216-matrix"></script>
     <script src="./data/beijing-food.js?v=20260216-title-reveal-fix1"></script>
-    <script src="./app.js?v=20260217-matrix-axis-clip1"></script>
+    <script src="./app.js?v=20260217-guestwall-route1"></script>
   </body>
 </html>
