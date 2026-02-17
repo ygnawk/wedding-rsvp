@@ -6,6 +6,7 @@ const path = require("path");
 
 const root = path.resolve(__dirname, "..");
 const manifestPath = path.join(root, "photos", "timeline-photos", "manifest.json");
+const allowedExtensions = new Set([".jpg", ".jpeg", ".png", ".webp"]);
 
 if (!fs.existsSync(manifestPath)) {
   console.error(`[story-assets] Missing manifest: ${manifestPath}`);
@@ -29,8 +30,12 @@ function resolveAssetPath(src) {
   if (/^https?:\/\//i.test(value)) return { error: `Absolute URL not allowed: ${value}` };
 
   if (value.startsWith("/our-story/")) {
+    const extension = path.extname(value).toLowerCase();
+    if (!allowedExtensions.has(extension)) {
+      return { error: `Unsupported extension for Our Story asset: ${value}` };
+    }
     return {
-      path: path.join(root, "public", "our-story-normalized", value.replace(/^\/our-story\//, "")),
+      path: path.join(root, "public", "our-story", value.replace(/^\/our-story\//, "")),
     };
   }
   if (value.startsWith("/our-story-normalized/")) {

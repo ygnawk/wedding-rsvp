@@ -1314,18 +1314,24 @@
     <div id="storyLightbox" class="story-lightbox hidden" aria-hidden="true">
       <div class="story-lightbox-backdrop" data-story-close></div>
       <div class="story-lightbox-frame" role="dialog" aria-modal="true" aria-labelledby="storyLightboxTitle">
-        <button class="story-lightbox-btn story-lightbox-btn--prev" type="button" aria-label="Previous story">‹</button>
+        <div class="story-lightbox-header">
+          <button class="story-lightbox-close" type="button" aria-label="Close story" data-story-close>×</button>
+        </div>
         <figure class="story-lightbox-figure">
-          <img id="storyLightboxImg" class="story-lightbox-img" alt="" />
+          <div class="story-lightbox-media">
+            <img id="storyLightboxImg" class="story-lightbox-img" alt="" />
+          </div>
           <figcaption class="story-lightbox-caption">
             <p id="storyLightboxTitle" class="story-lightbox-title"></p>
             <p id="storyLightboxBlurb" class="story-lightbox-blurb"></p>
             <p id="storyLightboxLong" class="story-lightbox-long"></p>
           </figcaption>
         </figure>
-        <button class="story-lightbox-btn story-lightbox-btn--next" type="button" aria-label="Next story">›</button>
-        <div id="storyLightboxCounter" class="story-lightbox-counter">1 / 1</div>
-        <button class="story-lightbox-close" type="button" aria-label="Close story" data-story-close>×</button>
+        <div class="story-lightbox-footer">
+          <button class="story-lightbox-btn story-lightbox-btn--prev" type="button" aria-label="Previous story">‹</button>
+          <div id="storyLightboxCounter" class="story-lightbox-counter">1 of 1</div>
+          <button class="story-lightbox-btn story-lightbox-btn--next" type="button" aria-label="Next story">›</button>
+        </div>
       </div>
     </div>
 

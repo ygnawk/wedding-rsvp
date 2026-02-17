@@ -28,21 +28,42 @@ const GUEST_WALL_PINBOARD_LIMIT = 12;
 const GUEST_WALL_PINBOARD_BUFFER_DESKTOP = 32;
 const GUEST_WALL_PINBOARD_BUFFER_MOBILE = 16;
 const GUEST_WALL_PREFETCH_THRESHOLD = 4;
-const GUEST_WALL_DESKTOP_VISIBLE_SLOTS = 12;
-const GUEST_WALL_MOBILE_VISIBLE_SLOTS = 8;
+const GUEST_WALL_DESKTOP_VISIBLE_SLOTS = 14;
+const GUEST_WALL_MOBILE_VISIBLE_SLOTS = 6;
 const GUEST_WALL_SLOT_GAP_DESKTOP = -10;
 const GUEST_WALL_SLOT_GAP_MOBILE = -8;
 const GUEST_WALL_SLOT_JITTER_DESKTOP = 10;
 const GUEST_WALL_SLOT_JITTER_MOBILE = 6;
 const GUEST_WALL_SWAP_FADE_OUT_MS = 200;
 const GUEST_WALL_SWAP_FADE_IN_MS = 260;
+const GUEST_WALL_SHUFFLE_REPLACE_RATIO = 0.4;
+const GUEST_WALL_PICKUP_OPEN_DELAY_MS = 130;
+const GUEST_WALL_SLOW_MESSAGE_DELAY_MS = 5000;
+const GUEST_WALL_SLOW_MESSAGE_ROTATE_MS = 3000;
+const GUEST_WALL_HARD_TIMEOUT_MS = 20000;
 const GUEST_WALL_LOADING_MESSAGE = "Loading guest wall…";
 const GUEST_WALL_EMPTY_MESSAGE = "Nothing here yet—check back soon.";
 const GUEST_WALL_UNAVAILABLE_MESSAGE = "Guest Wall is temporarily unavailable.";
 const GUEST_WALL_READY_MESSAGE = "";
+const GUEST_WALL_SLOW_MESSAGES = [
+  "Sorry—this is taking a minute. The Wall is… emotionally buffering.",
+  "Hang tight. We’re fetching your sweet words from the cloud (literally).",
+  "Still loading. Really. Blame it on Yi Jie for relying on a free server plan.",
+];
 const GUEST_WALL_POLAROID_TONES = ["#5a1720", "#1f3c35", "#203652", "#3f2f2b", "#4c2a42"];
 const GUEST_WALL_NOTE_TONES = ["#FAF3E8", "#F7EEDB", "#FFF4D8", "#F3E9D6"];
-const GUEST_WALL_NOTE_VARIANTS = ["sticky", "notebook", "index", "letter"];
+const GUEST_WALL_NOTE_VARIANTS = [
+  "sticky",
+  "sticky-soft",
+  "notebook-torn",
+  "index-aged",
+  "letter",
+  "letter-wrinkled",
+  "receipt-strip",
+  "postcard",
+  "notebook",
+  "index",
+];
 const GUEST_WALL_PIN_COLORS = ["#2F6F5E", "#2E5E86", "#C9A24A", "#6B1F2A"];
 const GUEST_WALL_PIN_CORNERS = ["top-left", "top-right", "bottom-left", "bottom-right"];
 const RSVP_SLOW_SUBMIT_DELAY_MS = 4000;
@@ -61,7 +82,7 @@ const UPLOAD_ALLOWED_MIME_TYPES = new Set([
   "video/webm",
 ]);
 const UPLOAD_SLOT_DEFAULT_META = "JPG/PNG/HEIC/MP4/MOV • up to 10MB";
-const FUN_FACT_CHIP_COUNT = 6;
+const FUN_FACT_CHIP_COUNT = 10;
 const BASE_FUN_FACT_EXAMPLES = [
   "I will travel for noodles.",
   "I can’t handle horror films.",
@@ -136,79 +157,70 @@ const FUN_FACT_REPLACEMENT_IDEAS = [
   "I collect menus from trips like postcards.",
   "I can turn any walk into a food crawl.",
 ];
+const FUN_FACT_POOL_V2 = [
+  "I’m a +1 and accepting friend applications.",
+  "I came for the wedding, stayed for the dumplings.",
+  "If there’s a dessert table, I will find it.",
+  "My karaoke song is painfully predictable.",
+  "I’m great at remembering faces… not names.",
+  "I own too many tote bags.",
+  "I plan trips like it’s a military operation.",
+  "I can’t walk past a bookstore.",
+  "I will laugh at my own jokes. Loudly.",
+  "I’m the designated photo-taker in every friend group.",
+  "I judge cities by their coffee.",
+  "I’m weirdly competitive about board games.",
+  "I have a talent for finding the best seat in a room.",
+  "I’m here for love and unlimited hot tea.",
+  "I always order ‘one more’ appetizer.",
+  "I’m a serial ‘just one more episode’ person.",
+  "I can recommend a great café in at least three cities.",
+  "I clap when the plane lands. Sometimes.",
+  "I’m either 10 minutes early or exactly on time—never in between.",
+  "My screen time report is between me and my therapist.",
+  "I have strong opinions about bubble tea toppings.",
+  "I can do a respectable two-step. Don’t ask for more.",
+  "I’m the friend who reads the menu before arriving.",
+  "I collect random facts I don’t need.",
+  "I’ve never met a museum gift shop I didn’t love.",
+  "I am a ‘walk everywhere’ person (until it rains).",
+  "I’m here as a +1 but fully committed to the vibes.",
+  "I will pet every dog I meet (with consent).",
+  "I’m a first-timer in Beijing and taking local tips.",
+  "I can’t resist a good stationery store.",
+];
 
-function normalizeFunFactIdea(value) {
+function normalizeFunFactPoolKey(value) {
   return String(value || "")
+    .trim()
     .toLowerCase()
-    .replace(/[\u2018\u2019]/g, "'")
-    .replace(/[\u201c\u201d]/g, '"')
-    .replace(/[^a-z0-9\s]/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+    .replace(/\s+/g, " ");
 }
 
-function tokenizeFunFactIdea(value) {
-  return normalizeFunFactIdea(value)
-    .split(" ")
-    .filter(Boolean);
-}
-
-function isNearDuplicateFunFactIdea(candidate, existingItems) {
-  const candidateTokens = tokenizeFunFactIdea(candidate);
-  if (!candidateTokens.length) return false;
-
-  return existingItems.some((existing) => {
-    const existingTokens = tokenizeFunFactIdea(existing);
-    if (!existingTokens.length) return false;
-
-    const existingTokenSet = new Set(existingTokens);
-    const shared = candidateTokens.filter((token) => existingTokenSet.has(token)).length;
-    const overlap = shared / Math.max(candidateTokens.length, existingTokens.length);
-    return overlap >= 0.86;
+function dedupeFunFactPool(items) {
+  const seen = new Set();
+  return (items || []).filter((item) => {
+    const key = normalizeFunFactPoolKey(item);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
   });
 }
 
 function buildFunFactExamples() {
-  const existingSet = new Set(BASE_FUN_FACT_EXAMPLES.map((item) => normalizeFunFactIdea(item)));
-  const existingIdeaPool = [...BASE_FUN_FACT_EXAMPLES];
-  const seenNew = new Set();
-  const uniqueNew = [];
-
-  NEW_FUN_FACT_IDEAS.forEach((idea) => {
-    const normalized = normalizeFunFactIdea(idea);
-    if (!normalized || existingSet.has(normalized) || seenNew.has(normalized)) return;
-    if (isNearDuplicateFunFactIdea(idea, existingIdeaPool)) return;
-    seenNew.add(normalized);
-    uniqueNew.push(idea);
-    existingIdeaPool.push(idea);
-  });
-
-  if (uniqueNew.length < NEW_FUN_FACT_IDEAS.length) {
-    FUN_FACT_REPLACEMENT_IDEAS.forEach((idea) => {
-      if (uniqueNew.length >= NEW_FUN_FACT_IDEAS.length) return;
-      const normalized = normalizeFunFactIdea(idea);
-      if (!normalized || existingSet.has(normalized) || seenNew.has(normalized)) return;
-      if (isNearDuplicateFunFactIdea(idea, existingIdeaPool)) return;
-      seenNew.add(normalized);
-      uniqueNew.push(idea);
-      existingIdeaPool.push(idea);
-    });
-  }
+  const combined = dedupeFunFactPool([...BASE_FUN_FACT_EXAMPLES, ...NEW_FUN_FACT_IDEAS, ...FUN_FACT_POOL_V2, ...FUN_FACT_REPLACEMENT_IDEAS]);
 
   if (IS_LOCAL_DEV) {
-    const collisionCount = NEW_FUN_FACT_IDEAS.filter((idea) => existingSet.has(normalizeFunFactIdea(idea))).length;
+    const requested = BASE_FUN_FACT_EXAMPLES.length + NEW_FUN_FACT_IDEAS.length + FUN_FACT_POOL_V2.length + FUN_FACT_REPLACEMENT_IDEAS.length;
+    const duplicatesRemoved = requested - combined.length;
     console.debug("[fun-fact-ideas]", {
-      requested: NEW_FUN_FACT_IDEAS.length,
-      collisions: collisionCount,
-      added: uniqueNew.length,
-      check: NEW_FUN_FACT_IDEAS.filter((idea) => existingSet.has(normalizeFunFactIdea(idea))).length === 0,
+      requested,
+      unique: combined.length,
+      duplicatesRemoved,
     });
-    if (uniqueNew.length < NEW_FUN_FACT_IDEAS.length) {
-      console.warn(`[fun-fact-ideas] expected ${NEW_FUN_FACT_IDEAS.length} new unique ideas, got ${uniqueNew.length}`);
-    }
   }
 
-  return [...BASE_FUN_FACT_EXAMPLES, ...uniqueNew];
+  return combined;
 }
 
 const FUN_FACT_EXAMPLES = buildFunFactExamples();
@@ -321,12 +333,11 @@ const guestWallMobile = document.getElementById("guestWallMobile");
 const guestWallStatus = document.getElementById("guestWallStatus");
 const guestWallPinboardView = document.getElementById("guestWallPinboardView");
 const guestWallShuffle = document.getElementById("guestWallShuffle");
-const guestWallPause = document.getElementById("guestWallPause");
+const guestWallAutoplayToggle = document.getElementById("guestWallAutoplayToggle");
+const guestWallAutoplayControl = document.querySelector(".guestwall-autoplay-control");
 const guestWallDetailModal = document.getElementById("guestWallDetailModal");
 const guestWallDetailClose = document.getElementById("guestWallDetailClose");
-const guestWallDetailMedia = document.getElementById("guestWallDetailMedia");
-const guestWallDetailNote = document.getElementById("guestWallDetailNote");
-const guestWallDetailName = document.getElementById("guestWallDetailName");
+const guestWallDetailContent = document.getElementById("guestWallDetailContent");
 
 let galleryImages = [];
 let currentGalleryIndex = 0;
@@ -343,6 +354,7 @@ let guestWallRotationTimer = null;
 let guestWallMobileTimer = null;
 let guestWallMobileIndex = 0;
 let guestWallPaused = false;
+let guestWallIsShuffling = false;
 let guestWallDetailOpen = false;
 let guestWallResizeRaf = null;
 let guestWallLastViewportWidth = window.innerWidth || 0;
@@ -351,6 +363,10 @@ let guestWallPrefetchInFlight = null;
 let guestWallRequestInFlight = null;
 let guestWallLayoutCycle = 0;
 let guestWallActiveSlotConfig = [];
+let guestWallLoadState = "idle";
+let guestWallSlowMessageStartTimer = null;
+let guestWallSlowMessageRotateTimer = null;
+let guestWallSlowMessageIndex = 0;
 let overflowDebugResizeTimer = null;
 let desktopMoreCloseTimer = null;
 let activeSectionId = "top";
@@ -464,6 +480,7 @@ const storyLightboxPrev = storyLightbox ? storyLightbox.querySelector(".story-li
 const storyLightboxNext = storyLightbox ? storyLightbox.querySelector(".story-lightbox-btn--next") : null;
 const storyLightboxFrame = storyLightbox ? storyLightbox.querySelector(".story-lightbox-frame") : null;
 const storyLightboxCloseButtons = storyLightbox ? Array.from(storyLightbox.querySelectorAll("[data-story-close], .story-lightbox-close")) : [];
+let storyDebugNode = null;
 
 let storyItems = [];
 let currentStoryIndex = 0;
@@ -516,97 +533,85 @@ const travelSourcesDisclosure = document.querySelector(".travel-sources-disclosu
 
 const SLOT_MAPS_DESKTOP = {
   A: [
-    { id: "dA1", xPct: 11, yPct: 18, size: "M", baseZ: 3, tiltBase: -2.1 },
-    { id: "dA2", xPct: 24, yPct: 22, size: "S", baseZ: 2, tiltBase: 1.9 },
-    { id: "dA3", xPct: 38, yPct: 16, size: "M", baseZ: 4, tiltBase: -1.7 },
-    { id: "dA4", xPct: 52, yPct: 21, size: "S", baseZ: 2, tiltBase: 2.0 },
-    { id: "dA5", xPct: 66, yPct: 17, size: "L", baseZ: 5, tiltBase: -1.8 },
-    { id: "dA6", xPct: 81, yPct: 23, size: "S", baseZ: 2, tiltBase: 1.3 },
-    { id: "dA7", xPct: 92, yPct: 18, size: "M", baseZ: 3, tiltBase: -2.0 },
-    { id: "dA8", xPct: 15, yPct: 48, size: "S", baseZ: 2, tiltBase: 1.4 },
-    { id: "dA9", xPct: 31, yPct: 53, size: "L", baseZ: 5, tiltBase: -1.4 },
-    { id: "dA10", xPct: 49, yPct: 46, size: "L", format: "wide", baseZ: 3, tiltBase: 1.8 },
-    { id: "dA11", xPct: 66, yPct: 52, size: "S", baseZ: 2, tiltBase: -1.2 },
-    { id: "dA12", xPct: 83, yPct: 47, size: "L", baseZ: 5, tiltBase: 1.5 },
-    { id: "dA13", xPct: 10, yPct: 79, size: "M", baseZ: 3, tiltBase: -1.5 },
-    { id: "dA14", xPct: 27, yPct: 83, size: "S", baseZ: 2, tiltBase: 1.6 },
-    { id: "dA15", xPct: 44, yPct: 77, size: "M", baseZ: 4, tiltBase: -1.6 },
-    { id: "dA16", xPct: 62, yPct: 83, size: "S", baseZ: 2, tiltBase: 1.2 },
-    { id: "dA17", xPct: 79, yPct: 79, size: "L", format: "wide", baseZ: 3, tiltBase: -1.9 },
-    { id: "dA18", xPct: 92, yPct: 84, size: "S", baseZ: 2, tiltBase: 1.1 },
+    { id: "dA1", xPct: 18, yPct: 20, size: "M", prefer: "media", baseZ: 4, tiltBase: -2.0 },
+    { id: "dA2", xPct: 31, yPct: 35, size: "XL", prefer: "media", format: "wide", baseZ: 7, tiltBase: 1.6 },
+    { id: "dA3", xPct: 14, yPct: 47, size: "S", prefer: "media", baseZ: 3, tiltBase: 1.5 },
+    { id: "dA4", xPct: 44, yPct: 24, size: "S", prefer: "mixed", baseZ: 4, tiltBase: -1.1 },
+    { id: "dA5", xPct: 41, yPct: 53, size: "M", prefer: "media", baseZ: 5, tiltBase: -1.5 },
+    { id: "dA6", xPct: 69, yPct: 23, size: "S", prefer: "note", baseZ: 3, tiltBase: 1.2 },
+    { id: "dA7", xPct: 82, yPct: 31, size: "M", prefer: "note", baseZ: 4, tiltBase: -1.2 },
+    { id: "dA8", xPct: 73, yPct: 45, size: "S", prefer: "note", baseZ: 3, tiltBase: 1.3 },
+    { id: "dA9", xPct: 88, yPct: 47, size: "S", prefer: "note", baseZ: 4, tiltBase: -1.0 },
+    { id: "dA10", xPct: 24, yPct: 76, size: "M", prefer: "mixed", baseZ: 4, tiltBase: 1.5 },
+    { id: "dA11", xPct: 40, yPct: 82, size: "S", prefer: "note", baseZ: 3, tiltBase: -1.3 },
+    { id: "dA12", xPct: 62, yPct: 73, size: "L", prefer: "mixed", format: "wide", baseZ: 6, tiltBase: -1.4 },
+    { id: "dA13", xPct: 77, yPct: 78, size: "M", prefer: "mixed", baseZ: 5, tiltBase: 1.2 },
+    { id: "dA14", xPct: 91, yPct: 85, size: "S", prefer: "note", baseZ: 3, tiltBase: -1.1 },
   ],
   B: [
-    { id: "dB1", xPct: 9, yPct: 19, size: "S", baseZ: 2, tiltBase: -1.6 },
-    { id: "dB2", xPct: 22, yPct: 14, size: "M", baseZ: 4, tiltBase: 1.4 },
-    { id: "dB3", xPct: 36, yPct: 21, size: "S", baseZ: 2, tiltBase: -2.0 },
-    { id: "dB4", xPct: 49, yPct: 16, size: "L", baseZ: 5, tiltBase: 1.8 },
-    { id: "dB5", xPct: 64, yPct: 23, size: "S", baseZ: 2, tiltBase: -1.2 },
-    { id: "dB6", xPct: 79, yPct: 16, size: "M", baseZ: 3, tiltBase: 1.5 },
-    { id: "dB7", xPct: 92, yPct: 21, size: "S", baseZ: 2, tiltBase: -1.6 },
-    { id: "dB8", xPct: 15, yPct: 48, size: "M", baseZ: 3, tiltBase: 1.1 },
-    { id: "dB9", xPct: 31, yPct: 55, size: "S", baseZ: 2, tiltBase: -1.3 },
-    { id: "dB10", xPct: 47, yPct: 47, size: "L", format: "wide", baseZ: 4, tiltBase: 1.9 },
-    { id: "dB11", xPct: 63, yPct: 56, size: "S", baseZ: 2, tiltBase: -1.5 },
-    { id: "dB12", xPct: 80, yPct: 48, size: "M", baseZ: 3, tiltBase: 1.2 },
-    { id: "dB13", xPct: 91, yPct: 56, size: "S", baseZ: 2, tiltBase: -1.1 },
-    { id: "dB14", xPct: 11, yPct: 81, size: "L", baseZ: 5, tiltBase: 1.6 },
-    { id: "dB15", xPct: 30, yPct: 76, size: "S", baseZ: 2, tiltBase: -1.4 },
-    { id: "dB16", xPct: 50, yPct: 84, size: "L", format: "wide", baseZ: 3, tiltBase: 1.1 },
-    { id: "dB17", xPct: 69, yPct: 78, size: "S", baseZ: 2, tiltBase: -1.2 },
-    { id: "dB18", xPct: 88, yPct: 83, size: "M", baseZ: 4, tiltBase: 1.7 },
+    { id: "dB1", xPct: 15, yPct: 24, size: "M", prefer: "media", baseZ: 4, tiltBase: 1.6 },
+    { id: "dB2", xPct: 33, yPct: 19, size: "S", prefer: "media", baseZ: 3, tiltBase: -1.3 },
+    { id: "dB3", xPct: 34, yPct: 43, size: "XL", prefer: "media", format: "wide", baseZ: 7, tiltBase: -1.8 },
+    { id: "dB4", xPct: 18, yPct: 58, size: "S", prefer: "mixed", baseZ: 4, tiltBase: 1.1 },
+    { id: "dB5", xPct: 47, yPct: 54, size: "M", prefer: "media", baseZ: 5, tiltBase: 1.2 },
+    { id: "dB6", xPct: 72, yPct: 22, size: "M", prefer: "note", baseZ: 4, tiltBase: -1.1 },
+    { id: "dB7", xPct: 86, yPct: 26, size: "S", prefer: "note", baseZ: 3, tiltBase: 1.4 },
+    { id: "dB8", xPct: 76, yPct: 40, size: "S", prefer: "note", baseZ: 4, tiltBase: -1.2 },
+    { id: "dB9", xPct: 90, yPct: 46, size: "M", prefer: "note", baseZ: 4, tiltBase: 1.0 },
+    { id: "dB10", xPct: 25, yPct: 80, size: "M", prefer: "mixed", baseZ: 4, tiltBase: -1.2 },
+    { id: "dB11", xPct: 42, yPct: 84, size: "S", prefer: "note", baseZ: 3, tiltBase: 1.3 },
+    { id: "dB12", xPct: 61, yPct: 74, size: "L", prefer: "mixed", format: "wide", baseZ: 6, tiltBase: 1.4 },
+    { id: "dB13", xPct: 77, yPct: 79, size: "M", prefer: "mixed", baseZ: 5, tiltBase: -1.1 },
+    { id: "dB14", xPct: 90, yPct: 84, size: "S", prefer: "note", baseZ: 3, tiltBase: 1.2 },
   ],
   C: [
-    { id: "dC1", xPct: 12, yPct: 17, size: "M", baseZ: 3, tiltBase: 1.4 },
-    { id: "dC2", xPct: 27, yPct: 22, size: "S", baseZ: 2, tiltBase: -1.3 },
-    { id: "dC3", xPct: 43, yPct: 16, size: "M", baseZ: 4, tiltBase: 1.9 },
-    { id: "dC4", xPct: 58, yPct: 22, size: "S", baseZ: 2, tiltBase: -2.0 },
-    { id: "dC5", xPct: 74, yPct: 17, size: "M", baseZ: 3, tiltBase: 1.2 },
-    { id: "dC6", xPct: 89, yPct: 22, size: "S", baseZ: 2, tiltBase: -1.4 },
-    { id: "dC7", xPct: 9, yPct: 47, size: "S", baseZ: 2, tiltBase: 1.3 },
-    { id: "dC8", xPct: 25, yPct: 53, size: "L", baseZ: 5, tiltBase: -1.7 },
-    { id: "dC9", xPct: 44, yPct: 46, size: "S", baseZ: 2, tiltBase: 1.5 },
-    { id: "dC10", xPct: 59, yPct: 53, size: "L", format: "wide", baseZ: 5, tiltBase: -1.4 },
-    { id: "dC11", xPct: 77, yPct: 46, size: "S", baseZ: 2, tiltBase: 1.1 },
-    { id: "dC12", xPct: 91, yPct: 53, size: "M", baseZ: 3, tiltBase: -1.1 },
-    { id: "dC13", xPct: 15, yPct: 82, size: "M", baseZ: 3, tiltBase: -1.6 },
-    { id: "dC14", xPct: 31, yPct: 76, size: "S", baseZ: 2, tiltBase: 1.4 },
-    { id: "dC15", xPct: 48, yPct: 83, size: "L", format: "wide", baseZ: 4, tiltBase: -1.2 },
-    { id: "dC16", xPct: 66, yPct: 78, size: "S", baseZ: 2, tiltBase: 1.0 },
-    { id: "dC17", xPct: 82, yPct: 84, size: "M", baseZ: 3, tiltBase: -1.5 },
-    { id: "dC18", xPct: 94, yPct: 77, size: "S", baseZ: 2, tiltBase: 1.3 },
+    { id: "dC1", xPct: 17, yPct: 21, size: "M", prefer: "media", baseZ: 4, tiltBase: -1.4 },
+    { id: "dC2", xPct: 35, yPct: 33, size: "XL", prefer: "media", format: "wide", baseZ: 7, tiltBase: 1.7 },
+    { id: "dC3", xPct: 15, yPct: 46, size: "S", prefer: "media", baseZ: 3, tiltBase: 1.2 },
+    { id: "dC4", xPct: 47, yPct: 21, size: "S", prefer: "mixed", baseZ: 4, tiltBase: -1.0 },
+    { id: "dC5", xPct: 43, yPct: 55, size: "M", prefer: "media", baseZ: 5, tiltBase: -1.2 },
+    { id: "dC6", xPct: 70, yPct: 20, size: "S", prefer: "note", baseZ: 3, tiltBase: 1.3 },
+    { id: "dC7", xPct: 85, yPct: 29, size: "M", prefer: "note", baseZ: 4, tiltBase: -1.1 },
+    { id: "dC8", xPct: 72, yPct: 43, size: "S", prefer: "note", baseZ: 4, tiltBase: 1.1 },
+    { id: "dC9", xPct: 89, yPct: 47, size: "S", prefer: "note", baseZ: 3, tiltBase: -1.2 },
+    { id: "dC10", xPct: 23, yPct: 78, size: "M", prefer: "mixed", baseZ: 4, tiltBase: 1.4 },
+    { id: "dC11", xPct: 40, yPct: 84, size: "S", prefer: "note", baseZ: 3, tiltBase: -1.1 },
+    { id: "dC12", xPct: 61, yPct: 73, size: "L", prefer: "mixed", format: "wide", baseZ: 6, tiltBase: -1.5 },
+    { id: "dC13", xPct: 79, yPct: 78, size: "M", prefer: "mixed", baseZ: 5, tiltBase: 1.1 },
+    { id: "dC14", xPct: 91, yPct: 84, size: "S", prefer: "note", baseZ: 3, tiltBase: -1.0 },
   ],
 };
 
 const SLOT_MAPS_MOBILE = {
   A: [
-    { id: "mA1", xPct: 17, yPct: 19, size: "M", baseZ: 3, tiltBase: -1.8 },
-    { id: "mA2", xPct: 49, yPct: 16, size: "L", baseZ: 5, tiltBase: 1.6 },
-    { id: "mA3", xPct: 81, yPct: 21, size: "M", baseZ: 3, tiltBase: -1.4 },
-    { id: "mA4", xPct: 24, yPct: 52, size: "S", baseZ: 2, tiltBase: 1.2 },
-    { id: "mA5", xPct: 57, yPct: 49, size: "M", baseZ: 4, tiltBase: -1.5 },
-    { id: "mA6", xPct: 86, yPct: 55, size: "S", baseZ: 2, tiltBase: 1.3 },
-    { id: "mA7", xPct: 35, yPct: 82, size: "M", baseZ: 3, tiltBase: -1.2 },
-    { id: "mA8", xPct: 72, yPct: 79, size: "L", baseZ: 5, tiltBase: 1.4 },
+    { id: "mA1", xPct: 28, yPct: 22, size: "M", prefer: "media", baseZ: 4, tiltBase: -1.4 },
+    { id: "mA2", xPct: 54, yPct: 33, size: "L", prefer: "media", format: "wide", baseZ: 6, tiltBase: 1.5 },
+    { id: "mA3", xPct: 79, yPct: 24, size: "S", prefer: "note", baseZ: 3, tiltBase: -1.0 },
+    { id: "mA4", xPct: 27, yPct: 52, size: "S", prefer: "mixed", baseZ: 3, tiltBase: 1.1 },
+    { id: "mA5", xPct: 74, yPct: 50, size: "M", prefer: "note", baseZ: 4, tiltBase: -1.2 },
+    { id: "mA6", xPct: 36, yPct: 78, size: "M", prefer: "mixed", baseZ: 4, tiltBase: 1.0 },
+    { id: "mA7", xPct: 69, yPct: 76, size: "S", prefer: "note", baseZ: 3, tiltBase: -1.1 },
+    { id: "mA8", xPct: 87, yPct: 84, size: "S", prefer: "mixed", baseZ: 3, tiltBase: 1.2 },
   ],
   B: [
-    { id: "mB1", xPct: 15, yPct: 17, size: "S", baseZ: 2, tiltBase: -1.2 },
-    { id: "mB2", xPct: 44, yPct: 22, size: "M", baseZ: 3, tiltBase: 1.5 },
-    { id: "mB3", xPct: 76, yPct: 16, size: "L", baseZ: 5, tiltBase: -1.7 },
-    { id: "mB4", xPct: 23, yPct: 51, size: "M", baseZ: 3, tiltBase: 1.1 },
-    { id: "mB5", xPct: 55, yPct: 47, size: "S", baseZ: 2, tiltBase: -1.0 },
-    { id: "mB6", xPct: 84, yPct: 53, size: "M", baseZ: 4, tiltBase: 1.2 },
-    { id: "mB7", xPct: 30, yPct: 82, size: "L", baseZ: 5, tiltBase: -1.4 },
-    { id: "mB8", xPct: 70, yPct: 79, size: "M", baseZ: 3, tiltBase: 1.3 },
+    { id: "mB1", xPct: 24, yPct: 20, size: "M", prefer: "media", baseZ: 4, tiltBase: 1.3 },
+    { id: "mB2", xPct: 57, yPct: 31, size: "L", prefer: "media", format: "wide", baseZ: 6, tiltBase: -1.6 },
+    { id: "mB3", xPct: 83, yPct: 22, size: "S", prefer: "note", baseZ: 3, tiltBase: 1.0 },
+    { id: "mB4", xPct: 31, yPct: 53, size: "S", prefer: "mixed", baseZ: 3, tiltBase: -1.0 },
+    { id: "mB5", xPct: 75, yPct: 49, size: "M", prefer: "note", baseZ: 4, tiltBase: 1.1 },
+    { id: "mB6", xPct: 34, yPct: 79, size: "M", prefer: "mixed", baseZ: 4, tiltBase: -1.2 },
+    { id: "mB7", xPct: 67, yPct: 75, size: "S", prefer: "note", baseZ: 3, tiltBase: 1.2 },
+    { id: "mB8", xPct: 86, yPct: 84, size: "S", prefer: "mixed", baseZ: 3, tiltBase: -1.1 },
   ],
   C: [
-    { id: "mC1", xPct: 19, yPct: 18, size: "M", baseZ: 3, tiltBase: 1.4 },
-    { id: "mC2", xPct: 50, yPct: 16, size: "S", baseZ: 2, tiltBase: -1.3 },
-    { id: "mC3", xPct: 82, yPct: 21, size: "M", baseZ: 4, tiltBase: 1.6 },
-    { id: "mC4", xPct: 15, yPct: 52, size: "L", baseZ: 5, tiltBase: -1.5 },
-    { id: "mC5", xPct: 48, yPct: 47, size: "M", baseZ: 3, tiltBase: 1.2 },
-    { id: "mC6", xPct: 80, yPct: 51, size: "S", baseZ: 2, tiltBase: -1.1 },
-    { id: "mC7", xPct: 29, yPct: 82, size: "M", baseZ: 3, tiltBase: 1.0 },
-    { id: "mC8", xPct: 66, yPct: 79, size: "L", baseZ: 5, tiltBase: -1.4 },
+    { id: "mC1", xPct: 26, yPct: 21, size: "M", prefer: "media", baseZ: 4, tiltBase: -1.2 },
+    { id: "mC2", xPct: 55, yPct: 33, size: "L", prefer: "media", format: "wide", baseZ: 6, tiltBase: 1.4 },
+    { id: "mC3", xPct: 81, yPct: 24, size: "S", prefer: "note", baseZ: 3, tiltBase: -1.1 },
+    { id: "mC4", xPct: 29, yPct: 53, size: "S", prefer: "mixed", baseZ: 3, tiltBase: 1.0 },
+    { id: "mC5", xPct: 73, yPct: 50, size: "M", prefer: "note", baseZ: 4, tiltBase: -1.1 },
+    { id: "mC6", xPct: 33, yPct: 78, size: "M", prefer: "mixed", baseZ: 4, tiltBase: 1.1 },
+    { id: "mC7", xPct: 68, yPct: 75, size: "S", prefer: "note", baseZ: 3, tiltBase: -1.0 },
+    { id: "mC8", xPct: 87, yPct: 84, size: "S", prefer: "mixed", baseZ: 3, tiltBase: 1.2 },
   ],
 };
 
@@ -2714,12 +2719,36 @@ function showGuestLimitError(message) {
 }
 
 function pickRandomFunFactExamples(limit = FUN_FACT_CHIP_COUNT) {
-  const pool = [...FUN_FACT_EXAMPLES];
+  const seen = new Set();
+  const pool = FUN_FACT_EXAMPLES.filter((item) => {
+    const normalized = normalizeFunFactPoolKey(item);
+    if (!normalized || seen.has(normalized)) return false;
+    seen.add(normalized);
+    return true;
+  });
   for (let i = pool.length - 1; i > 0; i -= 1) {
     const j = Math.floor(Math.random() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
   return pool.slice(0, Math.min(limit, pool.length));
+}
+
+function getFunFactLines(value) {
+  return String(value || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function addFunFactLine(current, fact, maxLines = 3) {
+  const lines = getFunFactLines(current);
+  const factText = String(fact || "").trim();
+  if (!factText) return lines.join("\n");
+
+  const exists = lines.some((line) => normalizeFunFactPoolKey(line) === normalizeFunFactPoolKey(factText));
+  if (exists) return lines.join("\n");
+
+  return [...lines, factText].slice(0, Math.max(1, maxLines)).join("\n");
 }
 
 function buildFunFactExamplesPopover(input) {
@@ -2742,9 +2771,15 @@ function buildFunFactExamplesPopover(input) {
 
   const chipsWrap = document.createElement("div");
   chipsWrap.className = "fun-fact-ideas-chips hidden";
+  const lineCounter = document.createElement("p");
+  lineCounter.className = "field-helper fun-fact-line-counter";
 
   const usedExamples = new Set();
   let displayedExamples = pickRandomFunFactExamples();
+
+  function updateLineCounter() {
+    lineCounter.textContent = `${Math.min(getFunFactLines(input.value).length, 3)} / 3 lines`;
+  }
 
   function openIdeas() {
     chipsWrap.classList.remove("hidden");
@@ -2761,8 +2796,7 @@ function buildFunFactExamplesPopover(input) {
   }
 
   function insertExampleText(example) {
-    const existing = input.value.trim();
-    input.value = existing ? `${existing} / ${example}` : example;
+    input.value = addFunFactLine(input.value, example, 3);
     input.dispatchEvent(new Event("input", { bubbles: true }));
     input.focus();
   }
@@ -2804,11 +2838,14 @@ function buildFunFactExamplesPopover(input) {
     openIdeas();
     renderChips();
   });
+  input.addEventListener("input", updateLineCounter);
 
   controls.appendChild(toggle);
   controls.appendChild(shuffle);
   wrap.appendChild(controls);
   wrap.appendChild(chipsWrap);
+  wrap.appendChild(lineCounter);
+  updateLineCounter();
   return wrap;
 }
 
@@ -2833,7 +2870,8 @@ function buildGuestFunFactField(index, funFact = "") {
   const factInput = document.createElement("textarea");
   factInput.id = inputId;
   factInput.rows = 2;
-  factInput.placeholder = "Example: I will travel for noodles.";
+  factInput.placeholder =
+    "Example (add 2–3):\n• I’m a +1 and accepting friend applications.\n• My karaoke song is painfully predictable.\n• I came for the wedding, stayed for the dumplings.";
   factInput.value = funFact;
   factInput.dataset.guestFunFact = "true";
 
@@ -2841,9 +2879,14 @@ function buildGuestFunFactField(index, funFact = "") {
   helper.className = "field-helper";
   helper.textContent = "Short + specific is best.";
 
+  const tip = document.createElement("p");
+  tip.className = "field-helper";
+  tip.textContent = "Tip: add 2–3 lines — we’ll print one.";
+
   factField.appendChild(factLabel);
   factField.appendChild(factInput);
   factField.appendChild(helper);
+  factField.appendChild(tip);
   factField.appendChild(buildFunFactExamplesPopover(factInput));
   return factField;
 }
@@ -3714,6 +3757,89 @@ function randomIntInclusive(min, max) {
   return floorMin + Math.floor(Math.random() * (floorMax - floorMin + 1));
 }
 
+function setGuestWallLoadState(nextState) {
+  guestWallLoadState = String(nextState || "idle");
+  if (guestWallPinboardView instanceof HTMLElement) {
+    guestWallPinboardView.dataset.loadState = guestWallLoadState;
+  }
+}
+
+function clearGuestWallSlowMessageTimers() {
+  if (guestWallSlowMessageStartTimer) {
+    window.clearTimeout(guestWallSlowMessageStartTimer);
+    guestWallSlowMessageStartTimer = null;
+  }
+  if (guestWallSlowMessageRotateTimer) {
+    window.clearTimeout(guestWallSlowMessageRotateTimer);
+    guestWallSlowMessageRotateTimer = null;
+  }
+  guestWallSlowMessageIndex = 0;
+}
+
+function startGuestWallSlowMessageRotation() {
+  clearGuestWallSlowMessageTimers();
+  guestWallSlowMessageStartTimer = window.setTimeout(() => {
+    const rotateMessage = () => {
+      if (guestWallLoadState !== "loading") return;
+      const nextMessage = GUEST_WALL_SLOW_MESSAGES[guestWallSlowMessageIndex % GUEST_WALL_SLOW_MESSAGES.length];
+      setGuestWallStatus(`${GUEST_WALL_LOADING_MESSAGE} ${nextMessage}`);
+      guestWallSlowMessageIndex += 1;
+      guestWallSlowMessageRotateTimer = window.setTimeout(rotateMessage, GUEST_WALL_SLOW_MESSAGE_ROTATE_MS);
+    };
+    rotateMessage();
+  }, GUEST_WALL_SLOW_MESSAGE_DELAY_MS);
+}
+
+function classifyGuestWallError(error) {
+  const status = Number(error?.status || 0);
+  if (error?.isTimeout || status === 408) {
+    return {
+      state: "timeout",
+      statusMessage: "Still loading longer than expected. Please try again.",
+      panelMessage: "Still loading longer than expected. Please try again.",
+      reason: "timeout",
+    };
+  }
+  if (status === 401 || status === 403) {
+    return {
+      state: "error",
+      statusMessage: "Guest Wall is temporarily unavailable (permission issue).",
+      panelMessage: "Guest Wall is temporarily unavailable (permission issue). Please try again later.",
+      reason: "permission",
+    };
+  }
+  if (status === 404) {
+    return {
+      state: "error",
+      statusMessage: "Guest Wall source link looks broken right now.",
+      panelMessage: "Guest Wall source link looks broken right now. Please try again shortly.",
+      reason: "not_found",
+    };
+  }
+  if (status === 429) {
+    return {
+      state: "error",
+      statusMessage: "Guest Wall is rate-limited right now. Please retry in a moment.",
+      panelMessage: "Guest Wall is rate-limited right now. Please retry in a moment.",
+      reason: "rate_limited",
+    };
+  }
+  if (status >= 500) {
+    return {
+      state: "error",
+      statusMessage: "Guest Wall is temporarily unavailable (server issue).",
+      panelMessage: "Guest Wall is temporarily unavailable (server issue). Please retry.",
+      reason: "upstream",
+    };
+  }
+  return {
+    state: "error",
+    statusMessage: GUEST_WALL_UNAVAILABLE_MESSAGE,
+    panelMessage: GUEST_WALL_UNAVAILABLE_MESSAGE,
+    reason: "unknown",
+  };
+}
+
 function resolveGuestbookApiUrl(params = {}) {
   const search = new URLSearchParams();
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -3736,16 +3862,52 @@ async function fetchGuestbookPage({
   refresh = false,
   cursor = "",
 } = {}) {
+  const startedAt = performance.now();
   const apiUrl = resolveGuestbookApiUrl({
     mode,
     limit,
     refresh: refresh ? "1" : "",
     cursor,
   });
-  console.info(`[guestwall] request ${apiUrl}`);
-  const response = await fetch(apiUrl, { cache: "default" });
-  const text = await response.text();
+  const controller = new AbortController();
+  const timeoutHandle = window.setTimeout(() => {
+    controller.abort("guestwall-timeout");
+  }, GUEST_WALL_HARD_TIMEOUT_MS);
+  let response = null;
+  let text = "";
+
+  if (IS_LOCAL_DEV) {
+    console.info(`[guestwall][request] endpoint=GET /api/guestbook url=${apiUrl}`);
+  }
+
+  try {
+    response = await fetch(apiUrl, { cache: "default", signal: controller.signal });
+    text = await response.text();
+  } catch (error) {
+    const durationMs = Math.round(performance.now() - startedAt);
+    const isTimeout =
+      String(error?.name || "") === "AbortError" || String(error?.message || "").includes("guestwall-timeout");
+    const wrappedError = new Error(isTimeout ? "Guest wall request timed out." : GUEST_WALL_UNAVAILABLE_MESSAGE);
+    wrappedError.url = apiUrl;
+    wrappedError.status = isTimeout ? 408 : 0;
+    wrappedError.code = isTimeout ? "timeout" : "network";
+    wrappedError.durationMs = durationMs;
+    wrappedError.responseBytes = 0;
+    wrappedError.itemCount = 0;
+    wrappedError.isTimeout = isTimeout;
+    if (IS_LOCAL_DEV) {
+      console.error(
+        `[guestwall][fetch] endpoint=GET /api/guestbook status=${wrappedError.status} durationMs=${durationMs} bytes=0 items=0 error=${wrappedError.code}`,
+      );
+    }
+    throw wrappedError;
+  } finally {
+    window.clearTimeout(timeoutHandle);
+  }
+
   let data = null;
+  const responseBytes = new TextEncoder().encode(text).length;
+  const durationMs = Math.round(performance.now() - startedAt);
 
   try {
     data = text ? JSON.parse(text) : null;
@@ -3761,14 +3923,20 @@ async function fetchGuestbookPage({
         ? data.results
         : null;
 
-  console.info(
-    `[guestwall] response status=${response.status} ok=${Boolean(response.ok)} items=${Array.isArray(items) ? items.length : "invalid"}`,
-  );
+  if (IS_LOCAL_DEV) {
+    console.info(
+      `[guestwall][fetch] endpoint=GET /api/guestbook status=${response.status} durationMs=${durationMs} bytes=${responseBytes} items=${Array.isArray(items) ? items.length : "invalid"}`,
+    );
+  }
 
   if (!response.ok || !data || data.ok !== true || !Array.isArray(items)) {
     const error = new Error(GUEST_WALL_UNAVAILABLE_MESSAGE);
     error.url = apiUrl;
     error.status = response.status;
+    error.durationMs = durationMs;
+    error.responseBytes = responseBytes;
+    error.itemCount = Array.isArray(items) ? items.length : 0;
+    error.isTimeout = false;
     error.responseBody = text.slice(0, 500);
     if (data && data.error) error.cause = String(data.error);
     throw error;
@@ -3992,20 +4160,21 @@ function renderGuestWallLoadingSkeleton() {
   }
 }
 
-function renderGuestWallErrorState() {
+function renderGuestWallErrorStateWithMessage(message) {
+  const fallbackMessage = String(message || "").trim() || GUEST_WALL_UNAVAILABLE_MESSAGE;
   const makePanel = () => {
     const panel = document.createElement("div");
     panel.className = "guestwall-error";
 
     const text = document.createElement("p");
     text.className = "guestwall-error-text";
-    text.textContent = GUEST_WALL_UNAVAILABLE_MESSAGE;
+    text.textContent = fallbackMessage;
     panel.appendChild(text);
 
     const button = document.createElement("button");
     button.type = "button";
     button.className = "guestwall-control-btn guestwall-retry-btn";
-    button.textContent = "Retry";
+    button.textContent = "Try again";
     button.addEventListener("click", () => {
       loadGuestWallPinboard({ refresh: true });
     });
@@ -4098,7 +4267,7 @@ function buildGuestWallCard(card, context = "board") {
   const node = document.createElement("article");
   if (card.kind === "media") {
     node.className = "guestwall-item guestwall-item--polaroid";
-    const format = getGuestWallPolaroidFormat(card.id);
+    const format = normalizeGuestWallPolaroidFormat(getGuestWallPolaroidFormat(card.id));
     node.classList.add(`guestwall-polaroid--${format}`);
     const tone = getGuestWallPolaroidTone(card.id);
     node.style.setProperty("--gwPolaroidTone", tone);
@@ -4108,6 +4277,7 @@ function buildGuestWallCard(card, context = "board") {
     const signatureStyle = getGuestWallSignatureStyle(card.id, tone);
     const signature = document.createElement("span");
     signature.className = `guestwall-polaroid-signature guestwall-polaroid-signature--${signatureStyle.side}`;
+    signature.classList.add(`guestwall-polaroid-signature--${getGuestWallSignaturePlacement(card.id, format)}`);
     signature.textContent = String(card.name || "").trim();
     signature.style.setProperty("--gwSigAngle", signatureStyle.angle);
     signature.style.setProperty("--gwSigOffset", signatureStyle.horizontalOffset);
@@ -4116,8 +4286,8 @@ function buildGuestWallCard(card, context = "board") {
     signature.style.setProperty("--gwSigStroke", signatureStyle.stroke);
     signature.style.setProperty("--gwSigShadowX", signatureStyle.shadowX);
     signature.style.setProperty("--gwSigShadowY", signatureStyle.shadowY);
-    mediaNode.appendChild(signature);
     mat.appendChild(mediaNode);
+    mat.appendChild(signature);
     node.appendChild(mat);
     return node;
   }
@@ -4198,7 +4368,7 @@ function setGuestWallStatus(message) {
 }
 
 function setGuestWallControlsDisabled(disabled) {
-  [guestWallShuffle, guestWallPause].forEach((button) => {
+  [guestWallShuffle, guestWallAutoplayToggle].forEach((button) => {
     if (!(button instanceof HTMLButtonElement)) return;
     button.disabled = Boolean(disabled);
   });
@@ -4212,9 +4382,34 @@ function flashGuestWallButton(button) {
   }, 180);
 }
 
+function setGuestWallShuffleState(isShuffling) {
+  guestWallIsShuffling = Boolean(isShuffling);
+  if (!(guestWallShuffle instanceof HTMLButtonElement)) return;
+  const labelNode = guestWallShuffle.querySelector(".guestwall-control-btn__label");
+  guestWallShuffle.disabled = guestWallIsShuffling;
+  guestWallShuffle.classList.toggle("is-loading", guestWallIsShuffling);
+  guestWallShuffle.setAttribute("aria-busy", guestWallIsShuffling ? "true" : "false");
+  if (labelNode instanceof HTMLElement) {
+    labelNode.textContent = guestWallIsShuffling ? "Shuffling..." : "Shuffle";
+  } else {
+    guestWallShuffle.textContent = guestWallIsShuffling ? "Shuffling..." : "Shuffle";
+  }
+}
+
+function clearGuestWallSlotOpenTimer(slotNode) {
+  if (!(slotNode instanceof HTMLElement)) return;
+  const timerId = Number(slotNode.dataset.openTimerId || "");
+  if (Number.isFinite(timerId) && timerId > 0) {
+    window.clearTimeout(timerId);
+  }
+  slotNode.dataset.openTimerId = "";
+}
+
 function setGuestWallActiveSlot(nextSlotNode) {
   if (guestWallActiveSlotNode instanceof HTMLElement && guestWallActiveSlotNode !== nextSlotNode) {
+    clearGuestWallSlotOpenTimer(guestWallActiveSlotNode);
     guestWallActiveSlotNode.classList.remove("is-active");
+    guestWallActiveSlotNode.classList.remove("is-opening");
   }
   guestWallActiveSlotNode = nextSlotNode instanceof HTMLElement ? nextSlotNode : null;
   if (guestWallActiveSlotNode) {
@@ -4230,18 +4425,8 @@ function closeGuestWallDetail() {
   guestWallDetailOpen = false;
 }
 
-function renderGuestWallDetailMedia(card) {
-  if (!(guestWallDetailMedia instanceof HTMLElement)) return;
-  guestWallDetailMedia.innerHTML = "";
-
-  if (!card || card.kind !== "media" || !card.media) {
-    const placeholder = document.createElement("div");
-    placeholder.className = "guestwall-media-fallback";
-    placeholder.innerHTML = "<p>No photo attached.</p>";
-    guestWallDetailMedia.appendChild(placeholder);
-    return;
-  }
-
+function buildGuestWallDetailMediaNode(card) {
+  if (!card || card.kind !== "media" || !card.media) return null;
   const mediaKind = String(card.media.fileType || "").toLowerCase();
   if (mediaKind === "video") {
     const fallback = document.createElement("div");
@@ -4251,8 +4436,7 @@ function renderGuestWallDetailMedia(card) {
     if (openUrl) {
       fallback.appendChild(createExternalAnchor(openUrl, "Open video in Drive", "guestwall-media-retry"));
     }
-    guestWallDetailMedia.appendChild(fallback);
-    return;
+    return fallback;
   }
 
   const candidates = buildGuestWallImageCandidates(card.media, "w1600");
@@ -4260,8 +4444,7 @@ function renderGuestWallDetailMedia(card) {
     const placeholder = document.createElement("div");
     placeholder.className = "guestwall-media-fallback";
     placeholder.innerHTML = "<p>Photo unavailable.</p>";
-    guestWallDetailMedia.appendChild(placeholder);
-    return;
+    return placeholder;
   }
 
   const img = document.createElement("img");
@@ -4273,23 +4456,72 @@ function renderGuestWallDetailMedia(card) {
     const placeholder = document.createElement("div");
     placeholder.className = "guestwall-media-fallback";
     placeholder.innerHTML = "<p>Photo unavailable.</p>";
-    guestWallDetailMedia.replaceChildren(placeholder);
+    if (img.parentElement instanceof HTMLElement) {
+      img.parentElement.replaceChildren(placeholder);
+    }
   });
-  guestWallDetailMedia.appendChild(img);
+  return img;
+}
+
+function buildGuestWallDetailNoteBlock(noteText, name) {
+  const noteBlock = document.createElement("article");
+  noteBlock.className = "guestwall-detail-block guestwall-detail-block--note";
+
+  const noteTextNode = document.createElement("p");
+  noteTextNode.className = "guestwall-note-text guestwall-detail-note";
+  noteTextNode.textContent = noteText;
+  noteBlock.appendChild(noteTextNode);
+
+  const noteNameNode = document.createElement("p");
+  noteNameNode.className = "guestwall-note-sign guestwall-detail-name";
+  noteNameNode.textContent = `— ${name}`;
+  noteBlock.appendChild(noteNameNode);
+
+  return noteBlock;
+}
+
+function buildGuestWallDetailPhotoBlock(card, name) {
+  const mediaNode = buildGuestWallDetailMediaNode(card);
+  if (!(mediaNode instanceof HTMLElement)) return null;
+
+  const photoBlock = document.createElement("article");
+  photoBlock.className = "guestwall-detail-block guestwall-detail-block--photo";
+
+  const mediaWrap = document.createElement("div");
+  mediaWrap.className = "guestwall-modal-media guestwall-detail-media";
+  mediaWrap.appendChild(mediaNode);
+  photoBlock.appendChild(mediaWrap);
+
+  const photoNameNode = document.createElement("p");
+  photoNameNode.className = "guestwall-note-sign guestwall-detail-name";
+  photoNameNode.textContent = `— ${name}`;
+  photoBlock.appendChild(photoNameNode);
+
+  return photoBlock;
 }
 
 function openGuestWallDetail(card) {
-  if (!(guestWallDetailModal instanceof HTMLElement) || !card) return;
+  if (!(guestWallDetailModal instanceof HTMLElement) || !(guestWallDetailContent instanceof HTMLElement) || !card) return;
   const wasOpen = guestWallDetailOpen;
-
+  const guestName = String(card.name || "Guest");
   const fullNote = String(card.kind === "note" ? card.text : card.message || "").trim();
-  if (guestWallDetailNote instanceof HTMLElement) {
-    guestWallDetailNote.textContent = fullNote || "No note provided.";
+  const hasMedia = card.kind === "media" && !!card.media;
+  const hasNote = fullNote.length > 0;
+  if (!hasMedia && !hasNote) return;
+
+  guestWallDetailContent.innerHTML = "";
+  if (hasMedia && hasNote) {
+    const photoBlock = buildGuestWallDetailPhotoBlock(card, guestName);
+    if (photoBlock) guestWallDetailContent.appendChild(photoBlock);
+    const noteBlock = buildGuestWallDetailNoteBlock(fullNote, guestName);
+    guestWallDetailContent.appendChild(noteBlock);
+  } else if (hasMedia) {
+    const photoBlock = buildGuestWallDetailPhotoBlock(card, guestName);
+    if (photoBlock) guestWallDetailContent.appendChild(photoBlock);
+  } else if (hasNote) {
+    const noteBlock = buildGuestWallDetailNoteBlock(fullNote, guestName);
+    guestWallDetailContent.appendChild(noteBlock);
   }
-  if (guestWallDetailName instanceof HTMLElement) {
-    guestWallDetailName.textContent = `— ${String(card.name || "Guest")}`;
-  }
-  renderGuestWallDetailMedia(card);
 
   setHiddenClass(guestWallDetailModal, false);
   guestWallDetailModal.setAttribute("aria-hidden", "false");
@@ -4327,6 +4559,28 @@ function bindGuestWallDetailModalEvents() {
   guestWallDetailModal.dataset.bound = "true";
 }
 
+function openGuestWallDetailWithPickup(slotNode, card, options = {}) {
+  if (!(slotNode instanceof HTMLElement) || !card) return;
+  const immediate = Boolean(options.immediate || prefersReducedMotion());
+
+  setGuestWallActiveSlot(slotNode);
+  clearGuestWallSlotOpenTimer(slotNode);
+  if (immediate) {
+    slotNode.classList.remove("is-opening");
+    openGuestWallDetail(card);
+    return;
+  }
+
+  slotNode.classList.add("is-opening");
+  const timer = window.setTimeout(() => {
+    if (!(slotNode instanceof HTMLElement)) return;
+    slotNode.classList.remove("is-opening");
+    slotNode.dataset.openTimerId = "";
+    openGuestWallDetail(card);
+  }, GUEST_WALL_PICKUP_OPEN_DELAY_MS);
+  slotNode.dataset.openTimerId = String(timer);
+}
+
 function bindGuestWallSlotInteraction(slotNode) {
   if (!(slotNode instanceof HTMLElement) || slotNode.dataset.interactionBound === "true") return;
   slotNode.dataset.interactionBound = "true";
@@ -4344,8 +4598,7 @@ function bindGuestWallSlotInteraction(slotNode) {
     if (!cardId) return;
     const card = guestWallCardById.get(cardId);
     if (!card) return;
-    setGuestWallActiveSlot(slotNode);
-    openGuestWallDetail(card);
+    openGuestWallDetailWithPickup(slotNode, card);
   });
 
   slotNode.addEventListener("keydown", (event) => {
@@ -4355,8 +4608,7 @@ function bindGuestWallSlotInteraction(slotNode) {
     const card = guestWallCardById.get(cardId);
     if (!card) return;
     event.preventDefault();
-    setGuestWallActiveSlot(slotNode);
-    openGuestWallDetail(card);
+    openGuestWallDetailWithPickup(slotNode, card, { immediate: true });
   });
 }
 
@@ -4397,8 +4649,14 @@ function getGuestWallPolaroidFormat(cardId) {
   return "wide";
 }
 
+function normalizeGuestWallPolaroidFormat(value) {
+  const format = String(value || "").trim().toLowerCase();
+  if (format === "mini" || format === "square" || format === "wide") return format;
+  return "square";
+}
+
 function isGuestWallWideFormat(value) {
-  return String(value || "").trim() === "wide";
+  return normalizeGuestWallPolaroidFormat(value) === "wide";
 }
 
 function getGuestWallSlotFormat(slotConfigOrNode) {
@@ -4455,6 +4713,13 @@ function getGuestWallSignatureStyle(cardId, toneHex) {
     ink: inkIsLight ? "rgba(246, 239, 230, 0.93)" : "rgba(55, 16, 23, 0.9)",
     stroke: inkIsLight ? "rgba(246, 239, 230, 0.8)" : "rgba(75, 15, 23, 0.78)",
   };
+}
+
+function getGuestWallSignaturePlacement(cardId, format) {
+  const normalizedFormat = normalizeGuestWallPolaroidFormat(format);
+  if (normalizedFormat !== "wide") return "border";
+  const seed = hashStringToUint32(`sig-placement:${String(cardId || "")}`);
+  return seededRandomFromHash(seed) > 0.45 ? "overlap" : "border";
 }
 
 function getGuestWallNoteTone(cardId) {
@@ -4550,8 +4815,15 @@ function assignGuestWallCardsToSlots(slotConfigs, requestedIds) {
     return true;
   });
 
-  const wideQueue = uniquePool.filter((id) => isGuestWallWideFormat(getGuestWallPolaroidFormat(id)));
-  const portraitQueue = uniquePool.filter((id) => !isGuestWallWideFormat(getGuestWallPolaroidFormat(id)));
+  const mediaWideQueue = uniquePool.filter((id) => {
+    const card = guestWallCardById.get(id);
+    return card?.kind === "media" && isGuestWallWideFormat(normalizeGuestWallPolaroidFormat(getGuestWallPolaroidFormat(id)));
+  });
+  const mediaPortraitQueue = uniquePool.filter((id) => {
+    const card = guestWallCardById.get(id);
+    return card?.kind === "media" && !isGuestWallWideFormat(normalizeGuestWallPolaroidFormat(getGuestWallPolaroidFormat(id)));
+  });
+  const noteQueue = uniquePool.filter((id) => guestWallCardById.get(id)?.kind === "note");
   const fallbackQueue = [...uniquePool];
   const used = new Set();
   const takeNext = (queue, predicate = null) => {
@@ -4563,13 +4835,35 @@ function assignGuestWallCardsToSlots(slotConfigs, requestedIds) {
   };
 
   return slots.map((slotConfig) => {
+    const preferredKind = String(slotConfig?.prefer || "mixed").trim().toLowerCase();
     const slotFormat = getGuestWallSlotFormat(slotConfig);
-    if (slotFormat === "wide") {
-      return takeNext(wideQueue) || takeNext(portraitQueue) || takeNext(fallbackQueue) || "";
+
+    if (preferredKind === "note") {
+      return takeNext(noteQueue) || takeNext(fallbackQueue, (id) => guestWallCardById.get(id)?.kind === "note") || takeNext(fallbackQueue) || "";
     }
+
+    if (preferredKind === "media") {
+      if (slotFormat === "wide") {
+        return takeNext(mediaWideQueue) || takeNext(mediaPortraitQueue) || takeNext(fallbackQueue) || "";
+      }
+      return (
+        takeNext(mediaPortraitQueue) ||
+        takeNext(mediaWideQueue) ||
+        takeNext(fallbackQueue, (id) => guestWallCardById.get(id)?.kind === "media") ||
+        takeNext(fallbackQueue) ||
+        ""
+      );
+    }
+
+    if (slotFormat === "wide") {
+      return takeNext(mediaWideQueue) || takeNext(mediaPortraitQueue) || takeNext(noteQueue) || takeNext(fallbackQueue) || "";
+    }
+
     return (
-      takeNext(portraitQueue) ||
-      takeNext(fallbackQueue, (id) => !isGuestWallWideFormat(getGuestWallPolaroidFormat(id))) ||
+      takeNext(mediaPortraitQueue) ||
+      takeNext(noteQueue) ||
+      takeNext(mediaWideQueue) ||
+      takeNext(fallbackQueue, (id) => !isGuestWallWideFormat(normalizeGuestWallPolaroidFormat(getGuestWallPolaroidFormat(id)))) ||
       takeNext(fallbackQueue) ||
       ""
     );
@@ -4615,18 +4909,39 @@ function getGuestWallSlotWidthPx(containerWidth, size, mobile = false) {
   const width = Math.max(320, Number(containerWidth) || 0);
   if (mobile) {
     if (size === "S") return clampNumber(width * 0.32, 112, 138);
+    if (size === "XL") return clampNumber(width * 0.58, 192, 252);
     if (size === "L") return clampNumber(width * 0.44, 146, 182);
     return clampNumber(width * 0.38, 128, 162);
   }
 
   if (size === "S") return clampNumber(width * 0.125, 138, 176);
+  if (size === "XL") return clampNumber(width * 0.265, 284, 368);
   if (size === "L") return clampNumber(width * 0.172, 188, 236);
   return clampNumber(width * 0.148, 162, 206);
 }
 
+function getGuestWallSlotAspectRatio(slotConfig) {
+  const slotFormat = getGuestWallSlotFormat(slotConfig);
+  const preferredKind = String(slotConfig?.prefer || "mixed").trim().toLowerCase();
+  if (slotFormat === "wide") return 108 / 86;
+  if (preferredKind === "note") return 1.14;
+  if (preferredKind === "media") return 72 / 86;
+  return 0.88;
+}
+
+function getGuestWallSlotRole(slotConfig) {
+  const explicitRole = String(slotConfig?.role || "").trim().toLowerCase();
+  if (explicitRole === "hero" || explicitRole === "support" || explicitRole === "note") return explicitRole;
+  const preferredKind = String(slotConfig?.prefer || "mixed").trim().toLowerCase();
+  if (slotConfig?.size === "XL") return "hero";
+  if (preferredKind === "note") return "note";
+  return "support";
+}
+
 function getGuestWallSlotRect(slotConfig, containerRect, mobile = false) {
   const width = getGuestWallSlotWidthPx(containerRect.width, slotConfig.size, mobile);
-  const height = width * 1.36 + 10;
+  const aspectRatio = getGuestWallSlotAspectRatio(slotConfig);
+  const height = width / Math.max(0.58, aspectRatio) + 8;
   const centerX = (containerRect.width * Number(slotConfig.xPct || 0)) / 100 + Number(slotConfig.xOffsetPx || 0);
   const centerY = (containerRect.height * Number(slotConfig.yPct || 0)) / 100 + Number(slotConfig.yOffsetPx || 0);
   return {
@@ -4661,13 +4976,14 @@ function getGuestWallSlotJitter(slotConfig, slotIndex, jitterMaxPx, jitterSeed, 
 
 function resolveGuestWallSlotLayout(slotMap, containerRect, mobile = false, options = {}) {
   const gap = mobile ? GUEST_WALL_SLOT_GAP_MOBILE : GUEST_WALL_SLOT_GAP_DESKTOP;
+  const heroNoOverlapGap = mobile ? 16 : 24;
   const edgePadding = mobile ? 8 : 12;
   const jitterMaxPx = Number(options.jitterMaxPx || 0);
   const jitterSeed = String(options.jitterSeed || "");
   const placed = [];
   const result = [];
 
-  const isValidPlacement = (candidateRect) => {
+  const isValidPlacement = (candidateRect, candidateRole) => {
     if (
       candidateRect.left < edgePadding ||
       candidateRect.top < edgePadding ||
@@ -4676,11 +4992,15 @@ function resolveGuestWallSlotLayout(slotMap, containerRect, mobile = false, opti
     ) {
       return false;
     }
-    return !placed.some((existingRect) => rectsOverlap(existingRect, candidateRect, gap));
+    return !placed.some((entry) => {
+      const protectHero = candidateRole === "hero" || entry.role === "hero";
+      return rectsOverlap(entry.rect, candidateRect, protectHero ? heroNoOverlapGap : gap);
+    });
   };
 
   slotMap.forEach((slotConfig, slotIndex) => {
     const attempts = jitterMaxPx > 0 ? 5 : 1;
+    const role = getGuestWallSlotRole(slotConfig);
     let selectedOffset = { xOffsetPx: 0, yOffsetPx: 0 };
     let selectedRect = null;
 
@@ -4688,7 +5008,7 @@ function resolveGuestWallSlotLayout(slotMap, containerRect, mobile = false, opti
       const offset = getGuestWallSlotJitter(slotConfig, slotIndex, jitterMaxPx, jitterSeed, attempt);
       const candidate = { ...slotConfig, ...offset };
       const candidateRect = getGuestWallSlotRect(candidate, containerRect, mobile);
-      if (!isValidPlacement(candidateRect)) continue;
+      if (!isValidPlacement(candidateRect, role)) continue;
       selectedOffset = offset;
       selectedRect = candidateRect;
       break;
@@ -4700,9 +5020,10 @@ function resolveGuestWallSlotLayout(slotMap, containerRect, mobile = false, opti
       selectedOffset = { xOffsetPx: 0, yOffsetPx: 0 };
     }
 
-    placed.push(selectedRect);
+    placed.push({ rect: selectedRect, role });
     result.push({
       ...slotConfig,
+      role,
       ...selectedOffset,
       pxWidth: selectedRect.width,
     });
@@ -4723,11 +5044,13 @@ function placeGuestWallSlot(slotNode, slotConfig) {
   slotNode.style.setProperty("--gw-z", String(slotConfig.baseZ));
   slotNode.dataset.slotId = String(slotConfig.id || "");
   slotNode.dataset.slotSize = String(slotConfig.size || "M");
+  slotNode.dataset.slotRole = String(slotConfig.role || getGuestWallSlotRole(slotConfig));
   slotNode.dataset.slotFormat = String(slotConfig.format || "any");
   slotNode.dataset.tiltBase = String(slotConfig.tiltBase || 0);
   slotNode.classList.toggle("slot-size-s", slotConfig.size === "S");
   slotNode.classList.toggle("slot-size-m", slotConfig.size === "M");
   slotNode.classList.toggle("slot-size-l", slotConfig.size === "L");
+  slotNode.classList.toggle("slot-size-xl", slotConfig.size === "XL");
 
   if (SHOW_SLOT_DEBUG && !slotNode.querySelector(".guestwall-slot-debug")) {
     const debugNode = document.createElement("div");
@@ -4792,7 +5115,7 @@ function renderGuestWallDesktop({ reshuffle = false } = {}) {
   guestWallSlotNodes = [];
 
   const slotMap = getGuestWallSlotMapForCycle(false);
-  const slotCount = Math.min(slotMap.length, guestWallCards.length);
+  const slotCount = Math.min(slotMap.length, guestWallCards.length, GUEST_WALL_DESKTOP_VISIBLE_SLOTS);
   const containerRect = guestWallPinboard.getBoundingClientRect();
   const arrangedSlots = resolveGuestWallSlotLayout(slotMap.slice(0, slotCount), containerRect, false, {
     jitterMaxPx: GUEST_WALL_SLOT_JITTER_DESKTOP,
@@ -4851,7 +5174,7 @@ function renderGuestWallMobile() {
   guestWallSlotNodes = [];
 
   const slotMap = getGuestWallSlotMapForCycle(true);
-  const slotCount = Math.min(slotMap.length, guestWallCards.length);
+  const slotCount = Math.min(slotMap.length, guestWallCards.length, GUEST_WALL_MOBILE_VISIBLE_SLOTS);
   const containerRect = stage.getBoundingClientRect();
   const arrangedSlots = resolveGuestWallSlotLayout(slotMap.slice(0, slotCount), containerRect, true, {
     jitterMaxPx: GUEST_WALL_SLOT_JITTER_MOBILE,
@@ -4908,11 +5231,16 @@ function syncGuestWallLayout({ reshuffle = false } = {}) {
 function setGuestWallPaused(paused) {
   guestWallPaused = Boolean(paused);
 
-  if (guestWallPause instanceof HTMLButtonElement) {
-    guestWallPause.classList.toggle("is-paused", guestWallPaused);
-    guestWallPause.setAttribute("aria-pressed", guestWallPaused ? "true" : "false");
-    guestWallPause.setAttribute("aria-label", guestWallPaused ? "Resume autoplay" : "Pause autoplay");
-    guestWallPause.textContent = guestWallPaused ? "Resume" : "Pause";
+  if (guestWallAutoplayToggle instanceof HTMLButtonElement) {
+    const isOn = !guestWallPaused;
+    guestWallAutoplayToggle.classList.toggle("is-on", isOn);
+    guestWallAutoplayToggle.classList.toggle("is-off", !isOn);
+    guestWallAutoplayToggle.dataset.state = isOn ? "on" : "off";
+    guestWallAutoplayToggle.setAttribute("aria-checked", isOn ? "true" : "false");
+    guestWallAutoplayToggle.setAttribute("aria-label", isOn ? "Auto-shuffle on" : "Auto-shuffle off");
+    if (guestWallAutoplayControl instanceof HTMLElement) {
+      guestWallAutoplayControl.dataset.state = isOn ? "on" : "off";
+    }
   }
 
   if (guestWallPaused) {
@@ -4925,6 +5253,49 @@ function setGuestWallPaused(paused) {
   else scheduleGuestWallDesktopRotation();
 }
 
+function waitForGuestWallVisibleMediaReady(maxWaitMs = 1500) {
+  const mediaNodes = guestWallSlotNodes
+    .map((slotNode) => slotNode.querySelector("img,video"))
+    .filter((node) => node instanceof HTMLImageElement || node instanceof HTMLVideoElement);
+  if (!mediaNodes.length) return Promise.resolve();
+
+  const loadPromises = mediaNodes.map((node) => {
+    if (node instanceof HTMLImageElement) {
+      if (node.complete && node.naturalWidth > 0) return Promise.resolve();
+      return new Promise((resolve) => {
+        const onDone = () => {
+          node.removeEventListener("load", onDone);
+          node.removeEventListener("error", onDone);
+          resolve();
+        };
+        node.addEventListener("load", onDone, { once: true });
+        node.addEventListener("error", onDone, { once: true });
+      });
+    }
+
+    if (node instanceof HTMLVideoElement) {
+      if (node.readyState >= 2) return Promise.resolve();
+      return new Promise((resolve) => {
+        const onDone = () => {
+          node.removeEventListener("loadeddata", onDone);
+          node.removeEventListener("error", onDone);
+          resolve();
+        };
+        node.addEventListener("loadeddata", onDone, { once: true });
+        node.addEventListener("error", onDone, { once: true });
+      });
+    }
+
+    return Promise.resolve();
+  });
+
+  const timeoutPromise = new Promise((resolve) => {
+    window.setTimeout(resolve, maxWaitMs);
+  });
+
+  return Promise.race([Promise.all(loadPromises), timeoutPromise]);
+}
+
 function shuffleGuestWallVisibleSubset() {
   if (!guestWallCards.length || !guestWallVisibleCardIds.length || !guestWallSlotNodes.length) return;
 
@@ -4934,35 +5305,49 @@ function shuffleGuestWallVisibleSubset() {
   const currentVisible = guestWallVisibleCardIds.slice(0, slotCount);
   const allIds = guestWallCards.map((card) => card.id);
   if (allIds.length <= 1) return;
-
-  let nextVisible = currentVisible.slice();
-  const maxAttempts = 24;
   const slotConfig = guestWallActiveSlotConfig.slice(0, slotCount);
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    const candidate = assignGuestWallCardsToSlots(slotConfig, shuffleItems(allIds).slice(0, slotCount));
-    if (candidate.length < slotCount) break;
-    nextVisible = candidate;
-    if (candidate.every((id, idx) => id !== currentVisible[idx])) {
-      break;
+
+  const requestedReplacements = clampNumber(Math.round(slotCount * GUEST_WALL_SHUFFLE_REPLACE_RATIO), 1, slotCount - 1);
+  const candidateArrangement = assignGuestWallCardsToSlots(slotConfig, shuffleItems(allIds));
+  const nextVisible = currentVisible.slice();
+  const slotIndexes = shuffleItems(Array.from({ length: slotCount }, (_, idx) => idx));
+  const replacementIndexes = slotIndexes.slice(0, requestedReplacements);
+  const preservedIndexes = slotIndexes.slice(requestedReplacements);
+  const usedIds = new Set(preservedIndexes.map((idx) => currentVisible[idx]).filter(Boolean));
+  const changedIndexes = [];
+
+  replacementIndexes.forEach((slotIndex) => {
+    let replacementId =
+      candidateArrangement.find((id) => id && !usedIds.has(id) && id !== currentVisible[slotIndex]) ||
+      allIds.find((id) => id && !usedIds.has(id) && id !== currentVisible[slotIndex]) ||
+      "";
+
+    if (!replacementId) return;
+    usedIds.add(replacementId);
+    nextVisible[slotIndex] = replacementId;
+    if (replacementId !== currentVisible[slotIndex]) {
+      changedIndexes.push(slotIndex);
     }
+  });
+
+  if (!changedIndexes.length) {
+    const fallbackIndexes = slotIndexes.slice(0, 1);
+    fallbackIndexes.forEach((slotIndex) => {
+      const fallbackId = allIds.find((id) => id && id !== currentVisible[slotIndex]);
+      if (!fallbackId) return;
+      nextVisible[slotIndex] = fallbackId;
+      if (fallbackId !== currentVisible[slotIndex]) changedIndexes.push(slotIndex);
+    });
   }
 
-  if (!nextVisible.some((id, idx) => id !== currentVisible[idx])) {
-    const shifted = assignGuestWallCardsToSlots(
-      slotConfig,
-      currentVisible.map((_, idx) => currentVisible[(idx + 1) % currentVisible.length]),
-    );
-    if (shifted.some((id, idx) => id !== currentVisible[idx])) {
-      nextVisible = shifted;
-    }
-  }
+  if (!changedIndexes.length) return;
 
   guestWallVisibleCardIds = nextVisible.slice();
-  for (let slotIndex = 0; slotIndex < slotCount; slotIndex += 1) {
+  changedIndexes.forEach((slotIndex) => {
     const nextCardId = nextVisible[slotIndex];
-    if (!nextCardId || nextCardId === currentVisible[slotIndex]) continue;
+    if (!nextCardId) return;
     swapGuestWallSlotCard(slotIndex, nextCardId);
-  }
+  });
 
   maybePrefetchGuestWallBuffer();
 }
@@ -4972,24 +5357,26 @@ function bindGuestWallEvents() {
   if (guestWallPinboard.dataset.bound === "true") return;
 
   if (guestWallShuffle instanceof HTMLButtonElement) {
-    guestWallShuffle.addEventListener("click", () => {
+    guestWallShuffle.addEventListener("click", async () => {
       if (!guestWallCards.length) return;
-      if (guestWallShuffle.disabled) return;
-      guestWallShuffle.disabled = true;
-      flashGuestWallButton(guestWallShuffle);
-      shuffleGuestWallVisibleSubset();
-      window.setTimeout(() => {
-        guestWallShuffle.disabled = false;
-      }, 600);
-      if (!guestWallPaused) {
-        if (isGuestWallMobileView()) scheduleGuestWallMobileRotation();
-        else scheduleGuestWallDesktopRotation();
+      if (guestWallIsShuffling || guestWallShuffle.disabled) return;
+      try {
+        setGuestWallShuffleState(true);
+        flashGuestWallButton(guestWallShuffle);
+        shuffleGuestWallVisibleSubset();
+        if (!guestWallPaused) {
+          if (isGuestWallMobileView()) scheduleGuestWallMobileRotation();
+          else scheduleGuestWallDesktopRotation();
+        }
+        await waitForGuestWallVisibleMediaReady(1500);
+      } finally {
+        setGuestWallShuffleState(false);
       }
     });
   }
 
-  if (guestWallPause instanceof HTMLButtonElement) {
-    guestWallPause.addEventListener("click", () => {
+  if (guestWallAutoplayToggle instanceof HTMLButtonElement) {
+    guestWallAutoplayToggle.addEventListener("click", () => {
       setGuestWallPaused(!guestWallPaused);
     });
   }
@@ -5074,9 +5461,12 @@ async function initGuestWall() {
 async function loadGuestWallPinboard({ refresh = false } = {}) {
   if (guestWallRequestInFlight) return guestWallRequestInFlight;
 
+  setGuestWallLoadState("loading");
   setGuestWallStatus(GUEST_WALL_LOADING_MESSAGE);
+  setGuestWallShuffleState(false);
   setGuestWallControlsDisabled(true);
   renderGuestWallLoadingSkeleton();
+  startGuestWallSlowMessageRotation();
 
   const request = (async () => {
     try {
@@ -5092,11 +5482,15 @@ async function loadGuestWallPinboard({ refresh = false } = {}) {
       guestWallNextCursor = payload.nextCursor;
       guestWallPrefetchInFlight = null;
       if (!cards.length) {
+        clearGuestWallSlowMessageTimers();
+        setGuestWallLoadState("success");
         setGuestWallStatus(GUEST_WALL_EMPTY_MESSAGE);
         syncGuestWallLayout({ reshuffle: true });
         return;
       }
 
+      clearGuestWallSlowMessageTimers();
+      setGuestWallLoadState("success");
       setGuestWallStatus(GUEST_WALL_READY_MESSAGE);
       setGuestWallControlsDisabled(false);
       guestWallLayoutCycle = 0;
@@ -5109,15 +5503,23 @@ async function loadGuestWallPinboard({ refresh = false } = {}) {
         message: error instanceof Error ? error.message : String(error),
         status: error && typeof error === "object" ? error.status : undefined,
         url: error && typeof error === "object" ? error.url : undefined,
+        durationMs: error && typeof error === "object" ? error.durationMs : undefined,
+        responseBytes: error && typeof error === "object" ? error.responseBytes : undefined,
+        itemCount: error && typeof error === "object" ? error.itemCount : undefined,
+        isTimeout: error && typeof error === "object" ? error.isTimeout : undefined,
         cause: error && typeof error === "object" ? error.cause : undefined,
         responseBody: error && typeof error === "object" ? error.responseBody : undefined,
       });
-      setGuestWallStatus(GUEST_WALL_UNAVAILABLE_MESSAGE);
+      clearGuestWallSlowMessageTimers();
+      const classified = classifyGuestWallError(error);
+      setGuestWallLoadState(classified.state);
+      setGuestWallStatus(classified.statusMessage);
       setGuestWallControlsDisabled(true);
       guestWallNextCursor = null;
       guestWallPrefetchInFlight = null;
-      renderGuestWallErrorState();
+      renderGuestWallErrorStateWithMessage(classified.panelMessage);
     } finally {
+      clearGuestWallSlowMessageTimers();
       guestWallRequestInFlight = null;
     }
   })();
@@ -5890,24 +6292,68 @@ function storyImageSources(item, preferMosaic = false) {
   };
 }
 
-function attachStoryFallback(img, fallbackSrc, originalSrc) {
+function ensureStoryDebugNode() {
+  if (!IS_LOCAL_DEV || !(storySection instanceof HTMLElement)) return null;
+  if (storyDebugNode instanceof HTMLElement && storyDebugNode.isConnected) return storyDebugNode;
+  const node = document.createElement("p");
+  node.id = "storyDebugStatus";
+  node.style.margin = "6px 0 0";
+  node.style.fontSize = "11px";
+  node.style.lineHeight = "1.3";
+  node.style.color = "rgba(75, 15, 23, 0.78)";
+  node.style.wordBreak = "break-all";
+  node.style.display = "none";
+  storySection.appendChild(node);
+  storyDebugNode = node;
+  return node;
+}
+
+function setStoryDebugMessage(message) {
+  if (!IS_LOCAL_DEV) return;
+  const node = ensureStoryDebugNode();
+  if (!(node instanceof HTMLElement)) return;
+  const text = String(message || "").trim();
+  node.textContent = text;
+  node.style.display = text ? "block" : "none";
+}
+
+function attachStoryFallback(img, fallbackSrc, originalSrc, meta = {}) {
   if (!(img instanceof HTMLImageElement)) return;
   const fallback = String(fallbackSrc || "").trim();
   const original = String(originalSrc || "").trim();
+  const year = String(meta?.year || "").trim();
   img.dataset.fallbackSrc = fallback;
   img.dataset.fallbackUsed = "false";
   img.dataset.retryUsed = "false";
+  img.dataset.storyYear = year;
   img.classList.remove("story-image--placeholder");
+  img.classList.add("is-loading");
+  const mediaWrap = img.closest(".story-lightbox-media");
+  if (mediaWrap instanceof HTMLElement) mediaWrap.classList.add("is-loading");
+  img.onload = () => {
+    img.classList.remove("story-image--placeholder");
+    img.classList.remove("is-loading");
+    if (mediaWrap instanceof HTMLElement) mediaWrap.classList.remove("is-loading");
+    if (IS_LOCAL_DEV) {
+      console.info("[story] image loaded", {
+        year: img.dataset.storyYear || year || "unknown",
+        origin: window.location.origin,
+        src: img.currentSrc || img.getAttribute("src") || "",
+      });
+      setStoryDebugMessage("");
+    }
+  };
   img.onerror = () => {
     const failingSrc = img.currentSrc || img.getAttribute("src") || "";
-    if (IS_LOCAL_DEV) {
-      console.warn("[story] image failed", {
-        origin: window.location.origin,
-        src: failingSrc,
-        fallback: img.dataset.fallbackSrc,
-        retried: img.dataset.retryUsed === "true",
-      });
-    }
+    console.warn("[story] image failed", {
+      year: img.dataset.storyYear || year || "unknown",
+      origin: window.location.origin,
+      src: failingSrc,
+      fallback: img.dataset.fallbackSrc,
+      retried: img.dataset.retryUsed === "true",
+      ua: navigator.userAgent,
+    });
+    if (IS_LOCAL_DEV) setStoryDebugMessage(`Failed to load: ${failingSrc}`);
 
     if (img.dataset.retryUsed !== "true") {
       const retryBase = original || failingSrc;
@@ -5926,6 +6372,8 @@ function attachStoryFallback(img, fallbackSrc, originalSrc) {
       return;
     }
     img.onerror = null;
+    img.classList.remove("is-loading");
+    if (mediaWrap instanceof HTMLElement) mediaWrap.classList.remove("is-loading");
     img.classList.add("story-image--placeholder");
     img.src = STORY_IMAGE_PLACEHOLDER_DATA_URI;
   };
@@ -5965,7 +6413,7 @@ function buildStoryTimelineSlide(item, index) {
     halfTurn: 1.01,
     defaultScale: 1,
   });
-  attachStoryFallback(img, imageSources.fallback, imageSources.preferred || imageSources.original);
+  attachStoryFallback(img, imageSources.fallback, imageSources.preferred || imageSources.original, { year: item.yearLabel });
   img.src = imageSources.preferred;
   img.alt = item.alt || `Story photo ${item.yearLabel}`;
   img.loading = "lazy";
@@ -6225,7 +6673,7 @@ function applyStoryImagePresentation(img, item, mobileView, fallbackSrc, origina
     halfTurn: 1.01,
     defaultScale: 1,
   });
-  attachStoryFallback(img, fallbackSrc, originalSrc || img.src);
+  attachStoryFallback(img, fallbackSrc, originalSrc || img.src, { year: item.yearLabel });
   img.alt = item.alt || `Story photo ${item.yearLabel}`;
 }
 
@@ -6610,7 +7058,7 @@ function buildStoryMosaicCard(item, slot, index) {
     halfTurn: 1.01,
     defaultScale: 1,
   });
-  attachStoryFallback(img, imageSources.fallback, imageSources.preferred || imageSources.original);
+  attachStoryFallback(img, imageSources.fallback, imageSources.preferred || imageSources.original, { year: item.yearLabel });
   img.src = imageSrc;
   img.alt = item.alt || `Story photo ${item.yearLabel}`;
   img.loading = "lazy";
@@ -6781,7 +7229,7 @@ function updateStoryLightboxView() {
   if (!storyLightboxImg || !storyItems.length) return;
   const item = storyItems[currentStoryIndex];
   const imageSources = storyImageSources(item, false);
-  attachStoryFallback(storyLightboxImg, imageSources.fallback, imageSources.original);
+  attachStoryFallback(storyLightboxImg, imageSources.fallback, imageSources.original, { year: item.yearLabel });
   storyLightboxImg.style.imageOrientation = "from-image";
   storyLightboxImg.style.objectPosition = item.objectPosition || "50% 50%";
   applyStoryImageRotation(storyLightboxImg, item.rotation, "--storyScale", {
@@ -6794,7 +7242,7 @@ function updateStoryLightboxView() {
   if (storyLightboxTitle) storyLightboxTitle.textContent = item.title;
   if (storyLightboxBlurb) storyLightboxBlurb.textContent = item.blurb;
   if (storyLightboxLong) storyLightboxLong.textContent = item.longCaption;
-  if (storyLightboxCounter) storyLightboxCounter.textContent = `${currentStoryIndex + 1} / ${storyItems.length}`;
+  if (storyLightboxCounter) storyLightboxCounter.textContent = `${currentStoryIndex + 1} of ${storyItems.length}`;
 }
 
 function openStoryLightbox(index) {
@@ -6956,7 +7404,7 @@ function createStoryMosaicTile(item, index, totalCount) {
     halfTurn: 1.01,
     defaultScale: 1,
   });
-  attachStoryFallback(img, imageSources.fallback, imageSources.preferred || imageSources.original);
+  attachStoryFallback(img, imageSources.fallback, imageSources.preferred || imageSources.original, { year: item.yearLabel });
   img.src = imageSources.preferred || imageSources.original;
   img.alt = item.alt || `Story photo ${item.yearLabel}`;
   img.loading = "lazy";
@@ -7036,7 +7484,7 @@ function applyStoryOverlayImage(item) {
     halfTurn: 1.02,
     defaultScale: 1.03,
   });
-  attachStoryFallback(storyFocusImage, imageSources.fallback, imageSources.original);
+  attachStoryFallback(storyFocusImage, imageSources.fallback, imageSources.original, { year: item.yearLabel });
   storyFocusImage.src = imageSources.preferred || imageSources.original;
   storyFocusImage.alt = item.alt || `Story photo ${item.yearLabel}`;
 }

@@ -86,8 +86,23 @@
           <p class="guestwall-subtitle reveal">A small gallery of the love you sent our way (we’re not crying, you are).</p>
           <div id="guestWallPinboardView" class="guestwall-pinboard-view">
             <div class="guestwall-controls reveal" aria-label="Guest wall controls">
-              <button id="guestWallShuffle" class="guestwall-control-btn" type="button">Shuffle</button>
-              <button id="guestWallPause" class="guestwall-control-btn" type="button" aria-pressed="false">Pause</button>
+              <button id="guestWallShuffle" class="guestwall-control-btn" type="button" aria-busy="false">
+                <span class="guestwall-control-btn__label">Shuffle</span>
+                <span class="guestwall-control-btn__spinner" aria-hidden="true"></span>
+              </button>
+              <div class="guestwall-autoplay-control">
+                <span class="guestwall-autoplay-label">Auto-shuffle</span>
+                <button
+                  id="guestWallAutoplayToggle"
+                  class="guestwall-toggle is-on"
+                  type="button"
+                  role="switch"
+                  aria-checked="true"
+                  aria-label="Auto-shuffle"
+                >
+                  <span class="guestwall-toggle-track" aria-hidden="true"><span class="guestwall-toggle-thumb"></span></span>
+                </button>
+              </div>
             </div>
             <p id="guestWallStatus" class="guestwall-status reveal" aria-live="polite">Loading guest wall…</p>
             <div id="guestWallPinboard" class="guestwall-pinboard reveal" aria-live="polite"></div>
@@ -98,14 +113,9 @@
 
       <section id="guestWallDetailModal" class="guestwall-modal hidden" aria-hidden="true">
         <div class="guestwall-modal-backdrop" data-guestwall-close="true"></div>
-        <article class="guestwall-modal-panel guestwall-detail-panel" role="dialog" aria-modal="true" aria-labelledby="guestWallDetailTitle">
+        <article class="guestwall-modal-panel guestwall-detail-panel" role="dialog" aria-modal="true" aria-label="Guest wall detail">
           <button id="guestWallDetailClose" class="guestwall-modal-close" type="button" aria-label="Close">×</button>
-          <h3 id="guestWallDetailTitle" class="guestwall-detail-title">Guest post</h3>
-          <div class="guestwall-detail-content">
-            <div id="guestWallDetailMedia" class="guestwall-modal-media guestwall-detail-media"></div>
-            <p id="guestWallDetailNote" class="guestwall-note-text guestwall-detail-note"></p>
-            <p id="guestWallDetailName" class="guestwall-note-sign guestwall-detail-name"></p>
-          </div>
+          <div id="guestWallDetailContent" class="guestwall-detail-content"></div>
         </article>
       </section>
     </main>

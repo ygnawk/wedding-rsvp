@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "prestart": "npm run validate:story-assets",
     "start": "node server.js",
     "normalize:our-story": "node tools/normalize-our-story.js",
     "validate:story-assets": "node tools/validate-story-assets.js",

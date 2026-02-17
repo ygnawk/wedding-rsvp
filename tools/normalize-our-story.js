@@ -8,6 +8,7 @@ const ROOT = path.resolve(__dirname, "..");
 const MANIFEST_PATH = path.join(ROOT, "photos", "timeline-photos", "manifest.json");
 const SOURCE_DIR = path.join(ROOT, "photos", "timeline-photos");
 const OUTPUT_DIR = path.join(ROOT, "public", "our-story-normalized");
+const PUBLIC_DIR = path.join(ROOT, "public", "our-story");
 const MAX_WIDTH = 1600;
 
 function ensureDir(dirPath) {
@@ -41,6 +42,9 @@ function resolveSourcePath(fileRef) {
     if (value.startsWith("/our-story-normalized/")) {
       return path.join(OUTPUT_DIR, path.basename(value));
     }
+    if (value.startsWith("/our-story/")) {
+      return path.join(PUBLIC_DIR, path.basename(value));
+    }
     const absolute = path.join(ROOT, value.replace(/^\//, ""));
     return absolute;
   }
@@ -61,13 +65,17 @@ async function normalizeEntry(entry, index) {
   const yearPrefix = Number.isFinite(Number(entry.year)) && !new RegExp(`^${entry.year}[-_]`).test(stem) ? `${entry.year}-` : "";
   const outputName = `${yearPrefix}${stem}.webp`;
   const outputPath = path.join(OUTPUT_DIR, outputName);
-  const publicRef = `/our-story-normalized/${outputName}`;
+  const publicPath = path.join(PUBLIC_DIR, outputName);
+  const publicRef = `/our-story/${outputName}`;
 
-  await sharp(sourcePath)
+  const buffer = await sharp(sourcePath)
     .rotate()
     .resize({ width: MAX_WIDTH, withoutEnlargement: true })
     .webp({ quality: 84 })
-    .toFile(outputPath);
+    .toBuffer();
+
+  fs.writeFileSync(outputPath, buffer);
+  fs.writeFileSync(publicPath, buffer);
 
   return {
     ...entry,
@@ -78,6 +86,7 @@ async function normalizeEntry(entry, index) {
 
 async function main() {
   ensureDir(OUTPUT_DIR);
+  ensureDir(PUBLIC_DIR);
   const { parsed, timeline } = loadManifest();
   if (!timeline.length) {
     console.log("No timeline entries found. Nothing to normalize.");
