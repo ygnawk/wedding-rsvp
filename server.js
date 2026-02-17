@@ -396,9 +396,30 @@ function buildDriveEmbedUrl(fileId, driveViewUrl, fileType) {
     if (fileType === "video") {
       return `https://drive.google.com/file/d/${fileId}/preview`;
     }
-    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1600`;
+    return `https://drive.google.com/uc?export=view&id=${fileId}`;
   }
   return driveViewUrl || "";
+}
+
+async function makeDriveFilePublic(drive, fileId) {
+  const shouldPublish = String(process.env.GOOGLE_DRIVE_PUBLIC_MEDIA || "true").toLowerCase() !== "false";
+  if (!shouldPublish) return;
+  if (!fileId) return;
+
+  try {
+    await drive.permissions.create({
+      fileId,
+      supportsAllDrives: true,
+      requestBody: {
+        role: "reader",
+        type: "anyone",
+      },
+      fields: "id",
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error || "unknown");
+    console.warn(`[drive] could not make file public file_id=${fileId} message=${message}`);
+  }
 }
 
 function classifyGuestbookError(error) {
@@ -488,6 +509,8 @@ async function uploadMediaFilesToDrive(drive, destinationFolderId, submissionId,
       fileType: deriveFileTypeFromMime(response.data.mimeType || mimeType),
       driveViewUrl: `https://drive.google.com/file/d/${fileId}/view`,
     });
+
+    await makeDriveFilePublic(drive, fileId);
   }
 
   return uploaded;
