@@ -20,6 +20,7 @@ const MAX_UPLOAD_FILES = 3;
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const HOTEL_PANEL_TRANSITION_MS = 500;
 const HOTEL_CONTENT_FADE_MS = 500;
+const MOBILE_GALLERY_DOT_MAX = 7;
 const UPLOAD_ALLOWED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "heic", "heif", "mp4", "mov", "webm"]);
 const UPLOAD_ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
@@ -3514,6 +3515,8 @@ function normalizeGalleryEntry(entry) {
   const focalY = Number.isFinite(Number(entry.focalY))
     ? clamp01(Number(entry.focalY), RECENT_DEFAULT_FOCAL_Y)
     : parsedPosition?.y ?? RECENT_DEFAULT_FOCAL_Y;
+  const parsedMobilePosition = parseFocalFromObjectPosition(entry.mobileObjectPosition, focalX, focalY);
+  const mobileObjectPosition = parsedMobilePosition ? toGalleryObjectPosition(parsedMobilePosition.x, parsedMobilePosition.y) : "";
 
   return {
     id: String(entry.id || entry.file || entry.src || "").trim(),
@@ -3523,6 +3526,7 @@ function normalizeGalleryEntry(entry) {
     focalX,
     focalY,
     objectPosition: toGalleryObjectPosition(focalX, focalY),
+    mobileObjectPosition,
   };
 }
 
@@ -3733,7 +3737,8 @@ function buildGalleryCard(entry, index) {
   img.style.objectFit = "cover";
   const focalX = clamp01(entry.focalX, RECENT_DEFAULT_FOCAL_X);
   const focalY = clamp01(entry.focalY, RECENT_DEFAULT_FOCAL_Y);
-  const objectPosition = toGalleryObjectPosition(focalX, focalY);
+  const baseObjectPosition = toGalleryObjectPosition(focalX, focalY);
+  const objectPosition = isGalleryMobileView() ? entry.mobileObjectPosition || baseObjectPosition : baseObjectPosition;
   img.style.objectPosition = objectPosition;
   card.style.setProperty("--objPos", objectPosition);
   card.appendChild(img);
@@ -3745,6 +3750,22 @@ function buildGalleryCard(entry, index) {
   }
 
   return card;
+}
+
+function syncGalleryObjectPositions() {
+  if (!galleryGrid || !galleryImages.length) return;
+  const isMobile = isGalleryMobileView();
+  const cards = Array.from(galleryGrid.querySelectorAll(".gallery-tile"));
+  cards.forEach((card, index) => {
+    const entry = galleryImages[index];
+    if (!entry) return;
+    const img = card.querySelector("img");
+    if (!(img instanceof HTMLImageElement)) return;
+    const fallbackPosition = entry.objectPosition || toGalleryObjectPosition(RECENT_DEFAULT_FOCAL_X, RECENT_DEFAULT_FOCAL_Y);
+    const objectPosition = isMobile ? entry.mobileObjectPosition || fallbackPosition : fallbackPosition;
+    img.style.objectPosition = objectPosition;
+    card.style.setProperty("--objPos", objectPosition);
+  });
 }
 
 function isGalleryMobileView() {
@@ -3773,7 +3794,7 @@ function renderGalleryDots() {
   if (!galleryDots) return;
   galleryDots.innerHTML = "";
 
-  if (!galleryImages.length) {
+  if (!galleryImages.length || (isGalleryMobileView() && galleryImages.length > MOBILE_GALLERY_DOT_MAX)) {
     galleryDots.hidden = true;
     return;
   }
@@ -3815,7 +3836,11 @@ function bindGalleryMobileCarouselEvents() {
   window.addEventListener(
     "resize",
     () => {
-      if (galleryDots) galleryDots.hidden = !isGalleryMobileView() || !galleryImages.length;
+      if (galleryDots) {
+        const hideDots = !isGalleryMobileView() || !galleryImages.length || galleryImages.length > MOBILE_GALLERY_DOT_MAX;
+        galleryDots.hidden = hideDots;
+      }
+      syncGalleryObjectPositions();
       syncGalleryDotFromScroll();
     },
     { passive: true },
@@ -3855,6 +3880,7 @@ async function initGallery() {
     galleryGrid.appendChild(card);
   });
 
+  syncGalleryObjectPositions();
   renderGalleryDots();
   syncGalleryDotFromScroll();
 }
@@ -4163,7 +4189,7 @@ function highlightStoryMobileCard() {
 }
 
 function isStoryMobileView() {
-  return window.matchMedia("(max-width: 767px)").matches;
+  return window.matchMedia("(max-width: 768px)").matches;
 }
 
 function renderStoryYearScrubber(items, yearTargets = [], onSelect = null) {

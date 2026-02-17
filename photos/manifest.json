@@ -116,7 +116,8 @@
       "cropClass": "img-round",
       "focalX": 0.54,
       "focalY": 0.2,
-      "objectPosition": "50% 20%"
+      "objectPosition": "50% 20%",
+      "mobileObjectPosition": "50% 70%"
     },
     {
       "id": "lmn-4200",

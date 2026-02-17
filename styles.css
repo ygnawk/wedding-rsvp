@@ -1989,9 +1989,10 @@ a:focus-visible,
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 768px) {
   .story-head-row {
     align-items: center;
+    justify-content: flex-start;
     gap: 10px;
     padding-bottom: 8px;
   }
@@ -2006,25 +2007,40 @@ a:focus-visible,
     font-size: 0.74rem;
   }
 
-  .story-year-scrubber {
+  .story-year-scrubber,
+  .yearScroller {
     display: flex;
     position: sticky;
     top: calc(var(--headerH) + 8px);
     z-index: 6;
     margin-top: 10px;
-    padding: 4px 0;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    gap: 10px;
+    padding: 6px 12px;
+    flex-wrap: nowrap;
     overflow-x: auto;
     overflow-y: hidden;
     white-space: nowrap;
     -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
     background: linear-gradient(180deg, rgba(247, 241, 230, 0.96) 0%, rgba(247, 241, 230, 0.82) 100%);
     backdrop-filter: blur(4px);
   }
 
+  .story-year-scrubber::-webkit-scrollbar,
+  .yearScroller::-webkit-scrollbar {
+    display: none;
+  }
+
   .story-year-pill-btn {
     min-height: 34px;
+    flex: 0 0 auto;
     padding-inline: 10px;
     font-size: 0.72rem;
+    scroll-snap-align: center;
   }
 
   .story-timeline-shell {
@@ -2041,7 +2057,7 @@ a:focus-visible,
   .story-mobile-card {
     width: 100%;
     max-width: 100%;
-    aspect-ratio: 16 / 10;
+    aspect-ratio: 4 / 3;
     max-height: min(56svh, 460px);
     background: linear-gradient(180deg, rgba(247, 241, 230, 0.98) 0%, rgba(236, 226, 210, 0.92) 100%);
   }
@@ -2060,6 +2076,11 @@ a:focus-visible,
 
   .story-mosaic-layout {
     display: none;
+  }
+
+  .story-timeline-shell,
+  .story-timeline-head {
+    min-width: 0;
   }
 
   .story-year-pill {
@@ -4962,6 +4983,8 @@ details[open] .faq-answer {
   .gallery-grid {
     display: flex;
     gap: 0;
+    width: 100%;
+    max-width: 100%;
     overflow-x: auto;
     overflow-y: hidden;
     scroll-snap-type: x mandatory;
@@ -4978,6 +5001,7 @@ details[open] .faq-answer {
     --tile-ratio: 4 / 3;
     flex: 0 0 100%;
     width: 100%;
+    max-width: 100%;
     scroll-snap-align: start;
     scroll-snap-stop: always;
     border-radius: 12px;
@@ -4988,32 +5012,37 @@ details[open] .faq-answer {
   }
 
   .gallery-dots {
-    margin-top: 12px;
+    margin-top: 10px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
     width: 100%;
+    background: transparent;
   }
 
   .gallery-dot {
-    width: 10px;
-    height: 10px;
-    flex: 0 0 10px;
+    width: 6px;
+    height: 6px;
+    flex: 0 0 6px;
     display: block;
     border-radius: 50%;
     appearance: none;
     -webkit-appearance: none;
     border: 0;
     padding: 0;
-    background: rgba(255, 245, 230, 0.42);
+    background: rgba(255, 245, 230, 0.34);
     cursor: pointer;
-    transition: background-color 180ms ease, box-shadow 180ms ease;
+    transition: background-color 180ms ease, opacity 180ms ease;
+    opacity: 0.56;
   }
 
   .gallery-dot.is-active {
-    background: rgba(201, 174, 116, 0.96);
-    box-shadow: 0 0 0 2px rgba(201, 174, 116, 0.3);
+    width: 8px;
+    height: 8px;
+    flex: 0 0 8px;
+    background: rgba(201, 174, 116, 0.92);
+    opacity: 0.95;
   }
 
   .gallery-dot:focus-visible {
