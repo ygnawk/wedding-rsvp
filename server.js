@@ -401,6 +401,44 @@ function buildDriveEmbedUrl(fileId, driveViewUrl, fileType) {
   return driveViewUrl || "";
 }
 
+function classifyGuestbookError(error) {
+  const message = String(error instanceof Error ? error.message : error || "");
+  const lower = message.toLowerCase();
+
+  if (lower.includes("missing google_spreadsheet_id")) {
+    return { code: "missing_env_var", detail: "GOOGLE_SPREADSHEET_ID is not set in production env." };
+  }
+  if (lower.includes("missing google credentials") || lower.includes("google_service_account") || lower.includes("google_oauth")) {
+    return { code: "missing_credentials", detail: "Google auth credentials are missing or incomplete." };
+  }
+  if (
+    lower.includes("permission denied") ||
+    lower.includes("insufficient permissions") ||
+    lower.includes("the caller does not have permission") ||
+    lower.includes("request had insufficient authentication scopes") ||
+    lower.includes("forbidden")
+  ) {
+    return { code: "permission_denied", detail: "Google API credentials do not have access to Sheet/Drive resources." };
+  }
+  if (lower.includes("invalid_grant") || lower.includes("unauthorized_client") || lower.includes("invalid_client")) {
+    return { code: "oauth_invalid", detail: "OAuth refresh token/client configuration is invalid." };
+  }
+  if (lower.includes("missing required headers") || lower.includes("has no header row")) {
+    return { code: "schema_mismatch", detail: "Sheet tabs/headers do not match expected schema." };
+  }
+  if (
+    lower.includes("econnreset") ||
+    lower.includes("etimedout") ||
+    lower.includes("eai_again") ||
+    lower.includes("enotfound") ||
+    lower.includes("network")
+  ) {
+    return { code: "network_error", detail: "Temporary network failure while calling Google APIs." };
+  }
+
+  return { code: "unknown", detail: "Unexpected guestbook failure." };
+}
+
 function getUploadExtension(originalName, mimeType) {
   const nameExt = path.extname(String(originalName || "")).toLowerCase();
   if (nameExt) return nameExt;
@@ -702,10 +740,12 @@ function buildGuestbookItems(rsvpRows, guestRows, mediaRows) {
 async function loadGuestbookItems({ forceRefresh = false } = {}) {
   const now = Date.now();
   if (!forceRefresh && guestbookCache.items.length && guestbookCache.expiresAt > now) {
+    console.info(`[guestbook] cache hit items=${guestbookCache.items.length} expires_at=${new Date(guestbookCache.expiresAt).toISOString()}`);
     return guestbookCache.items;
   }
 
   if (!forceRefresh && guestbookCache.pending) {
+    console.info("[guestbook] cache pending request reused");
     return guestbookCache.pending;
   }
 
@@ -718,10 +758,19 @@ async function loadGuestbookItems({ forceRefresh = false } = {}) {
       getSheetObjects(sheets, spreadsheetId, "guests"),
       getSheetObjects(sheets, spreadsheetId, "media"),
     ]);
+    const approvedRows = rsvpRows.filter((row) => isTruthyApproval(row.approved)).length;
+    console.info(
+      `[guestbook] source rows rsvps=${rsvpRows.length} approved=${approvedRows} guests=${guestRows.length} media=${mediaRows.length}`,
+    );
 
     const items = buildGuestbookItems(rsvpRows, guestRows, mediaRows);
     guestbookCache.items = items;
     guestbookCache.expiresAt = Date.now() + GUESTBOOK_CACHE_TTL_MS;
+    if (!items.length) {
+      console.info("[guestbook] success with 0 approved displayable items");
+    } else {
+      console.info(`[guestbook] success items=${items.length}`);
+    }
     return items;
   })();
 
@@ -739,10 +788,12 @@ async function handleGuestbookRequest(req, res) {
     const limit = parseBoundedInt(requestUrl.searchParams.get("limit"), 80, 1, 200);
     const offset = parseBoundedInt(requestUrl.searchParams.get("offset"), 0, 0, 100000);
     const refresh = ["1", "true", "yes"].includes(normalizeFieldValue(requestUrl.searchParams.get("refresh")).toLowerCase());
+    console.info(`[guestbook] request limit=${limit} offset=${offset} refresh=${refresh}`);
 
     const allItems = await loadGuestbookItems({ forceRefresh: refresh });
     const items = allItems.slice(offset, offset + limit);
     const nextOffset = offset + items.length < allItems.length ? offset + items.length : null;
+    console.info(`[guestbook] response total=${allItems.length} returned=${items.length} next_offset=${nextOffset === null ? "none" : nextOffset}`);
 
     send(
       res,
@@ -760,6 +811,8 @@ async function handleGuestbookRequest(req, res) {
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Guestbook request failed";
+    const classified = classifyGuestbookError(error);
+    console.error(`[guestbook] error code=${classified.code} detail=${classified.detail} message=${message}`);
     send(res, 500, JSON.stringify({ ok: false, error: message }), MIME_TYPES[".json"]);
   }
 }

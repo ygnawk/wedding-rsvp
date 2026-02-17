@@ -27,6 +27,8 @@ const GUEST_WALL_ROTATE_SWAP_COUNT = 3;
 const GUEST_WALL_MOBILE_AUTO_MS = 9000;
 const GUEST_WALL_INITIAL_FETCH_LIMIT = 120;
 const GUEST_WALL_MODAL_PAGE_SIZE = 24;
+const GUEST_WALL_EMPTY_MESSAGE = "Nothing approved yet—check back soon.";
+const GUEST_WALL_UNAVAILABLE_MESSAGE = "Guest Wall is unavailable right now.";
 const UPLOAD_ALLOWED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "heic", "heif", "mp4", "mov", "webm"]);
 const UPLOAD_ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
@@ -3465,8 +3467,9 @@ async function fetchGuestbookPage({ limit = GUEST_WALL_INITIAL_FETCH_LIMIT, offs
   }
 
   if (!response.ok || !data || data.ok !== true || !Array.isArray(data.items)) {
-    const errorMessage = data && data.error ? String(data.error) : "Guest Wall is unavailable right now.";
-    throw new Error(errorMessage);
+    const error = new Error(GUEST_WALL_UNAVAILABLE_MESSAGE);
+    if (data && data.error) error.cause = String(data.error);
+    throw error;
   }
 
   return data;
@@ -3723,7 +3726,7 @@ function renderGuestWallDesktop({ reshuffle = false } = {}) {
   if (!slotCount) {
     const empty = document.createElement("p");
     empty.className = "guestwall-empty";
-    empty.textContent = "Guest Wall opens once approved uploads come in.";
+    empty.textContent = GUEST_WALL_EMPTY_MESSAGE;
     guestWallPinboard.appendChild(empty);
     return;
   }
@@ -3787,7 +3790,7 @@ function renderGuestWallMobile() {
   if (!guestWallCards.length) {
     const empty = document.createElement("p");
     empty.className = "guestwall-status";
-    empty.textContent = "Guest Wall opens once approved uploads come in.";
+    empty.textContent = GUEST_WALL_EMPTY_MESSAGE;
     guestWallMobile.appendChild(empty);
     return;
   }
@@ -3956,7 +3959,7 @@ async function loadGuestWallModalPage({ reset = false } = {}) {
     if (!normalizedEntries.length && guestWallModalOffset === 0) {
       const empty = document.createElement("p");
       empty.className = "guestwall-status";
-      empty.textContent = "No approved uploads yet.";
+      empty.textContent = GUEST_WALL_EMPTY_MESSAGE;
       guestWallModalList.appendChild(empty);
     } else {
       normalizedEntries.forEach((entry) => {
@@ -4107,7 +4110,7 @@ async function initGuestWall() {
     guestWallApiTotal = Number.isFinite(Number(payload.total)) ? Number(payload.total) : entries.length;
 
     if (!cards.length) {
-      setGuestWallStatus("Guest Wall will appear once approved uploads are available.");
+      setGuestWallStatus(GUEST_WALL_EMPTY_MESSAGE);
       syncGuestWallLayout({ reshuffle: true });
       return;
     }
@@ -4120,8 +4123,7 @@ async function initGuestWall() {
     setGuestWallPaused(false);
     syncGuestWallLayout({ reshuffle: true });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Guest Wall failed to load.";
-    setGuestWallStatus(message);
+    setGuestWallStatus(GUEST_WALL_UNAVAILABLE_MESSAGE);
     setGuestWallControlsDisabled(true);
   }
 }
