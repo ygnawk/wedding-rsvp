@@ -188,6 +188,7 @@ let revealObserver = null;
 let reducedMotion = false;
 let selectedUploadFiles = Array.from({ length: MAX_UPLOAD_FILES }, () => null);
 let selectedUploadPreviewUrls = Array.from({ length: MAX_UPLOAD_FILES }, () => "");
+let rsvpIsSubmitting = false;
 
 const floatingHeader = document.getElementById("floatingHeader");
 const menuToggle = document.getElementById("menuToggle");
@@ -205,6 +206,7 @@ const attendanceChoice = document.getElementById("attendanceChoice");
 const rsvpFields = document.getElementById("rsvpFields");
 const rsvpForm = document.getElementById("rsvpForm");
 const submitButton = document.getElementById("submitButton");
+const rsvpSubmitHelper = document.getElementById("rsvpSubmitHelper");
 const rsvpConfirmation = document.getElementById("rsvpConfirmation");
 
 const fullNameInput = document.getElementById("fullName");
@@ -512,16 +514,16 @@ const STORY_DEFAULT_FOCAL_Y = 0.28;
 const STORY_OVERRIDES = {
   // Upright files should remain upright.
   "2008-miki-moves-beijing-upright.jpg": { rotate: 0, objPos: "50% 44%" },
-  "2020-covid-upright.jpg": { rotate: 0, objPos: "50% 42%" },
+  "2020-covid-upright.jpg": { rotate: 0, objPos: "50% 25%" },
   "2024-proposal-upright.jpg": { rotate: 0, objPos: "50% 44%" },
   // Legacy names are also pinned upright to avoid accidental rotation regressions.
   "2008-miki-moves-beijing.jpg": { rotate: 0, objPos: "50% 44%" },
   "2008-miki-moves-beijing-v2.jpg": { rotate: 0, objPos: "50% 44%" },
   "2008 - Miki moves to China.JPG": { rotate: 0, objPos: "50% 44%" },
-  "2020-covid.jpg": { rotate: 0, objPos: "50% 42%" },
-  "2020-covid-v2.jpg": { rotate: 0, objPos: "50% 42%" },
-  "2020-covid-from-heic.jpg": { rotate: 0, objPos: "50% 42%" },
-  "2020 - COVID.HEIC": { rotate: 0, objPos: "50% 42%" },
+  "2020-covid.jpg": { rotate: 0, objPos: "50% 25%" },
+  "2020-covid-v2.jpg": { rotate: 0, objPos: "50% 25%" },
+  "2020-covid-from-heic.jpg": { rotate: 0, objPos: "50% 25%" },
+  "2020 - COVID.HEIC": { rotate: 0, objPos: "50% 25%" },
   "2024-proposal.jpg": { rotate: 0, objPos: "50% 44%" },
   "2024-proposal-v2.jpg": { rotate: 0, objPos: "50% 44%" },
   "2024 - She said yes.JPG": { rotate: 0, objPos: "50% 44%" },
@@ -533,7 +535,7 @@ const STORY_YEAR_FOCAL_PRESETS = {
   2008: { focalX: 0.5, focalY: 0.44, cropMode: "cover" },
   2013: { focalX: 0.5, focalY: 0.26, cropMode: "cover" },
   2016: { focalX: 0.55, focalY: 0.44, cropMode: "cover" },
-  2020: { focalX: 0.5, focalY: 0.42, cropMode: "cover" },
+  2020: { focalX: 0.5, focalY: 0.25, cropMode: "cover" },
   2021: { focalX: 0.5, focalY: 0.44, cropMode: "cover" },
   2023: { focalX: 0.5, focalY: 0.48, cropMode: "cover" },
   2024: { focalX: 0.5, focalY: 0.44, cropMode: "cover" },
@@ -1156,14 +1158,16 @@ function createFoodCopyButton(copyValueInput, options = {}) {
   const title = String(options.title || "Copy");
   const iconOnly = Boolean(options.iconOnly);
   const resetDelay = Number.isFinite(options.resetDelay) ? Math.max(300, Number(options.resetDelay)) : 600;
+  const iconMarkup =
+    '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><rect x="5" y="5" width="10" height="10" rx="2"></rect></svg>';
   const button = document.createElement("button");
   button.type = "button";
   button.className = className;
   button.setAttribute("aria-label", ariaLabel);
   button.title = title;
   if (iconOnly) {
-    button.textContent = "⧉";
-    button.dataset.defaultText = "⧉";
+    button.innerHTML = iconMarkup;
+    button.dataset.defaultHtml = iconMarkup;
   } else {
     button.textContent = label;
     button.dataset.defaultText = button.textContent;
@@ -1182,7 +1186,11 @@ function createFoodCopyButton(copyValueInput, options = {}) {
     }
 
     window.setTimeout(() => {
-      button.textContent = button.dataset.defaultText || (iconOnly ? "⧉" : label);
+      if (iconOnly) {
+        button.innerHTML = button.dataset.defaultHtml || iconMarkup;
+      } else {
+        button.textContent = button.dataset.defaultText || label;
+      }
       button.classList.remove("is-copied");
       button.disabled = false;
     }, resetDelay);
@@ -2942,6 +2950,44 @@ function initUploadSlots() {
   });
 }
 
+function getSubmitButtonLabel(choiceInput) {
+  const choice = String(choiceInput || "");
+  if (choice === "yes") return "Confirm attendance";
+  if (choice === "working") return "Add me to the list";
+  return "Send reply";
+}
+
+function updateSubmitButtonLabel() {
+  if (!submitButton || rsvpIsSubmitting) return;
+  const nextLabel = getSubmitButtonLabel(attendanceChoice ? attendanceChoice.value : "");
+  submitButton.textContent = nextLabel;
+}
+
+function setRsvpSubmittingState(isSubmitting) {
+  const active = Boolean(isSubmitting);
+  rsvpIsSubmitting = active;
+  if (!submitButton) return;
+
+  submitButton.disabled = active;
+  submitButton.setAttribute("aria-disabled", String(active));
+  submitButton.setAttribute("aria-busy", active ? "true" : "false");
+  submitButton.classList.toggle("is-loading", active);
+  submitButton.textContent = active ? "Submitting…" : getSubmitButtonLabel(attendanceChoice ? attendanceChoice.value : "");
+
+  if (rsvpSubmitHelper) setHiddenClass(rsvpSubmitHelper, !active);
+}
+
+function setRsvpSubmittedState() {
+  if (!submitButton) return;
+  rsvpIsSubmitting = false;
+  submitButton.classList.remove("is-loading");
+  submitButton.disabled = true;
+  submitButton.setAttribute("aria-disabled", "true");
+  submitButton.setAttribute("aria-busy", "false");
+  submitButton.textContent = "Submitted ✓";
+  if (rsvpSubmitHelper) setHiddenClass(rsvpSubmitHelper, true);
+}
+
 function clearRsvpChoice() {
   if (!attendanceChoice || !rsvpFields || !submitButton || !yesFields || !workingFields || !noFields || !youFunFactsFields) return;
 
@@ -2980,8 +3026,7 @@ function clearRsvpChoice() {
   clearUploadSlots();
   hideGuestLimitError();
   updateAddGuestButtonState();
-
-  submitButton.textContent = "Send reply";
+  setRsvpSubmittingState(false);
 
   if (fullNameInput && inviteState.greetingName) {
     fullNameInput.value = inviteState.greetingName;
@@ -3035,20 +3080,19 @@ function setChoice(choice) {
     ensurePrimaryGuestCard();
     syncPrimaryGuestName(true);
     updateAddGuestButtonState();
-    submitButton.textContent = "Confirm attendance";
   }
 
   if (choice === "working") {
     updateAddGuestButtonState();
-    submitButton.textContent = "Add me to the list";
     hideGuestLimitError();
   }
 
   if (choice === "no") {
     updateAddGuestButtonState();
-    submitButton.textContent = "Send reply";
     hideGuestLimitError();
   }
+
+  updateSubmitButtonLabel();
 }
 
 function initRsvpCards() {
@@ -3239,9 +3283,12 @@ function showRsvpConfirmation(message) {
 
 function initRsvpForm() {
   if (!rsvpForm || !attendanceChoice || !rsvpConfirmation) return;
+  if (rsvpSubmitHelper) setHiddenClass(rsvpSubmitHelper, true);
+  updateSubmitButtonLabel();
 
   rsvpForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (rsvpIsSubmitting) return;
 
     if (!attendanceChoice.value) {
       showRsvpConfirmation("Please select one RSVP option first.");
@@ -3264,15 +3311,28 @@ function initRsvpForm() {
     }
 
     const payload = buildPayload();
-    const result = await submitRSVP(payload);
-    if (!result || result.ok !== true) {
-      showRsvpConfirmation(result && result.error ? result.error : "We couldn’t submit your RSVP right now. Please try again in a moment.");
-      return;
-    }
+    let submissionSucceeded = false;
+    hideRsvpConfirmation();
+    setRsvpSubmittingState(true);
 
-    rsvpForm.classList.add("hidden");
-    const baseMessage = confirmationMessage(attendanceChoice.value);
-    showRsvpConfirmation(result.warning ? `${baseMessage} ${result.warning}` : baseMessage);
+    try {
+      const result = await submitRSVP(payload);
+      if (!result || result.ok !== true) {
+        showRsvpConfirmation(result && result.error ? result.error : "We couldn’t submit your RSVP right now. Please try again in a moment.");
+        return;
+      }
+
+      submissionSucceeded = true;
+      setRsvpSubmittedState();
+
+      rsvpForm.classList.add("hidden");
+      const baseMessage = confirmationMessage(attendanceChoice.value);
+      showRsvpConfirmation(result.warning ? `${baseMessage} ${result.warning}` : baseMessage);
+    } finally {
+      if (!submissionSucceeded) {
+        setRsvpSubmittingState(false);
+      }
+    }
   });
 }
 
@@ -4280,14 +4340,16 @@ function setStoryMobileSlide(index, options = {}) {
   storyMobileImg.src = imageSrc;
   attachStoryFallback(storyMobileImg, imageSources.fallback);
   storyMobileImg.alt = item.alt || `Story photo ${item.yearLabel}`;
-  storyMobileImg.style.objectPosition = mobileView ? "50% 50%" : item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
+  storyMobileImg.style.objectPosition = mobileView
+    ? item.mobileObjectPosition || item.objectPosition || "50% 50%"
+    : item.objectPosition || toObjectPosition(STORY_DEFAULT_FOCAL_X, STORY_DEFAULT_FOCAL_Y);
   storyMobileImg.style.imageOrientation = "from-image";
-  storyMobileImg.style.objectFit = mobileView ? "contain" : "cover";
+  storyMobileImg.style.objectFit = "cover";
   storyMobileImg.style.transformOrigin = "50% 50%";
   storyMobileImg.style.setProperty("--storyRotate", "0deg");
   storyMobileImg.style.transform = "none";
   if (storyMobileCard) {
-    storyMobileCard.classList.toggle("is-contain", mobileView);
+    storyMobileCard.classList.remove("is-contain");
     storyMobileCard.style.setProperty("--storyMobileBgImage", "none");
   }
 
@@ -4341,7 +4403,7 @@ function syncStoryResponsiveMode() {
   bindStoryYearObserver(isMobile ? [] : storyPathTargets);
 
   if (isMobile && storyItems.length) {
-    setStoryMobileSlide(storyMobileIndex, { scrollPill: false });
+    setStoryMobileSlide(storyMobileIndex, { scrollPill: true });
     clearStoryChronologyPath();
     return;
   }
@@ -4724,7 +4786,7 @@ async function initStoryMosaicLayout() {
     orderedItems.findIndex((item) => Number(item.year) === 1998),
   );
   storyMobileIndex = preferredIndex;
-  setStoryMobileSlide(preferredIndex, { scrollPill: false });
+  setStoryMobileSlide(preferredIndex, { scrollPill: true });
   syncStoryResponsiveMode();
   queueStoryChronologyPathRender();
 }
@@ -4886,6 +4948,8 @@ function buildStoryItem(entry) {
   const objectPosition = parsedOverridePosition
     ? toObjectPosition(parsedOverridePosition.x, parsedOverridePosition.y)
     : toObjectPosition(focalX, focalY);
+  const parsedMobilePosition = parseStoryObjectPosition(entry.mobileObjectPosition);
+  const mobileObjectPosition = parsedMobilePosition ? toObjectPosition(parsedMobilePosition.x, parsedMobilePosition.y) : objectPosition;
 
   return {
     ...entry,
@@ -4898,6 +4962,7 @@ function buildStoryItem(entry) {
     cropMode,
     allowNoFace: Boolean(entry.allowNoFace),
     objectPosition,
+    mobileObjectPosition,
     yearLabel: storyYearLabel(entry.year),
   };
 }

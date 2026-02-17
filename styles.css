@@ -774,6 +774,30 @@ button:hover,
   transform: translateY(-1px);
 }
 
+.btn.is-loading {
+  pointer-events: none;
+}
+
+.btn.is-loading::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  margin-right: 8px;
+  border-radius: 999px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: btnSpin 720ms linear infinite;
+}
+
+@keyframes btnSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .btn-maroon {
   background: var(--maroon);
   color: var(--ivory);
@@ -896,11 +920,15 @@ a:focus-visible,
   margin-top: 12px;
   display: none;
   align-items: center;
+  flex-wrap: nowrap;
   gap: 8px;
   overflow-x: auto;
   overflow-y: hidden;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
   padding-bottom: 2px;
   scrollbar-width: none;
+  max-width: 100%;
 }
 
 .story-year-scrubber::-webkit-scrollbar {
@@ -910,6 +938,7 @@ a:focus-visible,
 .story-year-pill-btn {
   min-height: 36px;
   padding: 8px 11px;
+  flex: 0 0 auto;
   border-radius: 999px;
   border: 1px solid rgba(75, 15, 23, 0.24);
   background: rgba(247, 241, 230, 0.88);
@@ -1984,6 +2013,10 @@ a:focus-visible,
     z-index: 6;
     margin-top: 10px;
     padding: 4px 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
     background: linear-gradient(180deg, rgba(247, 241, 230, 0.96) 0%, rgba(247, 241, 230, 0.82) 100%);
     backdrop-filter: blur(4px);
   }
@@ -2001,16 +2034,22 @@ a:focus-visible,
 
   .story-mobile-stage {
     display: grid;
+    width: 100%;
+    overflow-x: hidden;
   }
 
   .story-mobile-card {
-    aspect-ratio: 4 / 3;
+    width: 100%;
+    max-width: 100%;
+    aspect-ratio: 16 / 10;
     max-height: min(56svh, 460px);
     background: linear-gradient(180deg, rgba(247, 241, 230, 0.98) 0%, rgba(236, 226, 210, 0.92) 100%);
   }
 
   .story-mobile-card img {
-    object-fit: contain !important;
+    width: 100%;
+    height: 100%;
+    object-fit: cover !important;
     object-position: center !important;
     background: transparent;
   }
@@ -2637,6 +2676,22 @@ a:focus-visible,
   margin-top: var(--form-space-24);
   display: flex;
   align-items: center;
+}
+
+.form-actions--stacked {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.rsvp-submit-helper {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn.is-loading::before {
+    animation: none;
+  }
 }
 
 .conditional {
@@ -4356,13 +4411,15 @@ details[open] .faq-answer {
 }
 
 .makan-meta-row {
-  display: grid;
-  grid-template-columns: 1fr 28px;
-  align-items: start;
-  column-gap: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 7px;
+  max-width: 100%;
 }
 
 .makan-meta-value {
+  display: inline;
   min-width: 0;
 }
 
@@ -4456,20 +4513,32 @@ details[open] .faq-answer {
 
 .makan-copy-icon-btn {
   appearance: none;
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  border: 1px solid rgba(201, 174, 116, 0.52);
-  background: rgba(247, 241, 230, 0.08);
-  color: rgba(247, 241, 230, 0.9);
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(201, 174, 116, 0.22);
+  background: transparent;
+  color: rgba(247, 241, 230, 0.86);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0;
-  font-size: 0.8rem;
+  font-size: 0.94rem;
   letter-spacing: 0;
   line-height: 1;
   cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.makan-copy-icon-btn svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .makan-legal-row {
@@ -4572,8 +4641,8 @@ details[open] .faq-answer {
 }
 
 .makan-copy-icon-btn.is-copied {
-  background: rgba(201, 174, 116, 0.28);
-  border-color: rgba(201, 174, 116, 0.82);
+  background: rgba(201, 174, 116, 0.17);
+  border-color: rgba(201, 174, 116, 0.64);
 }
 
 .makan-microcopy {
@@ -4630,10 +4699,6 @@ details[open] .faq-answer {
 
   .makan-item-description {
     font-size: 0.9rem;
-  }
-
-  .makan-meta-row {
-    grid-template-columns: 1fr 28px;
   }
 
   .makan-legal-popover {
