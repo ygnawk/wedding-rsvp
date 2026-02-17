@@ -335,6 +335,7 @@ const guestWallPinboardView = document.getElementById("guestWallPinboardView");
 const guestWallShuffle = document.getElementById("guestWallShuffle");
 const guestWallAutoplayToggle = document.getElementById("guestWallAutoplayToggle");
 const guestWallAutoplayControl = document.querySelector(".guestwall-autoplay-control");
+const guestWallAutoplayState = document.getElementById("guestWallAutoplayState");
 const guestWallDetailModal = document.getElementById("guestWallDetailModal");
 const guestWallDetailClose = document.getElementById("guestWallDetailClose");
 const guestWallDetailContent = document.getElementById("guestWallDetailContent");
@@ -5253,13 +5254,21 @@ function setGuestWallPaused(paused) {
 
   if (guestWallAutoplayToggle instanceof HTMLButtonElement) {
     const isOn = !guestWallPaused;
+    const stateText = isOn ? "ON" : "OFF";
     guestWallAutoplayToggle.classList.toggle("is-on", isOn);
     guestWallAutoplayToggle.classList.toggle("is-off", !isOn);
-    guestWallAutoplayToggle.dataset.state = isOn ? "ON" : "OFF";
+    guestWallAutoplayToggle.dataset.state = stateText;
     guestWallAutoplayToggle.setAttribute("aria-checked", isOn ? "true" : "false");
     guestWallAutoplayToggle.setAttribute("aria-label", isOn ? "Auto-shuffle on" : "Auto-shuffle off");
     if (guestWallAutoplayControl instanceof HTMLElement) {
-      guestWallAutoplayControl.dataset.state = isOn ? "ON" : "OFF";
+      guestWallAutoplayControl.dataset.state = stateText;
+      guestWallAutoplayControl.classList.toggle("is-on", isOn);
+      guestWallAutoplayControl.classList.toggle("is-off", !isOn);
+    }
+    if (guestWallAutoplayState instanceof HTMLElement) {
+      guestWallAutoplayState.textContent = stateText;
+      guestWallAutoplayState.classList.toggle("is-on", isOn);
+      guestWallAutoplayState.classList.toggle("is-off", !isOn);
     }
   }
 

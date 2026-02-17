@@ -5824,12 +5824,25 @@ a.makan-copy-icon-btn {
   gap: 6px;
 }
 
-.guestwall-autoplay-control[data-state] .guestwall-autoplay-label::after {
-  content: attr(data-state);
-  font-size: 0.68rem;
-  letter-spacing: 0.09em;
+.guestwall-autoplay-state {
+  min-width: 34px;
+  text-align: left;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  opacity: 0.94;
+  font-weight: 700;
+  color: rgba(247, 241, 230, 0.66);
+  transition: color 150ms ease;
+}
+
+.guestwall-autoplay-state.is-on,
+.guestwall-autoplay-control.is-on .guestwall-autoplay-state {
+  color: rgba(233, 206, 147, 0.98);
+}
+
+.guestwall-autoplay-state.is-off,
+.guestwall-autoplay-control.is-off .guestwall-autoplay-state {
+  color: rgba(234, 226, 212, 0.7);
 }
 
 .guestwall-toggle {
@@ -7213,6 +7226,11 @@ a.guestwall-media-retry {
 
   .guestwall-autoplay-label {
     font-size: 0.78rem;
+  }
+
+  .guestwall-autoplay-state {
+    min-width: 30px;
+    font-size: 0.68rem;
   }
 
   .guestwall-toggle-track {

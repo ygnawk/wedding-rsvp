@@ -15,7 +15,7 @@
     />
     <link rel="icon" type="image/svg+xml" href="/public/favicon.svg" />
     <link rel="icon" type="image/png" href="/public/favicon-32.png" />
-    <link rel="stylesheet" href="/styles.css?v=20260217-guestwall-shuffle1" />
+    <link rel="stylesheet" href="/styles.css?v=20260217-guestwall-autotoggle1" />
   </head>
   <body>
     <header id="floatingHeader" class="floating-header" aria-label="Site navigation">
@@ -103,6 +103,7 @@
                 >
                   <span class="guestwall-toggle-track" aria-hidden="true"><span class="guestwall-toggle-thumb"></span></span>
                 </button>
+                <span id="guestWallAutoplayState" class="guestwall-autoplay-state" aria-hidden="true">ON</span>
               </div>
             </div>
             <p id="guestWallStatus" class="guestwall-status reveal" aria-live="polite">Loading guest wall…</p>
@@ -131,6 +132,6 @@
       </div>
     </footer>
 
-    <script src="/app.js?v=20260217-guestwall-shuffle1"></script>
+    <script src="/app.js?v=20260217-guestwall-autotoggle1"></script>
   </body>
 </html>
