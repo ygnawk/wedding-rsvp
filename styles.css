@@ -3593,6 +3593,7 @@ details[open] .faq-answer {
   height: auto;
   display: block;
   aspect-ratio: 760 / 460;
+  overflow: visible;
 }
 
 .hotel-map-frame {

@@ -2104,8 +2104,11 @@ function renderHotelMatrix() {
 
   const width = hotelMatrixWidth;
   const height = hotelMatrixHeight;
+  const hasSelection = Boolean(hotelMatrixPinnedId) && !isHotelMatrixMobile();
   const isCompact = width < 560;
-  const margins = isCompact ? { top: 24, right: 18, bottom: 92, left: 72 } : { top: 42, right: 56, bottom: 104, left: 122 };
+  const margins = isCompact
+    ? { top: hasSelection ? 30 : 24, right: 18, bottom: hasSelection ? 104 : 92, left: hasSelection ? 90 : 72 }
+    : { top: hasSelection ? 50 : 42, right: 56, bottom: hasSelection ? 116 : 104, left: hasSelection ? 146 : 122 };
   const plotWidth = Math.max(180, width - margins.left - margins.right);
   const plotHeight = Math.max(170, height - margins.top - margins.bottom);
   const ringRadius = isCompact ? 9.6 : 12;
@@ -2273,7 +2276,7 @@ function renderHotelMatrix() {
 
     const node = createSvgNode("text", {
       class: isCompact ? "hotel-map-tick hotel-map-tick--compact" : "hotel-map-tick",
-      x: margins.left - (isCompact ? 16 : 24),
+      x: margins.left - (isCompact ? 18 : 26),
       y,
       "text-anchor": "end",
       "dominant-baseline": "middle",
@@ -2293,7 +2296,7 @@ function renderHotelMatrix() {
   xAxisLabel.textContent = "Price ($ to $$$$)";
   hotelMatrixSvg.appendChild(xAxisLabel);
 
-  const yAxisLabelX = isCompact ? 20 : 26;
+  const yAxisLabelX = isCompact ? (hasSelection ? 30 : 22) : hasSelection ? 38 : 28;
   const yAxisLabel = createSvgNode("text", {
     class: axisLabelClass,
     x: yAxisLabelX,
@@ -2301,7 +2304,7 @@ function renderHotelMatrix() {
     "text-anchor": "middle",
     transform: `rotate(-90 ${yAxisLabelX} ${margins.top + plotHeight / 2})`,
   });
-  yAxisLabel.textContent = isCompact ? "Drive time to venue (mins)" : "Drive time to wedding venue (mins)";
+  yAxisLabel.textContent = isCompact || hasSelection ? "Drive time to venue (mins)" : "Drive time to wedding venue (mins)";
   hotelMatrixSvg.appendChild(yAxisLabel);
 
   const layer = createSvgNode("g", { class: "hotel-map-points", "clip-path": "url(#hotelMatrixPlotClip)" });
