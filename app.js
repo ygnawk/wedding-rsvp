@@ -23,18 +23,14 @@ const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const HOTEL_PANEL_TRANSITION_MS = 500;
 const HOTEL_CONTENT_FADE_MS = 500;
 const MOBILE_GALLERY_DOT_MAX = 7;
-const GUEST_WALL_ROTATE_MIN_MS = 8000;
-const GUEST_WALL_ROTATE_MAX_MS = 12000;
-const GUEST_WALL_ROTATE_SWAP_COUNT = 3;
-const GUEST_WALL_MOBILE_AUTO_MS = 9000;
+const GUEST_WALL_AUTOPLAY_INTERVAL_MS = 10000;
 const GUEST_WALL_PINBOARD_LIMIT = 12;
 const GUEST_WALL_DESKTOP_VISIBLE_SLOTS = 12;
 const GUEST_WALL_MOBILE_VISIBLE_SLOTS = 8;
-const GUEST_WALL_DESKTOP_SHUFFLE_REPLACE_MIN = 4;
-const GUEST_WALL_DESKTOP_SHUFFLE_REPLACE_MAX = 5;
-const GUEST_WALL_MOBILE_SHUFFLE_REPLACE = 3;
 const GUEST_WALL_SLOT_GAP_DESKTOP = 24;
 const GUEST_WALL_SLOT_GAP_MOBILE = 18;
+const GUEST_WALL_SLOT_JITTER_DESKTOP = 10;
+const GUEST_WALL_SLOT_JITTER_MOBILE = 6;
 const GUEST_WALL_SWAP_FADE_OUT_MS = 200;
 const GUEST_WALL_SWAP_FADE_IN_MS = 260;
 const GUEST_WALL_LOADING_MESSAGE = "Loading guest wall…";
@@ -42,6 +38,9 @@ const GUEST_WALL_EMPTY_MESSAGE = "Nothing here yet—check back soon.";
 const GUEST_WALL_UNAVAILABLE_MESSAGE = "Guest Wall is temporarily unavailable.";
 const GUEST_WALL_READY_MESSAGE = "";
 const GUEST_WALL_POLAROID_TONES = ["#5a1720", "#1f3c35", "#203652", "#3f2f2b", "#4c2a42"];
+const GUEST_WALL_NOTE_TONES = ["#FAF3E8", "#F7EEDB", "#FFF4D8", "#F3E9D6"];
+const GUEST_WALL_PIN_COLORS = ["#2F6F5E", "#2E5E86", "#C9A24A", "#6B1F2A"];
+const GUEST_WALL_PIN_CORNERS = ["top-left", "top-right", "bottom-left", "bottom-right"];
 const RSVP_SLOW_SUBMIT_DELAY_MS = 4000;
 const RSVP_SLOW_SUBMIT_JOKE =
   "We know it’s taking a while — Yi Jie was too cheap to pay for a faster server (free plan life). Give it a few more seconds…";
@@ -341,6 +340,7 @@ let guestWallPaused = false;
 let guestWallDetailOpen = false;
 let guestWallResizeRaf = null;
 let guestWallRequestInFlight = null;
+let guestWallLayoutCycle = 0;
 let overflowDebugResizeTimer = null;
 let desktopMoreCloseTimer = null;
 let activeSectionId = "top";
@@ -499,39 +499,72 @@ let makanBulkToggle = false;
 
 const jumpMenuWrap = document.getElementById("jumpMenuWrap");
 const jumpWallButton = document.getElementById("jumpWallButton");
-const jumpMenuToggle = document.getElementById("jumpMenuToggle");
-const jumpMenuPanel = document.getElementById("jumpMenuPanel");
-const jumpMenuLinks = jumpMenuPanel ? Array.from(jumpMenuPanel.querySelectorAll("a[href^='#']")) : [];
 const travelPassportPills = Array.from(document.querySelectorAll(".travel-passport-pill"));
 const travelPassportClear = document.getElementById("travelPassportClear");
 const travelPassportResult = document.getElementById("travelPassportResult");
 const travelSourcesDisclosure = document.querySelector(".travel-sources-disclosure");
 
-const SLOT_MAP_DESKTOP = [
-  { id: "d1", xPct: 14, yPct: 18, size: "S", baseZ: 2, tiltBase: -1.1 },
-  { id: "d2", xPct: 38, yPct: 18, size: "M", baseZ: 3, tiltBase: 0.9 },
-  { id: "d3", xPct: 62, yPct: 18, size: "S", baseZ: 2, tiltBase: -1.2 },
-  { id: "d4", xPct: 86, yPct: 18, size: "M", baseZ: 3, tiltBase: 1.0 },
-  { id: "d5", xPct: 14, yPct: 50, size: "M", baseZ: 3, tiltBase: -1.3 },
-  { id: "d6", xPct: 38, yPct: 50, size: "S", baseZ: 2, tiltBase: 0.8 },
-  { id: "d7", xPct: 62, yPct: 50, size: "M", baseZ: 3, tiltBase: -1.0 },
-  { id: "d8", xPct: 86, yPct: 50, size: "S", baseZ: 2, tiltBase: 1.1 },
-  { id: "d9", xPct: 14, yPct: 82, size: "S", baseZ: 2, tiltBase: -0.9 },
-  { id: "d10", xPct: 38, yPct: 82, size: "M", baseZ: 3, tiltBase: 1.0 },
-  { id: "d11", xPct: 62, yPct: 82, size: "S", baseZ: 2, tiltBase: -1.1 },
-  { id: "d12", xPct: 86, yPct: 82, size: "M", baseZ: 3, tiltBase: 0.9 },
-];
+const SLOT_MAPS_DESKTOP = {
+  A: [
+    { id: "dA1", xPct: 30, yPct: 18, size: "M", baseZ: 3, tiltBase: -1.4 },
+    { id: "dA2", xPct: 70, yPct: 18, size: "S", baseZ: 2, tiltBase: 1.1 },
+    { id: "dA3", xPct: 20, yPct: 49, size: "S", baseZ: 2, tiltBase: -0.8 },
+    { id: "dA4", xPct: 50, yPct: 49, size: "M", baseZ: 3, tiltBase: 1.3 },
+    { id: "dA5", xPct: 80, yPct: 49, size: "S", baseZ: 2, tiltBase: -1.0 },
+    { id: "dA6", xPct: 30, yPct: 80, size: "S", baseZ: 2, tiltBase: 1.2 },
+    { id: "dA7", xPct: 70, yPct: 80, size: "M", baseZ: 3, tiltBase: -1.3 },
+  ],
+  B: [
+    { id: "dB1", xPct: 20, yPct: 18, size: "S", baseZ: 2, tiltBase: -1.1 },
+    { id: "dB2", xPct: 50, yPct: 18, size: "M", baseZ: 3, tiltBase: 1.2 },
+    { id: "dB3", xPct: 80, yPct: 18, size: "S", baseZ: 2, tiltBase: -0.9 },
+    { id: "dB4", xPct: 34, yPct: 49, size: "M", baseZ: 3, tiltBase: 1.1 },
+    { id: "dB5", xPct: 66, yPct: 49, size: "S", baseZ: 2, tiltBase: -1.2 },
+    { id: "dB6", xPct: 20, yPct: 80, size: "M", baseZ: 3, tiltBase: -1.0 },
+    { id: "dB7", xPct: 50, yPct: 80, size: "S", baseZ: 2, tiltBase: 0.9 },
+    { id: "dB8", xPct: 80, yPct: 80, size: "M", baseZ: 3, tiltBase: 1.3 },
+  ],
+  C: [
+    { id: "dC1", xPct: 30, yPct: 18, size: "S", baseZ: 2, tiltBase: -1.0 },
+    { id: "dC2", xPct: 70, yPct: 18, size: "M", baseZ: 3, tiltBase: 1.2 },
+    { id: "dC3", xPct: 30, yPct: 49, size: "M", baseZ: 3, tiltBase: -1.2 },
+    { id: "dC4", xPct: 70, yPct: 49, size: "S", baseZ: 2, tiltBase: 1.1 },
+    { id: "dC5", xPct: 20, yPct: 80, size: "S", baseZ: 2, tiltBase: -0.8 },
+    { id: "dC6", xPct: 50, yPct: 80, size: "M", baseZ: 3, tiltBase: 1.0 },
+    { id: "dC7", xPct: 80, yPct: 80, size: "S", baseZ: 2, tiltBase: -1.1 },
+  ],
+};
 
-const SLOT_MAP_MOBILE = [
-  { id: "m1", xPct: 28, yPct: 14, size: "S", baseZ: 2, tiltBase: -1.2 },
-  { id: "m2", xPct: 72, yPct: 14, size: "M", baseZ: 3, tiltBase: 1.3 },
-  { id: "m3", xPct: 28, yPct: 37, size: "M", baseZ: 3, tiltBase: -1.4 },
-  { id: "m4", xPct: 72, yPct: 37, size: "S", baseZ: 2, tiltBase: 1.2 },
-  { id: "m5", xPct: 28, yPct: 60, size: "S", baseZ: 2, tiltBase: -1.3 },
-  { id: "m6", xPct: 72, yPct: 60, size: "M", baseZ: 3, tiltBase: 1.4 },
-  { id: "m7", xPct: 28, yPct: 83, size: "M", baseZ: 3, tiltBase: -1.1 },
-  { id: "m8", xPct: 72, yPct: 83, size: "S", baseZ: 2, tiltBase: 1.2 },
-];
+const SLOT_MAPS_MOBILE = {
+  A: [
+    { id: "mA1", xPct: 30, yPct: 15, size: "M", baseZ: 3, tiltBase: -1.3 },
+    { id: "mA2", xPct: 70, yPct: 15, size: "S", baseZ: 2, tiltBase: 1.1 },
+    { id: "mA3", xPct: 20, yPct: 46, size: "S", baseZ: 2, tiltBase: -1.0 },
+    { id: "mA4", xPct: 50, yPct: 46, size: "M", baseZ: 3, tiltBase: 1.2 },
+    { id: "mA5", xPct: 80, yPct: 46, size: "S", baseZ: 2, tiltBase: -1.2 },
+    { id: "mA6", xPct: 30, yPct: 77, size: "S", baseZ: 2, tiltBase: 1.0 },
+    { id: "mA7", xPct: 70, yPct: 77, size: "M", baseZ: 3, tiltBase: -1.1 },
+  ],
+  B: [
+    { id: "mB1", xPct: 20, yPct: 14, size: "S", baseZ: 2, tiltBase: -1.1 },
+    { id: "mB2", xPct: 50, yPct: 14, size: "M", baseZ: 3, tiltBase: 1.2 },
+    { id: "mB3", xPct: 80, yPct: 14, size: "S", baseZ: 2, tiltBase: -0.9 },
+    { id: "mB4", xPct: 32, yPct: 46, size: "M", baseZ: 3, tiltBase: 1.1 },
+    { id: "mB5", xPct: 68, yPct: 46, size: "S", baseZ: 2, tiltBase: -1.2 },
+    { id: "mB6", xPct: 20, yPct: 78, size: "S", baseZ: 2, tiltBase: 1.0 },
+    { id: "mB7", xPct: 50, yPct: 78, size: "M", baseZ: 3, tiltBase: -1.0 },
+    { id: "mB8", xPct: 80, yPct: 78, size: "S", baseZ: 2, tiltBase: 1.1 },
+  ],
+  C: [
+    { id: "mC1", xPct: 30, yPct: 15, size: "S", baseZ: 2, tiltBase: -1.0 },
+    { id: "mC2", xPct: 70, yPct: 15, size: "M", baseZ: 3, tiltBase: 1.2 },
+    { id: "mC3", xPct: 28, yPct: 46, size: "M", baseZ: 3, tiltBase: -1.2 },
+    { id: "mC4", xPct: 72, yPct: 46, size: "S", baseZ: 2, tiltBase: 1.1 },
+    { id: "mC5", xPct: 20, yPct: 78, size: "S", baseZ: 2, tiltBase: -0.9 },
+    { id: "mC6", xPct: 50, yPct: 78, size: "M", baseZ: 3, tiltBase: 1.0 },
+    { id: "mC7", xPct: 80, yPct: 78, size: "S", baseZ: 2, tiltBase: -1.0 },
+  ],
+};
 
 const HOTELS_DATA = Array.isArray(window.HOTELS_DATA) ? window.HOTELS_DATA : [];
 const BEIJING_FOOD_PLACES = Array.isArray(window.BEIJING_FOOD_PLACES) ? window.BEIJING_FOOD_PLACES : [];
@@ -972,7 +1005,6 @@ function initHeader() {
   }
 
   if (desktopMoreToggle && desktopMoreMenu && desktopNavMore) {
-    const canHover = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
     closeDesktopMoreMenu();
 
     desktopMoreToggle.addEventListener("click", (event) => {
@@ -991,15 +1023,13 @@ function initHeader() {
       closeDesktopMoreMenu();
     });
 
-    if (canHover) {
-      desktopNavMore.addEventListener("mouseenter", () => {
-        openDesktopMoreMenu();
-      });
+    desktopNavMore.addEventListener("mouseenter", () => {
+      openDesktopMoreMenu();
+    });
 
-      desktopNavMore.addEventListener("mouseleave", () => {
-        scheduleDesktopMoreClose(160);
-      });
-    }
+    desktopNavMore.addEventListener("mouseleave", () => {
+      scheduleDesktopMoreClose(160);
+    });
 
     desktopNavMore.addEventListener("focusin", () => {
       openDesktopMoreMenu();
@@ -1031,25 +1061,6 @@ function initHeader() {
   });
 }
 
-function closeJumpMenu() {
-  if (!jumpMenuToggle || !jumpMenuPanel) return;
-  setAriaExpanded(jumpMenuToggle, false);
-  jumpMenuPanel.hidden = true;
-}
-
-function openJumpMenu() {
-  if (!jumpMenuToggle || !jumpMenuPanel) return;
-  setAriaExpanded(jumpMenuToggle, true);
-  jumpMenuPanel.hidden = false;
-}
-
-function toggleJumpMenu() {
-  if (!jumpMenuToggle || !jumpMenuPanel) return;
-  const expanded = jumpMenuToggle.getAttribute("aria-expanded") === "true";
-  if (expanded) closeJumpMenu();
-  else openJumpMenu();
-}
-
 function syncJumpMenuVisibility() {
   if (!jumpMenuWrap) return;
   const isMobileViewport = window.matchMedia("(max-width: 760px)").matches;
@@ -1058,66 +1069,22 @@ function syncJumpMenuVisibility() {
   const desktopThreshold = Math.max(240, window.innerHeight * 0.9);
   const visible = isMobileViewport ? mobileProgressVisible : window.scrollY > desktopThreshold;
   jumpMenuWrap.classList.toggle("is-visible", visible);
-  if (!visible) closeJumpMenu();
 }
 
 function initJumpMenu() {
-  if (!jumpMenuWrap || !jumpMenuToggle || !jumpMenuPanel) return;
+  if (!jumpMenuWrap || !jumpWallButton) return;
   if (jumpMenuWrap.dataset.bound === "true") return;
-
-  closeJumpMenu();
   syncJumpMenuVisibility();
 
-  jumpMenuToggle.addEventListener("click", (event) => {
+  jumpWallButton.addEventListener("click", (event) => {
     event.preventDefault();
-    toggleJumpMenu();
+    const guestWallSection = document.getElementById("guest-wall");
+    if (guestWallSection) {
+      scrollToElement(guestWallSection, { block: "start", allowMobile: true });
+      return;
+    }
+    window.location.href = withBasePath("/guest-wall");
   });
-
-  if (jumpWallButton) {
-    jumpWallButton.addEventListener("click", (event) => {
-      event.preventDefault();
-      const guestWallSection = document.getElementById("guest-wall");
-      if (guestWallSection) {
-        scrollToElement(guestWallSection, { block: "start", allowMobile: true });
-      } else {
-        window.location.href = withBasePath("/guest-wall");
-      }
-      closeJumpMenu();
-    });
-  }
-
-  jumpMenuLinks.forEach((link) => {
-    link.addEventListener("click", (event) => {
-      event.preventDefault();
-      const href = link.getAttribute("href") || "";
-      const id = href.startsWith("#") ? href.slice(1) : href;
-      const target = id ? document.getElementById(id) : null;
-      if (target) {
-        if (isMobileViewport()) {
-          window.location.hash = `#${id}`;
-        } else {
-          scrollToElement(target, { block: "start" });
-        }
-      }
-      closeJumpMenu();
-    });
-  });
-
-  document.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape") return;
-    closeJumpMenu();
-  });
-
-  document.addEventListener(
-    "pointerdown",
-    (event) => {
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      if (jumpMenuWrap.contains(target)) return;
-      closeJumpMenu();
-    },
-    { passive: true },
-  );
 
   window.addEventListener("scroll", syncJumpMenuVisibility, { passive: true });
   window.addEventListener("resize", syncJumpMenuVisibility);
@@ -3509,29 +3476,6 @@ function getRsvpChoiceSummary(choice) {
   return "Not selected";
 }
 
-function getNextSectionAfter(currentSectionId) {
-  const currentIndex = SECTION_IDS.indexOf(String(currentSectionId || ""));
-  if (currentIndex < 0) return null;
-  for (let index = currentIndex + 1; index < SECTION_IDS.length; index += 1) {
-    const sectionId = SECTION_IDS[index];
-    const node = document.getElementById(sectionId);
-    if (node) return node;
-  }
-  return null;
-}
-
-function continueBrowsingFromRsvp() {
-  const nextSection = getNextSectionAfter("rsvp");
-  if (nextSection) {
-    scrollToElement(nextSection, { allowMobile: true, block: "start" });
-    return;
-  }
-  const fallback = document.getElementById("top");
-  if (fallback) {
-    scrollToElement(fallback, { allowMobile: true, block: "start" });
-  }
-}
-
 function hideRsvpConfirmation() {
   if (!rsvpConfirmation) return;
   setHiddenClass(rsvpConfirmation, true);
@@ -3550,33 +3494,31 @@ function showRsvpConfirmation(message, options = {}) {
     rsvpConfirmation.classList.add("confirmation--success");
     if (rsvpPanel) rsvpPanel.classList.add("is-success");
 
+    const titleRow = document.createElement("div");
+    titleRow.className = "confirmation-title-row";
+
     const badge = document.createElement("div");
     badge.className = "confirmation-success-badge";
     badge.setAttribute("aria-hidden", "true");
     badge.textContent = "✓";
-    rsvpConfirmation.appendChild(badge);
+    titleRow.appendChild(badge);
 
     const title = document.createElement("h3");
     title.className = "confirmation-title";
     title.textContent = "RSVP received — thank you!";
-    rsvpConfirmation.appendChild(title);
+    titleRow.appendChild(title);
 
-    const subtitle = document.createElement("p");
-    subtitle.className = "confirmation-subtitle";
-    subtitle.textContent = "If you added a note or photo, we’ll share it on the Guest Wall shortly.";
-    rsvpConfirmation.appendChild(subtitle);
+    rsvpConfirmation.appendChild(titleRow);
 
     const selection = document.createElement("p");
     selection.className = "confirmation-selection";
     selection.textContent = `Your response: ${getRsvpChoiceSummary(options.selectedChoice)}`;
     rsvpConfirmation.appendChild(selection);
 
-    if (message) {
-      const note = document.createElement("p");
-      note.className = "confirmation-copy";
-      note.textContent = String(message);
-      rsvpConfirmation.appendChild(note);
-    }
+    const subtitle = document.createElement("p");
+    subtitle.className = "confirmation-subtitle";
+    subtitle.textContent = "If you added a note or photo, we’ll share it on the Guest Wall shortly.";
+    rsvpConfirmation.appendChild(subtitle);
 
     const actions = document.createElement("div");
     actions.className = "confirmation-actions";
@@ -3586,13 +3528,6 @@ function showRsvpConfirmation(message, options = {}) {
     guestWallLink.href = "/guest-wall";
     guestWallLink.textContent = "View Guest Wall 👀";
     actions.appendChild(guestWallLink);
-
-    const continueBrowsingButton = document.createElement("button");
-    continueBrowsingButton.type = "button";
-    continueBrowsingButton.className = "btn btn-outline confirmation-continue-link";
-    continueBrowsingButton.textContent = "Continue browsing";
-    continueBrowsingButton.addEventListener("click", continueBrowsingFromRsvp);
-    actions.appendChild(continueBrowsingButton);
 
     rsvpConfirmation.appendChild(actions);
   } else {
@@ -4008,13 +3943,6 @@ function renderGuestWallErrorState() {
   if (guestWallMobile instanceof HTMLElement) guestWallMobile.appendChild(makePanel());
 }
 
-function truncateGuestWallText(value, maxChars = 180) {
-  const text = String(value || "").replace(/\s+/g, " ").trim();
-  if (!text) return "";
-  if (text.length <= maxChars) return text;
-  return `${text.slice(0, maxChars).trimEnd()}…`;
-}
-
 function buildGuestWallMediaNode(card, context = "board") {
   const mediaWrap = document.createElement("div");
   mediaWrap.className = "guestwall-polaroid-media";
@@ -4096,19 +4024,29 @@ function buildGuestWallCard(card, context = "board") {
   if (card.kind === "media") {
     node.className = "guestwall-item guestwall-item--polaroid";
     node.style.setProperty("--gwPolaroidTone", getGuestWallPolaroidTone(card.id));
-    node.appendChild(buildGuestWallMediaNode(card, context));
+    const mat = document.createElement("div");
+    mat.className = "guestwall-polaroid-mat";
+    mat.appendChild(buildGuestWallMediaNode(card, context));
 
     const caption = document.createElement("p");
     caption.className = "guestwall-polaroid-caption";
     caption.textContent = `— ${card.name}`;
-    node.appendChild(caption);
+    mat.appendChild(caption);
+    node.appendChild(mat);
     return node;
   }
 
   node.className = "guestwall-item guestwall-item--note";
+  node.style.setProperty("--gwNotePaper", getGuestWallNoteTone(card.id));
+  const pinStyle = getGuestWallNotePinStyle(card.id);
+  node.style.setProperty("--gwPinColor", pinStyle.color);
+  node.style.setProperty("--gwPinTop", pinStyle.top);
+  node.style.setProperty("--gwPinRight", pinStyle.right);
+  node.style.setProperty("--gwPinBottom", pinStyle.bottom);
+  node.style.setProperty("--gwPinLeft", pinStyle.left);
   const text = document.createElement("p");
   text.className = "guestwall-note-text";
-  text.textContent = truncateGuestWallText(card.text, context === "mobile" ? 260 : 190);
+  text.textContent = String(card.text || "").replace(/\s+/g, " ").trim();
 
   const sign = document.createElement("p");
   sign.className = "guestwall-note-sign";
@@ -4349,14 +4287,82 @@ function getGuestWallPolaroidTone(cardId) {
   return tones[seed % tones.length];
 }
 
+function getGuestWallNoteTone(cardId) {
+  const tones = GUEST_WALL_NOTE_TONES;
+  if (!tones.length) return "#FAF3E8";
+  const seed = hashStringToUint32(`note:${String(cardId || "")}`);
+  return tones[seed % tones.length];
+}
+
+function getGuestWallNotePinStyle(cardId) {
+  const id = String(cardId || "");
+  const colorSeed = hashStringToUint32(`pin-color:${id}`);
+  const cornerSeed = hashStringToUint32(`pin-corner:${id}`);
+  const xJitterSeed = hashStringToUint32(`pin-x:${id}`);
+  const yJitterSeed = hashStringToUint32(`pin-y:${id}`);
+  const color = GUEST_WALL_PIN_COLORS[colorSeed % GUEST_WALL_PIN_COLORS.length] || "#6B1F2A";
+  const corner = GUEST_WALL_PIN_CORNERS[cornerSeed % GUEST_WALL_PIN_CORNERS.length] || "top-right";
+  const xJitter = Math.round((seededRandomFromHash(xJitterSeed) - 0.5) * 8);
+  const yJitter = Math.round((seededRandomFromHash(yJitterSeed) - 0.5) * 5);
+  const edgeInset = 12;
+
+  if (corner === "top-left") {
+    return {
+      color,
+      top: `${-7 + yJitter}px`,
+      right: "auto",
+      bottom: "auto",
+      left: `${edgeInset + xJitter}px`,
+    };
+  }
+
+  if (corner === "bottom-left") {
+    return {
+      color,
+      top: "auto",
+      right: "auto",
+      bottom: `${-7 + yJitter}px`,
+      left: `${edgeInset + xJitter}px`,
+    };
+  }
+
+  if (corner === "bottom-right") {
+    return {
+      color,
+      top: "auto",
+      right: `${edgeInset + xJitter}px`,
+      bottom: `${-7 + yJitter}px`,
+      left: "auto",
+    };
+  }
+
+  return {
+    color,
+    top: `${-7 + yJitter}px`,
+    right: `${edgeInset + xJitter}px`,
+    bottom: "auto",
+    left: "auto",
+  };
+}
+
+function getGuestWallSlotMapForCycle(mobile = false) {
+  const mapSet = mobile ? SLOT_MAPS_MOBILE : SLOT_MAPS_DESKTOP;
+  const keys = Object.keys(mapSet);
+  if (!keys.length) return [];
+  const seed = hashStringToUint32(`gw-map:${mobile ? "mobile" : "desktop"}:${guestWallLayoutCycle}`);
+  const mapKey = keys[seed % keys.length];
+  const slots = mapSet[mapKey] || [];
+  return slots.map((slot) => ({ ...slot, mapKey }));
+}
+
 function getStableGuestWallSlotRotation(slotNode, cardId) {
   if (!(slotNode instanceof HTMLElement)) return 0;
   const slotId = String(slotNode.dataset.slotId || "");
   const tiltBase = Number(slotNode.dataset.tiltBase || 0);
   const seed = hashStringToUint32(`${String(cardId || "")}:${slotId}`);
   const seededUnit = seededRandomFromHash(seed);
-  const tiltJitter = -1.2 + seededUnit * 2.4;
-  return clampNumber(tiltBase + tiltJitter, -2.4, 2.4);
+  const tiltJitter = -2 + seededUnit * 4;
+  return clampNumber(tiltBase + tiltJitter, -4, 4);
 }
 
 function getGuestWallSlotWidthPx(containerWidth, size, mobile = false) {
@@ -4375,8 +4381,8 @@ function getGuestWallSlotWidthPx(containerWidth, size, mobile = false) {
 function getGuestWallSlotRect(slotConfig, containerRect, mobile = false) {
   const width = getGuestWallSlotWidthPx(containerRect.width, slotConfig.size, mobile);
   const height = width * 1.36 + 10;
-  const centerX = (containerRect.width * Number(slotConfig.xPct || 0)) / 100;
-  const centerY = (containerRect.height * Number(slotConfig.yPct || 0)) / 100;
+  const centerX = (containerRect.width * Number(slotConfig.xPct || 0)) / 100 + Number(slotConfig.xOffsetPx || 0);
+  const centerY = (containerRect.height * Number(slotConfig.yPct || 0)) / 100 + Number(slotConfig.yOffsetPx || 0);
   return {
     left: centerX - width / 2,
     top: centerY - height / 2,
@@ -4391,47 +4397,68 @@ function rectsOverlap(a, b, gap) {
   return !(a.right + gap <= b.left || a.left >= b.right + gap || a.bottom + gap <= b.top || a.top >= b.bottom + gap);
 }
 
-function resolveGuestWallSlotLayout(slotMap, containerRect, mobile = false) {
+function getGuestWallSlotJitter(slotConfig, slotIndex, jitterMaxPx, jitterSeed, attempt = 0) {
+  if (!Number.isFinite(jitterMaxPx) || jitterMaxPx <= 0) {
+    return { xOffsetPx: 0, yOffsetPx: 0 };
+  }
+  const dampening = Math.max(0, 1 - attempt * 0.28);
+  const range = jitterMaxPx * dampening;
+  if (range <= 0.5) return { xOffsetPx: 0, yOffsetPx: 0 };
+
+  const baseSeed = `${String(jitterSeed || "0")}:${String(slotConfig.id || "")}:${slotIndex}:${attempt}`;
+  const xSeed = hashStringToUint32(`${baseSeed}:x`);
+  const ySeed = hashStringToUint32(`${baseSeed}:y`);
+  const xOffsetPx = Math.round((seededRandomFromHash(xSeed) * 2 - 1) * range);
+  const yOffsetPx = Math.round((seededRandomFromHash(ySeed) * 2 - 1) * range);
+  return { xOffsetPx, yOffsetPx };
+}
+
+function resolveGuestWallSlotLayout(slotMap, containerRect, mobile = false, options = {}) {
   const gap = mobile ? GUEST_WALL_SLOT_GAP_MOBILE : GUEST_WALL_SLOT_GAP_DESKTOP;
   const edgePadding = mobile ? 8 : 12;
+  const jitterMaxPx = Number(options.jitterMaxPx || 0);
+  const jitterSeed = String(options.jitterSeed || "");
   const placed = [];
-  const used = new Set();
   const result = [];
 
-  slotMap.forEach((slotConfig) => {
-    let pick = slotConfig;
-    let pickRect = getGuestWallSlotRect(pick, containerRect, mobile);
+  const isValidPlacement = (candidateRect) => {
+    if (
+      candidateRect.left < edgePadding ||
+      candidateRect.top < edgePadding ||
+      candidateRect.right > containerRect.width - edgePadding ||
+      candidateRect.bottom > containerRect.height - edgePadding
+    ) {
+      return false;
+    }
+    return !placed.some((existingRect) => rectsOverlap(existingRect, candidateRect, gap));
+  };
 
-    const isValidPlacement = (candidateRect) => {
-      if (
-        candidateRect.left < edgePadding ||
-        candidateRect.top < edgePadding ||
-        candidateRect.right > containerRect.width - edgePadding ||
-        candidateRect.bottom > containerRect.height - edgePadding
-      ) {
-        return false;
-      }
-      return !placed.some((existingRect) => rectsOverlap(existingRect, candidateRect, gap));
-    };
+  slotMap.forEach((slotConfig, slotIndex) => {
+    const attempts = jitterMaxPx > 0 ? 5 : 1;
+    let selectedOffset = { xOffsetPx: 0, yOffsetPx: 0 };
+    let selectedRect = null;
 
-    if (!isValidPlacement(pickRect)) {
-      const fallback = slotMap.find((candidate) => {
-        if (used.has(candidate.id)) return false;
-        const candidateRect = getGuestWallSlotRect(candidate, containerRect, mobile);
-        return isValidPlacement(candidateRect);
-      });
-
-      if (fallback) {
-        pick = fallback;
-        pickRect = getGuestWallSlotRect(pick, containerRect, mobile);
-      }
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      const offset = getGuestWallSlotJitter(slotConfig, slotIndex, jitterMaxPx, jitterSeed, attempt);
+      const candidate = { ...slotConfig, ...offset };
+      const candidateRect = getGuestWallSlotRect(candidate, containerRect, mobile);
+      if (!isValidPlacement(candidateRect)) continue;
+      selectedOffset = offset;
+      selectedRect = candidateRect;
+      break;
     }
 
-    used.add(pick.id);
-    placed.push(pickRect);
+    if (!selectedRect) {
+      const fallbackCandidate = { ...slotConfig, xOffsetPx: 0, yOffsetPx: 0 };
+      selectedRect = getGuestWallSlotRect(fallbackCandidate, containerRect, mobile);
+      selectedOffset = { xOffsetPx: 0, yOffsetPx: 0 };
+    }
+
+    placed.push(selectedRect);
     result.push({
-      ...pick,
-      pxWidth: pickRect.width,
+      ...slotConfig,
+      ...selectedOffset,
+      pxWidth: selectedRect.width,
     });
   });
 
@@ -4441,6 +4468,8 @@ function resolveGuestWallSlotLayout(slotMap, containerRect, mobile = false) {
 function placeGuestWallSlot(slotNode, slotConfig) {
   slotNode.style.setProperty("--gw-left", String(slotConfig.xPct));
   slotNode.style.setProperty("--gw-top", String(slotConfig.yPct));
+  slotNode.style.setProperty("--gw-x-offset", `${Math.round(Number(slotConfig.xOffsetPx || 0))}px`);
+  slotNode.style.setProperty("--gw-y-offset", `${Math.round(Number(slotConfig.yOffsetPx || 0))}px`);
   slotNode.style.setProperty("--gw-card-width", `${Math.round(slotConfig.pxWidth || 140)}px`);
   slotNode.style.setProperty("--gw-rotate", `${slotConfig.tiltBase}deg`);
   slotNode.style.setProperty("--gw-z", String(slotConfig.baseZ));
@@ -4482,15 +4511,6 @@ function mountGuestWallSlotCard(slotNode, cardId, animate = false) {
   slotNode.replaceChildren(node, ...(debugNode ? [debugNode] : []));
 }
 
-function mountGuestWallSlotPlaceholder(slotNode) {
-  if (!(slotNode instanceof HTMLElement)) return;
-  const debugNode = slotNode.querySelector(".guestwall-slot-debug");
-  const placeholder = document.createElement("article");
-  placeholder.className = "guestwall-item guestwall-item--placeholder";
-  slotNode.dataset.cardId = "";
-  slotNode.replaceChildren(placeholder, ...(debugNode ? [debugNode] : []));
-}
-
 function swapGuestWallSlotCard(slotIndex, nextCardId) {
   const slotNode = guestWallSlotNodes[slotIndex];
   if (!(slotNode instanceof HTMLElement)) return;
@@ -4519,10 +4539,13 @@ function renderGuestWallDesktop({ reshuffle = false } = {}) {
   guestWallPinboard.innerHTML = "";
   guestWallSlotNodes = [];
 
-  const slotMap = SLOT_MAP_DESKTOP;
+  const slotMap = getGuestWallSlotMapForCycle(false);
+  const slotCount = Math.min(slotMap.length, guestWallCards.length);
   const containerRect = guestWallPinboard.getBoundingClientRect();
-  const arrangedSlots = resolveGuestWallSlotLayout(slotMap, containerRect, false);
-  const slotCount = Math.min(GUEST_WALL_DESKTOP_VISIBLE_SLOTS, slotMap.length);
+  const arrangedSlots = resolveGuestWallSlotLayout(slotMap.slice(0, slotCount), containerRect, false, {
+    jitterMaxPx: GUEST_WALL_SLOT_JITTER_DESKTOP,
+    jitterSeed: `desktop:${guestWallLayoutCycle}`,
+  });
   if (!guestWallCards.length) {
     const empty = document.createElement("p");
     empty.className = "guestwall-empty";
@@ -4541,47 +4564,19 @@ function renderGuestWallDesktop({ reshuffle = false } = {}) {
     const cardId = getGuestWallVisibleCardId(slotIndex);
     if (cardId) {
       mountGuestWallSlotCard(slotNode, cardId, false);
-    } else {
-      slotNode.classList.add("guestwall-slot--empty");
-      mountGuestWallSlotPlaceholder(slotNode);
     }
     guestWallPinboard.appendChild(slotNode);
     guestWallSlotNodes.push(slotNode);
   }
 }
 
-function getGuestWallRandomDelay() {
-  if (prefersReducedMotion()) return GUEST_WALL_ROTATE_MAX_MS;
-  return Math.floor(Math.random() * (GUEST_WALL_ROTATE_MAX_MS - GUEST_WALL_ROTATE_MIN_MS + 1)) + GUEST_WALL_ROTATE_MIN_MS;
-}
-
-function rotateGuestWallDesktopSubset() {
-  if (guestWallPaused) return;
-  if (!guestWallVisibleCardIds.length || !guestWallCards.length) return;
-
-  const allIds = guestWallCards.map((card) => card.id);
-  const hiddenIds = allIds.filter((id) => !guestWallVisibleCardIds.includes(id));
-  if (!hiddenIds.length) return;
-
-  const replaceCount = Math.min(GUEST_WALL_ROTATE_SWAP_COUNT, guestWallVisibleCardIds.length, hiddenIds.length);
-  const slotIndices = chooseRandomIndices(guestWallVisibleCardIds.length, replaceCount);
-  const replacements = shuffleItems(hiddenIds).slice(0, replaceCount);
-
-  slotIndices.forEach((slotIndex, idx) => {
-    const nextCardId = replacements[idx];
-    if (!nextCardId) return;
-    guestWallVisibleCardIds[slotIndex] = nextCardId;
-    swapGuestWallSlotCard(slotIndex, nextCardId);
-  });
-}
-
 function scheduleGuestWallDesktopRotation() {
   clearGuestWallDesktopTimer();
-  if (guestWallPaused || isGuestWallMobileView() || !guestWallVisibleCardIds.length) return;
+  if (guestWallPaused || isGuestWallMobileView() || guestWallVisibleCardIds.length <= 1 || guestWallSlotNodes.length <= 1) return;
   guestWallRotationTimer = window.setTimeout(() => {
-    rotateGuestWallDesktopSubset();
+    shuffleGuestWallVisibleSubset();
     scheduleGuestWallDesktopRotation();
-  }, getGuestWallRandomDelay());
+  }, GUEST_WALL_AUTOPLAY_INTERVAL_MS);
 }
 
 function renderGuestWallMobile() {
@@ -4601,10 +4596,13 @@ function renderGuestWallMobile() {
   guestWallMobile.appendChild(stage);
   guestWallSlotNodes = [];
 
-  const slotMap = SLOT_MAP_MOBILE;
+  const slotMap = getGuestWallSlotMapForCycle(true);
+  const slotCount = Math.min(slotMap.length, guestWallCards.length);
   const containerRect = stage.getBoundingClientRect();
-  const arrangedSlots = resolveGuestWallSlotLayout(slotMap, containerRect, true);
-  const slotCount = Math.min(GUEST_WALL_MOBILE_VISIBLE_SLOTS, slotMap.length);
+  const arrangedSlots = resolveGuestWallSlotLayout(slotMap.slice(0, slotCount), containerRect, true, {
+    jitterMaxPx: GUEST_WALL_SLOT_JITTER_MOBILE,
+    jitterSeed: `mobile:${guestWallLayoutCycle}`,
+  });
   ensureGuestWallVisibleIds(slotCount, false);
 
   for (let slotIndex = 0; slotIndex < slotCount; slotIndex += 1) {
@@ -4615,9 +4613,6 @@ function renderGuestWallMobile() {
     const cardId = getGuestWallVisibleCardId(slotIndex);
     if (cardId) {
       mountGuestWallSlotCard(slotNode, cardId, false);
-    } else {
-      slotNode.classList.add("guestwall-slot--empty");
-      mountGuestWallSlotPlaceholder(slotNode);
     }
     stage.appendChild(slotNode);
     guestWallSlotNodes.push(slotNode);
@@ -4627,11 +4622,11 @@ function renderGuestWallMobile() {
 
 function scheduleGuestWallMobileRotation() {
   clearGuestWallMobileTimer();
-  if (guestWallPaused || !isGuestWallMobileView() || guestWallCards.length <= 1) return;
+  if (guestWallPaused || !isGuestWallMobileView() || guestWallVisibleCardIds.length <= 1 || guestWallSlotNodes.length <= 1) return;
   guestWallMobileTimer = window.setTimeout(() => {
-    rotateGuestWallDesktopSubset();
+    shuffleGuestWallVisibleSubset();
     scheduleGuestWallMobileRotation();
-  }, GUEST_WALL_MOBILE_AUTO_MS);
+  }, GUEST_WALL_AUTOPLAY_INTERVAL_MS);
 }
 
 function syncGuestWallLayout({ reshuffle = false } = {}) {
@@ -4660,6 +4655,7 @@ function setGuestWallPaused(paused) {
   if (guestWallPause instanceof HTMLButtonElement) {
     guestWallPause.classList.toggle("is-paused", guestWallPaused);
     guestWallPause.setAttribute("aria-pressed", guestWallPaused ? "true" : "false");
+    guestWallPause.setAttribute("aria-label", guestWallPaused ? "Resume autoplay" : "Pause autoplay");
     guestWallPause.textContent = guestWallPaused ? "Resume" : "Pause";
   }
 
@@ -4674,33 +4670,39 @@ function setGuestWallPaused(paused) {
 }
 
 function shuffleGuestWallVisibleSubset() {
-  if (!guestWallVisibleCardIds.length || !guestWallCards.length || !guestWallSlotNodes.length) {
-    syncGuestWallLayout({ reshuffle: true });
-    return;
-  }
+  if (!guestWallCards.length || !guestWallVisibleCardIds.length || !guestWallSlotNodes.length) return;
 
+  const slotCount = Math.min(guestWallVisibleCardIds.length, guestWallSlotNodes.length);
+  if (slotCount <= 1) return;
+
+  const currentVisible = guestWallVisibleCardIds.slice(0, slotCount);
   const allIds = guestWallCards.map((card) => card.id);
-  const targetSlotCount = isGuestWallMobileView() ? GUEST_WALL_MOBILE_VISIBLE_SLOTS : GUEST_WALL_DESKTOP_VISIBLE_SLOTS;
-  if (allIds.length < targetSlotCount) {
-    return;
+  if (allIds.length <= 1) return;
+
+  let nextVisible = currentVisible.slice();
+  const maxAttempts = 24;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const candidate = shuffleItems(allIds).slice(0, slotCount);
+    if (candidate.length < slotCount) break;
+    nextVisible = candidate;
+    if (candidate.every((id, idx) => id !== currentVisible[idx])) {
+      break;
+    }
   }
 
-  const hiddenIds = allIds.filter((id) => !guestWallVisibleCardIds.includes(id));
-  if (!hiddenIds.length) return;
+  if (!nextVisible.some((id, idx) => id !== currentVisible[idx])) {
+    const shifted = currentVisible.map((_, idx) => currentVisible[(idx + 1) % currentVisible.length]);
+    if (shifted.some((id, idx) => id !== currentVisible[idx])) {
+      nextVisible = shifted;
+    }
+  }
 
-  const desiredReplaceCount = isGuestWallMobileView()
-    ? GUEST_WALL_MOBILE_SHUFFLE_REPLACE
-    : randomIntInclusive(GUEST_WALL_DESKTOP_SHUFFLE_REPLACE_MIN, GUEST_WALL_DESKTOP_SHUFFLE_REPLACE_MAX);
-  const replaceCount = Math.min(desiredReplaceCount, guestWallVisibleCardIds.length, hiddenIds.length);
-  const slotIndices = chooseRandomIndices(guestWallVisibleCardIds.length, replaceCount);
-  const replacements = shuffleItems(hiddenIds).slice(0, replaceCount);
-
-  slotIndices.forEach((slotIndex, idx) => {
-    const nextCardId = replacements[idx];
-    if (!nextCardId) return;
-    guestWallVisibleCardIds[slotIndex] = nextCardId;
+  guestWallVisibleCardIds = nextVisible.slice();
+  for (let slotIndex = 0; slotIndex < slotCount; slotIndex += 1) {
+    const nextCardId = nextVisible[slotIndex];
+    if (!nextCardId || nextCardId === currentVisible[slotIndex]) continue;
     swapGuestWallSlotCard(slotIndex, nextCardId);
-  });
+  }
 }
 
 function bindGuestWallEvents() {
@@ -4711,6 +4713,7 @@ function bindGuestWallEvents() {
     guestWallShuffle.addEventListener("click", () => {
       if (!guestWallCards.length) return;
       shuffleGuestWallVisibleSubset();
+      if (guestWallPaused) return;
       if (isGuestWallMobileView()) scheduleGuestWallMobileRotation();
       else scheduleGuestWallDesktopRotation();
     });
@@ -4773,6 +4776,7 @@ async function loadGuestWallPinboard({ refresh = false } = {}) {
 
       setGuestWallStatus(GUEST_WALL_READY_MESSAGE);
       setGuestWallControlsDisabled(false);
+      guestWallLayoutCycle = 0;
       guestWallVisibleCardIds = [];
       setGuestWallPaused(false);
       syncGuestWallLayout({ reshuffle: true });
@@ -4809,6 +4813,7 @@ async function loadManifest() {
 function toPhotoSrc(name) {
   if (!name) return "";
   if (/^https?:\/\//i.test(name)) return name;
+  if (name.startsWith("/public/")) return withBasePath(name.replace(/^\/public(?=\/)/, ""));
   if (name.startsWith("/")) return withBasePath(name);
   return withBasePath(`/photos/${name.replace(/^\.\//, "")}`);
 }
@@ -5484,7 +5489,7 @@ async function loadStoryEntriesFromManifest() {
       const value = String(rawPath || "").trim();
       if (!value) return "";
       if (/^https?:\/\//i.test(value)) return value;
-      if (value.startsWith("/our-story-normalized/")) return withBasePath(`/public${value}`);
+      if (value.startsWith("/our-story-normalized/")) return withBasePath(value);
       if (value.startsWith("/")) return withBasePath(value);
       return withBasePath(`${fallbackFolder}${encodeURIComponent(value)}`);
     };
@@ -5496,8 +5501,8 @@ async function loadStoryEntriesFromManifest() {
         ...entry,
         file: normalizeManifestStoryPath(entry.file),
         mosaicFile: entry.mosaicFile
-          ? normalizeManifestStoryPath(entry.mosaicFile, "/public/images/story-crops/")
-          : withBasePath(`/public/images/story-crops/${Number.isFinite(entry.year) ? entry.year : extractStoryYear(entry.file)}.jpg`),
+          ? normalizeManifestStoryPath(entry.mosaicFile, "/images/story-crops/")
+          : normalizeManifestStoryPath(entry.file),
       }));
   } catch (_error) {
     return [];

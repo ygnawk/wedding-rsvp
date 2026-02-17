@@ -115,9 +115,9 @@
       "alt": "Miki and Yi Jie",
       "cropClass": "img-round",
       "focalX": 0.54,
-      "focalY": 0.35,
-      "objectPosition": "50% 35%",
-      "mobileObjectPosition": "50% 35%"
+      "focalY": 0.5,
+      "objectPosition": "50% 50%",
+      "mobileObjectPosition": "50% 50%"
     },
     {
       "id": "lmn-4200",
