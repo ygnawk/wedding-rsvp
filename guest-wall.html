@@ -15,15 +15,16 @@
     />
     <link rel="icon" type="image/svg+xml" href="/public/favicon.svg" />
     <link rel="icon" type="image/png" href="/public/favicon-32.png" />
-    <link rel="stylesheet" href="/styles.css?v=20260217-header-wordmark1" />
+    <link rel="stylesheet" href="/styles.css?v=20260217-hover-affordance1" />
   </head>
   <body>
     <header id="floatingHeader" class="floating-header" aria-label="Site navigation">
       <div class="header-pill">
         <a class="brand" href="/" aria-label="Back to home">
           <span class="brand-pill" aria-hidden="true">
-            <img class="brand-logo brand-logo--mark" src="/public/brand/logo-mark.svg" alt="" width="92" height="24" decoding="async" />
-            <img class="brand-logo brand-logo--long" src="/public/brand/logo-long.svg" alt="" width="240" height="24" decoding="async" />
+            <img class="brand-logo brand-logo--mark" src="/public/brand/logo-mark.svg" alt="" width="84" height="22" decoding="async" />
+            <img class="brand-logo brand-logo--long" src="/public/brand/logo-long.svg" alt="" width="220" height="22" decoding="async" />
+            <span class="brand-text-fallback" aria-hidden="true">Miki &amp; Yi Jie</span>
           </span>
           <span class="sr-only">Miki &amp; Yi Jie</span>
         </a>
@@ -86,37 +87,61 @@
             <img class="motif-layer__item motif-layer__item--topRight" src="/public/motifs/peony-bud.svg" alt="" />
             <img class="motif-layer__item motif-layer__item--bottomLeft" src="/public/motifs/bamboo-bud.svg" alt="" />
           </div>
-          <h1 class="section-title section-title-reveal reveal settle">Proof We Have Some Friends (and Relatives)</h1>
+          <h1 class="section-title section-title-reveal reveal settle">Proof (or Lack Thereof) That We Have Some Friends</h1>
           <p class="guestwall-subtitle reveal">A small gallery of the love you sent our way (we’re not crying, you are).</p>
           <div id="guestWallPinboardView" class="guestwall-pinboard-view">
             <div class="guestwall-controls reveal" aria-label="Guest wall controls">
-              <button id="guestWallShuffle" class="guestwall-control-btn guestwall-control-btn--primary" type="button" aria-busy="false" aria-label="Shuffle guest wall">
-                <span class="guestwall-control-btn__icon" aria-hidden="true">↻</span>
-                <span class="guestwall-control-btn__label">Shuffle</span>
-                <span class="guestwall-control-btn__spinner" aria-hidden="true"></span>
-              </button>
-              <button
-                id="guestWallArrangeToggle"
-                class="guestwall-control-btn guestwall-control-btn--secondary hidden"
-                type="button"
-                aria-pressed="false"
-                aria-label="Toggle arrange mode"
-              >
-                Arrange: Off
-              </button>
-              <div class="guestwall-autoplay-control">
-                <span class="guestwall-autoplay-label">Auto-shuffle</span>
+              <div class="guestwall-control-group guestwall-control-group--play">
+                <p class="guestwall-control-group-title">
+                  Play
+                  <span class="guestwall-control-help" title="Shuffle now randomizes once. Auto-shuffle keeps refreshing.">i</span>
+                </p>
+                <div class="guestwall-control-row">
+                  <button
+                    id="guestWallShuffle"
+                    class="guestwall-control-btn guestwall-control-btn--primary"
+                    type="button"
+                    aria-busy="false"
+                    aria-label="Shuffle guest wall"
+                  >
+                    <span class="guestwall-control-btn__icon" aria-hidden="true">↻</span>
+                    <span class="guestwall-control-btn__label">Shuffle now</span>
+                    <span class="guestwall-control-btn__spinner" aria-hidden="true"></span>
+                  </button>
+                  <div class="guestwall-autoplay-control">
+                    <span class="guestwall-autoplay-label">Auto-shuffle</span>
+                    <button
+                      id="guestWallAutoplayToggle"
+                      class="guestwall-toggle is-on"
+                      type="button"
+                      role="switch"
+                      aria-checked="true"
+                      aria-label="Auto-shuffle"
+                    >
+                      <span class="guestwall-toggle-track" aria-hidden="true"><span class="guestwall-toggle-thumb"></span></span>
+                    </button>
+                    <span id="guestWallAutoplayState" class="guestwall-autoplay-state" aria-hidden="true">ON</span>
+                  </div>
+                </div>
+                <p class="guestwall-control-subline">Shuffles every ~10s.</p>
+              </div>
+              <div class="guestwall-control-group guestwall-control-group--arrange">
+                <p class="guestwall-control-group-title">Arrange</p>
                 <button
-                  id="guestWallAutoplayToggle"
-                  class="guestwall-toggle is-on"
+                  id="guestWallArrangeToggle"
+                  class="guestwall-control-btn guestwall-control-btn--secondary hidden"
                   type="button"
-                  role="switch"
-                  aria-checked="true"
-                  aria-label="Auto-shuffle"
+                  aria-pressed="false"
+                  aria-label="Arrange cards"
                 >
-                  <span class="guestwall-toggle-track" aria-hidden="true"><span class="guestwall-toggle-thumb"></span></span>
+                  Arrange cards
                 </button>
-                <span id="guestWallAutoplayState" class="guestwall-autoplay-state" aria-hidden="true">ON</span>
+                <p id="guestWallArrangeHint" class="guestwall-arrange-hint hidden" aria-live="polite">
+                  Arrange mode: drag the cards to move them. Tip: press and hold, then drag.
+                </p>
+                <p id="guestWallArrangeAutoplayHint" class="guestwall-arrange-hint guestwall-arrange-hint--muted hidden" aria-live="polite">
+                  Turn off Auto-shuffle to arrange manually.
+                </p>
               </div>
             </div>
             <p id="guestWallStatus" class="guestwall-status reveal" aria-live="polite">Loading guest wall…</p>
@@ -145,6 +170,6 @@
       </div>
     </footer>
 
-    <script src="/app.js?v=20260217-header-wordmark1"></script>
+    <script src="/app.js?v=20260217-interlude-curtain1"></script>
   </body>
 </html>

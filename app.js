@@ -23,6 +23,7 @@ const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const HOTEL_PANEL_TRANSITION_MS = 500;
 const HOTEL_CONTENT_FADE_MS = 500;
 const MOBILE_GALLERY_DOT_MAX = 7;
+const MOSAIC_HOVER_DELAY_MS = 150;
 const GUEST_WALL_AUTOPLAY_INTERVAL_MS = 10000;
 const GUEST_WALL_PINBOARD_LIMIT = 12;
 const GUEST_WALL_PINBOARD_BUFFER_DESKTOP = 32;
@@ -52,6 +53,9 @@ const GUEST_WALL_SLOW_MESSAGES = [
   "Sorry—this is taking a minute. The Wall is… emotionally buffering.",
   "Hang tight. We’re fetching your sweet words from the cloud (literally).",
   "Still loading. Really. Blame it on Yi Jie for relying on a free server plan.",
+  "I know it’s been like 10 seconds. Trust us — it’s still loading.",
+  "If this takes forever, blame Yi Jie’s free hosting plan 😅",
+  "Knock knock. Who’s there? RSVP. RSVP who? RSVP… right after this page loads 😭",
 ];
 const GUEST_WALL_POLAROID_TONES = ["#5a1720", "#1f3c35", "#203652", "#3f2f2b", "#4c2a42"];
 const GUEST_WALL_NOTE_TONES = ["#FAF3E8", "#F7EEDB", "#FFF4D8", "#F3E9D6"];
@@ -338,6 +342,8 @@ const guestWallStatus = document.getElementById("guestWallStatus");
 const guestWallPinboardView = document.getElementById("guestWallPinboardView");
 const guestWallShuffle = document.getElementById("guestWallShuffle");
 const guestWallArrangeToggle = document.getElementById("guestWallArrangeToggle");
+const guestWallArrangeHint = document.getElementById("guestWallArrangeHint");
+const guestWallArrangeAutoplayHint = document.getElementById("guestWallArrangeAutoplayHint");
 const guestWallAutoplayToggle = document.getElementById("guestWallAutoplayToggle");
 const guestWallAutoplayControl = document.querySelector(".guestwall-autoplay-control");
 const guestWallAutoplayState = document.getElementById("guestWallAutoplayState");
@@ -513,6 +519,7 @@ let storyPathResizeBound = false;
 let storyPathResizeObserver = null;
 let hotelMatrixItems = [];
 let hotelMatrixPinnedId = "";
+let hotelMatrixHoveredId = "";
 let activeHotelMatrixId = "";
 let hotelDetailsSwapTimer = null;
 let hotelSheetOpen = false;
@@ -1082,11 +1089,48 @@ function toggleDesktopMoreMenu() {
 }
 
 function initHeader() {
-  const syncHeaderBrandState = () => {
-    if (!floatingHeader) return;
-    floatingHeader.classList.toggle("is-scrolled", window.scrollY > 24);
+  let headerIsScrolled = false;
+  const SHRINK_SCROLL_Y = 40;
+  const EXPAND_SCROLL_Y = 20;
+
+  const syncHeaderLogoFallbackState = (pill) => {
+    if (!(pill instanceof HTMLElement)) return;
+    const logos = Array.from(pill.querySelectorAll(".brand-logo"));
+    if (!logos.length) return;
+    const hasRenderableLogo = logos.some((logo) => !logo.classList.contains("is-broken"));
+    pill.classList.toggle("has-logo-error", !hasRenderableLogo);
   };
 
+  const bindHeaderLogoFallbacks = () => {
+    const pills = Array.from(document.querySelectorAll(".brand-pill"));
+    pills.forEach((pill) => {
+      const logos = Array.from(pill.querySelectorAll(".brand-logo"));
+      logos.forEach((logo) => {
+        logo.addEventListener("load", () => {
+          logo.classList.remove("is-broken");
+          syncHeaderLogoFallbackState(pill);
+        });
+        logo.addEventListener("error", () => {
+          logo.classList.add("is-broken");
+          syncHeaderLogoFallbackState(pill);
+        });
+        if (logo.complete && logo.naturalWidth === 0) {
+          logo.classList.add("is-broken");
+        }
+      });
+      syncHeaderLogoFallbackState(pill);
+    });
+  };
+
+  const syncHeaderBrandState = () => {
+    if (!floatingHeader) return;
+    const y = window.scrollY || 0;
+    if (!headerIsScrolled && y > SHRINK_SCROLL_Y) headerIsScrolled = true;
+    else if (headerIsScrolled && y < EXPAND_SCROLL_Y) headerIsScrolled = false;
+    floatingHeader.classList.toggle("is-scrolled", headerIsScrolled);
+  };
+
+  bindHeaderLogoFallbacks();
   syncHeaderBrandState();
   window.addEventListener("scroll", syncHeaderBrandState, { passive: true });
 
@@ -1813,6 +1857,10 @@ function isHotelMatrixMobile() {
   return window.matchMedia("(max-width: 640px)").matches;
 }
 
+function canUseHotelMatrixHover() {
+  return !isHotelMatrixMobile() && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+}
+
 function getHotelById(hotelId) {
   if (!hotelId) return null;
   return hotelMatrixItems.find((item) => item.id === hotelId) || null;
@@ -2194,14 +2242,32 @@ function clearHotelMatrixSelection() {
   applyHotelMatrixSelection();
 }
 
+function applyHotelMatrixPointStateClasses() {
+  const selectedId = getActiveHotelMatrixId();
+  const hoveredId = canUseHotelMatrixHover() ? hotelMatrixHoveredId : "";
+
+  hotelMatrixMetaById.forEach((meta, hotelId) => {
+    if (!meta.group) return;
+    const isActive = hotelId === selectedId;
+    const isHovered = !isActive && Boolean(hoveredId) && hotelId === hoveredId;
+    meta.group.classList.toggle("is-active", isActive);
+    meta.group.classList.toggle("is-hovered", isHovered);
+  });
+}
+
+function setHotelMatrixHoveredId(nextId = "") {
+  const normalized = String(nextId || "").trim();
+  const canHover = canUseHotelMatrixHover();
+  const targetId = canHover ? normalized : "";
+  if (hotelMatrixHoveredId === targetId) return;
+  hotelMatrixHoveredId = targetId;
+  applyHotelMatrixPointStateClasses();
+}
+
 function applyHotelMatrixSelection() {
   const selectedId = getActiveHotelMatrixId();
   activeHotelMatrixId = selectedId;
-
-  hotelMatrixMetaById.forEach((meta, hotelId) => {
-    const isActive = hotelId === selectedId;
-    if (meta.group) meta.group.classList.toggle("is-active", isActive);
-  });
+  applyHotelMatrixPointStateClasses();
 
   const pinnedHotel = getHotelById(selectedId);
   if (pinnedHotel) {
@@ -2253,6 +2319,10 @@ function getHotelMatrixDimensions() {
 
 function renderHotelMatrix() {
   if (!hotelMatrixSvg || !hotelMatrixItems.length) return;
+
+  if (!canUseHotelMatrixHover()) {
+    hotelMatrixHoveredId = "";
+  }
 
   const width = hotelMatrixWidth;
   const height = hotelMatrixHeight;
@@ -2530,6 +2600,13 @@ function renderHotelMatrix() {
     });
     group.addEventListener("blur", () => {
       group.classList.remove("is-focused");
+    });
+    group.addEventListener("mouseenter", () => {
+      setHotelMatrixHoveredId(item.id);
+    });
+    group.addEventListener("mouseleave", () => {
+      if (hotelMatrixHoveredId !== item.id) return;
+      setHotelMatrixHoveredId("");
     });
 
     dotAnchor.appendChild(ring);
@@ -4173,7 +4250,7 @@ function renderGuestWallLoadingSkeleton() {
 }
 
 function renderGuestWallErrorStateWithMessage(message) {
-  const fallbackMessage = String(message || "").trim() || GUEST_WALL_UNAVAILABLE_MESSAGE;
+  const fallbackMessage = GUEST_WALL_UNAVAILABLE_MESSAGE;
   const detailMessage = String(renderGuestWallErrorStateWithMessage.lastDetail || "").trim();
   const makePanel = () => {
     const panel = document.createElement("div");
@@ -4183,6 +4260,16 @@ function renderGuestWallErrorStateWithMessage(message) {
     text.className = "guestwall-error-text";
     text.textContent = fallbackMessage;
     panel.appendChild(text);
+
+    const body = document.createElement("p");
+    body.className = "guestwall-error-body";
+    body.textContent = 'Sorry — it’s kinda buggy (we built it vibe-coded on a free hosting plan). Hit “Try again”.';
+    panel.appendChild(body);
+
+    const helper = document.createElement("p");
+    helper.className = "guestwall-error-helper";
+    helper.textContent = "If it still fails, refresh the page. We promise the notes are worth it.";
+    panel.appendChild(helper);
 
     const button = document.createElement("button");
     button.type = "button";
@@ -4290,8 +4377,10 @@ function buildGuestWallCard(card, context = "board") {
     node.className = "guestwall-item guestwall-item--polaroid";
     const format = normalizeGuestWallPolaroidFormat(getGuestWallPolaroidFormat(card.id));
     node.classList.add(`guestwall-polaroid--${format}`);
-    const tone = getGuestWallPolaroidTone(card.id);
-    node.style.setProperty("--gwPolaroidTone", tone);
+    if (shouldShowGuestWallPolaroidTape(card.id)) node.classList.add("guestwall-polaroid--taped");
+    const tilt = getGuestWallPolaroidTilt(card.id);
+    node.style.setProperty("--gwPolaroidTilt", tilt.desktop);
+    node.style.setProperty("--gwPolaroidTiltMobile", tilt.mobile);
     const mat = document.createElement("div");
     mat.className = "guestwall-polaroid-mat";
     const mediaNode = buildGuestWallMediaNode(card, context);
@@ -4299,7 +4388,7 @@ function buildGuestWallCard(card, context = "board") {
     const signature = document.createElement("span");
     signature.className = `guestwall-polaroid-signature guestwall-polaroid-signature--${signatureStyle.side}`;
     signature.classList.add("guestwall-polaroid-signature--border");
-    signature.textContent = String(card.name || "").trim();
+    signature.textContent = `— ${String(card.name || "").trim() || "Guest"}`;
     signature.style.setProperty("--gwSigAngle", signatureStyle.angle);
     signature.style.setProperty("--gwSigOffset", signatureStyle.horizontalOffset);
     signature.style.setProperty("--gwSigLetterSpacing", signatureStyle.letterSpacing);
@@ -4319,6 +4408,16 @@ function buildGuestWallCard(card, context = "board") {
   node.style.setProperty("--gwNoteSignInk", getGuestWallInkColor(`note-sign:${card.id}`));
   node.classList.add("guestwall-note--postcard");
 
+  const panel = document.createElement("div");
+  panel.className = "guestwall-note-panel";
+
+  const text = document.createElement("p");
+  text.className = "guestwall-note-text";
+  text.textContent = String(card.text || "").replace(/\s+/g, " ").trim();
+
+  const meta = document.createElement("div");
+  meta.className = "guestwall-note-meta";
+
   const stamp = document.createElement("span");
   stamp.className = "guestwall-note-stamp";
   stamp.setAttribute("aria-hidden", "true");
@@ -4336,19 +4435,17 @@ function buildGuestWallCard(card, context = "board") {
     address.appendChild(line);
   }
 
-  const text = document.createElement("p");
-  text.className = "guestwall-note-text";
-  text.textContent = String(card.text || "").replace(/\s+/g, " ").trim();
-
   const sign = document.createElement("p");
   sign.className = "guestwall-note-sign guestwall-note-sign--postcard";
   sign.textContent = `— ${card.name}`;
 
-  node.appendChild(stamp);
-  node.appendChild(postmark);
-  node.appendChild(address);
-  node.appendChild(text);
-  node.appendChild(sign);
+  meta.appendChild(stamp);
+  meta.appendChild(postmark);
+  meta.appendChild(address);
+  meta.appendChild(sign);
+  panel.appendChild(text);
+  panel.appendChild(meta);
+  node.appendChild(panel);
   return node;
 }
 
@@ -4404,6 +4501,7 @@ function setGuestWallControlsDisabled(disabled) {
     if (!(button instanceof HTMLButtonElement)) return;
     button.disabled = Boolean(disabled);
   });
+  if (!disabled) syncGuestWallArrangeAvailability();
 }
 
 function flashGuestWallButton(button) {
@@ -4418,6 +4516,15 @@ function flashGuestWallButton(button) {
   }, 180);
 }
 
+function spinGuestWallShuffleIconOnce() {
+  if (!(guestWallShuffle instanceof HTMLButtonElement) || prefersReducedMotion()) return;
+  const icon = guestWallShuffle.querySelector(".guestwall-control-btn__icon");
+  if (!(icon instanceof HTMLElement)) return;
+  icon.classList.remove("spin-once");
+  void icon.offsetWidth;
+  icon.classList.add("spin-once");
+}
+
 function setGuestWallShuffleState(isShuffling) {
   guestWallIsShuffling = Boolean(isShuffling);
   if (!(guestWallShuffle instanceof HTMLButtonElement)) return;
@@ -4428,9 +4535,9 @@ function setGuestWallShuffleState(isShuffling) {
   guestWallShuffle.classList.toggle("is-loading", guestWallIsShuffling);
   guestWallShuffle.setAttribute("aria-busy", guestWallIsShuffling ? "true" : "false");
   if (labelNode instanceof HTMLElement) {
-    labelNode.textContent = guestWallIsShuffling ? "Shuffling…" : "Shuffle";
+    labelNode.textContent = guestWallIsShuffling ? "Shuffling…" : "Shuffle now";
   } else {
-    guestWallShuffle.textContent = guestWallIsShuffling ? "Shuffling…" : "Shuffle";
+    guestWallShuffle.textContent = guestWallIsShuffling ? "Shuffling…" : "Shuffle now";
   }
 }
 
@@ -4657,17 +4764,37 @@ function setGuestWallArrangeMode(enabled) {
   }
   if (guestWallArrangeToggle instanceof HTMLButtonElement) {
     guestWallArrangeToggle.classList.toggle("is-active", nextMode);
-    guestWallArrangeToggle.textContent = `Arrange: ${nextMode ? "On" : "Off"}`;
+    guestWallArrangeToggle.textContent = nextMode ? "Done arranging ✓" : "Arrange cards";
     guestWallArrangeToggle.setAttribute("aria-pressed", nextMode ? "true" : "false");
+  }
+  if (guestWallArrangeHint instanceof HTMLElement) {
+    setHiddenClass(guestWallArrangeHint, !nextMode);
   }
 }
 
 function syncGuestWallArrangeAvailability() {
   if (!(guestWallArrangeToggle instanceof HTMLButtonElement)) return;
-  const canArrange = isGuestWallArrangeCapable();
-  setHiddenClass(guestWallArrangeToggle, !canArrange);
-  if (!canArrange) {
+  const capability = isGuestWallArrangeCapable();
+  const blockedByAutoplay = capability && !guestWallPaused;
+  setHiddenClass(guestWallArrangeToggle, !capability);
+  if (!capability) {
     setGuestWallArrangeMode(false);
+    if (guestWallArrangeHint instanceof HTMLElement) setHiddenClass(guestWallArrangeHint, true);
+    if (guestWallArrangeAutoplayHint instanceof HTMLElement) setHiddenClass(guestWallArrangeAutoplayHint, true);
+    return;
+  }
+
+  if (blockedByAutoplay) {
+    if (guestWallArrangeMode) setGuestWallArrangeMode(false);
+    guestWallArrangeToggle.disabled = true;
+    guestWallArrangeToggle.setAttribute("aria-disabled", "true");
+    guestWallArrangeToggle.classList.add("is-muted");
+    if (guestWallArrangeAutoplayHint instanceof HTMLElement) setHiddenClass(guestWallArrangeAutoplayHint, false);
+  } else {
+    guestWallArrangeToggle.disabled = false;
+    guestWallArrangeToggle.setAttribute("aria-disabled", "false");
+    guestWallArrangeToggle.classList.remove("is-muted");
+    if (guestWallArrangeAutoplayHint instanceof HTMLElement) setHiddenClass(guestWallArrangeAutoplayHint, true);
   }
 }
 
@@ -5072,6 +5199,23 @@ function getGuestWallSignatureStyle(cardId) {
     ink,
     stroke: ink,
   };
+}
+
+function getGuestWallPolaroidTilt(cardId) {
+  const id = String(cardId || "");
+  const desktopSeed = hashStringToUint32(`polaroid-tilt-desktop:${id}`);
+  const mobileSeed = hashStringToUint32(`polaroid-tilt-mobile:${id}`);
+  const desktopTilt = ((seededRandomFromHash(desktopSeed) * 8) - 4).toFixed(2);
+  const mobileTilt = ((seededRandomFromHash(mobileSeed) * 4) - 2).toFixed(2);
+  return {
+    desktop: `${desktopTilt}deg`,
+    mobile: `${mobileTilt}deg`,
+  };
+}
+
+function shouldShowGuestWallPolaroidTape(cardId) {
+  const seed = hashStringToUint32(`polaroid-tape:${String(cardId || "")}`);
+  return seed % 10 < 4;
 }
 
 function getGuestWallNoteTone(cardId) {
@@ -5607,6 +5751,7 @@ function setGuestWallPaused(paused) {
       guestWallAutoplayState.classList.toggle("is-off", !isOn);
     }
   }
+  syncGuestWallArrangeAvailability();
 
   if (guestWallPaused) {
     clearGuestWallDesktopTimer();
@@ -5722,10 +5867,19 @@ function bindGuestWallEvents() {
   if (guestWallPinboard.dataset.bound === "true") return;
 
   if (guestWallShuffle instanceof HTMLButtonElement) {
+    const shuffleIcon = guestWallShuffle.querySelector(".guestwall-control-btn__icon");
+    if (shuffleIcon instanceof HTMLElement && shuffleIcon.dataset.spinBound !== "true") {
+      shuffleIcon.addEventListener("animationend", () => {
+        shuffleIcon.classList.remove("spin-once");
+      });
+      shuffleIcon.dataset.spinBound = "true";
+    }
+
     guestWallShuffle.addEventListener("click", async () => {
       if (!guestWallCards.length) return;
       if (guestWallIsShuffling || guestWallShuffle.disabled) return;
       try {
+        spinGuestWallShuffleIconOnce();
         setGuestWallShuffleState(true);
         flashGuestWallButton(guestWallShuffle);
         shuffleGuestWallVisibleSubset();
@@ -5892,7 +6046,7 @@ async function loadGuestWallPinboard({ refresh = false } = {}) {
           error && typeof error === "object" ? error.durationMs || 0 : 0
         } url=${error && typeof error === "object" ? error.url || "n/a" : "n/a"}`;
       setGuestWallLoadState(classified.state);
-      setGuestWallStatus(classified.statusMessage);
+      setGuestWallStatus("");
       setGuestWallControlsDisabled(true);
       guestWallNextCursor = null;
       guestWallPrefetchInFlight = null;
@@ -6347,6 +6501,121 @@ function syncGalleryObjectPositions() {
 
 function isGalleryMobileView() {
   return window.matchMedia("(max-width: 600px)").matches;
+}
+
+function canUseMosaicHoverEffects() {
+  if (prefersReducedMotion()) return false;
+  return window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+}
+
+function applyMosaicHoverState(container, tileSelector, activeTile = null) {
+  if (!(container instanceof HTMLElement)) return;
+  const tiles = Array.from(container.querySelectorAll(tileSelector));
+  tiles.forEach((tile) => {
+    tile.classList.toggle("is-hover-active", tile === activeTile);
+    tile.classList.toggle("is-hover-dimmed", Boolean(activeTile) && tile !== activeTile);
+  });
+  container.classList.toggle("is-hover-focused", Boolean(activeTile));
+}
+
+function bindMosaicHover(container, tileSelector) {
+  if (!(container instanceof HTMLElement) || container.dataset.mosaicHoverBound === "true") return;
+
+  const hoverState = {
+    activeTile: null,
+    pendingTile: null,
+    timer: 0,
+  };
+
+  const clearTimer = () => {
+    if (!hoverState.timer) return;
+    window.clearTimeout(hoverState.timer);
+    hoverState.timer = 0;
+  };
+
+  const commitActiveTile = (tile) => {
+    hoverState.activeTile = tile instanceof HTMLElement ? tile : null;
+    applyMosaicHoverState(container, tileSelector, hoverState.activeTile);
+  };
+
+  const clearActiveTile = () => {
+    clearTimer();
+    hoverState.pendingTile = null;
+    if (hoverState.activeTile) {
+      commitActiveTile(null);
+    } else {
+      applyMosaicHoverState(container, tileSelector, null);
+    }
+  };
+
+  const queueActiveTile = (tile) => {
+    if (!(tile instanceof HTMLElement) || !canUseMosaicHoverEffects()) return;
+    if (hoverState.activeTile === tile) {
+      clearTimer();
+      hoverState.pendingTile = null;
+      return;
+    }
+
+    clearTimer();
+    hoverState.pendingTile = tile;
+    hoverState.timer = window.setTimeout(() => {
+      hoverState.timer = 0;
+      if (hoverState.pendingTile !== tile) return;
+      commitActiveTile(tile);
+    }, MOSAIC_HOVER_DELAY_MS);
+  };
+
+  container.addEventListener("mouseover", (event) => {
+    if (!canUseMosaicHoverEffects()) {
+      clearActiveTile();
+      return;
+    }
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const tile = target.closest(tileSelector);
+    if (!(tile instanceof HTMLElement) || !container.contains(tile)) return;
+    queueActiveTile(tile);
+  });
+
+  container.addEventListener("mouseleave", () => {
+    clearActiveTile();
+  });
+
+  container.addEventListener("focusin", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const tile = target.closest(tileSelector);
+    if (!(tile instanceof HTMLElement) || !container.contains(tile)) return;
+    clearTimer();
+    hoverState.pendingTile = null;
+    commitActiveTile(tile);
+  });
+
+  container.addEventListener("focusout", () => {
+    window.requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (active instanceof Element) {
+        const tile = active.closest(tileSelector);
+        if (tile instanceof HTMLElement && container.contains(tile)) {
+          commitActiveTile(tile);
+          return;
+        }
+      }
+      clearActiveTile();
+    });
+  });
+
+  window.addEventListener("resize", () => {
+    if (canUseMosaicHoverEffects()) return;
+    clearActiveTile();
+  });
+
+  container.dataset.mosaicHoverBound = "true";
+}
+
+function initMosaicHoverInteractions() {
+  bindMosaicHover(storyMosaicLayout, ".story-mosaic-card");
+  bindMosaicHover(galleryGrid, ".gallery-tile");
 }
 
 function setActiveGalleryDot(index) {
@@ -8271,6 +8540,67 @@ function initCutoutParallax() {
   requestTick();
 }
 
+function initInterludeCurtainReveal() {
+  const interludeSection = document.getElementById("interlude");
+  if (!(interludeSection instanceof HTMLElement)) return;
+  if (interludeSection.dataset.curtainBound === "true") return;
+
+  const clamp01 = (value) => Math.max(0, Math.min(1, value));
+  const isMobileCurtain = () => window.matchMedia("(max-width: 640px)").matches;
+  const getCurtainBounds = () =>
+    isMobileCurtain()
+      ? { max: 0.18, min: 0.06 }
+      : { max: 0.22, min: 0.04 };
+
+  let rafId = null;
+  let inViewport = true;
+
+  const applyCurtain = () => {
+    rafId = null;
+    const { max, min } = getCurtainBounds();
+
+    if (prefersReducedMotion()) {
+      const staticWidth = min + (max - min) * 0.45;
+      interludeSection.style.setProperty("--interlude-curtain-width", `${(staticWidth * 100).toFixed(3)}%`);
+      return;
+    }
+
+    if (!inViewport) return;
+
+    const rect = interludeSection.getBoundingClientRect();
+    const vh = window.innerHeight || 1;
+    const start = vh * 0.9;
+    const end = vh * 0.2;
+    const t = (start - rect.top) / Math.max(1, start - end);
+    const progress = clamp01(t);
+    const width = min + (max - min) * (1 - progress);
+
+    interludeSection.style.setProperty("--interlude-curtain-width", `${(width * 100).toFixed(3)}%`);
+  };
+
+  const requestApply = () => {
+    if (rafId !== null) return;
+    rafId = window.requestAnimationFrame(applyCurtain);
+  };
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      inViewport = entries.some((entry) => entry.isIntersecting);
+      if (inViewport) requestApply();
+    },
+    {
+      threshold: [0, 0.12, 0.35, 0.65],
+      rootMargin: "180px 0px 180px 0px",
+    },
+  );
+  observer.observe(interludeSection);
+
+  window.addEventListener("scroll", requestApply, { passive: true });
+  window.addEventListener("resize", requestApply);
+  interludeSection.dataset.curtainBound = "true";
+  requestApply();
+}
+
 async function init() {
   initOverflowDebugHelper();
   removeLegacyGalleryLightbox();
@@ -8286,6 +8616,7 @@ async function init() {
   initMakanSection();
   initStorySkipLink();
   initReveals();
+  initMosaicHoverInteractions();
   document.body.classList.add("is-app-ready");
   initScheduleReveal();
   await initStoryMosaicLayout();
@@ -8295,6 +8626,7 @@ async function init() {
   photoManifest = await loadManifest();
   applyInviteContext();
   applyStaticPhotoManifest();
+  initInterludeCurtainReveal();
   initCutoutParallax();
   initFaqAccordionGroups();
   initFaqWearImageDebug();

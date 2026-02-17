@@ -22,17 +22,18 @@
         rel="stylesheet"
       />
     </noscript>
-    <link rel="icon" type="image/svg+xml" href="public/favicon.svg" />
-    <link rel="icon" type="image/png" href="public/favicon-32.png" />
-    <link rel="stylesheet" href="./styles.css?v=20260217-header-wordmark1" />
+    <link rel="icon" type="image/svg+xml" href="/public/favicon.svg" />
+    <link rel="icon" type="image/png" href="/public/favicon-32.png" />
+    <link rel="stylesheet" href="./styles.css?v=20260217-hover-affordance1" />
   </head>
   <body>
     <header id="floatingHeader" class="floating-header" aria-label="Site navigation">
       <div class="header-pill">
         <a class="brand" href="#top" aria-label="Back to top">
           <span class="brand-pill" aria-hidden="true">
-            <img class="brand-logo brand-logo--mark" src="public/brand/logo-mark.svg" alt="" width="92" height="24" decoding="async" />
-            <img class="brand-logo brand-logo--long" src="public/brand/logo-long.svg" alt="" width="240" height="24" decoding="async" />
+            <img class="brand-logo brand-logo--mark" src="/public/brand/logo-mark.svg" alt="" width="84" height="22" decoding="async" />
+            <img class="brand-logo brand-logo--long" src="/public/brand/logo-long.svg" alt="" width="220" height="22" decoding="async" />
+            <span class="brand-text-fallback" aria-hidden="true">Miki &amp; Yi Jie</span>
           </span>
           <span class="sr-only">Miki &amp; Yi Jie</span>
         </a>
@@ -119,7 +120,10 @@
             </div>
             <div class="hero-group hero-group--cta">
               <div class="hero-actions reveal" data-delay="240">
-                <a class="btn hero-rsvp" href="#rsvp">RSVP</a>
+                <a class="btn hero-rsvp hover-lift hover-arrow-trigger" href="#rsvp">
+                  <span class="hero-rsvp-label">RSVP</span>
+                  <span class="hero-rsvp-arrow hover-arrow ctaArrow" aria-hidden="true">→</span>
+                </a>
               </div>
             </div>
           </div>
@@ -143,6 +147,8 @@
             </div>
           </div>
         </div>
+        <div class="interlude-curtain interlude-curtain--left" aria-hidden="true"></div>
+        <div class="interlude-curtain interlude-curtain--right" aria-hidden="true"></div>
       </section>
 
       <div id="our-story" class="anchor-target" aria-hidden="true"></div>
@@ -274,16 +280,19 @@
               <div id="choiceGroup" class="choice-grid" role="radiogroup" aria-label="RSVP choice">
                 <button type="button" class="choice-card" data-choice="yes">
                   <span class="checkmark" aria-hidden="true">✓</span>
+                  <span class="choice-chevron hover-arrow" aria-hidden="true">›</span>
                   <span class="choice-title">Yes — count us in</span>
                   <span class="choice-subtext">Please reserve our seats. We’ll start planning travel.</span>
                 </button>
                 <button type="button" class="choice-card" data-choice="working">
                   <span class="checkmark" aria-hidden="true">✓</span>
+                  <span class="choice-chevron hover-arrow" aria-hidden="true">›</span>
                   <span class="choice-title">Maybe — need a month</span>
                   <span class="choice-subtext">Don’t save us a seat yet. We’ll confirm next month.</span>
                 </button>
                 <button type="button" class="choice-card" data-choice="no">
                   <span class="checkmark" aria-hidden="true">✓</span>
+                  <span class="choice-chevron hover-arrow" aria-hidden="true">›</span>
                   <span class="choice-title">No — can’t make it</span>
                   <span class="choice-subtext">Thank you for replying. It means a lot.</span>
                 </button>
@@ -1192,7 +1201,7 @@
             <div class="travel-passport-pills" role="radiogroup" aria-label="Passport selector">
               <button class="travel-passport-pill" type="button" data-passport="us">
                 <span class="travel-passport-flag" aria-hidden="true">🇺🇸</span>
-                <span class="travel-passport-label-text">U.S.</span>
+                <span class="travel-passport-label-text">United States</span>
               </button>
               <button class="travel-passport-pill" type="button" data-passport="singapore">
                 <span class="travel-passport-flag" aria-hidden="true">🇸🇬</span>
@@ -1351,6 +1360,6 @@
 
     <script src="./data/hotels.js?v=20260216-matrix"></script>
     <script src="./data/beijing-food.js?v=20260216-title-reveal-fix1"></script>
-    <script src="./app.js?v=20260217-header-wordmark1"></script>
+    <script src="./app.js?v=20260217-hover-affordance1"></script>
   </body>
 </html>
