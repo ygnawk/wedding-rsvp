@@ -73,8 +73,9 @@ Tab `media`:
 - Server generates `submission_id` (UUID) and timestamp.
 - Writes one row to `rsvps`.
 - Always writes a primary row to `guests`; additional `+1` rows are appended when present.
-- Creates a Drive subfolder named `<submission_id>` under `GOOGLE_DRIVE_UPLOADS_FOLDER_ID`.
-- Uploads up to 3 files and writes one row per file to `media`.
+- Uploads up to 3 files directly into `GOOGLE_DRIVE_UPLOADS_FOLDER_ID`.
+- Uploaded file names are normalized as `<submission_id>_<index>.<ext>`.
+- Writes one row per file to `media`.
 - API response: `{ "ok": true, "submission_id": "<uuid>" }`.
 
 ### Manual test checklist
@@ -83,7 +84,7 @@ Tab `media`:
 2. Submit `yes` with 2 files.
 3. Submit `maybe` with `party_size` + `when_will_you_know`.
 4. Submit `no` with message only.
-5. Verify all 3 tabs (`rsvps`, `guests`, `media`) and Drive subfolder creation per submission.
+5. Verify all 3 tabs (`rsvps`, `guests`, `media`) and uploaded files in the Drive target folder.
 
 ## Git init and push
 

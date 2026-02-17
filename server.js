@@ -329,36 +329,33 @@ function deriveFileTypeFromMime(mimeType) {
   return "image";
 }
 
-async function createSubmissionFolder(drive, parentFolderId, submissionId) {
-  const response = await drive.files.create({
-    supportsAllDrives: true,
-    requestBody: {
-      name: submissionId,
-      mimeType: "application/vnd.google-apps.folder",
-      parents: [parentFolderId],
-    },
-    fields: "id",
-  });
+function getUploadExtension(originalName, mimeType) {
+  const nameExt = path.extname(String(originalName || "")).toLowerCase();
+  if (nameExt) return nameExt;
 
-  const folderId = response.data && response.data.id;
-  if (!folderId) {
-    throw new Error("Failed to create Drive submission folder");
-  }
-  return folderId;
+  const mime = String(mimeType || "").toLowerCase();
+  if (mime === "image/jpeg") return ".jpg";
+  if (mime === "image/png") return ".png";
+  if (mime === "image/webp") return ".webp";
+  if (mime === "image/gif") return ".gif";
+  if (mime === "video/mp4") return ".mp4";
+  if (mime === "video/quicktime") return ".mov";
+  return "";
 }
 
-async function uploadMediaFilesToDrive(drive, folderId, files) {
+async function uploadMediaFilesToDrive(drive, destinationFolderId, submissionId, files) {
   const uploaded = [];
   for (let i = 0; i < files.length; i += 1) {
     const file = files[i];
     const mimeType = normalizeFieldValue(file.mimetype) || "application/octet-stream";
     const originalName = normalizeFieldValue(file.originalFilename) || `upload-${i + 1}`;
+    const uploadName = `${submissionId}_${i + 1}${getUploadExtension(originalName, mimeType)}`;
 
     const response = await drive.files.create({
       supportsAllDrives: true,
       requestBody: {
-        name: originalName,
-        parents: [folderId],
+        name: uploadName,
+        parents: [destinationFolderId],
         mimeType,
       },
       media: {
@@ -370,13 +367,13 @@ async function uploadMediaFilesToDrive(drive, folderId, files) {
 
     const fileId = response.data && response.data.id;
     if (!fileId) {
-      throw new Error(`Failed to upload media file ${originalName}`);
+      throw new Error(`Failed to upload media file ${uploadName}`);
     }
 
     uploaded.push({
       fileIndex: i + 1,
       fileId,
-      fileName: response.data.name || originalName,
+      fileName: response.data.name || uploadName,
       mimeType: response.data.mimeType || mimeType,
       fileType: deriveFileTypeFromMime(response.data.mimeType || mimeType),
       driveViewUrl: `https://drive.google.com/file/d/${fileId}/view`,
@@ -509,11 +506,9 @@ async function handleRsvpSubmission(req, res) {
       guestIndex += 1;
     });
 
-    const submissionFolderId = await createSubmissionFolder(drive, uploadsFolderId, submissionId);
-
     let mediaRowsData = [];
     if (files.length) {
-      const uploadedMedia = await uploadMediaFilesToDrive(drive, submissionFolderId, files);
+      const uploadedMedia = await uploadMediaFilesToDrive(drive, uploadsFolderId, submissionId, files);
       mediaRowsData = uploadedMedia.map((item) =>
         buildRowFromHeaders(tabHeaders.media, {
           submission_id: submissionId,
