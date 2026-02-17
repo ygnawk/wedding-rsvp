@@ -32,7 +32,9 @@ BPS=(
 
 PLAYWRIGHT_CMD=(npx -y playwright@1.51.1)
 ODIFF_CMD=(npx -y odiff-bin)
-SERVER_URL="http://127.0.0.1:3000"
+SERVER_PORT="${VISUAL_SERVER_PORT:-3100}"
+SERVER_URL="${VISUAL_SERVER_URL:-http://127.0.0.1:${SERVER_PORT}}"
+CAPTURE_WAIT_MS="${VISUAL_CAPTURE_WAIT_MS:-2600}"
 
 ensure_browser() {
   "${PLAYWRIGHT_CMD[@]}" install chromium >/dev/null
@@ -41,7 +43,7 @@ ensure_browser() {
 start_server() {
   mkdir -p "$TMP_DIR"
   pushd "$ROOT_DIR" >/dev/null
-  node server.js >"$TMP_DIR/server.log" 2>&1 &
+  PORT="$SERVER_PORT" node server.js >"$TMP_DIR/server.log" 2>&1 &
   SERVER_PID=$!
   popd >/dev/null
   for _ in {1..60}; do
@@ -77,7 +79,7 @@ capture_set() {
       "${PLAYWRIGHT_CMD[@]}" screenshot \
         --browser chromium \
         --viewport-size "${width},${height}" \
-        --wait-for-timeout 1300 \
+        --wait-for-timeout "$CAPTURE_WAIT_MS" \
         "$url" "$out_file" >/dev/null
     done
   done

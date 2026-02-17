@@ -1,0 +1,118 @@
+{
+  "generatedAt": "2026-02-17T08:31:29.140Z",
+  "scenario": "ab3",
+  "routes": {
+    "home-mobile": {
+      "before": {
+        "performanceScore": 87,
+        "lcpMs": 3948.363,
+        "tbtMs": 47.987,
+        "cls": 0.050695,
+        "speedIndexMs": 1893,
+        "transferBytes": 892489,
+        "requestCount": 28,
+        "imageBytes": 695152,
+        "scriptBytes": 47080
+      },
+      "after": {
+        "performanceScore": 87,
+        "lcpMs": 3948.289,
+        "tbtMs": 47.894,
+        "cls": 0.050695,
+        "speedIndexMs": 1891,
+        "transferBytes": 894101,
+        "requestCount": 28,
+        "imageBytes": 696053,
+        "scriptBytes": 47303
+      }
+    },
+    "guest-wall-mobile": {
+      "before": {
+        "performanceScore": 44,
+        "lcpMs": 12086.033,
+        "tbtMs": 0,
+        "cls": 0.846549,
+        "speedIndexMs": 6581,
+        "transferBytes": 4062356,
+        "requestCount": 20,
+        "imageBytes": 3900520,
+        "scriptBytes": 43891
+      },
+      "after": {
+        "performanceScore": 42,
+        "lcpMs": 19093.352,
+        "tbtMs": 0,
+        "cls": 0.846549,
+        "speedIndexMs": 8778,
+        "transferBytes": 4209723,
+        "requestCount": 23,
+        "imageBytes": 4052549,
+        "scriptBytes": 43966
+      }
+    },
+    "home-desktop": {
+      "before": {
+        "performanceScore": 99,
+        "lcpMs": 920.384,
+        "tbtMs": 0,
+        "cls": 0.005032,
+        "speedIndexMs": 346.874,
+        "transferBytes": 894559,
+        "requestCount": 37,
+        "imageBytes": 697222,
+        "scriptBytes": 47080
+      },
+      "after": {
+        "performanceScore": 100,
+        "lcpMs": 490.678,
+        "tbtMs": 0,
+        "cls": 0.004718,
+        "speedIndexMs": 345.322,
+        "transferBytes": 896171,
+        "requestCount": 37,
+        "imageBytes": 698123,
+        "scriptBytes": 47303
+      }
+    },
+    "guest-wall-desktop": {
+      "before": {
+        "performanceScore": 100,
+        "lcpMs": 603.502,
+        "tbtMs": 0,
+        "cls": 0.017645,
+        "speedIndexMs": 839.875,
+        "transferBytes": 3436282,
+        "requestCount": 18,
+        "imageBytes": 3274446,
+        "scriptBytes": 43891
+      },
+      "after": {
+        "performanceScore": 100,
+        "lcpMs": 497.917,
+        "tbtMs": 0,
+        "cls": 0.017895,
+        "speedIndexMs": 549.459,
+        "transferBytes": 2934794,
+        "requestCount": 18,
+        "imageBytes": 2777620,
+        "scriptBytes": 43966
+      }
+    }
+  },
+  "guestWallMobileMedians": {
+    "ab3b": {
+      "performanceScore": 41,
+      "lcpMs": 23008.492,
+      "speedIndexMs": 10185,
+      "transferBytes": 4697867,
+      "imageBytes": 4536047
+    },
+    "ab3a": {
+      "performanceScore": 59,
+      "lcpMs": 22989.025,
+      "speedIndexMs": 10522,
+      "transferBytes": 4693584,
+      "imageBytes": 4536410
+    }
+  }
+}

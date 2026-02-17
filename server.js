@@ -59,8 +59,14 @@ const TAB_SCHEMAS = {
 };
 
 const GUESTBOOK_CACHE_TTL_MS = Math.max(60, Number.parseInt(process.env.GUESTBOOK_CACHE_TTL_SECONDS || "180", 10) || 180) * 1000;
+const GUESTBOOK_RESPONSE_CACHE_SECONDS = Math.max(
+  30,
+  Math.min(300, Number.parseInt(process.env.GUESTBOOK_RESPONSE_CACHE_SECONDS || "90", 10) || 90),
+);
 const GUESTBOOK_PINBOARD_DEFAULT_LIMIT = 16;
 const GUESTBOOK_ARCHIVE_DEFAULT_LIMIT = 30;
+const STATIC_BODY_CACHE_MAX_BYTES = 512 * 1024;
+const staticBodyCache = new Map();
 const guestbookCache = {
   expiresAt: 0,
   items: [],
@@ -72,12 +78,29 @@ function extractYearPrefix(filename) {
   return match ? Number(match[1]) : Number.POSITIVE_INFINITY;
 }
 
-function send(res, status, body, contentType = "text/plain; charset=utf-8") {
-  res.writeHead(status, {
+function send(res, status, body, contentType = "text/plain; charset=utf-8", options = {}) {
+  const headers = {
     "Content-Type": contentType,
     "Access-Control-Allow-Origin": "*",
-  });
-  res.end(body);
+    ...(options.headers && typeof options.headers === "object" ? options.headers : {}),
+  };
+
+  if (options.cacheControl) {
+    headers["Cache-Control"] = String(options.cacheControl);
+  }
+
+  const rawBody = Buffer.isBuffer(body) ? body : Buffer.from(String(body || ""));
+  const req = options.req;
+  const canCompress = req && isCompressibleMime(contentType);
+  const { body: encodedBody, encoding } = canCompress ? encodeBody(rawBody, req.headers["accept-encoding"]) : { body: rawBody, encoding: null };
+
+  if (encoding) {
+    headers["Content-Encoding"] = encoding;
+    headers.Vary = headers.Vary ? `${headers.Vary}, Accept-Encoding` : "Accept-Encoding";
+  }
+
+  res.writeHead(status, headers);
+  res.end(encodedBody);
 }
 
 function getRequestBody(req) {
@@ -135,13 +158,70 @@ function encodeBody(body, acceptEncodingHeader) {
   return { body, encoding: null };
 }
 
+function getPreferredEncoding(acceptEncodingHeader) {
+  const acceptEncoding = String(acceptEncodingHeader || "").toLowerCase();
+  if (acceptEncoding.includes("br")) return "br";
+  if (acceptEncoding.includes("gzip")) return "gzip";
+  return null;
+}
+
+function createWeakEtag(size, mtimeMs) {
+  const safeSize = Number.isFinite(Number(size)) ? Number(size) : 0;
+  const safeMtime = Number.isFinite(Number(mtimeMs)) ? Math.floor(Number(mtimeMs)) : 0;
+  return `W/"${safeSize.toString(16)}-${safeMtime.toString(16)}"`;
+}
+
+function isNotModified(req, etag, mtimeMs) {
+  const ifNoneMatch = String(req.headers["if-none-match"] || "").trim();
+  if (ifNoneMatch && etag && ifNoneMatch === etag) return true;
+
+  const ifModifiedSinceRaw = String(req.headers["if-modified-since"] || "").trim();
+  if (!ifModifiedSinceRaw || !Number.isFinite(Number(mtimeMs))) return false;
+  const ifModifiedSinceMs = Date.parse(ifModifiedSinceRaw);
+  if (!Number.isFinite(ifModifiedSinceMs)) return false;
+  return Math.floor(Number(mtimeMs)) <= ifModifiedSinceMs;
+}
+
+function getCachedStaticBody(filePath, stat, mime) {
+  const canCacheBody = isCompressibleMime(mime) && stat.size <= STATIC_BODY_CACHE_MAX_BYTES;
+  if (!canCacheBody) {
+    return {
+      rawBody: fs.readFileSync(filePath),
+      encoded: {},
+      cacheable: false,
+    };
+  }
+
+  const cacheKey = filePath;
+  const cached = staticBodyCache.get(cacheKey);
+  if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
+    return cached;
+  }
+
+  const next = {
+    mtimeMs: stat.mtimeMs,
+    size: stat.size,
+    rawBody: fs.readFileSync(filePath),
+    encoded: {},
+    cacheable: true,
+  };
+  staticBodyCache.set(cacheKey, next);
+  return next;
+}
+
 function serveStaticFile(req, res, filePath) {
   if (!filePath) {
     send(res, 403, "Forbidden");
     return;
   }
 
-  if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+  if (!fs.existsSync(filePath)) {
+    send(res, 404, "Not found");
+    return;
+  }
+
+  const stat = fs.statSync(filePath);
+  if (stat.isDirectory()) {
     send(res, 404, "Not found");
     return;
   }
@@ -150,19 +230,56 @@ function serveStaticFile(req, res, filePath) {
   const mime = MIME_TYPES[ext] || "application/octet-stream";
   const isHtml = ext === ".html";
   const cacheControl = isHtml ? "no-cache" : "public, max-age=31536000, immutable";
-  const rawBody = fs.readFileSync(filePath);
+  const etag = createWeakEtag(stat.size, stat.mtimeMs);
+  const lastModified = new Date(stat.mtimeMs).toUTCString();
+
+  if (isNotModified(req, etag, stat.mtimeMs)) {
+    res.writeHead(304, {
+      "Access-Control-Allow-Origin": "*",
+      "Cache-Control": cacheControl,
+      ETag: etag,
+      "Last-Modified": lastModified,
+      Vary: "Accept-Encoding",
+    });
+    res.end();
+    return;
+  }
+
+  const cachedBody = getCachedStaticBody(filePath, stat, mime);
+  const rawBody = cachedBody.rawBody;
   const canCompress = isCompressibleMime(mime);
-  const { body, encoding } = canCompress ? encodeBody(rawBody, req.headers["accept-encoding"]) : { body: rawBody, encoding: null };
+  let body = rawBody;
+  let encoding = null;
+
+  if (canCompress && rawBody.length >= 1024) {
+    const preferredEncoding = getPreferredEncoding(req.headers["accept-encoding"]);
+    if (preferredEncoding && cachedBody.encoded && cachedBody.encoded[preferredEncoding]) {
+      body = cachedBody.encoded[preferredEncoding];
+      encoding = preferredEncoding;
+    } else if (preferredEncoding) {
+      if (preferredEncoding === "br") {
+        body = zlib.brotliCompressSync(rawBody);
+      } else if (preferredEncoding === "gzip") {
+        body = zlib.gzipSync(rawBody);
+      }
+      encoding = preferredEncoding;
+      if (cachedBody.cacheable) {
+        cachedBody.encoded[preferredEncoding] = body;
+      }
+    }
+  }
 
   const headers = {
     "Content-Type": mime,
     "Access-Control-Allow-Origin": "*",
     "Cache-Control": cacheControl,
+    ETag: etag,
+    "Last-Modified": lastModified,
+    Vary: "Accept-Encoding",
   };
 
   if (encoding) {
     headers["Content-Encoding"] = encoding;
-    headers.Vary = "Accept-Encoding";
   }
 
   res.writeHead(200, headers);
@@ -746,10 +863,16 @@ async function handleRsvpSubmission(req, res) {
     await appendRows(sheets, spreadsheetId, "guests", guestRowsData);
     await appendRows(sheets, spreadsheetId, "media", mediaRowsData);
 
-    send(res, 200, JSON.stringify({ ok: true, submission_id: submissionId }), MIME_TYPES[".json"]);
+    send(res, 200, JSON.stringify({ ok: true, submission_id: submissionId }), MIME_TYPES[".json"], {
+      req,
+      cacheControl: "no-store",
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "RSVP submission failed";
-    send(res, 500, JSON.stringify({ ok: false, error: message }), MIME_TYPES[".json"]);
+    send(res, 500, JSON.stringify({ ok: false, error: message }), MIME_TYPES[".json"], {
+      req,
+      cacheControl: "no-store",
+    });
   } finally {
     await cleanupUploadedTempFiles(uploadedTempFiles);
   }
@@ -877,11 +1000,7 @@ async function loadGuestbookItems({ forceRefresh = false } = {}) {
       `[guestbook] source rows rsvps=${rsvpRows.length} approved=${approvedRows} guests=${guestRows.length} media=${mediaRows.length}`,
     );
 
-    const driveMetadataByFileId = await loadDriveMetadataByFileId(
-      drive,
-      mediaRows.map((row) => row.file_id),
-    );
-    const items = buildGuestbookItems(rsvpRows, guestRows, mediaRows, driveMetadataByFileId);
+    const items = buildGuestbookItems(rsvpRows, guestRows, mediaRows, new Map());
     guestbookCache.items = items;
     guestbookCache.expiresAt = Date.now() + GUESTBOOK_CACHE_TTL_MS;
     if (!items.length) {
@@ -1071,12 +1190,22 @@ async function handleGuestbookRequest(req, res) {
         cached_until: guestbookCache.expiresAt ? new Date(guestbookCache.expiresAt).toISOString() : null,
       }),
       MIME_TYPES[".json"],
+      {
+        req,
+        cacheControl: `public, max-age=${GUESTBOOK_RESPONSE_CACHE_SECONDS}, stale-while-revalidate=${Math.max(
+          GUESTBOOK_RESPONSE_CACHE_SECONDS * 3,
+          180,
+        )}`,
+      },
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Guestbook request failed";
     const classified = classifyGuestbookError(error);
     console.error(`[guestbook] error code=${classified.code} detail=${classified.detail} message=${message}`);
-    send(res, 500, JSON.stringify({ ok: false, error: message }), MIME_TYPES[".json"]);
+    send(res, 500, JSON.stringify({ ok: false, error: message }), MIME_TYPES[".json"], {
+      req,
+      cacheControl: "no-store",
+    });
   }
 }
 
@@ -1099,7 +1228,10 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (pathname === "/api/rsvp" && req.method === "GET") {
-    send(res, 200, JSON.stringify({ ok: true, message: "RSVP API is active" }), MIME_TYPES[".json"]);
+    send(res, 200, JSON.stringify({ ok: true, message: "RSVP API is active" }), MIME_TYPES[".json"], {
+      req,
+      cacheControl: "no-store",
+    });
     return;
   }
 
@@ -1111,7 +1243,10 @@ const server = http.createServer(async (req, res) => {
   if (pathname === "/api/timeline-photos" && req.method === "GET") {
     const timelineDir = path.join(ROOT, "photos", "timeline-photos");
     if (!fs.existsSync(timelineDir)) {
-      send(res, 200, JSON.stringify({ ok: true, files: [] }), MIME_TYPES[".json"]);
+      send(res, 200, JSON.stringify({ ok: true, files: [] }), MIME_TYPES[".json"], {
+        req,
+        cacheControl: "public, max-age=300, stale-while-revalidate=900",
+      });
       return;
     }
 
@@ -1154,7 +1289,10 @@ const server = http.createServer(async (req, res) => {
         .map((name) => `/photos/timeline-photos/${encodeURIComponent(name)}`);
     }
 
-    send(res, 200, JSON.stringify({ ok: true, files }), MIME_TYPES[".json"]);
+    send(res, 200, JSON.stringify({ ok: true, files }), MIME_TYPES[".json"], {
+      req,
+      cacheControl: "public, max-age=300, stale-while-revalidate=900",
+    });
     return;
   }
 
