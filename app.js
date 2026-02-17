@@ -38,6 +38,9 @@ const GUEST_WALL_SWAP_FADE_OUT_MS = 200;
 const GUEST_WALL_SWAP_FADE_IN_MS = 260;
 const GUEST_WALL_SHUFFLE_REPLACE_RATIO = 0.4;
 const GUEST_WALL_PICKUP_OPEN_DELAY_MS = 130;
+const GUEST_WALL_ARRANGE_STORAGE_KEY = "guestwall-arrangement-v1";
+const GUEST_WALL_ARRANGE_DEOVERLAP_STEPS = 20;
+const GUEST_WALL_ARRANGE_DEOVERLAP_GAP = 8;
 const GUEST_WALL_SLOW_MESSAGE_DELAY_MS = 5000;
 const GUEST_WALL_SLOW_MESSAGE_ROTATE_MS = 3000;
 const GUEST_WALL_HARD_TIMEOUT_MS = 20000;
@@ -66,6 +69,7 @@ const GUEST_WALL_NOTE_VARIANTS = [
 ];
 const GUEST_WALL_PIN_COLORS = ["#2F6F5E", "#2E5E86", "#C9A24A", "#6B1F2A"];
 const GUEST_WALL_PIN_CORNERS = ["top-left", "top-right", "bottom-left", "bottom-right"];
+const GUEST_WALL_DARK_INK_PALETTE = ["#1F1A17", "#3B0D16", "#0F2A24", "#0E1F3A"];
 const RSVP_SLOW_SUBMIT_DELAY_MS = 4000;
 const RSVP_SLOW_SUBMIT_JOKE =
   "We know it’s taking a while — Yi Jie was too cheap to pay for a faster server (free plan life). Give it a few more seconds…";
@@ -333,6 +337,7 @@ const guestWallMobile = document.getElementById("guestWallMobile");
 const guestWallStatus = document.getElementById("guestWallStatus");
 const guestWallPinboardView = document.getElementById("guestWallPinboardView");
 const guestWallShuffle = document.getElementById("guestWallShuffle");
+const guestWallArrangeToggle = document.getElementById("guestWallArrangeToggle");
 const guestWallAutoplayToggle = document.getElementById("guestWallAutoplayToggle");
 const guestWallAutoplayControl = document.querySelector(".guestwall-autoplay-control");
 const guestWallAutoplayState = document.getElementById("guestWallAutoplayState");
@@ -368,6 +373,9 @@ let guestWallLoadState = "idle";
 let guestWallSlowMessageStartTimer = null;
 let guestWallSlowMessageRotateTimer = null;
 let guestWallSlowMessageIndex = 0;
+let guestWallArrangeMode = false;
+let guestWallDragState = null;
+let guestWallArrangementByCardId = new Map();
 let overflowDebugResizeTimer = null;
 let desktopMoreCloseTimer = null;
 let activeSectionId = "top";
@@ -535,85 +543,85 @@ const travelSourcesDisclosure = document.querySelector(".travel-sources-disclosu
 
 const SLOT_MAPS_DESKTOP = {
   A: [
-    { id: "dA1", xPct: 18, yPct: 20, size: "M", prefer: "media", baseZ: 4, tiltBase: -2.0 },
-    { id: "dA2", xPct: 31, yPct: 35, size: "XL", prefer: "media", format: "wide", baseZ: 7, tiltBase: 1.6 },
-    { id: "dA3", xPct: 14, yPct: 47, size: "S", prefer: "media", baseZ: 3, tiltBase: 1.5 },
-    { id: "dA4", xPct: 44, yPct: 24, size: "S", prefer: "mixed", baseZ: 4, tiltBase: -1.1 },
-    { id: "dA5", xPct: 41, yPct: 53, size: "M", prefer: "media", baseZ: 5, tiltBase: -1.5 },
-    { id: "dA6", xPct: 69, yPct: 23, size: "S", prefer: "note", baseZ: 3, tiltBase: 1.2 },
-    { id: "dA7", xPct: 82, yPct: 31, size: "M", prefer: "note", baseZ: 4, tiltBase: -1.2 },
-    { id: "dA8", xPct: 73, yPct: 45, size: "S", prefer: "note", baseZ: 3, tiltBase: 1.3 },
-    { id: "dA9", xPct: 88, yPct: 47, size: "S", prefer: "note", baseZ: 4, tiltBase: -1.0 },
-    { id: "dA10", xPct: 24, yPct: 76, size: "M", prefer: "mixed", baseZ: 4, tiltBase: 1.5 },
-    { id: "dA11", xPct: 40, yPct: 82, size: "S", prefer: "note", baseZ: 3, tiltBase: -1.3 },
-    { id: "dA12", xPct: 62, yPct: 73, size: "L", prefer: "mixed", format: "wide", baseZ: 6, tiltBase: -1.4 },
-    { id: "dA13", xPct: 77, yPct: 78, size: "M", prefer: "mixed", baseZ: 5, tiltBase: 1.2 },
-    { id: "dA14", xPct: 91, yPct: 85, size: "S", prefer: "note", baseZ: 3, tiltBase: -1.1 },
+    { id: "dA1", xPct: 18, yPct: 20, size: "M", kind: "media", baseZ: 4, tiltBase: -2.0 },
+    { id: "dA2", xPct: 35, yPct: 32, size: "XL", kind: "media", format: "wide", baseZ: 7, tiltBase: 1.6 },
+    { id: "dA3", xPct: 13, yPct: 47, size: "S", kind: "media", baseZ: 3, tiltBase: 1.5 },
+    { id: "dA4", xPct: 49, yPct: 21, size: "S", kind: "media", baseZ: 4, tiltBase: -1.1 },
+    { id: "dA5", xPct: 44, yPct: 54, size: "M", kind: "media", baseZ: 5, tiltBase: -1.5 },
+    { id: "dA6", xPct: 76, yPct: 23, size: "S", kind: "note", baseZ: 3, tiltBase: 1.2 },
+    { id: "dA7", xPct: 88, yPct: 31, size: "M", kind: "note", baseZ: 4, tiltBase: -1.2 },
+    { id: "dA8", xPct: 79, yPct: 45, size: "S", kind: "note", baseZ: 3, tiltBase: 1.3 },
+    { id: "dA9", xPct: 90, yPct: 49, size: "S", kind: "note", baseZ: 4, tiltBase: -1.0 },
+    { id: "dA10", xPct: 24, yPct: 76, size: "M", kind: "media", baseZ: 4, tiltBase: 1.5 },
+    { id: "dA11", xPct: 82, yPct: 76, size: "M", kind: "note", baseZ: 3, tiltBase: -1.3 },
+    { id: "dA12", xPct: 46, yPct: 75, size: "L", kind: "media", format: "wide", baseZ: 6, tiltBase: -1.4 },
+    { id: "dA13", xPct: 34, yPct: 88, size: "M", kind: "media", baseZ: 5, tiltBase: 1.2 },
+    { id: "dA14", xPct: 53, yPct: 88, size: "S", kind: "media", baseZ: 3, tiltBase: -1.1 },
   ],
   B: [
-    { id: "dB1", xPct: 15, yPct: 24, size: "M", prefer: "media", baseZ: 4, tiltBase: 1.6 },
-    { id: "dB2", xPct: 33, yPct: 19, size: "S", prefer: "media", baseZ: 3, tiltBase: -1.3 },
-    { id: "dB3", xPct: 34, yPct: 43, size: "XL", prefer: "media", format: "wide", baseZ: 7, tiltBase: -1.8 },
-    { id: "dB4", xPct: 18, yPct: 58, size: "S", prefer: "mixed", baseZ: 4, tiltBase: 1.1 },
-    { id: "dB5", xPct: 47, yPct: 54, size: "M", prefer: "media", baseZ: 5, tiltBase: 1.2 },
-    { id: "dB6", xPct: 72, yPct: 22, size: "M", prefer: "note", baseZ: 4, tiltBase: -1.1 },
-    { id: "dB7", xPct: 86, yPct: 26, size: "S", prefer: "note", baseZ: 3, tiltBase: 1.4 },
-    { id: "dB8", xPct: 76, yPct: 40, size: "S", prefer: "note", baseZ: 4, tiltBase: -1.2 },
-    { id: "dB9", xPct: 90, yPct: 46, size: "M", prefer: "note", baseZ: 4, tiltBase: 1.0 },
-    { id: "dB10", xPct: 25, yPct: 80, size: "M", prefer: "mixed", baseZ: 4, tiltBase: -1.2 },
-    { id: "dB11", xPct: 42, yPct: 84, size: "S", prefer: "note", baseZ: 3, tiltBase: 1.3 },
-    { id: "dB12", xPct: 61, yPct: 74, size: "L", prefer: "mixed", format: "wide", baseZ: 6, tiltBase: 1.4 },
-    { id: "dB13", xPct: 77, yPct: 79, size: "M", prefer: "mixed", baseZ: 5, tiltBase: -1.1 },
-    { id: "dB14", xPct: 90, yPct: 84, size: "S", prefer: "note", baseZ: 3, tiltBase: 1.2 },
+    { id: "dB1", xPct: 16, yPct: 24, size: "M", kind: "media", baseZ: 4, tiltBase: 1.6 },
+    { id: "dB2", xPct: 34, yPct: 19, size: "S", kind: "media", baseZ: 3, tiltBase: -1.3 },
+    { id: "dB3", xPct: 36, yPct: 43, size: "XL", kind: "media", format: "wide", baseZ: 7, tiltBase: -1.8 },
+    { id: "dB4", xPct: 17, yPct: 58, size: "S", kind: "media", baseZ: 4, tiltBase: 1.1 },
+    { id: "dB5", xPct: 49, yPct: 54, size: "M", kind: "media", baseZ: 5, tiltBase: 1.2 },
+    { id: "dB6", xPct: 78, yPct: 22, size: "M", kind: "note", baseZ: 4, tiltBase: -1.1 },
+    { id: "dB7", xPct: 90, yPct: 26, size: "S", kind: "note", baseZ: 3, tiltBase: 1.4 },
+    { id: "dB8", xPct: 79, yPct: 40, size: "S", kind: "note", baseZ: 4, tiltBase: -1.2 },
+    { id: "dB9", xPct: 91, yPct: 46, size: "M", kind: "note", baseZ: 4, tiltBase: 1.0 },
+    { id: "dB10", xPct: 23, yPct: 80, size: "M", kind: "media", baseZ: 4, tiltBase: -1.2 },
+    { id: "dB11", xPct: 44, yPct: 84, size: "S", kind: "media", baseZ: 3, tiltBase: 1.3 },
+    { id: "dB12", xPct: 47, yPct: 76, size: "L", kind: "media", format: "wide", baseZ: 6, tiltBase: 1.4 },
+    { id: "dB13", xPct: 80, yPct: 80, size: "M", kind: "note", baseZ: 5, tiltBase: -1.1 },
+    { id: "dB14", xPct: 92, yPct: 84, size: "S", kind: "note", baseZ: 3, tiltBase: 1.2 },
   ],
   C: [
-    { id: "dC1", xPct: 17, yPct: 21, size: "M", prefer: "media", baseZ: 4, tiltBase: -1.4 },
-    { id: "dC2", xPct: 35, yPct: 33, size: "XL", prefer: "media", format: "wide", baseZ: 7, tiltBase: 1.7 },
-    { id: "dC3", xPct: 15, yPct: 46, size: "S", prefer: "media", baseZ: 3, tiltBase: 1.2 },
-    { id: "dC4", xPct: 47, yPct: 21, size: "S", prefer: "mixed", baseZ: 4, tiltBase: -1.0 },
-    { id: "dC5", xPct: 43, yPct: 55, size: "M", prefer: "media", baseZ: 5, tiltBase: -1.2 },
-    { id: "dC6", xPct: 70, yPct: 20, size: "S", prefer: "note", baseZ: 3, tiltBase: 1.3 },
-    { id: "dC7", xPct: 85, yPct: 29, size: "M", prefer: "note", baseZ: 4, tiltBase: -1.1 },
-    { id: "dC8", xPct: 72, yPct: 43, size: "S", prefer: "note", baseZ: 4, tiltBase: 1.1 },
-    { id: "dC9", xPct: 89, yPct: 47, size: "S", prefer: "note", baseZ: 3, tiltBase: -1.2 },
-    { id: "dC10", xPct: 23, yPct: 78, size: "M", prefer: "mixed", baseZ: 4, tiltBase: 1.4 },
-    { id: "dC11", xPct: 40, yPct: 84, size: "S", prefer: "note", baseZ: 3, tiltBase: -1.1 },
-    { id: "dC12", xPct: 61, yPct: 73, size: "L", prefer: "mixed", format: "wide", baseZ: 6, tiltBase: -1.5 },
-    { id: "dC13", xPct: 79, yPct: 78, size: "M", prefer: "mixed", baseZ: 5, tiltBase: 1.1 },
-    { id: "dC14", xPct: 91, yPct: 84, size: "S", prefer: "note", baseZ: 3, tiltBase: -1.0 },
+    { id: "dC1", xPct: 17, yPct: 21, size: "M", kind: "media", baseZ: 4, tiltBase: -1.4 },
+    { id: "dC2", xPct: 36, yPct: 33, size: "XL", kind: "media", format: "wide", baseZ: 7, tiltBase: 1.7 },
+    { id: "dC3", xPct: 14, yPct: 46, size: "S", kind: "media", baseZ: 3, tiltBase: 1.2 },
+    { id: "dC4", xPct: 50, yPct: 21, size: "S", kind: "media", baseZ: 4, tiltBase: -1.0 },
+    { id: "dC5", xPct: 44, yPct: 55, size: "M", kind: "media", baseZ: 5, tiltBase: -1.2 },
+    { id: "dC6", xPct: 76, yPct: 20, size: "S", kind: "note", baseZ: 3, tiltBase: 1.3 },
+    { id: "dC7", xPct: 89, yPct: 29, size: "M", kind: "note", baseZ: 4, tiltBase: -1.1 },
+    { id: "dC8", xPct: 78, yPct: 43, size: "S", kind: "note", baseZ: 4, tiltBase: 1.1 },
+    { id: "dC9", xPct: 91, yPct: 47, size: "S", kind: "note", baseZ: 3, tiltBase: -1.2 },
+    { id: "dC10", xPct: 22, yPct: 78, size: "M", kind: "media", baseZ: 4, tiltBase: 1.4 },
+    { id: "dC11", xPct: 40, yPct: 84, size: "S", kind: "media", baseZ: 3, tiltBase: -1.1 },
+    { id: "dC12", xPct: 47, yPct: 73, size: "L", kind: "media", format: "wide", baseZ: 6, tiltBase: -1.5 },
+    { id: "dC13", xPct: 80, yPct: 78, size: "M", kind: "note", baseZ: 5, tiltBase: 1.1 },
+    { id: "dC14", xPct: 92, yPct: 84, size: "S", kind: "note", baseZ: 3, tiltBase: -1.0 },
   ],
 };
 
 const SLOT_MAPS_MOBILE = {
   A: [
-    { id: "mA1", xPct: 28, yPct: 22, size: "M", prefer: "media", baseZ: 4, tiltBase: -1.4 },
-    { id: "mA2", xPct: 54, yPct: 33, size: "L", prefer: "media", format: "wide", baseZ: 6, tiltBase: 1.5 },
-    { id: "mA3", xPct: 79, yPct: 24, size: "S", prefer: "note", baseZ: 3, tiltBase: -1.0 },
-    { id: "mA4", xPct: 27, yPct: 52, size: "S", prefer: "mixed", baseZ: 3, tiltBase: 1.1 },
-    { id: "mA5", xPct: 74, yPct: 50, size: "M", prefer: "note", baseZ: 4, tiltBase: -1.2 },
-    { id: "mA6", xPct: 36, yPct: 78, size: "M", prefer: "mixed", baseZ: 4, tiltBase: 1.0 },
-    { id: "mA7", xPct: 69, yPct: 76, size: "S", prefer: "note", baseZ: 3, tiltBase: -1.1 },
-    { id: "mA8", xPct: 87, yPct: 84, size: "S", prefer: "mixed", baseZ: 3, tiltBase: 1.2 },
+    { id: "mA1", xPct: 28, yPct: 23, size: "M", kind: "media", baseZ: 4, tiltBase: -1.4 },
+    { id: "mA2", xPct: 41, yPct: 38, size: "L", kind: "media", format: "wide", baseZ: 6, tiltBase: 1.5 },
+    { id: "mA3", xPct: 80, yPct: 22, size: "S", kind: "note", baseZ: 3, tiltBase: -1.0 },
+    { id: "mA4", xPct: 30, yPct: 60, size: "S", kind: "media", baseZ: 3, tiltBase: 1.1 },
+    { id: "mA5", xPct: 80, yPct: 50, size: "M", kind: "note", baseZ: 4, tiltBase: -1.2 },
+    { id: "mA6", xPct: 41, yPct: 82, size: "M", kind: "media", baseZ: 4, tiltBase: 1.0 },
+    { id: "mA7", xPct: 79, yPct: 80, size: "S", kind: "note", baseZ: 3, tiltBase: -1.1 },
+    { id: "mA8", xPct: 53, yPct: 92, size: "S", kind: "media", baseZ: 3, tiltBase: 1.2 },
   ],
   B: [
-    { id: "mB1", xPct: 24, yPct: 20, size: "M", prefer: "media", baseZ: 4, tiltBase: 1.3 },
-    { id: "mB2", xPct: 57, yPct: 31, size: "L", prefer: "media", format: "wide", baseZ: 6, tiltBase: -1.6 },
-    { id: "mB3", xPct: 83, yPct: 22, size: "S", prefer: "note", baseZ: 3, tiltBase: 1.0 },
-    { id: "mB4", xPct: 31, yPct: 53, size: "S", prefer: "mixed", baseZ: 3, tiltBase: -1.0 },
-    { id: "mB5", xPct: 75, yPct: 49, size: "M", prefer: "note", baseZ: 4, tiltBase: 1.1 },
-    { id: "mB6", xPct: 34, yPct: 79, size: "M", prefer: "mixed", baseZ: 4, tiltBase: -1.2 },
-    { id: "mB7", xPct: 67, yPct: 75, size: "S", prefer: "note", baseZ: 3, tiltBase: 1.2 },
-    { id: "mB8", xPct: 86, yPct: 84, size: "S", prefer: "mixed", baseZ: 3, tiltBase: -1.1 },
+    { id: "mB1", xPct: 25, yPct: 21, size: "M", kind: "media", baseZ: 4, tiltBase: 1.3 },
+    { id: "mB2", xPct: 40, yPct: 35, size: "L", kind: "media", format: "wide", baseZ: 6, tiltBase: -1.6 },
+    { id: "mB3", xPct: 82, yPct: 23, size: "S", kind: "note", baseZ: 3, tiltBase: 1.0 },
+    { id: "mB4", xPct: 29, yPct: 58, size: "S", kind: "media", baseZ: 3, tiltBase: -1.0 },
+    { id: "mB5", xPct: 81, yPct: 50, size: "M", kind: "note", baseZ: 4, tiltBase: 1.1 },
+    { id: "mB6", xPct: 42, yPct: 80, size: "M", kind: "media", baseZ: 4, tiltBase: -1.2 },
+    { id: "mB7", xPct: 80, yPct: 79, size: "S", kind: "note", baseZ: 3, tiltBase: 1.2 },
+    { id: "mB8", xPct: 54, yPct: 92, size: "S", kind: "media", baseZ: 3, tiltBase: -1.1 },
   ],
   C: [
-    { id: "mC1", xPct: 26, yPct: 21, size: "M", prefer: "media", baseZ: 4, tiltBase: -1.2 },
-    { id: "mC2", xPct: 55, yPct: 33, size: "L", prefer: "media", format: "wide", baseZ: 6, tiltBase: 1.4 },
-    { id: "mC3", xPct: 81, yPct: 24, size: "S", prefer: "note", baseZ: 3, tiltBase: -1.1 },
-    { id: "mC4", xPct: 29, yPct: 53, size: "S", prefer: "mixed", baseZ: 3, tiltBase: 1.0 },
-    { id: "mC5", xPct: 73, yPct: 50, size: "M", prefer: "note", baseZ: 4, tiltBase: -1.1 },
-    { id: "mC6", xPct: 33, yPct: 78, size: "M", prefer: "mixed", baseZ: 4, tiltBase: 1.1 },
-    { id: "mC7", xPct: 68, yPct: 75, size: "S", prefer: "note", baseZ: 3, tiltBase: -1.0 },
-    { id: "mC8", xPct: 87, yPct: 84, size: "S", prefer: "mixed", baseZ: 3, tiltBase: 1.2 },
+    { id: "mC1", xPct: 26, yPct: 22, size: "M", kind: "media", baseZ: 4, tiltBase: -1.2 },
+    { id: "mC2", xPct: 42, yPct: 34, size: "L", kind: "media", format: "wide", baseZ: 6, tiltBase: 1.4 },
+    { id: "mC3", xPct: 81, yPct: 24, size: "S", kind: "note", baseZ: 3, tiltBase: -1.1 },
+    { id: "mC4", xPct: 30, yPct: 57, size: "S", kind: "media", baseZ: 3, tiltBase: 1.0 },
+    { id: "mC5", xPct: 79, yPct: 50, size: "M", kind: "note", baseZ: 4, tiltBase: -1.1 },
+    { id: "mC6", xPct: 43, yPct: 79, size: "M", kind: "media", baseZ: 4, tiltBase: 1.1 },
+    { id: "mC7", xPct: 80, yPct: 79, size: "S", kind: "note", baseZ: 3, tiltBase: -1.0 },
+    { id: "mC8", xPct: 54, yPct: 92, size: "S", kind: "media", baseZ: 3, tiltBase: 1.2 },
   ],
 };
 
@@ -2881,18 +2889,8 @@ function buildGuestFunFactField(index, funFact = "") {
   factInput.value = funFact;
   factInput.dataset.guestFunFact = "true";
 
-  const helper = document.createElement("p");
-  helper.className = "field-helper";
-  helper.textContent = "Short + specific is best.";
-
-  const tip = document.createElement("p");
-  tip.className = "field-helper";
-  tip.textContent = "Tip: add 2–3 lines — we’ll print one.";
-
   factField.appendChild(factLabel);
   factField.appendChild(factInput);
-  factField.appendChild(helper);
-  factField.appendChild(tip);
   factField.appendChild(buildFunFactExamplesPopover(factInput));
   return factField;
 }
@@ -4289,10 +4287,10 @@ function buildGuestWallCard(card, context = "board") {
     const mat = document.createElement("div");
     mat.className = "guestwall-polaroid-mat";
     const mediaNode = buildGuestWallMediaNode(card, context);
-    const signatureStyle = getGuestWallSignatureStyle(card.id, tone);
+    const signatureStyle = getGuestWallSignatureStyle(card.id);
     const signature = document.createElement("span");
     signature.className = `guestwall-polaroid-signature guestwall-polaroid-signature--${signatureStyle.side}`;
-    signature.classList.add(`guestwall-polaroid-signature--${getGuestWallSignaturePlacement(card.id, format)}`);
+    signature.classList.add("guestwall-polaroid-signature--border");
     signature.textContent = String(card.name || "").trim();
     signature.style.setProperty("--gwSigAngle", signatureStyle.angle);
     signature.style.setProperty("--gwSigOffset", signatureStyle.horizontalOffset);
@@ -4309,27 +4307,38 @@ function buildGuestWallCard(card, context = "board") {
 
   node.className = "guestwall-item guestwall-item--note";
   node.style.setProperty("--gwNotePaper", getGuestWallNoteTone(card.id));
-  node.classList.add(`guestwall-note--${getGuestWallNoteVariant(card.id)}`);
-  const fastenerStyle = getGuestWallNoteFastenerStyle(card.id);
-  node.style.setProperty("--gwPinColor", fastenerStyle.color);
-  node.style.setProperty("--gwPinTop", fastenerStyle.top);
-  node.style.setProperty("--gwPinRight", fastenerStyle.right);
-  node.style.setProperty("--gwPinBottom", fastenerStyle.bottom);
-  node.style.setProperty("--gwPinLeft", fastenerStyle.left);
-  node.style.setProperty("--gwTapeAngle", fastenerStyle.tapeAngle);
+  node.style.setProperty("--gwNoteInk", getGuestWallInkColor(`note-body:${card.id}`));
+  node.style.setProperty("--gwNoteSignInk", getGuestWallInkColor(`note-sign:${card.id}`));
+  node.classList.add("guestwall-note--postcard");
 
-  const fastener = document.createElement("span");
-  fastener.className = `guestwall-note-fastener guestwall-note-fastener--${fastenerStyle.type}`;
-  fastener.setAttribute("aria-hidden", "true");
+  const stamp = document.createElement("span");
+  stamp.className = "guestwall-note-stamp";
+  stamp.setAttribute("aria-hidden", "true");
+
+  const postmark = document.createElement("span");
+  postmark.className = "guestwall-note-postmark";
+  postmark.setAttribute("aria-hidden", "true");
+
+  const address = document.createElement("span");
+  address.className = "guestwall-note-address";
+  address.setAttribute("aria-hidden", "true");
+  for (let i = 0; i < 3; i += 1) {
+    const line = document.createElement("span");
+    line.className = "guestwall-note-address-line";
+    address.appendChild(line);
+  }
+
   const text = document.createElement("p");
   text.className = "guestwall-note-text";
   text.textContent = String(card.text || "").replace(/\s+/g, " ").trim();
 
   const sign = document.createElement("p");
-  sign.className = "guestwall-note-sign";
+  sign.className = "guestwall-note-sign guestwall-note-sign--postcard";
   sign.textContent = `— ${card.name}`;
 
-  node.appendChild(fastener);
+  node.appendChild(stamp);
+  node.appendChild(postmark);
+  node.appendChild(address);
   node.appendChild(text);
   node.appendChild(sign);
   return node;
@@ -4383,7 +4392,7 @@ function setGuestWallStatus(message) {
 }
 
 function setGuestWallControlsDisabled(disabled) {
-  [guestWallShuffle, guestWallAutoplayToggle].forEach((button) => {
+  [guestWallShuffle, guestWallAutoplayToggle, guestWallArrangeToggle].forEach((button) => {
     if (!(button instanceof HTMLButtonElement)) return;
     button.disabled = Boolean(disabled);
   });
@@ -4415,6 +4424,255 @@ function setGuestWallShuffleState(isShuffling) {
   } else {
     guestWallShuffle.textContent = guestWallIsShuffling ? "Shuffling…" : "Shuffle";
   }
+}
+
+function isGuestWallArrangeCapable() {
+  if (isGuestWallMobileView()) return false;
+  return window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+}
+
+function readGuestWallArrangeOffset(slotNode, axis = "x") {
+  if (!(slotNode instanceof HTMLElement)) return 0;
+  const property = axis === "y" ? "--gw-arrange-dy" : "--gw-arrange-dx";
+  const raw = slotNode.style.getPropertyValue(property).trim().replace(/px$/i, "");
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function writeGuestWallArrangeOffset(slotNode, x, y) {
+  if (!(slotNode instanceof HTMLElement)) return;
+  slotNode.style.setProperty("--gw-arrange-dx", `${Number.isFinite(x) ? x : 0}px`);
+  slotNode.style.setProperty("--gw-arrange-dy", `${Number.isFinite(y) ? y : 0}px`);
+}
+
+function getGuestWallArrangementStorageBucket() {
+  const hostKey = String(window.location.hostname || "unknown");
+  return `${GUEST_WALL_ARRANGE_STORAGE_KEY}:${hostKey}`;
+}
+
+function loadGuestWallArrangementFromStorage() {
+  try {
+    const raw = window.localStorage.getItem(getGuestWallArrangementStorageBucket());
+    if (!raw) return new Map();
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return new Map();
+    const entries = Object.entries(parsed)
+      .map(([cardId, offsets]) => {
+        const dx = Number(offsets && offsets.dx);
+        const dy = Number(offsets && offsets.dy);
+        if (!cardId || !Number.isFinite(dx) || !Number.isFinite(dy)) return null;
+        return [cardId, { dx: clampNumber(dx, -500, 500), dy: clampNumber(dy, -500, 500) }];
+      })
+      .filter(Boolean);
+    return new Map(entries);
+  } catch (error) {
+    console.warn("[guestwall] failed to load arrangement", error instanceof Error ? error.message : String(error));
+    return new Map();
+  }
+}
+
+function saveGuestWallArrangementToStorage() {
+  try {
+    const payload = {};
+    guestWallArrangementByCardId.forEach((offsets, cardId) => {
+      if (!cardId || !offsets) return;
+      payload[cardId] = {
+        dx: Math.round(Number(offsets.dx || 0) * 10) / 10,
+        dy: Math.round(Number(offsets.dy || 0) * 10) / 10,
+      };
+    });
+    window.localStorage.setItem(getGuestWallArrangementStorageBucket(), JSON.stringify(payload));
+  } catch (error) {
+    console.warn("[guestwall] failed to save arrangement", error instanceof Error ? error.message : String(error));
+  }
+}
+
+function clampGuestWallSlotOffsetToBounds(slotNode, nextDx, nextDy) {
+  if (!(slotNode instanceof HTMLElement) || !(guestWallPinboard instanceof HTMLElement)) {
+    return { x: nextDx, y: nextDy };
+  }
+
+  const baseCenterX = Number(slotNode.dataset.arrangeBaseCenterX || "");
+  const baseCenterY = Number(slotNode.dataset.arrangeBaseCenterY || "");
+  const halfWidth = Number(slotNode.dataset.arrangeHalfWidth || "");
+  const halfHeight = Number(slotNode.dataset.arrangeHalfHeight || "");
+
+  if (![baseCenterX, baseCenterY, halfWidth, halfHeight].every(Number.isFinite)) {
+    return { x: nextDx, y: nextDy };
+  }
+
+  const boardRect = guestWallPinboard.getBoundingClientRect();
+  const padding = 8;
+  const minCenterX = halfWidth + padding;
+  const maxCenterX = boardRect.width - halfWidth - padding;
+  const minCenterY = halfHeight + padding;
+  const maxCenterY = boardRect.height - halfHeight - padding;
+  const targetCenterX = baseCenterX + nextDx;
+  const targetCenterY = baseCenterY + nextDy;
+  const clampedCenterX = clampNumber(targetCenterX, minCenterX, maxCenterX);
+  const clampedCenterY = clampNumber(targetCenterY, minCenterY, maxCenterY);
+  return {
+    x: clampedCenterX - baseCenterX,
+    y: clampedCenterY - baseCenterY,
+  };
+}
+
+function hydrateGuestWallSlotArrangeMetrics() {
+  if (!(guestWallPinboard instanceof HTMLElement)) return;
+  const boardRect = guestWallPinboard.getBoundingClientRect();
+  if (!boardRect.width || !boardRect.height) return;
+
+  guestWallSlotNodes.forEach((slotNode) => {
+    if (!(slotNode instanceof HTMLElement)) return;
+    const rect = slotNode.getBoundingClientRect();
+    const currentDx = readGuestWallArrangeOffset(slotNode, "x");
+    const currentDy = readGuestWallArrangeOffset(slotNode, "y");
+    const centerX = rect.left - boardRect.left + rect.width / 2 - currentDx;
+    const centerY = rect.top - boardRect.top + rect.height / 2 - currentDy;
+    slotNode.dataset.arrangeBaseCenterX = String(centerX);
+    slotNode.dataset.arrangeBaseCenterY = String(centerY);
+    slotNode.dataset.arrangeHalfWidth = String(rect.width / 2);
+    slotNode.dataset.arrangeHalfHeight = String(rect.height / 2);
+    const clamped = clampGuestWallSlotOffsetToBounds(slotNode, currentDx, currentDy);
+    if (clamped.x !== currentDx || clamped.y !== currentDy) {
+      writeGuestWallArrangeOffset(slotNode, clamped.x, clamped.y);
+    }
+  });
+}
+
+function applyGuestWallStoredArrangement(slotNode, cardId) {
+  if (!(slotNode instanceof HTMLElement)) return;
+  const key = String(cardId || "").trim();
+  const offsets = guestWallArrangementByCardId.get(key);
+  if (!offsets) {
+    writeGuestWallArrangeOffset(slotNode, 0, 0);
+    return;
+  }
+  const clamped = clampGuestWallSlotOffsetToBounds(slotNode, Number(offsets.dx || 0), Number(offsets.dy || 0));
+  writeGuestWallArrangeOffset(slotNode, clamped.x, clamped.y);
+}
+
+function snapshotGuestWallArrangementFromSlots() {
+  guestWallSlotNodes.forEach((slotNode) => {
+    if (!(slotNode instanceof HTMLElement)) return;
+    const cardId = String(slotNode.dataset.cardId || "").trim();
+    if (!cardId) return;
+    guestWallArrangementByCardId.set(cardId, {
+      dx: readGuestWallArrangeOffset(slotNode, "x"),
+      dy: readGuestWallArrangeOffset(slotNode, "y"),
+    });
+  });
+  saveGuestWallArrangementToStorage();
+}
+
+function runGuestWallDeoverlapPass() {
+  if (!(guestWallPinboard instanceof HTMLElement) || !guestWallSlotNodes.length) return;
+  const boardRect = guestWallPinboard.getBoundingClientRect();
+  const padding = 8;
+  const slots = guestWallSlotNodes
+    .filter((slotNode) => slotNode instanceof HTMLElement)
+    .map((slotNode) => {
+      const baseCenterX = Number(slotNode.dataset.arrangeBaseCenterX || "");
+      const baseCenterY = Number(slotNode.dataset.arrangeBaseCenterY || "");
+      const halfWidth = Number(slotNode.dataset.arrangeHalfWidth || "");
+      const halfHeight = Number(slotNode.dataset.arrangeHalfHeight || "");
+      if (![baseCenterX, baseCenterY, halfWidth, halfHeight].every(Number.isFinite)) return null;
+      return {
+        node: slotNode,
+        baseCenterX,
+        baseCenterY,
+        halfWidth,
+        halfHeight,
+        centerX: baseCenterX + readGuestWallArrangeOffset(slotNode, "x"),
+        centerY: baseCenterY + readGuestWallArrangeOffset(slotNode, "y"),
+      };
+    })
+    .filter(Boolean);
+
+  if (slots.length <= 1) {
+    snapshotGuestWallArrangementFromSlots();
+    return;
+  }
+
+  const separatePair = (a, b) => {
+    const dx = b.centerX - a.centerX;
+    const dy = b.centerY - a.centerY;
+    const overlapX = a.halfWidth + b.halfWidth + GUEST_WALL_ARRANGE_DEOVERLAP_GAP - Math.abs(dx);
+    const overlapY = a.halfHeight + b.halfHeight + GUEST_WALL_ARRANGE_DEOVERLAP_GAP - Math.abs(dy);
+    if (overlapX <= 0 || overlapY <= 0) return;
+    if (overlapX < overlapY) {
+      const push = overlapX / 2;
+      const direction = dx >= 0 ? 1 : -1;
+      a.centerX -= push * direction;
+      b.centerX += push * direction;
+    } else {
+      const push = overlapY / 2;
+      const direction = dy >= 0 ? 1 : -1;
+      a.centerY -= push * direction;
+      b.centerY += push * direction;
+    }
+  };
+
+  for (let step = 0; step < GUEST_WALL_ARRANGE_DEOVERLAP_STEPS; step += 1) {
+    for (let i = 0; i < slots.length; i += 1) {
+      for (let j = i + 1; j < slots.length; j += 1) {
+        separatePair(slots[i], slots[j]);
+      }
+    }
+
+    slots.forEach((slot) => {
+      const minX = slot.halfWidth + padding;
+      const maxX = boardRect.width - slot.halfWidth - padding;
+      const minY = slot.halfHeight + padding;
+      const maxY = boardRect.height - slot.halfHeight - padding;
+      slot.centerX = clampNumber(slot.centerX, minX, maxX);
+      slot.centerY = clampNumber(slot.centerY, minY, maxY);
+    });
+  }
+
+  slots.forEach((slot) => {
+    const dx = slot.centerX - slot.baseCenterX;
+    const dy = slot.centerY - slot.baseCenterY;
+    writeGuestWallArrangeOffset(slot.node, dx, dy);
+  });
+  snapshotGuestWallArrangementFromSlots();
+}
+
+function setGuestWallArrangeMode(enabled) {
+  const nextMode = Boolean(enabled) && isGuestWallArrangeCapable();
+  if (!nextMode && guestWallDragState) {
+    cancelGuestWallDrag(true);
+  }
+  guestWallArrangeMode = nextMode;
+  if (guestWallPinboard instanceof HTMLElement) {
+    guestWallPinboard.classList.toggle("is-arrange-mode", nextMode);
+  }
+  if (guestWallArrangeToggle instanceof HTMLButtonElement) {
+    guestWallArrangeToggle.classList.toggle("is-active", nextMode);
+    guestWallArrangeToggle.textContent = `Arrange: ${nextMode ? "On" : "Off"}`;
+    guestWallArrangeToggle.setAttribute("aria-pressed", nextMode ? "true" : "false");
+  }
+}
+
+function syncGuestWallArrangeAvailability() {
+  if (!(guestWallArrangeToggle instanceof HTMLButtonElement)) return;
+  const canArrange = isGuestWallArrangeCapable();
+  setHiddenClass(guestWallArrangeToggle, !canArrange);
+  if (!canArrange) {
+    setGuestWallArrangeMode(false);
+  }
+}
+
+function cancelGuestWallDrag(commit = false) {
+  if (!guestWallDragState || !(guestWallDragState.slotNode instanceof HTMLElement)) return;
+  const slotNode = guestWallDragState.slotNode;
+  slotNode.classList.remove("is-dragging");
+  if (commit) {
+    runGuestWallDeoverlapPass();
+  } else {
+    snapshotGuestWallArrangementFromSlots();
+  }
+  guestWallDragState = null;
 }
 
 function clearGuestWallSlotOpenTimer(slotNode) {
@@ -4609,12 +4867,84 @@ function bindGuestWallSlotInteraction(slotNode) {
 
   slotNode.addEventListener("pointerdown", (event) => {
     const pointerType = String(event.pointerType || "").toLowerCase();
+    if (guestWallArrangeMode && isGuestWallArrangeCapable() && pointerType !== "touch" && event.button === 0) {
+      if (!(guestWallPinboard instanceof HTMLElement)) return;
+      const startDx = readGuestWallArrangeOffset(slotNode, "x");
+      const startDy = readGuestWallArrangeOffset(slotNode, "y");
+      guestWallDragState = {
+        slotNode,
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        startDx,
+        startDy,
+        moved: false,
+      };
+      slotNode.dataset.dragMoved = "false";
+      slotNode.classList.add("is-dragging");
+      setGuestWallActiveSlot(slotNode);
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof slotNode.setPointerCapture === "function") {
+        slotNode.setPointerCapture(event.pointerId);
+      }
+      return;
+    }
     if (pointerType === "touch" || pointerType === "pen") {
       setGuestWallActiveSlot(slotNode);
     }
   });
 
-  slotNode.addEventListener("click", () => {
+  slotNode.addEventListener("pointermove", (event) => {
+    if (!guestWallDragState || guestWallDragState.slotNode !== slotNode) return;
+    if (guestWallDragState.pointerId !== event.pointerId) return;
+    const deltaX = event.clientX - guestWallDragState.startX;
+    const deltaY = event.clientY - guestWallDragState.startY;
+    if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) {
+      guestWallDragState.moved = true;
+      slotNode.dataset.dragMoved = "true";
+    }
+    const nextDx = guestWallDragState.startDx + deltaX;
+    const nextDy = guestWallDragState.startDy + deltaY;
+    const clamped = clampGuestWallSlotOffsetToBounds(slotNode, nextDx, nextDy);
+    writeGuestWallArrangeOffset(slotNode, clamped.x, clamped.y);
+    event.preventDefault();
+  });
+
+  const endDrag = (event) => {
+    if (!guestWallDragState || guestWallDragState.slotNode !== slotNode) return;
+    if (guestWallDragState.pointerId !== event.pointerId) return;
+    const moved = Boolean(guestWallDragState.moved);
+    if (typeof slotNode.releasePointerCapture === "function") {
+      try {
+        slotNode.releasePointerCapture(event.pointerId);
+      } catch (_) {
+        // ignore capture release errors
+      }
+    }
+    slotNode.classList.remove("is-dragging");
+    guestWallDragState = null;
+    if (moved) {
+      runGuestWallDeoverlapPass();
+      event.preventDefault();
+    } else {
+      snapshotGuestWallArrangementFromSlots();
+    }
+  };
+  slotNode.addEventListener("pointerup", endDrag);
+  slotNode.addEventListener("pointercancel", endDrag);
+  slotNode.addEventListener("lostpointercapture", endDrag);
+
+  slotNode.addEventListener("click", (event) => {
+    if (guestWallArrangeMode) {
+      event.preventDefault();
+      return;
+    }
+    if (slotNode.dataset.dragMoved === "true") {
+      slotNode.dataset.dragMoved = "false";
+      event.preventDefault();
+      return;
+    }
     const cardId = String(slotNode.dataset.cardId || "").trim();
     if (!cardId) return;
     const card = guestWallCardById.get(cardId);
@@ -4623,6 +4953,7 @@ function bindGuestWallSlotInteraction(slotNode) {
   });
 
   slotNode.addEventListener("keydown", (event) => {
+    if (guestWallArrangeMode) return;
     if (event.key !== "Enter" && event.key !== " ") return;
     const cardId = String(slotNode.dataset.cardId || "").trim();
     if (!cardId) return;
@@ -4688,32 +5019,33 @@ function getGuestWallSlotFormat(slotConfigOrNode) {
   return String(slotConfigOrNode.format || "any").trim() || "any";
 }
 
-function getHexColorLuminance(hexValue) {
-  const cleaned = String(hexValue || "")
-    .trim()
-    .replace(/^#/, "");
-  if (!/^[0-9a-f]{3}([0-9a-f]{3})?$/i.test(cleaned)) return 0.25;
-
-  const expanded =
-    cleaned.length === 3
-      ? cleaned
-          .split("")
-          .map((char) => `${char}${char}`)
-          .join("")
-      : cleaned;
-  const r = parseInt(expanded.slice(0, 2), 16) / 255;
-  const g = parseInt(expanded.slice(2, 4), 16) / 255;
-  const b = parseInt(expanded.slice(4, 6), 16) / 255;
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+function getGuestWallSlotKind(slotConfigOrNode) {
+  if (!slotConfigOrNode) return "mixed";
+  if (slotConfigOrNode instanceof HTMLElement) {
+    return String(slotConfigOrNode.dataset.slotKind || "mixed").trim().toLowerCase() || "mixed";
+  }
+  const explicitKind = String(slotConfigOrNode.kind || "").trim().toLowerCase();
+  if (explicitKind === "media" || explicitKind === "note" || explicitKind === "mixed") return explicitKind;
+  const fallbackPrefer = String(slotConfigOrNode.prefer || "mixed").trim().toLowerCase();
+  if (fallbackPrefer === "media" || fallbackPrefer === "note" || fallbackPrefer === "mixed") return fallbackPrefer;
+  return "mixed";
 }
 
-function getGuestWallSignatureStyle(cardId, toneHex) {
+function getGuestWallInkColor(seedKey) {
+  const colors = GUEST_WALL_DARK_INK_PALETTE;
+  if (!colors.length) return "#1F1A17";
+  const seed = hashStringToUint32(`gw-ink:${String(seedKey || "")}`);
+  return colors[seed % colors.length];
+}
+
+function getGuestWallSignatureStyle(cardId) {
   const id = String(cardId || "");
   const sideSeed = hashStringToUint32(`sig-side:${id}`);
   const angleSeed = hashStringToUint32(`sig-angle:${id}`);
   const offsetSeed = hashStringToUint32(`sig-offset:${id}`);
   const trackingSeed = hashStringToUint32(`sig-track:${id}`);
   const shadowSeed = hashStringToUint32(`sig-shadow:${id}`);
+  const ink = getGuestWallInkColor(`polaroid-signature:${id}`);
 
   const side = sideSeed % 2 === 0 ? "left" : "right";
   const angle = ((seededRandomFromHash(angleSeed) * 6) - 3).toFixed(2);
@@ -4721,8 +5053,6 @@ function getGuestWallSignatureStyle(cardId, toneHex) {
   const letterSpacing = `${((seededRandomFromHash(trackingSeed) - 0.5) * 0.35).toFixed(2)}px`;
   const shadowX = side === "left" ? 1 : -1;
   const shadowY = 1 + Math.round(seededRandomFromHash(shadowSeed));
-  const luminance = getHexColorLuminance(toneHex);
-  const inkIsLight = luminance < 0.34;
 
   return {
     side,
@@ -4731,16 +5061,9 @@ function getGuestWallSignatureStyle(cardId, toneHex) {
     letterSpacing,
     shadowX: `${shadowX}px`,
     shadowY: `${shadowY}px`,
-    ink: inkIsLight ? "rgba(246, 239, 230, 0.93)" : "rgba(55, 16, 23, 0.9)",
-    stroke: inkIsLight ? "rgba(246, 239, 230, 0.8)" : "rgba(75, 15, 23, 0.78)",
+    ink,
+    stroke: ink,
   };
-}
-
-function getGuestWallSignaturePlacement(cardId, format) {
-  const normalizedFormat = normalizeGuestWallPolaroidFormat(format);
-  if (normalizedFormat !== "wide") return "border";
-  const seed = hashStringToUint32(`sig-placement:${String(cardId || "")}`);
-  return seededRandomFromHash(seed) > 0.45 ? "overlap" : "border";
 }
 
 function getGuestWallNoteTone(cardId) {
@@ -4856,24 +5179,18 @@ function assignGuestWallCardsToSlots(slotConfigs, requestedIds) {
   };
 
   return slots.map((slotConfig) => {
-    const preferredKind = String(slotConfig?.prefer || "mixed").trim().toLowerCase();
+    const slotKind = getGuestWallSlotKind(slotConfig);
     const slotFormat = getGuestWallSlotFormat(slotConfig);
 
-    if (preferredKind === "note") {
-      return takeNext(noteQueue) || takeNext(fallbackQueue, (id) => guestWallCardById.get(id)?.kind === "note") || takeNext(fallbackQueue) || "";
+    if (slotKind === "note") {
+      return takeNext(noteQueue) || takeNext(fallbackQueue, (id) => guestWallCardById.get(id)?.kind === "note") || "";
     }
 
-    if (preferredKind === "media") {
+    if (slotKind === "media") {
       if (slotFormat === "wide") {
-        return takeNext(mediaWideQueue) || takeNext(mediaPortraitQueue) || takeNext(fallbackQueue) || "";
+        return takeNext(mediaWideQueue) || takeNext(mediaPortraitQueue) || "";
       }
-      return (
-        takeNext(mediaPortraitQueue) ||
-        takeNext(mediaWideQueue) ||
-        takeNext(fallbackQueue, (id) => guestWallCardById.get(id)?.kind === "media") ||
-        takeNext(fallbackQueue) ||
-        ""
-      );
+      return takeNext(mediaPortraitQueue) || takeNext(mediaWideQueue) || takeNext(fallbackQueue, (id) => guestWallCardById.get(id)?.kind === "media") || "";
     }
 
     if (slotFormat === "wide") {
@@ -4943,7 +5260,7 @@ function getGuestWallSlotWidthPx(containerWidth, size, mobile = false) {
 
 function getGuestWallSlotAspectRatio(slotConfig) {
   const slotFormat = getGuestWallSlotFormat(slotConfig);
-  const preferredKind = String(slotConfig?.prefer || "mixed").trim().toLowerCase();
+  const preferredKind = getGuestWallSlotKind(slotConfig);
   if (slotFormat === "wide") return 108 / 86;
   if (preferredKind === "note") return 1.14;
   if (preferredKind === "media") return 72 / 86;
@@ -4953,7 +5270,7 @@ function getGuestWallSlotAspectRatio(slotConfig) {
 function getGuestWallSlotRole(slotConfig) {
   const explicitRole = String(slotConfig?.role || "").trim().toLowerCase();
   if (explicitRole === "hero" || explicitRole === "support" || explicitRole === "note") return explicitRole;
-  const preferredKind = String(slotConfig?.prefer || "mixed").trim().toLowerCase();
+  const preferredKind = getGuestWallSlotKind(slotConfig);
   if (slotConfig?.size === "XL") return "hero";
   if (preferredKind === "note") return "note";
   return "support";
@@ -4997,6 +5314,7 @@ function getGuestWallSlotJitter(slotConfig, slotIndex, jitterMaxPx, jitterSeed, 
 
 function resolveGuestWallSlotLayout(slotMap, containerRect, mobile = false, options = {}) {
   const gap = mobile ? GUEST_WALL_SLOT_GAP_MOBILE : GUEST_WALL_SLOT_GAP_DESKTOP;
+  const crossKindGap = mobile ? 14 : 20;
   const heroNoOverlapGap = mobile ? 16 : 24;
   const edgePadding = mobile ? 8 : 12;
   const jitterMaxPx = Number(options.jitterMaxPx || 0);
@@ -5004,7 +5322,7 @@ function resolveGuestWallSlotLayout(slotMap, containerRect, mobile = false, opti
   const placed = [];
   const result = [];
 
-  const isValidPlacement = (candidateRect, candidateRole) => {
+  const isValidPlacement = (candidateRect, candidateRole, candidateKind) => {
     if (
       candidateRect.left < edgePadding ||
       candidateRect.top < edgePadding ||
@@ -5015,13 +5333,15 @@ function resolveGuestWallSlotLayout(slotMap, containerRect, mobile = false, opti
     }
     return !placed.some((entry) => {
       const protectHero = candidateRole === "hero" || entry.role === "hero";
-      return rectsOverlap(entry.rect, candidateRect, protectHero ? heroNoOverlapGap : gap);
+      const kindGap = entry.kind === candidateKind ? gap : crossKindGap;
+      return rectsOverlap(entry.rect, candidateRect, protectHero ? Math.max(heroNoOverlapGap, kindGap) : kindGap);
     });
   };
 
   slotMap.forEach((slotConfig, slotIndex) => {
     const attempts = jitterMaxPx > 0 ? 5 : 1;
     const role = getGuestWallSlotRole(slotConfig);
+    const kind = getGuestWallSlotKind(slotConfig);
     let selectedOffset = { xOffsetPx: 0, yOffsetPx: 0 };
     let selectedRect = null;
 
@@ -5029,7 +5349,7 @@ function resolveGuestWallSlotLayout(slotMap, containerRect, mobile = false, opti
       const offset = getGuestWallSlotJitter(slotConfig, slotIndex, jitterMaxPx, jitterSeed, attempt);
       const candidate = { ...slotConfig, ...offset };
       const candidateRect = getGuestWallSlotRect(candidate, containerRect, mobile);
-      if (!isValidPlacement(candidateRect, role)) continue;
+      if (!isValidPlacement(candidateRect, role, kind)) continue;
       selectedOffset = offset;
       selectedRect = candidateRect;
       break;
@@ -5041,10 +5361,11 @@ function resolveGuestWallSlotLayout(slotMap, containerRect, mobile = false, opti
       selectedOffset = { xOffsetPx: 0, yOffsetPx: 0 };
     }
 
-    placed.push({ rect: selectedRect, role });
+    placed.push({ rect: selectedRect, role, kind });
     result.push({
       ...slotConfig,
       role,
+      kind,
       ...selectedOffset,
       pxWidth: selectedRect.width,
     });
@@ -5067,6 +5388,7 @@ function placeGuestWallSlot(slotNode, slotConfig) {
   slotNode.dataset.slotSize = String(slotConfig.size || "M");
   slotNode.dataset.slotRole = String(slotConfig.role || getGuestWallSlotRole(slotConfig));
   slotNode.dataset.slotFormat = String(slotConfig.format || "any");
+  slotNode.dataset.slotKind = String(getGuestWallSlotKind(slotConfig));
   slotNode.dataset.tiltBase = String(slotConfig.tiltBase || 0);
   slotNode.classList.toggle("slot-size-s", slotConfig.size === "S");
   slotNode.classList.toggle("slot-size-m", slotConfig.size === "M");
@@ -5092,6 +5414,7 @@ function mountGuestWallSlotCard(slotNode, cardId, animate = false) {
   slotNode.style.setProperty("--gw-skew-x", `${stableWarp.skewX}deg`);
   slotNode.style.setProperty("--gw-skew-y", `${stableWarp.skewY}deg`);
   slotNode.dataset.cardId = String(card.id || cardId || "");
+  applyGuestWallStoredArrangement(slotNode, card.id || cardId);
 
   const debugNode = slotNode.querySelector(".guestwall-slot-debug");
   const node = buildGuestWallCard(card, "board");
@@ -5166,6 +5489,9 @@ function renderGuestWallDesktop({ reshuffle = false } = {}) {
     guestWallPinboard.appendChild(slotNode);
     guestWallSlotNodes.push(slotNode);
   }
+  hydrateGuestWallSlotArrangeMetrics();
+  syncGuestWallArrangeAvailability();
+  setGuestWallArrangeMode(guestWallArrangeMode);
 }
 
 function scheduleGuestWallDesktopRotation() {
@@ -5217,7 +5543,9 @@ function renderGuestWallMobile() {
     stage.appendChild(slotNode);
     guestWallSlotNodes.push(slotNode);
   }
-
+  hydrateGuestWallSlotArrangeMetrics();
+  setGuestWallArrangeMode(false);
+  syncGuestWallArrangeAvailability();
 }
 
 function scheduleGuestWallMobileRotation() {
@@ -5410,6 +5738,13 @@ function bindGuestWallEvents() {
     });
   }
 
+  if (guestWallArrangeToggle instanceof HTMLButtonElement) {
+    guestWallArrangeToggle.addEventListener("click", () => {
+      if (!isGuestWallArrangeCapable()) return;
+      setGuestWallArrangeMode(!guestWallArrangeMode);
+    });
+  }
+
   window.addEventListener(
     "resize",
     () => {
@@ -5419,6 +5754,7 @@ function bindGuestWallEvents() {
         const currentWidth = window.innerWidth || 0;
         const widthDelta = Math.abs(currentWidth - guestWallLastViewportWidth);
         guestWallLastViewportWidth = currentWidth;
+        syncGuestWallArrangeAvailability();
         if (isGuestWallMobileView() && widthDelta < 2) return;
         syncGuestWallLayout();
       });
@@ -5481,8 +5817,10 @@ async function maybePrefetchGuestWallBuffer() {
 async function initGuestWall() {
   if (!(guestWallPinboard instanceof HTMLElement)) return;
 
+  guestWallArrangementByCardId = loadGuestWallArrangementFromStorage();
   bindGuestWallDetailModalEvents();
   bindGuestWallEvents();
+  syncGuestWallArrangeAvailability();
   if (guestWallPinboardView instanceof HTMLElement) setHiddenClass(guestWallPinboardView, false);
   await loadGuestWallPinboard({ refresh: false });
 }
