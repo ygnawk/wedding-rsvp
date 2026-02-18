@@ -127,10 +127,14 @@ const GUESTBOOK_ENV_KEYS = Object.freeze({
   oauthRefreshToken: "GOOGLE_OAUTH_REFRESH_TOKEN",
 });
 
-const GUESTBOOK_CACHE_TTL_MS = Math.max(60, Number.parseInt(process.env.GUESTBOOK_CACHE_TTL_SECONDS || "180", 10) || 180) * 1000;
+const GUESTBOOK_CACHE_TTL_MS = Math.max(60, Number.parseInt(process.env.GUESTBOOK_CACHE_TTL_SECONDS || "300", 10) || 300) * 1000;
 const GUESTBOOK_RESPONSE_CACHE_SECONDS = Math.max(
-  30,
-  Math.min(300, Number.parseInt(process.env.GUESTBOOK_RESPONSE_CACHE_SECONDS || "90", 10) || 90),
+  60,
+  Math.min(600, Number.parseInt(process.env.GUESTBOOK_RESPONSE_CACHE_SECONDS || "300", 10) || 300),
+);
+const GUESTBOOK_RESPONSE_STALE_SECONDS = Math.max(
+  GUESTBOOK_RESPONSE_CACHE_SECONDS,
+  Number.parseInt(process.env.GUESTBOOK_RESPONSE_STALE_SECONDS || "86400", 10) || 86400,
 );
 const GUESTBOOK_PINBOARD_DEFAULT_LIMIT = 16;
 const GUESTBOOK_ARCHIVE_DEFAULT_LIMIT = 30;
@@ -1274,7 +1278,9 @@ function buildGuestbookItems(rsvpRows, guestRows, mediaRows, driveMetadataByFile
 async function loadGuestbookItems({ forceRefresh = false } = {}) {
   const now = Date.now();
   if (!forceRefresh && guestbookCache.items.length && guestbookCache.expiresAt > now) {
-    console.info(`[guestbook] cache hit items=${guestbookCache.items.length} expires_at=${new Date(guestbookCache.expiresAt).toISOString()}`);
+    console.info(
+      `[guestbook] cache hit items=${guestbookCache.items.length} expires_at=${new Date(guestbookCache.expiresAt).toISOString()} source=memory`,
+    );
     return guestbookCache.items;
   }
 
@@ -1303,17 +1309,21 @@ async function loadGuestbookItems({ forceRefresh = false } = {}) {
     const spreadsheetId = getRequiredSpreadsheetId();
     const { sheets } = createGoogleClients();
 
+    const upstreamStartedAt = Date.now();
     const [rsvpRows, guestRows, mediaRows] = await Promise.all([
       getSheetObjects(sheets, spreadsheetId, "rsvps"),
       getSheetObjects(sheets, spreadsheetId, "guests"),
       getSheetObjects(sheets, spreadsheetId, "media"),
     ]);
+    const upstreamDurationMs = Date.now() - upstreamStartedAt;
     const approvedRows = rsvpRows.filter((row) => isTruthyApproval(row.approved)).length;
     console.info(
       `[guestbook] source rows rsvps=${rsvpRows.length} approved=${approvedRows} guests=${guestRows.length} media=${mediaRows.length}`,
     );
 
+    const transformStartedAt = Date.now();
     const items = buildGuestbookItems(rsvpRows, guestRows, mediaRows, new Map());
+    const transformDurationMs = Date.now() - transformStartedAt;
     guestbookCache.items = items;
     guestbookCache.expiresAt = Date.now() + GUESTBOOK_CACHE_TTL_MS;
     if (!items.length) {
@@ -1321,7 +1331,11 @@ async function loadGuestbookItems({ forceRefresh = false } = {}) {
     } else {
       console.info(`[guestbook] success items=${items.length}`);
     }
-    console.info(`[guestbook] refresh duration_ms=${Date.now() - requestStartedAt}`);
+    console.info(
+      `[guestbook] refresh timings upstream_fetch_ms=${upstreamDurationMs} transform_ms=${transformDurationMs} total_ms=${
+        Date.now() - requestStartedAt
+      }`,
+    );
     return items;
   })();
 
@@ -1405,7 +1419,6 @@ function buildGuestbookNormalizedItems(approvedSubmissions) {
         id: `${submissionId}:${normalizeFieldValue(mediaItem.file_index) || mediaIndex + 1}`,
         type: "media",
         name,
-        message,
         media: {
           kind: fileType,
           thumbUrl: thumbUrl || "",
@@ -1530,7 +1543,11 @@ async function handleGuestbookRequest(req, res) {
       } refresh=${refresh}`,
     );
 
+    const upstreamStartedAt = Date.now();
     const approvedSubmissions = await loadGuestbookItems({ forceRefresh: refresh });
+    const upstreamDurationMs = Date.now() - upstreamStartedAt;
+
+    const transformStartedAt = Date.now();
     const normalizedItems = buildGuestbookNormalizedItems(approvedSubmissions);
     let workingItems = normalizedItems;
     if (mode === "pinboard") {
@@ -1542,33 +1559,35 @@ async function handleGuestbookRequest(req, res) {
     const items = workingItems.slice(offset, offset + limit);
     const nextOffset = offset + items.length < workingItems.length ? offset + items.length : null;
     const nextCursor = nextOffset === null ? null : encodeGuestbookCursor(nextOffset);
+    const transformDurationMs = Date.now() - transformStartedAt;
+    const payload = {
+      ok: true,
+      mode,
+      items,
+      total: workingItems.length,
+      offset,
+      limit,
+      next_offset: nextOffset,
+      nextCursor,
+      cached_until: guestbookCache.expiresAt ? new Date(guestbookCache.expiresAt).toISOString() : null,
+    };
+    const payloadBody = JSON.stringify(payload);
+    const payloadBytes = Buffer.byteLength(payloadBody, "utf8");
+    const totalDurationMs = Date.now() - requestStartedAt;
     console.info(
       `[guestbook] response mode=${mode} total=${workingItems.length} returned=${items.length} next_offset=${
         nextOffset === null ? "none" : nextOffset
-      } duration_ms=${Date.now() - requestStartedAt}`,
+      } timings total_handler_ms=${totalDurationMs} upstream_ms=${upstreamDurationMs} transform_ms=${transformDurationMs} payload_bytes=${payloadBytes}`,
     );
 
     send(
       res,
       200,
-      JSON.stringify({
-        ok: true,
-        mode,
-        items,
-        total: workingItems.length,
-        offset,
-        limit,
-        next_offset: nextOffset,
-        nextCursor,
-        cached_until: guestbookCache.expiresAt ? new Date(guestbookCache.expiresAt).toISOString() : null,
-      }),
+      payloadBody,
       MIME_TYPES[".json"],
       {
         req,
-        cacheControl: `public, max-age=${GUESTBOOK_RESPONSE_CACHE_SECONDS}, stale-while-revalidate=${Math.max(
-          GUESTBOOK_RESPONSE_CACHE_SECONDS * 3,
-          180,
-        )}`,
+        cacheControl: `public, max-age=60, s-maxage=${GUESTBOOK_RESPONSE_CACHE_SECONDS}, stale-while-revalidate=${GUESTBOOK_RESPONSE_STALE_SECONDS}`,
       },
     );
   } catch (error) {

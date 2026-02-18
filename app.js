@@ -26,6 +26,8 @@ const MOBILE_GALLERY_DOT_MAX = 7;
 const MOSAIC_HOVER_DELAY_MS = 150;
 const GUEST_WALL_AUTOPLAY_INTERVAL_MS = 10000;
 const GUEST_WALL_PINBOARD_LIMIT = 12;
+const GUEST_WALL_PINBOARD_INITIAL_LIMIT_DESKTOP = 12;
+const GUEST_WALL_PINBOARD_INITIAL_LIMIT_MOBILE = 8;
 const GUEST_WALL_PINBOARD_BUFFER_DESKTOP = 32;
 const GUEST_WALL_PINBOARD_BUFFER_MOBILE = 16;
 const GUEST_WALL_PREFETCH_THRESHOLD = 4;
@@ -47,10 +49,12 @@ const GUEST_WALL_ARRANGE_DEOVERLAP_STEPS = 20;
 const GUEST_WALL_ARRANGE_DEOVERLAP_GAP = 8;
 const GUEST_WALL_SLOW_MESSAGE_DELAY_MS = 5000;
 const GUEST_WALL_SLOW_MESSAGE_ROTATE_MS = 3000;
-const GUEST_WALL_HARD_TIMEOUT_MS = 12000;
+const GUEST_WALL_HARD_TIMEOUT_MS = 10000;
 const GUEST_WALL_INITIAL_REQUEST_TIMEOUT_MS = 10000;
-const GUEST_WALL_RETRY_DELAY_MS = 1000;
+const GUEST_WALL_RETRY_DELAY_MS = 400;
 const GUEST_WALL_MAX_FETCH_ATTEMPTS = 2;
+const GUEST_WALL_IMAGE_CONCURRENCY = 4;
+const GUEST_WALL_IMAGE_OBSERVER_MARGIN = "240px";
 const GUEST_WALL_LOADING_MESSAGE = "Loading guest wall…";
 const GUEST_WALL_EMPTY_MESSAGE = "Nothing here yet—check back soon.";
 const GUEST_WALL_UNAVAILABLE_MESSAGE = "Guest Wall is temporarily unavailable.";
@@ -392,6 +396,15 @@ let guestWallArrangeMode = false;
 let guestWallDragState = null;
 let guestWallArrangementByCardId = new Map();
 let guestWallHasSuccessfulLoad = false;
+let guestWallLoadStartedAt = 0;
+let guestWallFirstResponseLogged = false;
+let guestWallFirstSixRenderLogged = false;
+let guestWallInitialImageExpected = 0;
+let guestWallImageObserver = null;
+let guestWallImageQueue = [];
+let guestWallImageLoadsInFlight = 0;
+let guestWallImageLoadState = new WeakMap();
+let guestWallImageStats = { started: 0, loaded: 0, failed: 0 };
 let overflowDebugResizeTimer = null;
 let desktopMoreCloseTimer = null;
 let activeSectionId = "top";
@@ -3994,15 +4007,15 @@ function isGuestWallRetryableError(error) {
 function getGuestWallRequestTimeoutMs(attemptIndex = 0) {
   const normalizedAttempt = Math.max(0, Number(attemptIndex) || 0);
   if (!guestWallHasSuccessfulLoad) {
-    return Math.max(6000, GUEST_WALL_INITIAL_REQUEST_TIMEOUT_MS - normalizedAttempt * 2000);
+    return Math.max(9000, GUEST_WALL_INITIAL_REQUEST_TIMEOUT_MS - normalizedAttempt * 1500);
   }
-  return Math.max(7000, GUEST_WALL_HARD_TIMEOUT_MS - normalizedAttempt * 1500);
+  return Math.max(8000, GUEST_WALL_HARD_TIMEOUT_MS - normalizedAttempt * 1000);
 }
 
 function waitGuestWallRetryDelay(attemptIndex = 0) {
   const factor = Math.max(1, Number(attemptIndex) + 1);
   const baseDelay = GUEST_WALL_RETRY_DELAY_MS * factor;
-  const jitter = randomInt(80, 220);
+  const jitter = randomInt(120, 420);
   const waitMs = baseDelay + jitter;
   return new Promise((resolve) => {
     window.setTimeout(resolve, waitMs);
@@ -4237,7 +4250,6 @@ function buildGuestWallImageCandidates(mediaItem, size = "w720") {
 
   if (fileId) {
     addCandidate(`https://lh3.googleusercontent.com/d/${fileId}=${size}`);
-    addCandidate(`https://drive.google.com/thumbnail?id=${fileId}&sz=${size}`);
   }
   return candidates;
 }
@@ -4305,10 +4317,230 @@ function normalizeGuestWallCards(rawItems) {
   });
 }
 
+function resetGuestWallImagePipeline() {
+  if (guestWallImageObserver && typeof guestWallImageObserver.disconnect === "function") {
+    guestWallImageObserver.disconnect();
+  }
+  guestWallImageObserver = null;
+  guestWallImageQueue = [];
+  guestWallImageLoadsInFlight = 0;
+  guestWallImageLoadState = new WeakMap();
+  guestWallImageStats = { started: 0, loaded: 0, failed: 0 };
+  guestWallInitialImageExpected = 0;
+}
+
+function maybeLogGuestWallImageProgress(reason = "progress") {
+  const resolved = guestWallImageStats.loaded + guestWallImageStats.failed;
+  const target = Math.max(0, Number(guestWallInitialImageExpected) || 0);
+  const shouldLog = resolved === 1 || resolved % 4 === 0 || (target > 0 && resolved >= target);
+  if (!shouldLog) return;
+  console.info(
+    `[guestwall][images] reason=${reason} started=${guestWallImageStats.started} loaded=${guestWallImageStats.loaded} failed=${guestWallImageStats.failed} resolved=${resolved}${
+      target ? `/${target}` : ""
+    } inFlight=${guestWallImageLoadsInFlight} queued=${guestWallImageQueue.length}`,
+  );
+}
+
+function finishGuestWallImageLoad(state, outcome = "loaded") {
+  if (!state || typeof state !== "object") return;
+  if (state.inFlight) {
+    state.inFlight = false;
+    guestWallImageLoadsInFlight = Math.max(0, guestWallImageLoadsInFlight - 1);
+  }
+  state.loading = false;
+  state.completed = true;
+  if (outcome === "failed") {
+    guestWallImageStats.failed += 1;
+  } else {
+    guestWallImageStats.loaded += 1;
+  }
+  maybeLogGuestWallImageProgress(outcome);
+  pumpGuestWallImageQueue();
+}
+
+function startGuestWallLazyImage(imgNode, state) {
+  if (!(imgNode instanceof HTMLImageElement) || !state || typeof state !== "object") return;
+  if (state.loading || state.completed) return;
+  if (!imgNode.isConnected && state.context === "board") return;
+
+  const candidates = Array.isArray(state.candidates) ? state.candidates : [];
+  const nextSrc = String(candidates[state.candidateIndex] || "").trim();
+  if (!nextSrc) {
+    imgNode.classList.add("is-loading");
+    if (state.fallback instanceof HTMLElement) setHiddenClass(state.fallback, false);
+    imgNode.removeAttribute("src");
+    finishGuestWallImageLoad(state, "failed");
+    return;
+  }
+
+  state.loading = true;
+  state.inFlight = true;
+  guestWallImageLoadsInFlight += 1;
+  guestWallImageStats.started += 1;
+  imgNode.src = nextSrc;
+}
+
+function pumpGuestWallImageQueue() {
+  while (guestWallImageLoadsInFlight < GUEST_WALL_IMAGE_CONCURRENCY && guestWallImageQueue.length) {
+    const nextNode = guestWallImageQueue.shift();
+    if (!(nextNode instanceof HTMLImageElement)) continue;
+    const state = guestWallImageLoadState.get(nextNode);
+    if (!state || state.completed || state.loading) continue;
+    state.queued = false;
+    startGuestWallLazyImage(nextNode, state);
+  }
+}
+
+function queueGuestWallLazyImage(imgNode) {
+  if (!(imgNode instanceof HTMLImageElement)) return;
+  const state = guestWallImageLoadState.get(imgNode);
+  if (!state || state.completed || state.loading || state.queued) return;
+  state.queued = true;
+  guestWallImageQueue.push(imgNode);
+  pumpGuestWallImageQueue();
+}
+
+function ensureGuestWallImageObserver() {
+  if (guestWallImageObserver) return guestWallImageObserver;
+  if (typeof IntersectionObserver !== "function") return null;
+  guestWallImageObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        const target = entry.target instanceof HTMLImageElement ? entry.target : null;
+        if (!target) return;
+        guestWallImageObserver.unobserve(target);
+        queueGuestWallLazyImage(target);
+      });
+    },
+    {
+      root: null,
+      rootMargin: GUEST_WALL_IMAGE_OBSERVER_MARGIN,
+      threshold: 0.01,
+    },
+  );
+  return guestWallImageObserver;
+}
+
+function resetGuestWallImageNodeForRetry(imgNode, fallbackNode) {
+  if (!(imgNode instanceof HTMLImageElement)) return;
+  const state = guestWallImageLoadState.get(imgNode);
+  if (!state || typeof state !== "object") return;
+  if (state.loading && state.inFlight) {
+    guestWallImageLoadsInFlight = Math.max(0, guestWallImageLoadsInFlight - 1);
+  }
+  state.candidateIndex = 0;
+  state.loading = false;
+  state.completed = false;
+  state.inFlight = false;
+  state.queued = false;
+  imgNode.classList.add("is-loading");
+  if (fallbackNode instanceof HTMLElement) setHiddenClass(fallbackNode, true);
+  if (state.context === "board") {
+    const observer = ensureGuestWallImageObserver();
+    if (observer) {
+      observer.observe(imgNode);
+    } else {
+      queueGuestWallLazyImage(imgNode);
+    }
+    return;
+  }
+  startGuestWallLazyImage(imgNode, state);
+}
+
+function registerGuestWallLazyImage({ imgNode, fallbackNode, card, candidates, context = "board" }) {
+  if (!(imgNode instanceof HTMLImageElement)) return;
+  const uniqueCandidates = Array.from(
+    new Set(
+      (Array.isArray(candidates) ? candidates : [])
+        .map((candidate) => String(candidate || "").trim())
+        .filter((candidate) => /^https:\/\//i.test(candidate)),
+    ),
+  );
+
+  const state = {
+    context: String(context || "board"),
+    fallback: fallbackNode instanceof HTMLElement ? fallbackNode : null,
+    cardId: String(card?.id || ""),
+    submissionId: String(card?.submissionId || ""),
+    candidates: uniqueCandidates,
+    candidateIndex: 0,
+    queued: false,
+    loading: false,
+    inFlight: false,
+    completed: false,
+  };
+  guestWallImageLoadState.set(imgNode, state);
+
+  imgNode.addEventListener("load", () => {
+    imgNode.classList.remove("is-loading");
+    if (state.fallback instanceof HTMLElement) setHiddenClass(state.fallback, true);
+    syncGuestWallPolaroidCompactVariant(imgNode);
+    finishGuestWallImageLoad(state, "loaded");
+  });
+
+  imgNode.addEventListener("error", () => {
+    const candidatesList = Array.isArray(state.candidates) ? state.candidates : [];
+    const attemptedSrc = candidatesList[state.candidateIndex] || imgNode.currentSrc || imgNode.src || "";
+    state.candidateIndex += 1;
+    const nextCandidate = String(candidatesList[state.candidateIndex] || "").trim();
+    if (nextCandidate) {
+      imgNode.src = nextCandidate;
+      return;
+    }
+    console.error("[guestwall:image-load-failed]", {
+      submissionId: state.submissionId || "unknown",
+      cardId: state.cardId || "unknown",
+      src: attemptedSrc,
+      candidateCount: candidatesList.length,
+    });
+    imgNode.classList.add("is-loading");
+    if (state.fallback instanceof HTMLElement) setHiddenClass(state.fallback, false);
+    imgNode.removeAttribute("src");
+    finishGuestWallImageLoad(state, "failed");
+  });
+
+  if (state.context === "board") {
+    const observer = ensureGuestWallImageObserver();
+    if (observer) {
+      observer.observe(imgNode);
+    } else {
+      queueGuestWallLazyImage(imgNode);
+    }
+    return;
+  }
+  startGuestWallLazyImage(imgNode, state);
+}
+
+function markGuestWallInitialImageExpectation() {
+  if (guestWallInitialImageExpected > 0) return;
+  if (!guestWallVisibleCardIds.length) return;
+  const visibleLimit = Math.min(guestWallVisibleCardIds.length, guestWallSlotNodes.length);
+  const mediaVisible = guestWallVisibleCardIds
+    .slice(0, visibleLimit)
+    .filter((id) => guestWallCardById.get(id)?.kind === "media").length;
+  guestWallInitialImageExpected = mediaVisible;
+  if (mediaVisible > 0) {
+    console.info(`[guestwall][perf] visible_media_cards=${mediaVisible}`);
+  }
+}
+
+function maybeLogGuestWallFirstSixRender() {
+  if (guestWallFirstSixRenderLogged) return;
+  if (!guestWallLoadStartedAt) return;
+  const target = Math.min(6, guestWallCards.length);
+  if (target <= 0) return;
+  if (guestWallSlotNodes.length < target) return;
+  guestWallFirstSixRenderLogged = true;
+  const elapsedMs = Math.round(performance.now() - guestWallLoadStartedAt);
+  console.info(`[guestwall][perf] first_cards=${target} renderedMs=${elapsedMs}`);
+}
+
 function clearGuestWallBoards() {
   setGuestWallActiveSlot(null);
   if (guestWallPinboard instanceof HTMLElement) guestWallPinboard.innerHTML = "";
   if (guestWallMobile instanceof HTMLElement) guestWallMobile.innerHTML = "";
+  resetGuestWallImagePipeline();
 }
 
 function renderGuestWallLoadingSkeleton() {
@@ -4407,7 +4639,7 @@ function buildGuestWallMediaNode(card, context = "board") {
     const img = document.createElement("img");
     img.classList.add("guestwall-media-img", "is-loading");
     img.alt = `Uploaded by ${card.name}`;
-    img.loading = "lazy";
+    img.loading = context === "board" ? "lazy" : "eager";
     img.decoding = "async";
     const fallback = document.createElement("div");
     fallback.className = "guestwall-media-fallback hidden";
@@ -4418,45 +4650,19 @@ function buildGuestWallMediaNode(card, context = "board") {
     retry.textContent = "Tap to retry";
     fallback.appendChild(retry);
 
-    const imageCandidates = buildGuestWallImageCandidates(card.media, "w720");
-    let candidateIndex = 0;
-
-    const loadCurrentCandidate = () => {
-      if (candidateIndex >= imageCandidates.length) {
-        img.removeAttribute("src");
-        img.classList.add("is-loading");
-        setHiddenClass(fallback, false);
-        return;
-      }
-      img.src = imageCandidates[candidateIndex];
-    };
-
-    img.addEventListener("load", () => {
-      img.classList.remove("is-loading");
-      setHiddenClass(fallback, true);
-      syncGuestWallPolaroidCompactVariant(img);
-    });
-
-    img.addEventListener("error", () => {
-      const currentSrc = imageCandidates[candidateIndex] || img.currentSrc || img.src;
-      console.error("[guestwall:image-load-failed]", {
-        submissionId: card.submissionId || "unknown",
-        cardId: card.id || "unknown",
-        src: currentSrc || "",
-        candidateIndex,
-      });
-      candidateIndex += 1;
-      loadCurrentCandidate();
+    const imageCandidates = buildGuestWallImageCandidates(card.media, context === "board" ? "w720" : "w1600");
+    registerGuestWallLazyImage({
+      imgNode: img,
+      fallbackNode: fallback,
+      card,
+      candidates: imageCandidates,
+      context,
     });
 
     retry.addEventListener("click", () => {
-      candidateIndex = 0;
-      img.classList.add("is-loading");
-      setHiddenClass(fallback, true);
-      loadCurrentCandidate();
+      resetGuestWallImageNodeForRetry(img, fallback);
     });
 
-    loadCurrentCandidate();
     mediaWrap.appendChild(img);
     mediaWrap.appendChild(fallback);
   }
@@ -5881,9 +6087,11 @@ function renderGuestWallDesktop({ reshuffle = false } = {}) {
     guestWallPinboard.appendChild(slotNode);
     guestWallSlotNodes.push(slotNode);
   }
+  markGuestWallInitialImageExpectation();
   hydrateGuestWallSlotArrangeMetrics();
   syncGuestWallArrangeAvailability();
   setGuestWallArrangeMode(guestWallArrangeMode);
+  maybeLogGuestWallFirstSixRender();
 }
 
 function scheduleGuestWallDesktopRotation() {
@@ -5935,9 +6143,11 @@ function renderGuestWallMobile() {
     stage.appendChild(slotNode);
     guestWallSlotNodes.push(slotNode);
   }
+  markGuestWallInitialImageExpectation();
   hydrateGuestWallSlotArrangeMetrics();
   setGuestWallArrangeMode(false);
   syncGuestWallArrangeAvailability();
+  maybeLogGuestWallFirstSixRender();
 }
 
 function scheduleGuestWallMobileRotation() {
@@ -6186,6 +6396,10 @@ function getGuestWallPinboardRequestLimit() {
   return isGuestWallMobileView() ? GUEST_WALL_PINBOARD_BUFFER_MOBILE : GUEST_WALL_PINBOARD_BUFFER_DESKTOP;
 }
 
+function getGuestWallPinboardInitialRequestLimit() {
+  return isGuestWallMobileView() ? GUEST_WALL_PINBOARD_INITIAL_LIMIT_MOBILE : GUEST_WALL_PINBOARD_INITIAL_LIMIT_DESKTOP;
+}
+
 function mergeGuestWallCards(newCards) {
   if (!Array.isArray(newCards) || !newCards.length) return;
   const merged = [...guestWallCards];
@@ -6239,6 +6453,10 @@ async function initGuestWall() {
 async function loadGuestWallPinboard({ refresh = false } = {}) {
   if (guestWallRequestInFlight) return guestWallRequestInFlight;
 
+  guestWallLoadStartedAt = performance.now();
+  guestWallFirstResponseLogged = false;
+  guestWallFirstSixRenderLogged = false;
+  resetGuestWallImagePipeline();
   setGuestWallLoadState("loading");
   setGuestWallStatus(GUEST_WALL_LOADING_MESSAGE);
   setGuestWallShuffleState(false);
@@ -6256,11 +6474,16 @@ async function loadGuestWallPinboard({ refresh = false } = {}) {
         try {
           payload = await fetchGuestbookPage({
             mode: "pinboard",
-            limit: getGuestWallPinboardRequestLimit(),
+            limit: getGuestWallPinboardInitialRequestLimit(),
             refresh,
             timeoutMs: getGuestWallRequestTimeoutMs(attemptIndex),
             attempt: attemptNumber,
           });
+          if (!guestWallFirstResponseLogged) {
+            guestWallFirstResponseLogged = true;
+            const responseMs = Math.round(performance.now() - guestWallLoadStartedAt);
+            console.info(`[guestwall][perf] first_response_ms=${responseMs} items=${Array.isArray(payload.items) ? payload.items.length : 0}`);
+          }
           break;
         } catch (error) {
           attemptError = error;
@@ -6300,8 +6523,23 @@ async function loadGuestWallPinboard({ refresh = false } = {}) {
       guestWallLayoutCycle = 0;
       guestWallVisibleCardIds = [];
       setGuestWallPaused(false);
+      await new Promise((resolve) => {
+        window.requestAnimationFrame(resolve);
+      });
       syncGuestWallLayout({ reshuffle: true });
-      maybePrefetchGuestWallBuffer();
+      maybeLogGuestWallFirstSixRender();
+      if (typeof window.requestIdleCallback === "function") {
+        window.requestIdleCallback(
+          () => {
+            maybePrefetchGuestWallBuffer();
+          },
+          { timeout: 1200 },
+        );
+      } else {
+        window.setTimeout(() => {
+          maybePrefetchGuestWallBuffer();
+        }, 120);
+      }
     } catch (error) {
       console.error("[guestwall] load failed", {
         message: error instanceof Error ? error.message : String(error),
