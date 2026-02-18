@@ -1899,15 +1899,31 @@ function initMakanLegalModal() {
   if (makanLegalWrapper) makanLegalWrapper.dataset.open = "false";
   closeMakanLegalModal({ restoreFocus: false });
 
+  window.addEventListener("pageshow", () => {
+    // iOS Safari can restore DOM state from bfcache; enforce closed on entry.
+    closeMakanLegalModal({ restoreFocus: false });
+  });
+  window.addEventListener("load", () => closeMakanLegalModal({ restoreFocus: false }), { once: true });
+
   makanLegalTrigger.addEventListener("click", (event) => {
     event.preventDefault();
+    event.stopPropagation();
+    if (!event.isTrusted) return;
     if (makanLegalOpen) closeMakanLegalModal();
     else openMakanLegalModal();
   });
 
   if (makanLegalClose) {
-    makanLegalClose.addEventListener("click", () => closeMakanLegalModal());
+    makanLegalClose.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      closeMakanLegalModal({ restoreFocus: false });
+    });
   }
+
+  makanLegalPopover.addEventListener("pointerdown", (event) => {
+    event.stopPropagation();
+  });
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && makanLegalOpen) {

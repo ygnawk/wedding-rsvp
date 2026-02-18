@@ -5684,7 +5684,7 @@ a.makan-copy-icon-btn {
   overflow: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .makan-legal-popover.open {
@@ -5834,7 +5834,7 @@ a.makan-copy-icon-btn {
     align-items: flex-end;
     justify-content: stretch;
     overflow: visible;
-    pointer-events: none;
+    pointer-events: auto;
   }
 
   .makan-legal-popover.open {
