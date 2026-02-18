@@ -6113,6 +6113,14 @@ a.makan-copy-icon-btn {
   flex-wrap: wrap;
 }
 
+.guestwall-toggles-group {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
 .guestwall-control-group {
   display: grid;
   gap: 8px;
@@ -6553,38 +6561,16 @@ a.makan-copy-icon-btn {
 
 .guestwall-item--polaroid {
   position: relative;
-  aspect-ratio: 72 / 86;
-  --gw-m-side: 10px;
-  --gw-m-top: 10px;
-  --gw-m-bottom: 26px;
-  --gw-photo-window-ratio: 1 / 1;
+  aspect-ratio: 3 / 4;
+  --gw-m-side: 12px;
+  --gw-m-top: 12px;
+  --gw-m-bottom: 34px;
   --gw-item-tilt: var(--gwPolaroidTilt, 0deg);
   background: #fbf7ef;
-  border-radius: 4px;
+  border-radius: 10px;
   border: 1px solid rgba(216, 202, 176, 0.48);
   padding: 0;
   box-shadow: 0 16px 26px rgba(16, 8, 10, 0.17), 0 3px 8px rgba(16, 8, 10, 0.08);
-}
-
-.guestwall-item--polaroid.guestwall-polaroid--compact {
-  --gw-m-side: 8px;
-  --gw-m-top: 8px;
-  --gw-m-bottom: 21px;
-}
-
-.guestwall-polaroid--mini {
-  aspect-ratio: 54 / 86;
-  --gw-photo-window-ratio: 62 / 46;
-}
-
-.guestwall-polaroid--square {
-  aspect-ratio: 72 / 86;
-  --gw-photo-window-ratio: 1 / 1;
-}
-
-.guestwall-polaroid--wide {
-  aspect-ratio: 108 / 86;
-  --gw-photo-window-ratio: 99 / 62;
 }
 
 .guestwall-item--polaroid::before {
@@ -6611,7 +6597,7 @@ a.makan-copy-icon-btn {
 .guestwall-polaroid-mat {
   position: absolute;
   inset: 0;
-  border-radius: 4px;
+  border-radius: 10px;
   padding: var(--gw-m-top) var(--gw-m-side) var(--gw-m-bottom);
   background:
     linear-gradient(178deg, rgba(255, 255, 255, 0.9), rgba(246, 239, 226, 0.98)),
@@ -6625,9 +6611,9 @@ a.makan-copy-icon-btn {
 .guestwall-polaroid-media {
   position: relative;
   width: 100%;
-  aspect-ratio: var(--gw-photo-window-ratio, 1 / 1);
+  aspect-ratio: 1 / 1;
   align-self: flex-start;
-  border-radius: 3px;
+  border-radius: 6px;
   overflow: hidden;
   background: rgba(243, 236, 224, 0.98);
   border: 1px solid rgba(224, 211, 188, 0.82);
@@ -6702,11 +6688,11 @@ a.makan-copy-icon-btn {
 
 .guestwall-polaroid-signature {
   position: absolute;
-  bottom: 8px;
+  bottom: 9px;
   max-width: 82%;
   padding: 0 3px;
   font-family: var(--font-signature);
-  font-size: clamp(16px, 1.1vw, 21px);
+  font-size: clamp(14px, 0.95vw, 18px);
   font-weight: 500;
   line-height: 1.04;
   color: var(--gwSigInk, #3b0d16);
@@ -6767,18 +6753,6 @@ a.makan-copy-icon-btn {
 
 .guestwall-polaroid-signature--overlap {
   bottom: calc(var(--gw-m-bottom) - 8px);
-}
-
-.guestwall-item--polaroid.guestwall-polaroid--mini .guestwall-polaroid-signature {
-  font-size: clamp(15px, 0.98vw, 18px);
-}
-
-.guestwall-item--polaroid.guestwall-polaroid--square .guestwall-polaroid-signature {
-  font-size: clamp(16px, 1.06vw, 22px);
-}
-
-.guestwall-item--polaroid.guestwall-polaroid--wide .guestwall-polaroid-signature {
-  font-size: clamp(15px, 1vw, 20px);
 }
 
 .guestwall-media-fallback {
@@ -7471,6 +7445,20 @@ a.guestwall-media-retry {
   margin-top: 4px;
 }
 
+.guestwall-modal[data-detail-kind="media"] .guestwall-modal-panel {
+  width: min(640px, 94vw);
+  max-height: 92vh;
+  overflow: visible;
+  padding: 18px;
+}
+
+.guestwall-modal[data-detail-kind="media"] .guestwall-detail-content {
+  margin-top: 0;
+  width: 100%;
+  display: grid;
+  place-items: center;
+}
+
 .guestwall-detail-block {
   display: grid;
   gap: 10px;
@@ -7501,6 +7489,8 @@ a.guestwall-media-retry {
 }
 
 .guestwall-detail-postcard-inner {
+  position: relative;
+  overflow: hidden;
   aspect-ratio: 3 / 2;
   min-height: min(56vh, 480px);
   background:
@@ -7516,7 +7506,19 @@ a.guestwall-media-retry {
   padding: 18px 16px 14px;
 }
 
+.guestwall-detail-postcard-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.78);
+  -webkit-backdrop-filter: blur(1.5px);
+  backdrop-filter: blur(1.5px);
+}
+
 .guestwall-detail-postcard-message {
+  position: relative;
+  z-index: 2;
   min-width: 0;
   overflow: auto;
   max-height: min(46vh, 410px);
@@ -7525,6 +7527,7 @@ a.guestwall-media-retry {
 
 .guestwall-detail-postcard-meta {
   position: relative;
+  z-index: 2;
   min-width: 0;
   border-left: 1px solid rgba(123, 90, 59, 0.28);
   padding-left: 12px;
@@ -7538,8 +7541,10 @@ a.guestwall-media-retry {
 }
 
 .guestwall-detail-note-full {
-  font-size: clamp(21px, 2.1vw, 30px);
-  line-height: 1.35;
+  font-size: 18px;
+  line-height: 1.45;
+  letter-spacing: 0.1px;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
   display: block;
   -webkit-line-clamp: unset;
   line-clamp: unset;
@@ -7555,7 +7560,8 @@ a.guestwall-media-retry {
 
 .guestwall-detail-polaroid {
   justify-self: center;
-  width: min(560px, calc(100vw - 72px));
+  width: min(520px, 92vw, calc((85vh - 88px) * 0.75));
+  max-height: calc(85vh - 88px);
   --gw-item-tilt: var(--gwPolaroidTilt, 0deg);
   box-shadow: 0 20px 36px rgba(12, 6, 8, 0.24), 0 3px 8px rgba(12, 6, 8, 0.1);
 }
@@ -7567,11 +7573,11 @@ a.guestwall-media-retry {
 }
 
 .guestwall-detail-polaroid .guestwall-polaroid-media {
-  border-radius: 2px;
+  border-radius: 6px;
 }
 
 .guestwall-detail-polaroid-media {
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 1 / 1;
 }
 
 .guestwall-detail-polaroid-signature {
@@ -7893,14 +7899,21 @@ a.guestwall-media-retry {
     padding: 16px 14px 14px;
   }
 
+  .guestwall-modal[data-detail-kind="media"] .guestwall-modal-panel {
+    width: min(560px, calc(100vw - 20px));
+    max-height: 92vh;
+    padding: 14px 12px;
+  }
+
   .guestwall-detail-polaroid {
-    width: min(92vw, 470px);
+    width: min(470px, 92vw, calc((84vh - 84px) * 0.75));
+    max-height: calc(84vh - 84px);
   }
 
   .guestwall-detail-polaroid .guestwall-polaroid-mat {
-    --gw-m-side: 10px;
-    --gw-m-top: 10px;
-    --gw-m-bottom: 30px;
+    --gw-m-side: 12px;
+    --gw-m-top: 12px;
+    --gw-m-bottom: 34px;
   }
 
   .guestwall-detail-polaroid-signature {
@@ -7925,7 +7938,8 @@ a.guestwall-media-retry {
   }
 
   .guestwall-detail-note-full {
-    font-size: clamp(20px, 6.2vw, 26px);
+    font-size: 16px;
+    line-height: 1.45;
   }
 
   .guestwall-item--note {
@@ -7980,7 +7994,7 @@ a.guestwall-media-retry {
     flex-wrap: wrap;
   }
 
-  .guestwall-autoplay-control {
+  .guestwall-toggles-group {
     margin-left: 0;
   }
 }

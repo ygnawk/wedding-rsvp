@@ -89,24 +89,10 @@
             <img class="motif-layer__item motif-layer__item--topRight" src="/public/motifs/peony-bud.svg" alt="" />
             <img class="motif-layer__item motif-layer__item--bottomLeft" src="/public/motifs/bamboo-bud.svg" alt="" />
           </div>
-          <h1 class="section-title section-title-reveal reveal settle">Proof (or lack thereof) that we have friends</h1>
+          <h1 class="section-title section-title-reveal reveal settle">Proof (or lack thereof) that we have some friends</h1>
           <p class="guestwall-subtitle reveal">A small gallery of the love you sent our way (we’re not crying, you are).</p>
           <div id="guestWallPinboardView" class="guestwall-pinboard-view">
             <div class="guestwall-controls reveal" aria-label="Guest wall controls">
-              <div class="guestwall-autoplay-control">
-                <span class="guestwall-autoplay-label">Auto-shuffle (10s)</span>
-                <button
-                  id="guestWallAutoplayToggle"
-                  class="guestwall-toggle is-on"
-                  type="button"
-                  role="switch"
-                  aria-checked="true"
-                  aria-label="Auto-shuffle (10s)"
-                >
-                  <span class="guestwall-toggle-track" aria-hidden="true"><span class="guestwall-toggle-thumb"></span></span>
-                </button>
-                <span id="guestWallAutoplayState" class="guestwall-autoplay-state" aria-hidden="true">ON</span>
-              </div>
               <button
                 id="guestWallShuffle"
                 class="guestwall-control-btn guestwall-control-btn--primary"
@@ -118,19 +104,35 @@
                 <span class="guestwall-control-btn__label">Shuffle now</span>
                 <span class="guestwall-control-btn__spinner" aria-hidden="true"></span>
               </button>
-              <div class="guestwall-arrange-control hidden">
-                <span class="guestwall-autoplay-label">Arrange</span>
-                <button
-                  id="guestWallArrangeToggle"
-                  class="guestwall-toggle is-off"
-                  type="button"
-                  role="switch"
-                  aria-checked="false"
-                  aria-label="Arrange"
-                >
-                  <span class="guestwall-toggle-track" aria-hidden="true"><span class="guestwall-toggle-thumb"></span></span>
-                </button>
-                <span id="guestWallArrangeState" class="guestwall-autoplay-state is-off" aria-hidden="true">OFF</span>
+              <div class="guestwall-toggles-group">
+                <div class="guestwall-autoplay-control">
+                  <span class="guestwall-autoplay-label">Auto-shuffle (20s)</span>
+                  <button
+                    id="guestWallAutoplayToggle"
+                    class="guestwall-toggle is-on"
+                    type="button"
+                    role="switch"
+                    aria-checked="true"
+                    aria-label="Auto-shuffle (20s)"
+                  >
+                    <span class="guestwall-toggle-track" aria-hidden="true"><span class="guestwall-toggle-thumb"></span></span>
+                  </button>
+                  <span id="guestWallAutoplayState" class="guestwall-autoplay-state" aria-hidden="true">ON</span>
+                </div>
+                <div class="guestwall-arrange-control hidden">
+                  <span class="guestwall-autoplay-label">Arrange</span>
+                  <button
+                    id="guestWallArrangeToggle"
+                    class="guestwall-toggle is-off"
+                    type="button"
+                    role="switch"
+                    aria-checked="false"
+                    aria-label="Arrange"
+                  >
+                    <span class="guestwall-toggle-track" aria-hidden="true"><span class="guestwall-toggle-thumb"></span></span>
+                  </button>
+                  <span id="guestWallArrangeState" class="guestwall-autoplay-state is-off" aria-hidden="true">OFF</span>
+                </div>
               </div>
             </div>
             <p id="guestWallStatus" class="guestwall-status reveal" aria-live="polite">Loading guest wall…</p>

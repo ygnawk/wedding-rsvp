@@ -24,14 +24,15 @@ const HOTEL_PANEL_TRANSITION_MS = 620;
 const HOTEL_CONTENT_FADE_MS = 620;
 const MOBILE_GALLERY_DOT_MAX = 7;
 const MOSAIC_HOVER_DELAY_MS = 150;
-const GUEST_WALL_AUTOPLAY_INTERVAL_MS = 10000;
+const GUEST_WALL_AUTOPLAY_INTERVAL_MS = 20000;
 const GUEST_WALL_PINBOARD_LIMIT = 12;
 const GUEST_WALL_PINBOARD_INITIAL_LIMIT_DESKTOP = 12;
 const GUEST_WALL_PINBOARD_INITIAL_LIMIT_MOBILE = 8;
 const GUEST_WALL_PINBOARD_BUFFER_DESKTOP = 32;
 const GUEST_WALL_PINBOARD_BUFFER_MOBILE = 16;
 const GUEST_WALL_PREFETCH_THRESHOLD = 4;
-const GUEST_WALL_DESKTOP_VISIBLE_SLOTS = 14;
+const GUEST_WALL_DESKTOP_VISIBLE_SLOTS = 10;
+const GUEST_WALL_TABLET_VISIBLE_SLOTS = 8;
 const GUEST_WALL_MOBILE_VISIBLE_SLOTS = 6;
 const GUEST_WALL_SLOT_GAP_DESKTOP = -4;
 const GUEST_WALL_SLOT_GAP_MOBILE = -3;
@@ -39,6 +40,11 @@ const GUEST_WALL_SLOT_JITTER_DESKTOP = 10;
 const GUEST_WALL_SLOT_JITTER_MOBILE = 6;
 const GUEST_WALL_MAX_OVERLAP_RATIO_DESKTOP = 0.12;
 const GUEST_WALL_MAX_OVERLAP_RATIO_MOBILE = 0.1;
+const GUEST_WALL_SCATTER_MAX_OVERLAP_RATIO = 0.03;
+const GUEST_WALL_SCATTER_MAX_OVERLAP_RATIO_MOBILE = 0.02;
+const GUEST_WALL_SCATTER_MIN_GAP_PX = 14;
+const GUEST_WALL_SCATTER_ATTEMPTS_PER_CARD = 36;
+const GUEST_WALL_SCATTER_JITTER_FACTOR = 0.55;
 const GUEST_WALL_NOTE_SIZE_MULTIPLIER_DESKTOP = 1.26;
 const GUEST_WALL_SWAP_FADE_OUT_MS = 200;
 const GUEST_WALL_SWAP_FADE_IN_MS = 260;
@@ -375,8 +381,7 @@ let guestWallCardById = new Map();
 let guestWallVisibleCardIds = [];
 let guestWallSlotNodes = [];
 let guestWallActiveSlotNode = null;
-let guestWallRotationTimer = null;
-let guestWallMobileTimer = null;
+let guestWallAutoplayTimer = null;
 let guestWallMobileIndex = 0;
 let guestWallPaused = false;
 let guestWallIsShuffling = false;
@@ -4475,7 +4480,6 @@ function registerGuestWallLazyImage({ imgNode, fallbackNode, card, candidates, c
   imgNode.addEventListener("load", () => {
     imgNode.classList.remove("is-loading");
     if (state.fallback instanceof HTMLElement) setHiddenClass(state.fallback, true);
-    syncGuestWallPolaroidCompactVariant(imgNode);
     finishGuestWallImageLoad(state, "loaded");
   });
 
@@ -4607,18 +4611,6 @@ function renderGuestWallErrorStateWithMessage(message) {
 }
 renderGuestWallErrorStateWithMessage.lastDetail = "";
 
-function syncGuestWallPolaroidCompactVariant(imgNode) {
-  if (!(imgNode instanceof HTMLImageElement)) return;
-  const polaroidNode = imgNode.closest(".guestwall-item--polaroid");
-  if (!(polaroidNode instanceof HTMLElement)) return;
-  const width = Number(imgNode.naturalWidth || 0);
-  const height = Number(imgNode.naturalHeight || 0);
-  if (width <= 0 || height <= 0) return;
-  const ratio = width / height;
-  const isExtreme = ratio >= 1.65 || ratio <= 0.7;
-  polaroidNode.classList.toggle("guestwall-polaroid--compact", isExtreme);
-}
-
 function buildGuestWallMediaNode(card, context = "board") {
   const mediaWrap = document.createElement("div");
   mediaWrap.className = "guestwall-polaroid-media";
@@ -4674,8 +4666,6 @@ function buildGuestWallCard(card, context = "board") {
   const node = document.createElement("article");
   if (card.kind === "media") {
     node.className = "guestwall-item guestwall-item--polaroid";
-    const format = normalizeGuestWallPolaroidFormat(getGuestWallPolaroidFormat(card.id));
-    node.classList.add(`guestwall-polaroid--${format}`);
     if (shouldShowGuestWallPolaroidTape(card.id)) node.classList.add("guestwall-polaroid--taped");
     const tilt = getGuestWallPolaroidTilt(card.id);
     node.style.setProperty("--gwPolaroidTilt", tilt.desktop);
@@ -4748,16 +4738,10 @@ function buildGuestWallCard(card, context = "board") {
   return node;
 }
 
-function clearGuestWallDesktopTimer() {
-  if (!guestWallRotationTimer) return;
-  window.clearTimeout(guestWallRotationTimer);
-  guestWallRotationTimer = null;
-}
-
-function clearGuestWallMobileTimer() {
-  if (!guestWallMobileTimer) return;
-  window.clearTimeout(guestWallMobileTimer);
-  guestWallMobileTimer = null;
+function clearGuestWallAutoplayTimer() {
+  if (!guestWallAutoplayTimer) return;
+  window.clearInterval(guestWallAutoplayTimer);
+  guestWallAutoplayTimer = null;
 }
 
 function ensureGuestWallVisibleIds(slotCount, reshuffle = false) {
@@ -5059,8 +5043,10 @@ function runGuestWallDeoverlapPass() {
   snapshotGuestWallArrangementFromSlots();
 }
 
-function setGuestWallArrangeMode(enabled) {
+function setGuestWallArrangeMode(enabled, options = {}) {
+  const suppressLayoutSync = Boolean(options?.suppressLayoutSync);
   const nextMode = Boolean(enabled) && isGuestWallArrangeCapable();
+  const modeChanged = guestWallArrangeMode !== nextMode;
   if (!nextMode && guestWallDragState) {
     cancelGuestWallDrag(true);
   }
@@ -5083,6 +5069,9 @@ function setGuestWallArrangeMode(enabled) {
     guestWallArrangeState.textContent = nextMode ? "ON" : "OFF";
     guestWallArrangeState.classList.toggle("is-on", nextMode);
     guestWallArrangeState.classList.toggle("is-off", !nextMode);
+  }
+  if (modeChanged && !suppressLayoutSync && guestWallCards.length) {
+    syncGuestWallLayout();
   }
 }
 
@@ -5140,6 +5129,7 @@ function closeGuestWallDetail() {
   if (!(guestWallDetailModal instanceof HTMLElement) || !guestWallDetailOpen) return;
   guestWallDetailModal.classList.remove("is-open");
   guestWallDetailModal.classList.add("is-closing");
+  guestWallDetailModal.dataset.detailKind = "";
   window.setTimeout(() => {
     if (!(guestWallDetailModal instanceof HTMLElement)) return;
     if (guestWallDetailOpen) return;
@@ -5196,6 +5186,10 @@ function buildGuestWallDetailNoteBlock(noteText, name) {
   const inner = document.createElement("div");
   inner.className = "guestwall-detail-postcard-inner";
 
+  const readabilityOverlay = document.createElement("div");
+  readabilityOverlay.className = "guestwall-detail-postcard-overlay";
+  readabilityOverlay.setAttribute("aria-hidden", "true");
+
   const messagePane = document.createElement("div");
   messagePane.className = "guestwall-detail-postcard-message";
 
@@ -5218,6 +5212,7 @@ function buildGuestWallDetailNoteBlock(noteText, name) {
   metaPane.appendChild(stamp);
   metaPane.appendChild(sign);
 
+  inner.appendChild(readabilityOverlay);
   inner.appendChild(messagePane);
   inner.appendChild(metaPane);
   noteBlock.appendChild(inner);
@@ -5230,12 +5225,9 @@ function buildGuestWallDetailPhotoBlock(card, name) {
 
   const photoBlock = document.createElement("article");
   photoBlock.className = "guestwall-detail-polaroid guestwall-item guestwall-item--polaroid";
-  const format = normalizeGuestWallPolaroidFormat(getGuestWallPolaroidFormat(card.id));
-  photoBlock.classList.add(`guestwall-polaroid--${format}`);
   if (shouldShowGuestWallPolaroidTape(card.id)) photoBlock.classList.add("guestwall-polaroid--taped");
 
-  const detailTiltSeed = hashStringToUint32(`detail-polaroid-tilt:${String(card.id || "")}`);
-  const detailTilt = ((seededRandomFromHash(detailTiltSeed) * 2) - 1).toFixed(2);
+  const detailTilt = "0";
   photoBlock.style.setProperty("--gwPolaroidTilt", `${detailTilt}deg`);
   photoBlock.style.setProperty("--gwPolaroidTiltMobile", `${detailTilt}deg`);
 
@@ -5282,6 +5274,8 @@ function openGuestWallDetail(card) {
   } else {
     return;
   }
+
+  guestWallDetailModal.dataset.detailKind = isMediaCard ? "media" : "note";
 
   setHiddenClass(guestWallDetailModal, false);
   guestWallDetailModal.classList.remove("is-closing");
@@ -5480,24 +5474,6 @@ function getGuestWallPolaroidTone(cardId) {
   return tones[seed % tones.length];
 }
 
-function getGuestWallPolaroidFormat(cardId) {
-  const seed = hashStringToUint32(`polaroid-format:${String(cardId || "")}`);
-  const value = seededRandomFromHash(seed);
-  if (value < 0.7) return "mini";
-  if (value < 0.9) return "square";
-  return "wide";
-}
-
-function normalizeGuestWallPolaroidFormat(value) {
-  const format = String(value || "").trim().toLowerCase();
-  if (format === "mini" || format === "square" || format === "wide") return format;
-  return "square";
-}
-
-function isGuestWallWideFormat(value) {
-  return normalizeGuestWallPolaroidFormat(value) === "wide";
-}
-
 function getGuestWallSlotFormat(slotConfigOrNode) {
   if (!slotConfigOrNode) return "any";
   if (slotConfigOrNode instanceof HTMLElement) {
@@ -5663,14 +5639,7 @@ function assignGuestWallCardsToSlots(slotConfigs, requestedIds) {
     return true;
   });
 
-  const mediaWideQueue = uniquePool.filter((id) => {
-    const card = guestWallCardById.get(id);
-    return card?.kind === "media" && isGuestWallWideFormat(normalizeGuestWallPolaroidFormat(getGuestWallPolaroidFormat(id)));
-  });
-  const mediaPortraitQueue = uniquePool.filter((id) => {
-    const card = guestWallCardById.get(id);
-    return card?.kind === "media" && !isGuestWallWideFormat(normalizeGuestWallPolaroidFormat(getGuestWallPolaroidFormat(id)));
-  });
+  const mediaQueue = uniquePool.filter((id) => guestWallCardById.get(id)?.kind === "media");
   const noteQueue = uniquePool.filter((id) => guestWallCardById.get(id)?.kind === "note");
   const fallbackQueue = [...uniquePool];
   const used = new Set();
@@ -5692,20 +5661,18 @@ function assignGuestWallCardsToSlots(slotConfigs, requestedIds) {
 
     if (slotKind === "media") {
       if (slotFormat === "wide") {
-        return takeNext(mediaWideQueue) || takeNext(mediaPortraitQueue) || "";
+        return takeNext(mediaQueue) || "";
       }
-      return takeNext(mediaPortraitQueue) || takeNext(mediaWideQueue) || takeNext(fallbackQueue, (id) => guestWallCardById.get(id)?.kind === "media") || "";
+      return takeNext(mediaQueue) || takeNext(fallbackQueue, (id) => guestWallCardById.get(id)?.kind === "media") || "";
     }
 
     if (slotFormat === "wide") {
-      return takeNext(mediaWideQueue) || takeNext(mediaPortraitQueue) || takeNext(noteQueue) || takeNext(fallbackQueue) || "";
+      return takeNext(mediaQueue) || takeNext(noteQueue) || takeNext(fallbackQueue) || "";
     }
 
     return (
-      takeNext(mediaPortraitQueue) ||
+      takeNext(mediaQueue) ||
       takeNext(noteQueue) ||
-      takeNext(mediaWideQueue) ||
-      takeNext(fallbackQueue, (id) => !isGuestWallWideFormat(normalizeGuestWallPolaroidFormat(getGuestWallPolaroidFormat(id)))) ||
       takeNext(fallbackQueue) ||
       ""
     );
@@ -5722,17 +5689,201 @@ function getGuestWallSlotMapForCycle(mobile = false) {
   return slots.map((slot) => ({ ...slot, mapKey }));
 }
 
+function getGuestWallScatterConfig(containerWidth, mobile = false) {
+  const width = Math.max(320, Number(containerWidth) || 0);
+  if (mobile || width <= 768) {
+    return { cols: 3, rows: 6, maxVisible: GUEST_WALL_MOBILE_VISIBLE_SLOTS };
+  }
+  if (width <= 1100) {
+    return { cols: 5, rows: 4, maxVisible: GUEST_WALL_TABLET_VISIBLE_SLOTS };
+  }
+  return { cols: 6, rows: 4, maxVisible: GUEST_WALL_DESKTOP_VISIBLE_SLOTS };
+}
+
+function getGuestWallVisibleSlotCap(containerWidth, mobile = false) {
+  return getGuestWallScatterConfig(containerWidth, mobile).maxVisible;
+}
+
+function getGuestWallAnchorCells(containerRect, mobile = false) {
+  const config = getGuestWallScatterConfig(containerRect.width, mobile);
+  const cols = Math.max(1, config.cols);
+  const rows = Math.max(1, config.rows);
+  const cellW = containerRect.width / cols;
+  const cellH = containerRect.height / rows;
+  const cells = [];
+  for (let r = 0; r < rows; r += 1) {
+    for (let c = 0; c < cols; c += 1) {
+      cells.push({
+        id: `cell-${c}-${r}`,
+        c,
+        r,
+        centerX: c * cellW + cellW / 2,
+        centerY: r * cellH + cellH / 2,
+      });
+    }
+  }
+  return { cells, cols, rows, cellW, cellH };
+}
+
+function buildGuestWallScatterSlots(containerRect, slotCount, mobile = false, seedKey = "") {
+  const targetCount = Math.max(0, Math.floor(Number(slotCount) || 0));
+  if (!targetCount) return [];
+  const { cells, cellW, cellH } = getGuestWallAnchorCells(containerRect, mobile);
+  const shuffledCells = shuffleItems(cells.slice());
+  const selectedCells = [];
+
+  shuffledCells.forEach((cell) => {
+    if (selectedCells.length >= targetCount) return;
+    const touchesNeighbor = selectedCells.some((entry) => Math.abs(entry.c - cell.c) <= 1 && Math.abs(entry.r - cell.r) <= 1);
+    if (!touchesNeighbor) selectedCells.push(cell);
+  });
+
+  if (selectedCells.length < targetCount) {
+    shuffledCells.forEach((cell) => {
+      if (selectedCells.length >= targetCount) return;
+      if (selectedCells.find((entry) => entry.id === cell.id)) return;
+      selectedCells.push(cell);
+    });
+  }
+
+  const placementOrder = selectedCells.slice(0, targetCount);
+  const placedRects = [];
+  const resolved = [];
+  const maxOverlapRatio = mobile ? GUEST_WALL_SCATTER_MAX_OVERLAP_RATIO_MOBILE : GUEST_WALL_SCATTER_MAX_OVERLAP_RATIO;
+  const jitterX = cellW * GUEST_WALL_SCATTER_JITTER_FACTOR;
+  const jitterY = cellH * GUEST_WALL_SCATTER_JITTER_FACTOR;
+
+  for (let index = 0; index < placementOrder.length; index += 1) {
+    const cell = placementOrder[index];
+    const slotBase = {
+      id: `scatter-${seedKey}-${cell.id}-${index}`,
+      size: "M",
+      role: index === 0 ? "hero" : "support",
+      format: "any",
+      kind: "any",
+      baseZ: index === 0 ? 6 : 4,
+      tiltBase: Math.round((seededRandomFromHash(hashStringToUint32(`${seedKey}:tilt:${cell.id}:${index}`)) * 8 - 4) * 100) / 100,
+      xPct: (cell.centerX / Math.max(1, containerRect.width)) * 100,
+      yPct: (cell.centerY / Math.max(1, containerRect.height)) * 100,
+      xOffsetPx: 0,
+      yOffsetPx: 0,
+    };
+    const baseRect = getGuestWallSlotRect(slotBase, containerRect, mobile);
+    let bestPlacement = null;
+    let bestPenalty = Number.POSITIVE_INFINITY;
+
+    for (let attempt = 0; attempt < GUEST_WALL_SCATTER_ATTEMPTS_PER_CARD; attempt += 1) {
+      const xRand = seededRandomFromHash(hashStringToUint32(`${seedKey}:x:${cell.id}:${index}:${attempt}`));
+      const yRand = seededRandomFromHash(hashStringToUint32(`${seedKey}:y:${cell.id}:${index}:${attempt}`));
+      const offsetX = Math.round((xRand * 2 - 1) * jitterX);
+      const offsetY = Math.round((yRand * 2 - 1) * jitterY);
+
+      let left = baseRect.left + offsetX;
+      let top = baseRect.top + offsetY;
+      left = clampNumber(left, 0, Math.max(0, containerRect.width - baseRect.width));
+      top = clampNumber(top, 0, Math.max(0, containerRect.height - baseRect.height));
+      const rect = {
+        left,
+        top,
+        right: left + baseRect.width,
+        bottom: top + baseRect.height,
+      };
+
+      let penalty = 0;
+      const candidateArea = getRectArea(rect);
+      for (let i = 0; i < placedRects.length; i += 1) {
+        const existingRect = placedRects[i];
+        if (!rectsOverlap(existingRect, rect, GUEST_WALL_SCATTER_MIN_GAP_PX)) continue;
+        const overlapRect = getRectIntersection(existingRect, rect);
+        if (!overlapRect) continue;
+        const overlapArea = getRectArea(overlapRect);
+        const overlapRatio = candidateArea > 0 ? overlapArea / candidateArea : 1;
+        if (overlapRatio > maxOverlapRatio) {
+          penalty += 10_000 + overlapArea;
+        } else {
+          penalty += overlapArea;
+        }
+      }
+
+      if (penalty < bestPenalty) {
+        bestPenalty = penalty;
+        bestPlacement = { rect, offsetX, offsetY };
+      }
+      if (penalty === 0) break;
+    }
+
+    if (!bestPlacement) continue;
+    placedRects.push(bestPlacement.rect);
+    resolved.push({
+      ...slotBase,
+      xOffsetPx: Math.round(bestPlacement.rect.left + baseRect.width / 2 - cell.centerX),
+      yOffsetPx: Math.round(bestPlacement.rect.top + baseRect.height / 2 - cell.centerY),
+      pxWidth: baseRect.width,
+      mapKey: "scatter",
+    });
+  }
+
+  return resolved;
+}
+
+function buildGuestWallArrangeGridSlots(containerRect, slotCount, mobile = false, seedKey = "") {
+  const targetCount = Math.max(0, Math.floor(Number(slotCount) || 0));
+  if (!targetCount) return [];
+  const rows = mobile ? Math.ceil(targetCount / 2) : Math.ceil(targetCount / 4);
+  const cols = mobile ? 2 : Math.min(4, targetCount);
+  const gap = mobile ? 14 : 16;
+  const innerWidth = Math.max(0, containerRect.width - gap * (cols + 1));
+  const innerHeight = Math.max(0, containerRect.height - gap * (rows + 1));
+  const cellW = cols > 0 ? innerWidth / cols : innerWidth;
+  const cellH = rows > 0 ? innerHeight / rows : innerHeight;
+  const width = Math.max(120, Math.min(cellW, getGuestWallSlotWidthPx(containerRect.width, "M", mobile)));
+  const aspectRatio = getGuestWallSlotAspectRatio({ kind: "any", format: "any" });
+  const height = width / Math.max(0.58, aspectRatio) + 8;
+  const resolved = [];
+
+  for (let index = 0; index < targetCount; index += 1) {
+    const col = index % cols;
+    const row = Math.floor(index / cols);
+    const x = gap + col * (cellW + gap);
+    const y = gap + row * (cellH + gap);
+    const centerX = x + cellW / 2;
+    const centerY = y + cellH / 2;
+    const boundedCenterX = clampNumber(centerX, width / 2, Math.max(width / 2, containerRect.width - width / 2));
+    const boundedCenterY = clampNumber(centerY, height / 2, Math.max(height / 2, containerRect.height - height / 2));
+
+    resolved.push({
+      id: `arrange-${seedKey}-${index}`,
+      size: "M",
+      role: "support",
+      format: "any",
+      kind: "any",
+      baseZ: 4,
+      tiltBase: 0,
+      xPct: (boundedCenterX / Math.max(1, containerRect.width)) * 100,
+      yPct: (boundedCenterY / Math.max(1, containerRect.height)) * 100,
+      xOffsetPx: 0,
+      yOffsetPx: 0,
+      pxWidth: width,
+      mapKey: "arrange",
+    });
+  }
+
+  return resolved;
+}
+
 function getStableGuestWallSlotRotation(slotNode, cardId) {
+  if (guestWallArrangeMode) return 0;
   if (!(slotNode instanceof HTMLElement)) return 0;
   const slotId = String(slotNode.dataset.slotId || "");
   const tiltBase = Number(slotNode.dataset.tiltBase || 0);
   const seed = hashStringToUint32(`${String(cardId || "")}:${slotId}`);
   const seededUnit = seededRandomFromHash(seed);
-  const tiltJitter = -2 + seededUnit * 4;
-  return clampNumber(tiltBase + tiltJitter, -4, 4);
+  const tiltJitter = -4 + seededUnit * 8;
+  return clampNumber(tiltBase + tiltJitter, -8, 8);
 }
 
 function getStableGuestWallSlotWarp(slotNode, cardId) {
+  if (guestWallArrangeMode) return { skewX: 0, skewY: 0 };
   if (!(slotNode instanceof HTMLElement)) return { skewX: 0, skewY: 0 };
   const slotId = String(slotNode.dataset.slotId || "");
   const id = String(cardId || "");
@@ -6056,13 +6207,12 @@ function renderGuestWallDesktop({ reshuffle = false } = {}) {
   guestWallPinboard.innerHTML = "";
   guestWallSlotNodes = [];
 
-  const slotMap = getGuestWallSlotMapForCycle(false);
-  const slotCount = Math.min(slotMap.length, guestWallCards.length, GUEST_WALL_DESKTOP_VISIBLE_SLOTS);
+  const slotCap = getGuestWallVisibleSlotCap(guestWallPinboard.clientWidth || window.innerWidth || 0, false);
+  const slotCount = Math.min(Math.max(0, slotCap), guestWallCards.length, GUEST_WALL_DESKTOP_VISIBLE_SLOTS);
   const containerRect = guestWallPinboard.getBoundingClientRect();
-  const arrangedSlots = resolveGuestWallSlotLayout(slotMap.slice(0, slotCount), containerRect, false, {
-    jitterMaxPx: GUEST_WALL_SLOT_JITTER_DESKTOP,
-    jitterSeed: `desktop:${guestWallLayoutCycle}`,
-  });
+  const arrangedSlots = guestWallArrangeMode
+    ? buildGuestWallArrangeGridSlots(containerRect, slotCount, false, `desktop:${guestWallLayoutCycle}`)
+    : buildGuestWallScatterSlots(containerRect, slotCount, false, `desktop:${guestWallLayoutCycle}`);
   guestWallActiveSlotConfig = arrangedSlots.slice(0, slotCount);
   if (!guestWallCards.length) {
     const empty = document.createElement("p");
@@ -6079,7 +6229,7 @@ function renderGuestWallDesktop({ reshuffle = false } = {}) {
     const slotNode = document.createElement("div");
     slotNode.className = "guestwall-slot";
     bindGuestWallSlotInteraction(slotNode);
-    placeGuestWallSlot(slotNode, arrangedSlots[slotIndex] || slotMap[slotIndex]);
+    placeGuestWallSlot(slotNode, arrangedSlots[slotIndex] || arrangedSlots[0]);
     const cardId = getGuestWallVisibleCardId(slotIndex);
     if (cardId) {
       mountGuestWallSlotCard(slotNode, cardId, false);
@@ -6090,16 +6240,16 @@ function renderGuestWallDesktop({ reshuffle = false } = {}) {
   markGuestWallInitialImageExpectation();
   hydrateGuestWallSlotArrangeMetrics();
   syncGuestWallArrangeAvailability();
-  setGuestWallArrangeMode(guestWallArrangeMode);
+  setGuestWallArrangeMode(guestWallArrangeMode, { suppressLayoutSync: true });
   maybeLogGuestWallFirstSixRender();
 }
 
-function scheduleGuestWallDesktopRotation() {
-  clearGuestWallDesktopTimer();
-  if (guestWallPaused || isGuestWallMobileView() || guestWallVisibleCardIds.length <= 1 || guestWallSlotNodes.length <= 1) return;
-  guestWallRotationTimer = window.setTimeout(() => {
+function startGuestWallAutoplayInterval() {
+  clearGuestWallAutoplayTimer();
+  if (guestWallPaused) return;
+  guestWallAutoplayTimer = window.setInterval(() => {
+    if (guestWallPaused || guestWallVisibleCardIds.length <= 1 || guestWallSlotNodes.length <= 1) return;
     shuffleGuestWallVisibleSubset();
-    scheduleGuestWallDesktopRotation();
   }, GUEST_WALL_AUTOPLAY_INTERVAL_MS);
 }
 
@@ -6120,13 +6270,12 @@ function renderGuestWallMobile() {
   guestWallMobile.appendChild(stage);
   guestWallSlotNodes = [];
 
-  const slotMap = getGuestWallSlotMapForCycle(true);
-  const slotCount = Math.min(slotMap.length, guestWallCards.length, GUEST_WALL_MOBILE_VISIBLE_SLOTS);
+  const slotCap = getGuestWallVisibleSlotCap(stage.clientWidth || window.innerWidth || 0, true);
+  const slotCount = Math.min(Math.max(0, slotCap), guestWallCards.length, GUEST_WALL_MOBILE_VISIBLE_SLOTS);
   const containerRect = stage.getBoundingClientRect();
-  const arrangedSlots = resolveGuestWallSlotLayout(slotMap.slice(0, slotCount), containerRect, true, {
-    jitterMaxPx: GUEST_WALL_SLOT_JITTER_MOBILE,
-    jitterSeed: `mobile:${guestWallLayoutCycle}`,
-  });
+  const arrangedSlots = guestWallArrangeMode
+    ? buildGuestWallArrangeGridSlots(containerRect, slotCount, true, `mobile:${guestWallLayoutCycle}`)
+    : buildGuestWallScatterSlots(containerRect, slotCount, true, `mobile:${guestWallLayoutCycle}`);
   guestWallActiveSlotConfig = arrangedSlots.slice(0, slotCount);
   ensureGuestWallVisibleIds(slotCount, false);
   guestWallVisibleCardIds = assignGuestWallCardsToSlots(guestWallActiveSlotConfig, guestWallVisibleCardIds);
@@ -6135,7 +6284,7 @@ function renderGuestWallMobile() {
     const slotNode = document.createElement("div");
     slotNode.className = "guestwall-slot";
     bindGuestWallSlotInteraction(slotNode);
-    placeGuestWallSlot(slotNode, arrangedSlots[slotIndex] || slotMap[slotIndex]);
+    placeGuestWallSlot(slotNode, arrangedSlots[slotIndex] || arrangedSlots[0]);
     const cardId = getGuestWallVisibleCardId(slotIndex);
     if (cardId) {
       mountGuestWallSlotCard(slotNode, cardId, false);
@@ -6145,18 +6294,9 @@ function renderGuestWallMobile() {
   }
   markGuestWallInitialImageExpectation();
   hydrateGuestWallSlotArrangeMetrics();
-  setGuestWallArrangeMode(false);
+  setGuestWallArrangeMode(false, { suppressLayoutSync: true });
   syncGuestWallArrangeAvailability();
   maybeLogGuestWallFirstSixRender();
-}
-
-function scheduleGuestWallMobileRotation() {
-  clearGuestWallMobileTimer();
-  if (guestWallPaused || !isGuestWallMobileView() || guestWallVisibleCardIds.length <= 1 || guestWallSlotNodes.length <= 1) return;
-  guestWallMobileTimer = window.setTimeout(() => {
-    shuffleGuestWallVisibleSubset();
-    scheduleGuestWallMobileRotation();
-  }, GUEST_WALL_AUTOPLAY_INTERVAL_MS);
 }
 
 function syncGuestWallLayout({ reshuffle = false } = {}) {
@@ -6167,16 +6307,14 @@ function syncGuestWallLayout({ reshuffle = false } = {}) {
   setHiddenClass(guestWallMobile, !mobile);
 
   if (mobile) {
-    clearGuestWallDesktopTimer();
     if (reshuffle) guestWallVisibleCardIds = [];
     renderGuestWallMobile();
-    scheduleGuestWallMobileRotation();
+    startGuestWallAutoplayInterval();
     return;
   }
 
-  clearGuestWallMobileTimer();
   renderGuestWallDesktop({ reshuffle });
-  scheduleGuestWallDesktopRotation();
+  startGuestWallAutoplayInterval();
 }
 
 function setGuestWallPaused(paused) {
@@ -6189,7 +6327,7 @@ function setGuestWallPaused(paused) {
     guestWallAutoplayToggle.classList.toggle("is-off", !isOn);
     guestWallAutoplayToggle.dataset.state = stateText;
     guestWallAutoplayToggle.setAttribute("aria-checked", isOn ? "true" : "false");
-    guestWallAutoplayToggle.setAttribute("aria-label", isOn ? "Auto-shuffle on" : "Auto-shuffle off");
+    guestWallAutoplayToggle.setAttribute("aria-label", isOn ? "Auto-shuffle (20s) on" : "Auto-shuffle (20s) off");
     if (guestWallAutoplayControl instanceof HTMLElement) {
       guestWallAutoplayControl.dataset.state = stateText;
       guestWallAutoplayControl.classList.toggle("is-on", isOn);
@@ -6204,13 +6342,11 @@ function setGuestWallPaused(paused) {
   syncGuestWallArrangeAvailability();
 
   if (guestWallPaused) {
-    clearGuestWallDesktopTimer();
-    clearGuestWallMobileTimer();
+    clearGuestWallAutoplayTimer();
     return;
   }
 
-  if (isGuestWallMobileView()) scheduleGuestWallMobileRotation();
-  else scheduleGuestWallDesktopRotation();
+  startGuestWallAutoplayInterval();
 }
 
 function waitForGuestWallVisibleMediaReady(maxWaitMs = 1500) {
@@ -6334,10 +6470,7 @@ function bindGuestWallEvents() {
         setGuestWallShuffleState(true);
         flashGuestWallButton(guestWallShuffle);
         shuffleGuestWallVisibleSubset();
-        if (!guestWallPaused) {
-          if (isGuestWallMobileView()) scheduleGuestWallMobileRotation();
-          else scheduleGuestWallDesktopRotation();
-        }
+        if (!guestWallPaused) startGuestWallAutoplayInterval();
         await waitForGuestWallVisibleMediaReady(1500);
       } finally {
         setGuestWallShuffleState(false);
@@ -6352,6 +6485,9 @@ function bindGuestWallEvents() {
         setGuestWallArrangeMode(false);
       }
       setGuestWallPaused(nextPaused);
+      if (!nextPaused) {
+        shuffleGuestWallVisibleSubset();
+      }
     });
   }
 
@@ -6382,6 +6518,7 @@ function bindGuestWallEvents() {
     },
     { passive: true },
   );
+  window.addEventListener("pagehide", clearGuestWallAutoplayTimer, { passive: true });
 
   document.addEventListener("pointerdown", (event) => {
     const target = event.target instanceof Element ? event.target : null;
