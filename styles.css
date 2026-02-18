@@ -1,12 +1,13 @@
 :root {
   --font-display: "Cormorant Garamond", serif;
-  --font-ui: "Inter", system-ui, -apple-system, sans-serif;
+  --font-cjk: "Noto Serif TC", serif;
+  --font-ui: "Inter", "Noto Serif TC", system-ui, -apple-system, sans-serif;
   --font-script: "Allura", cursive;
-  --font-note-body: "Nanum Pen Script", "Bradley Hand", "Segoe Script", "Snell Roundhand", cursive;
-  --font-postcard-title: "Single Day", "Nanum Pen Script", "Segoe Script", cursive;
-  --font-signature: "Cedarville Cursive", "Bradley Hand", "Segoe Script", "Snell Roundhand", cursive;
-  --displayFont: "Cormorant Garamond", serif;
-  --bodyFont: "Inter", system-ui, -apple-system, sans-serif;
+  --font-note-body: "Nanum Pen Script", "Noto Serif TC", "Bradley Hand", "Segoe Script", "Snell Roundhand", cursive;
+  --font-postcard-title: "Single Day", "Noto Serif TC", "Nanum Pen Script", "Segoe Script", cursive;
+  --font-signature: "Cedarville Cursive", "Noto Serif TC", "Bradley Hand", "Segoe Script", "Snell Roundhand", cursive;
+  --displayFont: "Cormorant Garamond", "Noto Serif TC", serif;
+  --bodyFont: "Inter", "Noto Serif TC", system-ui, -apple-system, sans-serif;
   --scriptFont: "Allura", cursive;
 
   --color-maroon: #4b0f17;
@@ -76,6 +77,17 @@ body {
   min-height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+:lang(zh),
+:lang(zh-CN),
+:lang(zh-Hans),
+:lang(zh-TW),
+:lang(zh-Hant),
+:lang(zh-HK),
+.makan-name-cn,
+.makan-address-text {
+  font-family: var(--font-cjk);
 }
 
 .min-h-dvh {
@@ -988,7 +1000,7 @@ video {
   height: 100%;
   display: block;
   object-fit: cover;
-  object-position: 52% 22%;
+  object-position: 52% 72%;
   filter: var(--photoGradeFilter);
 }
 
@@ -8941,7 +8953,7 @@ body.modal-open {
   }
 
   .interlude-photo-half img {
-    object-position: 56% 58%;
+    object-position: 52% 72%;
   }
 
   .interlude-color-half .motif-layer__item {
