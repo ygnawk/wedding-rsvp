@@ -336,7 +336,7 @@
                   </div>
                   <div class="field form-field">
                     <label for="dietary">Dietary restrictions (optional)</label>
-                    <textarea id="dietary" name="dietary"></textarea>
+                    <textarea id="dietary" name="dietary" rows="2"></textarea>
                   </div>
                 </div>
 
@@ -365,81 +365,26 @@
                 <div class="field form-field form-row">
                   <label>Upload photos or videos (optional)</label>
                   <p class="field-helper">Got a photo of us together? Upload it — we’re making a montage. (Even one is amazing.)</p>
-                  <div class="upload-slot-grid" id="photoUploadSlots">
-                    <div class="upload-slot" data-upload-slot="1">
-                      <label for="photoUpload1">Photo 1 (optional)</label>
-                      <input
-                        id="photoUpload1"
-                        name="photo1"
-                        class="upload-slot-input"
-                        type="file"
-                        accept=".jpg,.jpeg,.png,.heic,.heif,.mp4,.mov,.webm,image/jpeg,image/png,image/heic,image/heif,video/mp4,video/quicktime,video/webm"
-                      />
-                      <button type="button" class="upload-slot-card" data-upload-trigger="1">
-                        <span class="upload-slot-icon" aria-hidden="true">+</span>
-                        <span class="upload-slot-title">Upload media</span>
-                        <span class="upload-slot-meta" data-upload-meta="1">JPG/PNG/HEIC/MP4/MOV • up to 10MB</span>
-                      </button>
-                      <div class="upload-slot-preview hidden" data-upload-preview-wrap="1">
-                        <img class="hidden" data-upload-preview="1" alt="" loading="lazy" decoding="async" />
-                        <span class="upload-slot-preview-text hidden" data-upload-preview-text="1"></span>
-                      </div>
-                      <div class="upload-slot-actions hidden" data-upload-actions="1">
-                        <button type="button" class="upload-slot-action" data-upload-replace="1">Replace</button>
-                        <button type="button" class="upload-slot-action" data-upload-remove="1">Remove</button>
-                      </div>
-                      <p class="field-error hidden" role="alert" data-upload-error="1"></p>
+                  <div class="upload-slot" id="mediaUploadField">
+                    <input
+                      id="mediaUpload"
+                      name="media"
+                      class="upload-slot-input"
+                      type="file"
+                      multiple
+                      accept=".jpg,.jpeg,.png,.heic,.heif,.mp4,.mov,.webm,image/jpeg,image/png,image/heic,image/heif,video/mp4,video/quicktime,video/webm"
+                    />
+                    <button type="button" class="upload-slot-card" id="mediaUploadTrigger">
+                      <span class="upload-slot-icon" aria-hidden="true">+</span>
+                      <span class="upload-slot-title">Upload media</span>
+                      <span class="upload-slot-meta" id="mediaUploadMeta">0 / 3 selected</span>
+                    </button>
+                    <div id="mediaUploadPreviewList" class="upload-list hidden" aria-live="polite"></div>
+                    <div class="upload-slot-actions">
+                      <button type="button" class="upload-slot-action hidden" id="mediaUploadAddAnother">Add another</button>
                     </div>
-
-                    <div class="upload-slot" data-upload-slot="2">
-                      <label for="photoUpload2">Photo 2 (optional)</label>
-                      <input
-                        id="photoUpload2"
-                        name="photo2"
-                        class="upload-slot-input"
-                        type="file"
-                        accept=".jpg,.jpeg,.png,.heic,.heif,.mp4,.mov,.webm,image/jpeg,image/png,image/heic,image/heif,video/mp4,video/quicktime,video/webm"
-                      />
-                      <button type="button" class="upload-slot-card" data-upload-trigger="2">
-                        <span class="upload-slot-icon" aria-hidden="true">+</span>
-                        <span class="upload-slot-title">Upload media</span>
-                        <span class="upload-slot-meta" data-upload-meta="2">JPG/PNG/HEIC/MP4/MOV • up to 10MB</span>
-                      </button>
-                      <div class="upload-slot-preview hidden" data-upload-preview-wrap="2">
-                        <img class="hidden" data-upload-preview="2" alt="" loading="lazy" decoding="async" />
-                        <span class="upload-slot-preview-text hidden" data-upload-preview-text="2"></span>
-                      </div>
-                      <div class="upload-slot-actions hidden" data-upload-actions="2">
-                        <button type="button" class="upload-slot-action" data-upload-replace="2">Replace</button>
-                        <button type="button" class="upload-slot-action" data-upload-remove="2">Remove</button>
-                      </div>
-                      <p class="field-error hidden" role="alert" data-upload-error="2"></p>
-                    </div>
-
-                    <div class="upload-slot" data-upload-slot="3">
-                      <label for="photoUpload3">Photo 3 (optional)</label>
-                      <input
-                        id="photoUpload3"
-                        name="photo3"
-                        class="upload-slot-input"
-                        type="file"
-                        accept=".jpg,.jpeg,.png,.heic,.heif,.mp4,.mov,.webm,image/jpeg,image/png,image/heic,image/heif,video/mp4,video/quicktime,video/webm"
-                      />
-                      <button type="button" class="upload-slot-card" data-upload-trigger="3">
-                        <span class="upload-slot-icon" aria-hidden="true">+</span>
-                        <span class="upload-slot-title">Upload media</span>
-                        <span class="upload-slot-meta" data-upload-meta="3">JPG/PNG/HEIC/MP4/MOV • up to 10MB</span>
-                      </button>
-                      <div class="upload-slot-preview hidden" data-upload-preview-wrap="3">
-                        <img class="hidden" data-upload-preview="3" alt="" loading="lazy" decoding="async" />
-                        <span class="upload-slot-preview-text hidden" data-upload-preview-text="3"></span>
-                      </div>
-                      <div class="upload-slot-actions hidden" data-upload-actions="3">
-                        <button type="button" class="upload-slot-action" data-upload-replace="3">Replace</button>
-                        <button type="button" class="upload-slot-action" data-upload-remove="3">Remove</button>
-                      </div>
-                      <p class="field-error hidden" role="alert" data-upload-error="3"></p>
-                    </div>
+                    <p class="field-helper upload-slot-hint">JPG/PNG/HEIC/MP4/MOV/WEBM • up to 10MB each • max 3 files.</p>
+                    <p id="mediaUploadError" class="field-error hidden" role="alert"></p>
                   </div>
                 </div>
 
