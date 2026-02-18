@@ -5687,6 +5687,11 @@ a.makan-copy-icon-btn {
   pointer-events: auto;
 }
 
+.makan-legal-popover[hidden] {
+  display: none !important;
+  pointer-events: none !important;
+}
+
 .makan-legal-popover.open {
   pointer-events: auto;
 }
@@ -5830,11 +5835,14 @@ a.makan-copy-icon-btn {
     max-width: none;
     max-height: none;
     padding: 0;
-    display: flex;
     align-items: flex-end;
     justify-content: stretch;
     overflow: visible;
     pointer-events: auto;
+  }
+
+  .makan-legal-popover:not([hidden]) {
+    display: flex;
   }
 
   .makan-legal-popover.open {
