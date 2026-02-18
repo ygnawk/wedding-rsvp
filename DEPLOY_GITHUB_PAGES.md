@@ -9,6 +9,10 @@
    - **Folder**: `/ (root)`
 4. Save.
 
+Important:
+- Keep the repo `PUBLIC` for free GitHub Pages.
+- If the repo is switched to `PRIVATE`, Pages may stop serving and `www.mikiandyijie.com` can return a GitHub 404.
+
 Default URL will be:
 - `https://ygnawk.github.io/wedding-rsvp/`
 
@@ -43,6 +47,14 @@ Check both URLs:
 Confirm:
 - Styles/images/motifs load correctly.
 - Timeline images load from `photos/timeline-photos/manifest.json`.
+
+Quick diagnostics:
+- `gh api repos/ygnawk/wedding-rsvp/pages`
+- `gh api 'repos/ygnawk/wedding-rsvp/pages/builds/latest'`
+- `curl -I https://www.mikiandyijie.com`
+
+Force rebuild (if needed):
+- `gh api -X POST repos/ygnawk/wedding-rsvp/pages/builds`
 
 ## 6) Verify RSVP To Google Sheets
 1. Submit one RSVP of each type (Yes / Maybe / No).
