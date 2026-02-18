@@ -55,7 +55,7 @@
       "objectPosition": "50% 42%"
     },
     "thingForbiddenCity": {
-      "file": "things/forbidden-city.jpg",
+      "file": "things/forbidden-city-aerial.jpg",
       "alt": "Forbidden City",
       "cropClass": "img-arch",
       "objectPosition": "50% 44%"

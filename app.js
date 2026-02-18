@@ -1487,6 +1487,87 @@ function initThingsThemes() {
   thingsThemeList.dataset.bound = "true";
 }
 
+function normalizeExternalUrlForValidation(rawUrl) {
+  const value = String(rawUrl || "").trim();
+  if (!value) return null;
+  try {
+    return new URL(value);
+  } catch (_) {
+    return null;
+  }
+}
+
+function isMapsDomainHost(hostname) {
+  const host = String(hostname || "").toLowerCase();
+  return (
+    host.includes("google.com") ||
+    host.includes("maps.google.") ||
+    host.includes("maps.apple.com") ||
+    host.includes("bing.com/maps") ||
+    host.includes("openstreetmap.org")
+  );
+}
+
+function isValidWebsiteUrl(rawUrl) {
+  const parsed = normalizeExternalUrlForValidation(rawUrl);
+  if (!parsed) return false;
+  if (!/^https?:$/i.test(parsed.protocol)) return false;
+  if (isMapsDomainHost(parsed.hostname)) return false;
+  return true;
+}
+
+function initThingWebsiteGuardrails() {
+  const cards = Array.from(document.querySelectorAll("#things-to-do .thing-card"));
+  if (!cards.length) return;
+
+  cards.forEach((card) => {
+    const linksWrap = card.querySelector(".thing-links");
+    if (!(linksWrap instanceof HTMLElement)) return;
+    const anchors = Array.from(linksWrap.querySelectorAll("a"));
+    if (!anchors.length) return;
+
+    const mapsAnchor = anchors.find((anchor) => /google maps/i.test(String(anchor.textContent || ""))) || null;
+    const websiteAnchor = anchors.find((anchor) => /^website$/i.test(String(anchor.textContent || "").trim())) || null;
+
+    const mapsUrl = String(mapsAnchor?.getAttribute("href") || "").trim();
+    const websiteUrl = String(websiteAnchor?.getAttribute("href") || "").trim();
+    const placeName = String(card.querySelector("h3")?.textContent || "").trim() || "(unnamed)";
+
+    if (IS_LOCAL_DEV && websiteAnchor && mapsAnchor && mapsUrl && websiteUrl) {
+      console.info("[things:link-map]", {
+        name: placeName,
+        mapsUrl,
+        websiteUrl,
+      });
+    }
+
+    if (!websiteAnchor) return;
+    if (mapsUrl && websiteUrl && mapsUrl === websiteUrl) {
+      if (IS_LOCAL_DEV) {
+        console.warn("[things:link-guard] Hiding duplicate Website link (same as Maps)", {
+          name: placeName,
+          mapsUrl,
+          websiteUrl,
+        });
+      }
+      websiteAnchor.remove();
+      return;
+    }
+    if (!isValidWebsiteUrl(websiteUrl)) {
+      if (IS_LOCAL_DEV) {
+        console.warn("[things:link-guard] Hiding invalid Website link", {
+          name: placeName,
+          websiteUrl,
+        });
+      }
+      websiteAnchor.remove();
+      return;
+    }
+    websiteAnchor.target = "_blank";
+    websiteAnchor.rel = "noopener noreferrer";
+  });
+}
+
 function initStorySkipLink() {
   if (!storySkipLink || storySkipLink.dataset.bound === "true") return;
 
@@ -11326,6 +11407,7 @@ async function init() {
   initSectionObserver();
   initJumpMenu();
   initThingsThemes();
+  initThingWebsiteGuardrails();
   initTravelVisaSection();
   initHotelMatrix();
   initMakanSection();
