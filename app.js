@@ -388,6 +388,12 @@ let guestWallIsShuffling = false;
 let guestWallDetailOpen = false;
 let guestWallResizeRaf = null;
 let guestWallLastViewportWidth = window.innerWidth || 0;
+let guestWallLayoutRetryRaf = null;
+let guestWallContainerObserver = null;
+let guestWallContainerSize = {
+  desktop: { w: 0, h: 0 },
+  mobile: { w: 0, h: 0 },
+};
 let guestWallNextCursor = null;
 let guestWallPrefetchInFlight = null;
 let guestWallRequestInFlight = null;
@@ -1372,7 +1378,10 @@ function initScheduleReveal() {
   const SCHEDULE_REVEAL_START_RATIO = 0.66;
   const SCHEDULE_REVEAL_END_RATIO = -0.55;
   const SCHEDULE_ROW_LEAD_IN = 0.12;
-  const SCHEDULE_ROW_REVEAL_WINDOW = 0.2;
+  // Speed up row reveal timing by 25% without changing observer/trigger behavior.
+  const SCHEDULE_SPEED_UP_FACTOR = 0.75;
+  const SCHEDULE_ROW_REVEAL_WINDOW = 0.2 * 0.75 * SCHEDULE_SPEED_UP_FACTOR;
+  const SCHEDULE_ROW_STAGGER_MULTIPLIER = 0.75 * SCHEDULE_SPEED_UP_FACTOR;
   const getProgress = () => {
     const rect = sectionRef.getBoundingClientRect();
     const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
@@ -1389,7 +1398,7 @@ function initScheduleReveal() {
     const count = rowRefs.length;
     const stepBase = Math.max(0.001, count - 1);
     const availableProgress = Math.max(0.001, 1 - SCHEDULE_ROW_LEAD_IN - SCHEDULE_ROW_REVEAL_WINDOW);
-    const revealStep = availableProgress / stepBase;
+    const revealStep = (availableProgress / stepBase) * SCHEDULE_ROW_STAGGER_MULTIPLIER;
     rowRefs.forEach((row, index) => {
       const revealStart = SCHEDULE_ROW_LEAD_IN + revealStep * index;
       const revealEnd = revealStart + SCHEDULE_ROW_REVEAL_WINDOW;
@@ -3879,6 +3888,82 @@ function isGuestWallMobileView() {
   return window.matchMedia("(max-width: 768px)").matches;
 }
 
+function isGuestWallTabletView() {
+  const width = window.innerWidth || 0;
+  return width > 768 && width <= 1100;
+}
+
+function getGuestWallContainerSizeSnapshot(el) {
+  if (!(el instanceof HTMLElement)) return { w: 0, h: 0 };
+  const rect = el.getBoundingClientRect();
+  return {
+    w: Math.round(Math.max(0, rect.width)),
+    h: Math.round(Math.max(0, rect.height)),
+  };
+}
+
+function hasRenderableGuestWallSize(size) {
+  return Number(size?.w || 0) > 50 && Number(size?.h || 0) > 50;
+}
+
+function queueGuestWallLayoutSync(reason = "unknown") {
+  if (guestWallLayoutRetryRaf) return;
+  guestWallLayoutRetryRaf = window.requestAnimationFrame(() => {
+    guestWallLayoutRetryRaf = null;
+    if (!guestWallCards.length) return;
+    if (guestWallLoadState !== "success") return;
+    if (IS_LOCAL_DEV) {
+      console.info(`[guestwall][layout] sync queued reason=${reason}`);
+    }
+    syncGuestWallLayout();
+  });
+}
+
+function refreshGuestWallContainerSizes(reason = "manual") {
+  const desktopSize = getGuestWallContainerSizeSnapshot(guestWallPinboard);
+  const mobileSize = getGuestWallContainerSizeSnapshot(guestWallMobile);
+  const desktopChanged =
+    desktopSize.w !== guestWallContainerSize.desktop.w || desktopSize.h !== guestWallContainerSize.desktop.h;
+  const mobileChanged = mobileSize.w !== guestWallContainerSize.mobile.w || mobileSize.h !== guestWallContainerSize.mobile.h;
+
+  if (!desktopChanged && !mobileChanged) return;
+
+  guestWallContainerSize = {
+    desktop: desktopSize,
+    mobile: mobileSize,
+  };
+
+  if (IS_LOCAL_DEV) {
+    console.info("[guestwall] wallSize", {
+      reason,
+      desktop: guestWallContainerSize.desktop,
+      mobile: guestWallContainerSize.mobile,
+    });
+  }
+
+  if (guestWallCards.length && guestWallLoadState === "success") {
+    queueGuestWallLayoutSync(`size:${reason}`);
+  }
+}
+
+function bindGuestWallContainerObserver() {
+  if (guestWallContainerObserver || typeof ResizeObserver !== "function") return;
+  if (!(guestWallPinboard instanceof HTMLElement) || !(guestWallMobile instanceof HTMLElement)) return;
+
+  guestWallContainerObserver = new ResizeObserver(() => {
+    refreshGuestWallContainerSizes("resizeObserver");
+  });
+  guestWallContainerObserver.observe(guestWallPinboard);
+  guestWallContainerObserver.observe(guestWallMobile);
+  refreshGuestWallContainerSizes("observer-init");
+}
+
+function clearGuestWallContainerObserver() {
+  if (!guestWallContainerObserver) return;
+  guestWallContainerObserver.disconnect();
+  guestWallContainerObserver = null;
+}
+
 function shuffleItems(items) {
   const list = Array.isArray(items) ? [...items] : [];
   for (let i = list.length - 1; i > 0; i -= 1) {
@@ -6206,13 +6291,35 @@ function renderGuestWallDesktop({ reshuffle = false } = {}) {
 
   guestWallPinboard.innerHTML = "";
   guestWallSlotNodes = [];
+  refreshGuestWallContainerSizes("render-desktop");
 
-  const slotCap = getGuestWallVisibleSlotCap(guestWallPinboard.clientWidth || window.innerWidth || 0, false);
+  const measuredSize = guestWallContainerSize.desktop;
+  if (!hasRenderableGuestWallSize(measuredSize)) {
+    if (IS_LOCAL_DEV) {
+      console.info("[guestwall] desktop render deferred (size too small)", measuredSize);
+    }
+    queueGuestWallLayoutSync("desktop-size-wait");
+    return;
+  }
+
+  const slotCap = getGuestWallVisibleSlotCap(measuredSize.w || window.innerWidth || 0, false);
   const slotCount = Math.min(Math.max(0, slotCap), guestWallCards.length, GUEST_WALL_DESKTOP_VISIBLE_SLOTS);
-  const containerRect = guestWallPinboard.getBoundingClientRect();
+  const containerRect = {
+    ...guestWallPinboard.getBoundingClientRect(),
+    width: measuredSize.w,
+    height: measuredSize.h,
+  };
   const arrangedSlots = guestWallArrangeMode
     ? buildGuestWallArrangeGridSlots(containerRect, slotCount, false, `desktop:${guestWallLayoutCycle}`)
     : buildGuestWallScatterSlots(containerRect, slotCount, false, `desktop:${guestWallLayoutCycle}`);
+  if (IS_LOCAL_DEV) {
+    console.info("[guestwall] placements", {
+      viewport: "desktop",
+      items: guestWallCards.length,
+      visibleCount: slotCount,
+      placements: arrangedSlots.length,
+    });
+  }
   guestWallActiveSlotConfig = arrangedSlots.slice(0, slotCount);
   if (!guestWallCards.length) {
     const empty = document.createElement("p");
@@ -6256,6 +6363,7 @@ function startGuestWallAutoplayInterval() {
 function renderGuestWallMobile() {
   if (!(guestWallMobile instanceof HTMLElement)) return;
   guestWallMobile.innerHTML = "";
+  refreshGuestWallContainerSizes("render-mobile");
 
   if (!guestWallCards.length) {
     const empty = document.createElement("p");
@@ -6270,12 +6378,33 @@ function renderGuestWallMobile() {
   guestWallMobile.appendChild(stage);
   guestWallSlotNodes = [];
 
-  const slotCap = getGuestWallVisibleSlotCap(stage.clientWidth || window.innerWidth || 0, true);
+  const measuredSize = guestWallContainerSize.mobile;
+  if (!hasRenderableGuestWallSize(measuredSize)) {
+    if (IS_LOCAL_DEV) {
+      console.info("[guestwall] mobile render deferred (size too small)", measuredSize);
+    }
+    queueGuestWallLayoutSync("mobile-size-wait");
+    return;
+  }
+
+  const slotCap = getGuestWallVisibleSlotCap(measuredSize.w || stage.clientWidth || window.innerWidth || 0, true);
   const slotCount = Math.min(Math.max(0, slotCap), guestWallCards.length, GUEST_WALL_MOBILE_VISIBLE_SLOTS);
-  const containerRect = stage.getBoundingClientRect();
+  const containerRect = {
+    ...stage.getBoundingClientRect(),
+    width: measuredSize.w,
+    height: measuredSize.h,
+  };
   const arrangedSlots = guestWallArrangeMode
     ? buildGuestWallArrangeGridSlots(containerRect, slotCount, true, `mobile:${guestWallLayoutCycle}`)
     : buildGuestWallScatterSlots(containerRect, slotCount, true, `mobile:${guestWallLayoutCycle}`);
+  if (IS_LOCAL_DEV) {
+    console.info("[guestwall] placements", {
+      viewport: "mobile",
+      items: guestWallCards.length,
+      visibleCount: slotCount,
+      placements: arrangedSlots.length,
+    });
+  }
   guestWallActiveSlotConfig = arrangedSlots.slice(0, slotCount);
   ensureGuestWallVisibleIds(slotCount, false);
   guestWallVisibleCardIds = assignGuestWallCardsToSlots(guestWallActiveSlotConfig, guestWallVisibleCardIds);
@@ -6301,10 +6430,29 @@ function renderGuestWallMobile() {
 
 function syncGuestWallLayout({ reshuffle = false } = {}) {
   if (!(guestWallPinboard instanceof HTMLElement) || !(guestWallMobile instanceof HTMLElement)) return;
+  refreshGuestWallContainerSizes("sync-layout");
 
   const mobile = isGuestWallMobileView();
+  const activeSize = mobile ? guestWallContainerSize.mobile : guestWallContainerSize.desktop;
   setHiddenClass(guestWallPinboard, mobile);
   setHiddenClass(guestWallMobile, !mobile);
+
+  if (!hasRenderableGuestWallSize(activeSize)) {
+    if (guestWallLoadState === "success") {
+      setGuestWallStatus(GUEST_WALL_LOADING_MESSAGE);
+      if (!guestWallSlotNodes.length) {
+        renderGuestWallLoadingSkeleton();
+      }
+    }
+    if (IS_LOCAL_DEV) {
+      console.info("[guestwall] sync skipped awaiting size", {
+        mobile,
+        activeSize,
+      });
+    }
+    queueGuestWallLayoutSync("sync-size-gate");
+    return;
+  }
 
   if (mobile) {
     if (reshuffle) guestWallVisibleCardIds = [];
@@ -6518,7 +6666,18 @@ function bindGuestWallEvents() {
     },
     { passive: true },
   );
-  window.addEventListener("pagehide", clearGuestWallAutoplayTimer, { passive: true });
+  window.addEventListener(
+    "pagehide",
+    () => {
+      clearGuestWallAutoplayTimer();
+      clearGuestWallContainerObserver();
+      if (guestWallLayoutRetryRaf) {
+        window.cancelAnimationFrame(guestWallLayoutRetryRaf);
+        guestWallLayoutRetryRaf = null;
+      }
+    },
+    { passive: true },
+  );
 
   document.addEventListener("pointerdown", (event) => {
     const target = event.target instanceof Element ? event.target : null;
@@ -6582,6 +6741,7 @@ async function initGuestWall() {
   guestWallArrangementByCardId = loadGuestWallArrangementFromStorage();
   bindGuestWallDetailModalEvents();
   bindGuestWallEvents();
+  bindGuestWallContainerObserver();
   syncGuestWallArrangeAvailability();
   if (guestWallPinboardView instanceof HTMLElement) setHiddenClass(guestWallPinboardView, false);
   await loadGuestWallPinboard({ refresh: false });
@@ -6599,6 +6759,7 @@ async function loadGuestWallPinboard({ refresh = false } = {}) {
   setGuestWallShuffleState(false);
   setGuestWallControlsDisabled(true);
   renderGuestWallLoadingSkeleton();
+  refreshGuestWallContainerSizes("loading-start");
   startGuestWallSlowMessageRotation();
 
   const request = (async () => {
@@ -6642,6 +6803,9 @@ async function loadGuestWallPinboard({ refresh = false } = {}) {
       guestWallCards = [];
       guestWallCardById = new Map();
       mergeGuestWallCards(cards);
+      if (IS_LOCAL_DEV) {
+        console.info("[guestwall] items", guestWallCards.length);
+      }
       guestWallNextCursor = payload.nextCursor;
       guestWallPrefetchInFlight = null;
       guestWallHasSuccessfulLoad = true;
@@ -9220,20 +9384,28 @@ function initInterludeCurtainReveal() {
   if (interludeSection.dataset.curtainBound === "true") return;
 
   const clamp01 = (value) => Math.max(0, Math.min(1, value));
+  const prefersReduced = () =>
+    document.documentElement.classList.contains("reduce-motion") || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   let rafId = null;
-  let inViewport = true;
 
   const applyCurtain = () => {
     rafId = null;
-    if (!inViewport) return;
 
     const rect = interludeSection.getBoundingClientRect();
     const vh = window.innerHeight || 1;
-    const start = vh * 0.9;
-    const end = vh * 0.2;
+
+    // Keep the curtain fully closed at top load; begin opening only once
+    // the interlude has moved well into view.
+    const start = vh * 0.48;
+    const end = -vh * 0.42;
     const t = (start - rect.top) / Math.max(1, start - end);
-    const openProgress = clamp01(t);
+    let openProgress = clamp01(t);
+
+    if (prefersReduced()) {
+      openProgress = openProgress >= 0.5 ? 1 : 0;
+    }
+
     const fullyOpen = openProgress >= 0.98;
 
     interludeSection.style.setProperty("--interlude-curtain-open", openProgress.toFixed(4));
@@ -9244,18 +9416,6 @@ function initInterludeCurtainReveal() {
     if (rafId !== null) return;
     rafId = window.requestAnimationFrame(applyCurtain);
   };
-
-  const observer = new IntersectionObserver(
-    (entries) => {
-      inViewport = entries.some((entry) => entry.isIntersecting);
-      if (inViewport) requestApply();
-    },
-    {
-      threshold: [0, 0.12, 0.35, 0.65],
-      rootMargin: "180px 0px 180px 0px",
-    },
-  );
-  observer.observe(interludeSection);
 
   window.addEventListener("scroll", requestApply, { passive: true });
   window.addEventListener("resize", requestApply);
