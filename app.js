@@ -23,6 +23,7 @@ const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const HOTEL_PANEL_TRANSITION_MS = 620;
 const HOTEL_CONTENT_FADE_MS = 620;
 const MOBILE_GALLERY_DOT_MAX = 7;
+const TIMELINE_SPEED = 0.6; // completes schedule reveal by ~60% section scroll
 const MOSAIC_HOVER_DELAY_MS = 150;
 const GUEST_WALL_AUTOPLAY_INTERVAL_MS = 20000;
 const GUEST_WALL_PINBOARD_LIMIT = 12;
@@ -1377,11 +1378,9 @@ function initScheduleReveal() {
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
   const SCHEDULE_REVEAL_START_RATIO = 0.66;
   const SCHEDULE_REVEAL_END_RATIO = -0.55;
-  const SCHEDULE_ROW_LEAD_IN = 0.12;
-  // Speed up row reveal timing by 25% without changing observer/trigger behavior.
-  const SCHEDULE_SPEED_UP_FACTOR = 0.75;
-  const SCHEDULE_ROW_REVEAL_WINDOW = 0.2 * 0.75 * SCHEDULE_SPEED_UP_FACTOR;
-  const SCHEDULE_ROW_STAGGER_MULTIPLIER = 0.75 * SCHEDULE_SPEED_UP_FACTOR;
+  const SCHEDULE_ROW_LEAD_IN = 0.08;
+  const SCHEDULE_ROW_REVEAL_WINDOW = 0.12;
+  const SCHEDULE_ROW_STAGGER_MULTIPLIER = 0.82;
   const getProgress = () => {
     const rect = sectionRef.getBoundingClientRect();
     const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
@@ -1392,7 +1391,8 @@ function initScheduleReveal() {
   };
 
   const renderProgress = (progressValue) => {
-    const p = clamp(progressValue, 0, 1);
+    const normalizedSpeed = Math.max(0.05, Number(TIMELINE_SPEED) || 1);
+    const p = clamp(clamp(progressValue, 0, 1) / normalizedSpeed, 0, 1);
     timelineRef.style.setProperty("--schedule-line-progress", `${p}`);
 
     const count = rowRefs.length;
@@ -1465,8 +1465,8 @@ function initScheduleReveal() {
       else detach();
     },
     {
-      threshold: 0.05,
-      rootMargin: "20% 0px 20% 0px",
+      threshold: 0.01,
+      rootMargin: "30% 0px 20% 0px",
     },
   );
 
