@@ -4868,9 +4868,11 @@ function resetGuestWallImageNodeForRetry(imgNode, fallbackNode) {
     const observer = ensureGuestWallImageObserver();
     if (observer) {
       observer.observe(imgNode);
-    } else {
-      queueGuestWallLazyImage(imgNode);
     }
+    // Kick off loading immediately for visible board cards.
+    // IntersectionObserver can occasionally miss initial callbacks for transformed/absolute nodes,
+    // which leaves thumbnails stuck in perpetual placeholder state.
+    queueGuestWallLazyImage(imgNode);
     return;
   }
   startGuestWallLazyImage(imgNode, state);
@@ -4931,9 +4933,8 @@ function registerGuestWallLazyImage({ imgNode, fallbackNode, card, candidates, c
     const observer = ensureGuestWallImageObserver();
     if (observer) {
       observer.observe(imgNode);
-    } else {
-      queueGuestWallLazyImage(imgNode);
     }
+    queueGuestWallLazyImage(imgNode);
     return;
   }
   startGuestWallLazyImage(imgNode, state);
