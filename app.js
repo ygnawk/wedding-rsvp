@@ -20,8 +20,8 @@ const MAX_GUESTS = 4;
 const MAX_PLUS_ONES = MAX_GUESTS - 1;
 const MAX_UPLOAD_FILES = 3;
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
-const HOTEL_PANEL_TRANSITION_MS = 500;
-const HOTEL_CONTENT_FADE_MS = 500;
+const HOTEL_PANEL_TRANSITION_MS = 620;
+const HOTEL_CONTENT_FADE_MS = 620;
 const MOBILE_GALLERY_DOT_MAX = 7;
 const MOSAIC_HOVER_DELAY_MS = 150;
 const GUEST_WALL_AUTOPLAY_INTERVAL_MS = 10000;
@@ -1351,11 +1351,15 @@ function initScheduleReveal() {
   timelineRef.style.setProperty("--schedule-line-progress", "0");
 
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+  const SCHEDULE_REVEAL_START_RATIO = 0.66;
+  const SCHEDULE_REVEAL_END_RATIO = -0.55;
+  const SCHEDULE_ROW_LEAD_IN = 0.12;
+  const SCHEDULE_ROW_REVEAL_WINDOW = 0.2;
   const getProgress = () => {
     const rect = sectionRef.getBoundingClientRect();
     const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-    const start = viewportHeight * 0.85;
-    const end = viewportHeight * 0.15;
+    const start = viewportHeight * SCHEDULE_REVEAL_START_RATIO;
+    const end = viewportHeight * SCHEDULE_REVEAL_END_RATIO;
     const raw = (start - rect.top) / Math.max(1, start - end);
     return clamp(raw, 0, 1);
   };
@@ -1365,9 +1369,12 @@ function initScheduleReveal() {
     timelineRef.style.setProperty("--schedule-line-progress", `${p}`);
 
     const count = rowRefs.length;
+    const stepBase = Math.max(0.001, count - 1);
+    const availableProgress = Math.max(0.001, 1 - SCHEDULE_ROW_LEAD_IN - SCHEDULE_ROW_REVEAL_WINDOW);
+    const revealStep = availableProgress / stepBase;
     rowRefs.forEach((row, index) => {
-      const revealStart = (index / Math.max(1, count)) * 0.9;
-      const revealEnd = revealStart + 0.18;
+      const revealStart = SCHEDULE_ROW_LEAD_IN + revealStep * index;
+      const revealEnd = revealStart + SCHEDULE_ROW_REVEAL_WINDOW;
       const t = clamp((p - revealStart) / Math.max(0.001, revealEnd - revealStart), 0, 1);
       row.style.opacity = `${t}`;
       row.style.transform = `translateY(${((1 - t) * 10).toFixed(3)}px)`;
@@ -3909,6 +3916,16 @@ function startGuestWallSlowMessageRotation() {
 }
 
 function classifyGuestWallError(error) {
+  const errorCode = String(error?.errorCode || error?.code || "").toUpperCase();
+  if (errorCode === "GUESTBOOK_NOT_CONFIGURED" || String(error?.code || "").toLowerCase() === "not_configured") {
+    return {
+      state: "error",
+      statusMessage: "Guest Wall is not configured for this environment yet.",
+      panelMessage: "Guest Wall is not configured for this environment yet.",
+      reason: "not_configured",
+    };
+  }
+
   const status = Number(error?.status || 0);
   if (error?.isTimeout || status === 408) {
     return {
@@ -4092,7 +4109,9 @@ async function fetchGuestbookPage({
     error.isTimeout = false;
     error.responseBody = text.slice(0, 500);
     if (data && data.error) error.cause = String(data.error);
+    if (data && data.errorCode) error.errorCode = String(data.errorCode);
     if (data && data.code) error.code = String(data.code);
+    if (data && data.message) error.serverMessage = String(data.message);
     if (data && data.detail) error.detail = String(data.detail);
     throw error;
   }
@@ -4591,9 +4610,16 @@ function flashGuestWallButton(button) {
 }
 
 function spinGuestWallShuffleIconOnce() {
-  if (!(guestWallShuffle instanceof HTMLButtonElement) || prefersReducedMotion()) return;
+  if (!(guestWallShuffle instanceof HTMLButtonElement)) return;
   const icon = guestWallShuffle.querySelector(".guestwall-control-btn__icon");
   if (!(icon instanceof HTMLElement)) return;
+  if (prefersReducedMotion()) {
+    icon.classList.remove("pulse-once");
+    void icon.offsetWidth;
+    icon.classList.add("pulse-once");
+    return;
+  }
+  icon.classList.remove("pulse-once");
   icon.classList.remove("spin-once");
   void icon.offsetWidth;
   icon.classList.add("spin-once");
@@ -6085,6 +6111,7 @@ function bindGuestWallEvents() {
     if (shuffleIcon instanceof HTMLElement && shuffleIcon.dataset.spinBound !== "true") {
       shuffleIcon.addEventListener("animationend", () => {
         shuffleIcon.classList.remove("spin-once");
+        shuffleIcon.classList.remove("pulse-once");
       });
       shuffleIcon.dataset.spinBound = "true";
     }
@@ -6733,6 +6760,7 @@ function buildGalleryCard(entry, index) {
   card.setAttribute("aria-label", `Open photo ${index + 1} of ${galleryImages.length || 9}`);
 
   const img = document.createElement("img");
+  img.className = "gallery-tile-media";
   img.src = toPhotoSrc(entry.file);
   img.alt = entry.alt || "Miki and Yi Jie";
   img.loading = "lazy";
@@ -6887,7 +6915,6 @@ function bindMosaicHover(container, tileSelector) {
 
 function initMosaicHoverInteractions() {
   bindMosaicHover(storyMosaicLayout, ".story-mosaic-card");
-  bindMosaicHover(galleryGrid, ".gallery-tile");
 }
 
 function setActiveGalleryDot(index) {
@@ -8816,30 +8843,14 @@ function initInterludeCurtainReveal() {
   const interludeSection = document.getElementById("interlude");
   if (!(interludeSection instanceof HTMLElement)) return;
   if (interludeSection.dataset.curtainBound === "true") return;
-  const curtainLeft = interludeSection.querySelector(".interlude-curtain--left");
-  const curtainRight = interludeSection.querySelector(".interlude-curtain--right");
 
   const clamp01 = (value) => Math.max(0, Math.min(1, value));
-  const isMobileCurtain = () => window.matchMedia("(max-width: 640px)").matches;
-  const getCurtainBounds = () =>
-    isMobileCurtain()
-      ? { max: 0.18, min: 0 }
-      : { max: 0.22, min: 0 };
 
   let rafId = null;
   let inViewport = true;
 
   const applyCurtain = () => {
     rafId = null;
-    const { max, min } = getCurtainBounds();
-
-    if (prefersReducedMotion()) {
-      const staticWidth = min + (max - min) * 0.45;
-      interludeSection.style.setProperty("--interlude-curtain-width", `${(staticWidth * 100).toFixed(3)}%`);
-      interludeSection.classList.remove("is-fully-open");
-      return;
-    }
-
     if (!inViewport) return;
 
     const rect = interludeSection.getBoundingClientRect();
@@ -8847,14 +8858,11 @@ function initInterludeCurtainReveal() {
     const start = vh * 0.9;
     const end = vh * 0.2;
     const t = (start - rect.top) / Math.max(1, start - end);
-    const progress = clamp01(t);
-    const width = min + (max - min) * (1 - progress);
-    const fullyOpen = progress >= 0.98;
+    const openProgress = clamp01(t);
+    const fullyOpen = openProgress >= 0.98;
 
-    interludeSection.style.setProperty("--interlude-curtain-width", `${(width * 100).toFixed(3)}%`);
+    interludeSection.style.setProperty("--interlude-curtain-open", openProgress.toFixed(4));
     interludeSection.classList.toggle("is-fully-open", fullyOpen);
-    if (curtainLeft instanceof HTMLElement) curtainLeft.classList.toggle("is-hidden", fullyOpen);
-    if (curtainRight instanceof HTMLElement) curtainRight.classList.toggle("is-hidden", fullyOpen);
   };
 
   const requestApply = () => {

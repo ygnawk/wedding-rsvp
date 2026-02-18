@@ -6,8 +6,67 @@ const { randomUUID } = require("crypto");
 const { formidable } = require("formidable");
 const { google } = require("googleapis");
 
-const PORT = process.env.PORT || 3000;
 const ROOT = __dirname;
+
+const INITIAL_ENV_KEYS = new Set(Object.keys(process.env));
+
+function parseEnvValue(rawValue) {
+  if (rawValue === undefined || rawValue === null) return "";
+  const trimmed = String(rawValue).trim();
+  if (!trimmed) return "";
+
+  const doubleQuoted = trimmed.startsWith('"') && trimmed.endsWith('"');
+  const singleQuoted = trimmed.startsWith("'") && trimmed.endsWith("'");
+  if (doubleQuoted || singleQuoted) {
+    return trimmed.slice(1, -1);
+  }
+
+  return trimmed.replace(/\s+#.*$/, "").trim();
+}
+
+function loadEnvFile(filePath, { allowOverride = false } = {}) {
+  if (!fs.existsSync(filePath)) return null;
+  const raw = fs.readFileSync(filePath, "utf8");
+  const lines = raw.split(/\r?\n/);
+  let loadedCount = 0;
+
+  lines.forEach((line) => {
+    const trimmed = String(line || "").trim();
+    if (!trimmed || trimmed.startsWith("#")) return;
+
+    const match = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+    if (!match) return;
+
+    const key = match[1];
+    const value = parseEnvValue(match[2]);
+    if (!allowOverride && process.env[key] !== undefined) return;
+    if (allowOverride && INITIAL_ENV_KEYS.has(key)) return;
+    process.env[key] = value;
+    loadedCount += 1;
+  });
+
+  return { filePath, loadedCount };
+}
+
+function loadLocalEnvFiles() {
+  const loaded = [];
+  const baseEnv = loadEnvFile(path.join(ROOT, ".env"), { allowOverride: false });
+  if (baseEnv) loaded.push(baseEnv);
+  const localEnv = loadEnvFile(path.join(ROOT, ".env.local"), { allowOverride: true });
+  if (localEnv) loaded.push(localEnv);
+  return loaded;
+}
+
+const loadedEnvFiles = loadLocalEnvFiles();
+if (loadedEnvFiles.length) {
+  const report = loadedEnvFiles
+    .map((entry) => `${path.basename(entry.filePath)}:${entry.loadedCount}`)
+    .join(", ");
+  console.info(`[env] loaded ${report}`);
+}
+
+const PORT = process.env.PORT || 3000;
+const NODE_ENV = String(process.env.NODE_ENV || "development").toLowerCase();
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -57,6 +116,16 @@ const TAB_SCHEMAS = {
     "created_at",
   ],
 };
+
+const GUESTBOOK_ENV_KEYS = Object.freeze({
+  spreadsheetId: "GOOGLE_SPREADSHEET_ID",
+  serviceAccountJson: "GOOGLE_SERVICE_ACCOUNT_JSON",
+  serviceAccountEmail: "GOOGLE_SERVICE_ACCOUNT_EMAIL",
+  serviceAccountPrivateKey: "GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY",
+  oauthClientId: "GOOGLE_OAUTH_CLIENT_ID",
+  oauthClientSecret: "GOOGLE_OAUTH_CLIENT_SECRET",
+  oauthRefreshToken: "GOOGLE_OAUTH_REFRESH_TOKEN",
+});
 
 const GUESTBOOK_CACHE_TTL_MS = Math.max(60, Number.parseInt(process.env.GUESTBOOK_CACHE_TTL_SECONDS || "180", 10) || 180) * 1000;
 const GUESTBOOK_RESPONSE_CACHE_SECONDS = Math.max(
@@ -437,6 +506,70 @@ function getRequiredSpreadsheetId() {
   return spreadsheetId;
 }
 
+function isLocalRequest(req) {
+  const hostHeader = String((req && req.headers && req.headers.host) || "").toLowerCase();
+  return hostHeader.includes("localhost") || hostHeader.includes("127.0.0.1");
+}
+
+function getGuestbookConfigStatus() {
+  const checks = {
+    [GUESTBOOK_ENV_KEYS.spreadsheetId]: Boolean(process.env[GUESTBOOK_ENV_KEYS.spreadsheetId]),
+    [GUESTBOOK_ENV_KEYS.serviceAccountJson]: Boolean(process.env[GUESTBOOK_ENV_KEYS.serviceAccountJson]),
+    [GUESTBOOK_ENV_KEYS.serviceAccountEmail]: Boolean(process.env[GUESTBOOK_ENV_KEYS.serviceAccountEmail]),
+    [GUESTBOOK_ENV_KEYS.serviceAccountPrivateKey]: Boolean(process.env[GUESTBOOK_ENV_KEYS.serviceAccountPrivateKey]),
+    [GUESTBOOK_ENV_KEYS.oauthClientId]: Boolean(process.env[GUESTBOOK_ENV_KEYS.oauthClientId]),
+    [GUESTBOOK_ENV_KEYS.oauthClientSecret]: Boolean(process.env[GUESTBOOK_ENV_KEYS.oauthClientSecret]),
+    [GUESTBOOK_ENV_KEYS.oauthRefreshToken]: Boolean(process.env[GUESTBOOK_ENV_KEYS.oauthRefreshToken]),
+  };
+
+  const hasSpreadsheet = checks[GUESTBOOK_ENV_KEYS.spreadsheetId];
+  const hasServiceAccount = checks[GUESTBOOK_ENV_KEYS.serviceAccountJson] || (checks[GUESTBOOK_ENV_KEYS.serviceAccountEmail] && checks[GUESTBOOK_ENV_KEYS.serviceAccountPrivateKey]);
+  const hasOauth = checks[GUESTBOOK_ENV_KEYS.oauthClientId] && checks[GUESTBOOK_ENV_KEYS.oauthClientSecret] && checks[GUESTBOOK_ENV_KEYS.oauthRefreshToken];
+  const configured = Boolean(hasSpreadsheet && (hasServiceAccount || hasOauth));
+
+  const missing = [];
+  if (!hasSpreadsheet) missing.push(GUESTBOOK_ENV_KEYS.spreadsheetId);
+  if (!hasServiceAccount && !hasOauth) {
+    missing.push(
+      `${GUESTBOOK_ENV_KEYS.serviceAccountJson} OR (${GUESTBOOK_ENV_KEYS.serviceAccountEmail} + ${GUESTBOOK_ENV_KEYS.serviceAccountPrivateKey}) OR (${GUESTBOOK_ENV_KEYS.oauthClientId} + ${GUESTBOOK_ENV_KEYS.oauthClientSecret} + ${GUESTBOOK_ENV_KEYS.oauthRefreshToken})`,
+    );
+  }
+
+  return {
+    configured,
+    checks,
+    hasSpreadsheet,
+    hasServiceAccount,
+    hasOauth,
+    authMode: hasOauth ? "oauth" : hasServiceAccount ? "service_account" : "missing",
+    missing,
+  };
+}
+
+function buildGuestbookConfigErrorPayload(req, configStatus) {
+  const localRequest = isLocalRequest(req);
+  const message = localRequest ? "Guestbook not configured locally." : "Guest Wall is temporarily unavailable.";
+  const payload = {
+    ok: false,
+    error: message,
+    errorCode: "GUESTBOOK_NOT_CONFIGURED",
+    code: "not_configured",
+    detail: "Guestbook configuration is incomplete.",
+  };
+
+  if (localRequest || NODE_ENV === "development") {
+    payload.instructions =
+      `Set ${GUESTBOOK_ENV_KEYS.spreadsheetId} and one auth method: ` +
+      `${GUESTBOOK_ENV_KEYS.serviceAccountJson} OR ` +
+      `${GUESTBOOK_ENV_KEYS.serviceAccountEmail}+${GUESTBOOK_ENV_KEYS.serviceAccountPrivateKey} OR ` +
+      `${GUESTBOOK_ENV_KEYS.oauthClientId}+${GUESTBOOK_ENV_KEYS.oauthClientSecret}+${GUESTBOOK_ENV_KEYS.oauthRefreshToken}.`;
+    payload.missing = Array.isArray(configStatus?.missing) ? configStatus.missing : [];
+    payload.env = configStatus?.checks || {};
+  }
+
+  return payload;
+}
+
 function createGoogleClients() {
   const oauthClientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
   const oauthClientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
@@ -791,6 +924,8 @@ function classifyGuestbookError(error) {
   if (
     lower.includes("econnreset") ||
     lower.includes("etimedout") ||
+    lower.includes("timed out") ||
+    lower.includes("timeout") ||
     lower.includes("eai_again") ||
     lower.includes("enotfound") ||
     lower.includes("network")
@@ -799,6 +934,28 @@ function classifyGuestbookError(error) {
   }
 
   return { code: "unknown", detail: "Unexpected guestbook failure." };
+}
+
+function getGuestbookErrorStatus(classified) {
+  const code = String(classified && classified.code ? classified.code : "");
+  if (code === "missing_env_var" || code === "missing_credentials" || code === "oauth_invalid" || code === "schema_mismatch") {
+    return 503;
+  }
+  if (code === "permission_denied" || code === "network_error") {
+    return 503;
+  }
+  return 500;
+}
+
+function getGuestbookErrorCode(classified) {
+  const code = String(classified && classified.code ? classified.code : "");
+  if (code === "missing_env_var" || code === "missing_credentials") {
+    return "GUESTBOOK_NOT_CONFIGURED";
+  }
+  if (code === "permission_denied" || code === "oauth_invalid" || code === "schema_mismatch" || code === "network_error") {
+    return "UPSTREAM_UNAVAILABLE";
+  }
+  return "GUESTBOOK_ERROR";
 }
 
 function getUploadExtension(originalName, mimeType) {
@@ -1346,6 +1503,27 @@ async function handleGuestbookRequest(req, res) {
     const cursorOffset = decodeGuestbookCursor(cursor);
     const offset = parseBoundedInt(requestUrl.searchParams.get("offset"), cursorOffset, 0, 1000000);
     const refresh = ["1", "true", "yes"].includes(normalizeFieldValue(requestUrl.searchParams.get("refresh")).toLowerCase());
+    const configStatus = getGuestbookConfigStatus();
+    const localRequest = isLocalRequest(req);
+    console.info(
+      `[guestbook] env spreadsheet=${configStatus.hasSpreadsheet} service_account=${configStatus.hasServiceAccount} oauth=${configStatus.hasOauth} auth_mode=${configStatus.authMode}`,
+    );
+    console.info(`[guestbook] upstream=google-sheets local_request=${localRequest}`);
+
+    if (!configStatus.configured) {
+      const payload = buildGuestbookConfigErrorPayload(req, configStatus);
+      console.warn(
+        `[guestbook] config missing missing=${Array.isArray(configStatus.missing) ? configStatus.missing.join(" | ") : "unknown"} duration_ms=${
+          Date.now() - requestStartedAt
+        }`,
+      );
+      send(res, 503, JSON.stringify(payload), MIME_TYPES[".json"], {
+        req,
+        cacheControl: "no-store",
+      });
+      return;
+    }
+
     console.info(
       `[guestbook] request url=${requestUrl.pathname}${requestUrl.search} mode=${mode} limit=${limit} offset=${offset} type=${typeFilter} q=${
         query ? "yes" : "no"
@@ -1396,17 +1574,67 @@ async function handleGuestbookRequest(req, res) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Guestbook request failed";
     const classified = classifyGuestbookError(error);
+    const status = getGuestbookErrorStatus(classified);
+    const errorCode = getGuestbookErrorCode(classified);
+    const localRequest = isLocalRequest(req);
     console.error(
-      `[guestbook] error code=${classified.code} detail=${classified.detail} message=${message} duration_ms=${Date.now() - requestStartedAt}`,
+      `[guestbook] error status=${status} error_code=${errorCode} code=${classified.code} detail=${classified.detail} message=${message} duration_ms=${
+        Date.now() - requestStartedAt
+      }`,
     );
+    const responsePayload = {
+      ok: false,
+      error: status >= 500 ? "Guest Wall data is temporarily unavailable." : message,
+      errorCode,
+      code: classified.code,
+      detail: classified.detail,
+    };
+    if (NODE_ENV === "development" || localRequest) {
+      responsePayload.message = message;
+    }
     send(
       res,
-      500,
+      status,
+      JSON.stringify(responsePayload),
+      MIME_TYPES[".json"],
+      {
+        req,
+        cacheControl: "no-store",
+      },
+    );
+  }
+}
+
+async function handleGuestbookHealthRequest(req, res) {
+  const requestStartedAt = Date.now();
+  const localRequest = isLocalRequest(req);
+  const configStatus = getGuestbookConfigStatus();
+  console.info(
+    `[guestbook][health] env spreadsheet=${configStatus.hasSpreadsheet} service_account=${configStatus.hasServiceAccount} oauth=${configStatus.hasOauth} auth_mode=${configStatus.authMode}`,
+  );
+
+  if (!configStatus.configured) {
+    const payload = buildGuestbookConfigErrorPayload(req, configStatus);
+    send(res, 503, JSON.stringify(payload), MIME_TYPES[".json"], {
+      req,
+      cacheControl: "no-store",
+    });
+    return;
+  }
+
+  try {
+    const items = await loadGuestbookItems({ forceRefresh: false });
+    send(
+      res,
+      200,
       JSON.stringify({
-        ok: false,
-        error: message,
-        code: classified.code,
-        detail: classified.detail,
+        ok: true,
+        status: "healthy",
+        authMode: configStatus.authMode,
+        env: configStatus.checks,
+        items: Array.isArray(items) ? items.length : 0,
+        cached_until: guestbookCache.expiresAt ? new Date(guestbookCache.expiresAt).toISOString() : null,
+        duration_ms: Date.now() - requestStartedAt,
       }),
       MIME_TYPES[".json"],
       {
@@ -1414,6 +1642,28 @@ async function handleGuestbookRequest(req, res) {
         cacheControl: "no-store",
       },
     );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Guestbook health check failed";
+    const classified = classifyGuestbookError(error);
+    const status = getGuestbookErrorStatus(classified);
+    const errorCode = getGuestbookErrorCode(classified);
+    const payload = {
+      ok: false,
+      status: "unhealthy",
+      error: "Guest Wall data source is unavailable.",
+      errorCode,
+      code: classified.code,
+      detail: classified.detail,
+      duration_ms: Date.now() - requestStartedAt,
+      env: configStatus.checks,
+    };
+    if (NODE_ENV === "development" || localRequest) {
+      payload.message = message;
+    }
+    send(res, status, JSON.stringify(payload), MIME_TYPES[".json"], {
+      req,
+      cacheControl: "no-store",
+    });
   }
 }
 
@@ -1445,6 +1695,11 @@ const server = http.createServer(async (req, res) => {
 
   if (pathname === "/api/guestbook" && req.method === "GET") {
     await handleGuestbookRequest(req, res);
+    return;
+  }
+
+  if (pathname === "/api/guestbook/health" && req.method === "GET") {
+    await handleGuestbookHealthRequest(req, res);
     return;
   }
 

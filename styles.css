@@ -291,6 +291,9 @@ video {
   margin: 0;
   padding: 0;
   display: inline-block;
+  position: relative;
+  top: 0.03em;
+  font-size: 1.06em;
 }
 
 .brand-wordmark-rest {
@@ -754,9 +757,15 @@ video {
   letter-spacing: -0.008em;
 }
 
-.hero-script {
+.amp-fancy {
   font-family: var(--scriptFont);
   color: var(--gold);
+  font-weight: 400;
+  line-height: 0.7;
+  display: inline-block;
+}
+
+.hero-script {
   font-size: clamp(50px, 13vw, 88px);
   line-height: 0.55;
   transform: translateY(5px);
@@ -893,7 +902,7 @@ video {
 
 /* Interlude */
 .interlude-section {
-  --interlude-curtain-width: 22%;
+  --interlude-curtain-open: 0;
   padding: 0;
   min-height: auto;
   display: block;
@@ -990,11 +999,11 @@ video {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: var(--interlude-curtain-width);
+  width: calc(50% + 1px);
   background: var(--ivory);
   z-index: 5;
   pointer-events: none;
-  transition: width 80ms linear;
+  transition: transform 80ms linear;
 }
 
 .interlude-curtain.is-hidden {
@@ -1012,10 +1021,12 @@ video {
 
 .interlude-curtain--left {
   left: 0;
+  transform: translate3d(calc(-100% * var(--interlude-curtain-open)), 0, 0);
 }
 
 .interlude-curtain--right {
   right: 0;
+  transform: translate3d(calc(100% * var(--interlude-curtain-open)), 0, 0);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2656,6 +2667,7 @@ a:focus-visible,
   .story-mosaic-card::before,
   .gallery-tile,
   .gallery-tile img,
+  .gallery-tile-media,
   .gallery-tile::before {
     transition: none !important;
   }
@@ -3131,16 +3143,16 @@ a:focus-visible,
   border-radius: 12px;
   min-height: 132px;
   height: 100%;
-  padding: 14px 44px 14px 14px;
+  padding: 14px 16px 14px 14px;
   display: flex;
   flex-direction: column;
   gap: 4px;
   align-items: flex-start;
   transition:
-    border-color 180ms var(--ease-out),
-    background-color 180ms var(--ease-out),
-    transform 190ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    box-shadow 190ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    border-color 200ms ease,
+    background-color 200ms ease,
+    transform 200ms ease,
+    box-shadow 200ms ease;
   color: var(--ink);
   text-decoration: none;
   box-shadow: 0 6px 12px rgba(31, 9, 12, 0);
@@ -3151,44 +3163,20 @@ a:focus-visible,
   text-decoration: none;
 }
 
-.choice-chevron {
-  position: absolute;
-  right: 14px;
-  top: 50%;
-  transform: translateY(-50%) translateX(-6px);
-  color: rgba(75, 15, 23, 0.7);
-  font-size: 1rem;
-  line-height: 1;
-  pointer-events: none;
-  transition:
-    opacity 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
 @media (hover: hover) and (pointer: fine) {
-  .choice-card:hover,
-  .choice-card:focus-visible {
-    transform: translateY(-2px);
-    border-color: rgba(201, 174, 116, 0.74);
+  .choice-card:not(.selected):hover {
+    transform: translateY(-1px);
+    border-color: rgba(201, 174, 116, 0.68);
+    background: rgba(75, 15, 23, 0.055);
     box-shadow: 0 10px 18px rgba(31, 9, 12, 0.08);
   }
-
-  .choice-card:hover .choice-chevron,
-  .choice-card:focus-visible .choice-chevron {
-    opacity: 1;
-    transform: translateY(-50%) translateX(0);
-  }
 }
 
-.choice-card:focus-visible {
-  transform: translateY(-2px);
-  border-color: rgba(201, 174, 116, 0.74);
+.choice-card:not(.selected):focus-visible {
+  transform: translateY(-1px);
+  border-color: rgba(201, 174, 116, 0.68);
+  background: rgba(75, 15, 23, 0.055);
   box-shadow: 0 10px 18px rgba(31, 9, 12, 0.08);
-}
-
-.choice-card:focus-visible .choice-chevron {
-  opacity: 1;
-  transform: translateY(-50%) translateX(0);
 }
 
 .choice-card.selected {
@@ -3300,9 +3288,13 @@ a:focus-visible,
   .hover-arrow,
   .reveal-label,
   .choice-card,
-  .choice-chevron,
   .travel-passport-pill {
     transition: none !important;
+  }
+
+  .choice-card:not(.selected):hover,
+  .choice-card:not(.selected):focus-visible {
+    transform: none;
   }
 }
 
@@ -4774,17 +4766,14 @@ details[open] .faq-answer {
   .hotel-map-card,
   .stayInner {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 0fr);
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: start;
     column-gap: 0;
-    transition:
-      grid-template-columns 2400ms cubic-bezier(0.16, 1, 0.3, 1),
-      column-gap 2400ms cubic-bezier(0.16, 1, 0.3, 1);
+    transition: column-gap 620ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .hotel-map-card.has-selection,
   .stayInner.has-selection {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 420px);
     column-gap: 20px;
   }
 
@@ -4797,8 +4786,8 @@ details[open] .faq-answer {
     display: block;
     min-height: 100%;
     min-width: 0;
-    width: 100%;
-    max-width: 100%;
+    width: 0;
+    max-width: 0;
     padding: 0;
     border-color: transparent;
     background: transparent;
@@ -4808,16 +4797,20 @@ details[open] .faq-answer {
     overflow: hidden;
     transform: translateY(6px);
     transition:
-      opacity 500ms cubic-bezier(0.16, 1, 0.3, 1),
-      transform 500ms cubic-bezier(0.16, 1, 0.3, 1),
-      visibility 0ms linear 500ms,
-      padding 500ms cubic-bezier(0.16, 1, 0.3, 1),
-      border-color 500ms cubic-bezier(0.16, 1, 0.3, 1),
-      background-color 500ms cubic-bezier(0.16, 1, 0.3, 1);
+      width 620ms cubic-bezier(0.22, 1, 0.36, 1),
+      max-width 620ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 620ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 620ms cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0ms linear 620ms,
+      padding 620ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 620ms cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 620ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .hotel-map-card.has-selection .hotel-map-details,
   .stayInner.has-selection .hotel-map-details {
+    width: 420px;
+    max-width: 420px;
     padding: 16px;
     border-color: rgba(75, 15, 23, 0.22);
     background: rgba(255, 255, 255, 0.74);
@@ -4826,12 +4819,19 @@ details[open] .faq-answer {
     pointer-events: auto;
     transform: translateY(0);
     transition:
-      opacity 500ms cubic-bezier(0.16, 1, 0.3, 1),
-      transform 500ms cubic-bezier(0.16, 1, 0.3, 1),
+      width 620ms cubic-bezier(0.22, 1, 0.36, 1),
+      max-width 620ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 620ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 620ms cubic-bezier(0.22, 1, 0.36, 1),
       visibility 0ms linear 0ms,
-      padding 500ms cubic-bezier(0.16, 1, 0.3, 1),
-      border-color 500ms cubic-bezier(0.16, 1, 0.3, 1),
-      background-color 500ms cubic-bezier(0.16, 1, 0.3, 1);
+      padding 620ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 620ms cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 620ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .hotel-map-card.has-selection .hotel-map-details.is-visible,
+  .stayInner.has-selection .hotel-map-details.is-visible {
+    transition-delay: 0ms, 0ms, 120ms, 120ms, 0ms, 0ms, 0ms, 0ms;
   }
 }
 
@@ -5868,9 +5868,6 @@ a.makan-copy-icon-btn {
 }
 
 .gallery-tile {
-  --mosaicHoverScale: 1;
-  --mosaicHoverFilter: saturate(1) brightness(1);
-  --mosaicHoverOpacity: 1;
   border-radius: 10px;
   overflow: hidden;
   height: 100%;
@@ -5885,15 +5882,8 @@ a.makan-copy-icon-btn {
   width: 100%;
   position: relative;
   isolation: isolate;
-  opacity: var(--mosaicHoverOpacity);
-  filter: var(--mosaicHoverFilter);
-  transform: scale(var(--mosaicHoverScale));
-  transform-origin: center center;
-  will-change: transform, filter;
+  will-change: box-shadow;
   transition:
-    transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    filter 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    opacity 220ms ease,
     box-shadow 220ms ease;
 }
 
@@ -5951,14 +5941,19 @@ a.makan-copy-icon-btn {
   grid-row: 6 / span 2;
 }
 
+.gallery-tile-media,
 .gallery-tile img {
   width: 100%;
   height: 100%;
   display: block;
   object-fit: cover;
   object-position: var(--objPos, 50% 50%);
-  transition: transform 220ms ease;
+  transform: scale(1);
+  transform-origin: center center;
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), filter 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
   filter: var(--photoGradeFilter);
+  will-change: transform;
+  pointer-events: none;
 }
 
 .gallery-tile::after {
@@ -5984,30 +5979,21 @@ a.makan-copy-icon-btn {
   z-index: 3;
 }
 
-.gallery-tile:hover img {
-  transform: scale(1.02);
+.gallery-tile:hover .gallery-tile-media,
+.gallery-tile:focus-visible .gallery-tile-media {
+  transform: scale(1.03);
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .gallery-tile.is-hover-active,
+  .gallery-tile:hover,
   .gallery-tile:focus-visible {
-    --mosaicHoverScale: 1.25;
-    --mosaicHoverFilter: saturate(1.02) brightness(1.02);
-    --mosaicHoverOpacity: 1;
     z-index: 10;
     box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22);
   }
 
-  .gallery-tile.is-hover-active::before,
+  .gallery-tile:hover::before,
   .gallery-tile:focus-visible::before {
     opacity: 1;
-  }
-
-  .gallery-grid.is-hover-focused .gallery-tile.is-hover-dimmed {
-    --mosaicHoverScale: 0.93;
-    --mosaicHoverFilter: saturate(0.92) brightness(0.95);
-    --mosaicHoverOpacity: 0.9;
-    z-index: 1;
   }
 }
 
@@ -6201,7 +6187,7 @@ a.makan-copy-icon-btn {
 }
 
 .guestwall-control-btn__icon {
-  display: inline-flex;
+  display: inline-block;
   align-items: center;
   justify-content: center;
   width: 14px;
@@ -6210,10 +6196,16 @@ a.makan-copy-icon-btn {
   line-height: 1;
   color: currentColor;
   opacity: 0.92;
+  transform-origin: 50% 50%;
+  will-change: transform, opacity;
 }
 
 .guestwall-control-btn__icon.spin-once {
   animation: guestwallShuffleSpinOnce 360ms cubic-bezier(0.2, 0.8, 0.2, 1) 1;
+}
+
+.guestwall-control-btn__icon.pulse-once {
+  animation: guestwallShufflePulseOnce 220ms ease-out 1;
 }
 
 .guestwall-control-btn__spinner {
@@ -8005,6 +7997,18 @@ a.guestwall-media-retry {
   }
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes guestwallShufflePulseOnce {
+  0% {
+    opacity: 0.92;
+  }
+  50% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0.92;
   }
 }
 
