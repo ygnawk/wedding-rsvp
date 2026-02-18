@@ -142,6 +142,7 @@ const STATIC_BODY_CACHE_MAX_BYTES = 512 * 1024;
 const GOOGLE_API_CALL_TIMEOUT_MS = Math.max(3000, Number.parseInt(process.env.GOOGLE_API_CALL_TIMEOUT_MS || "10000", 10) || 10000);
 const RSVP_MAX_MEDIA_FILES = 3;
 const RSVP_MAX_MEDIA_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const DEBUG_RSVP = ["1", "true", "yes", "on"].includes(String(process.env.DEBUG_RSVP || "").toLowerCase());
 const staticBodyCache = new Map();
 const guestbookCache = {
   expiresAt: 0,
@@ -421,6 +422,19 @@ function createHttpError(status, message, code = "bad_request") {
   error.status = Number(status) || 500;
   error.code = String(code || "bad_request");
   return error;
+}
+
+function logRsvpServer(eventName, details = null) {
+  if (!DEBUG_RSVP) return;
+  if (details && typeof details === "object") {
+    console.info(`[rsvp-debug][server] ${eventName}`, details);
+    return;
+  }
+  if (details !== null && details !== undefined) {
+    console.info(`[rsvp-debug][server] ${eventName} ${String(details)}`);
+    return;
+  }
+  console.info(`[rsvp-debug][server] ${eventName}`);
 }
 
 function normalizeUploadedFiles(parsedFiles) {
@@ -1031,15 +1045,39 @@ function getUploadExtension(originalName, mimeType) {
 }
 
 async function uploadMediaFilesToDrive(drive, destinationFolderId, submissionId, files) {
+  const sourceFiles = Array.isArray(files) ? files : [];
+  const totalBytes = sourceFiles.reduce((sum, file) => sum + Math.max(0, Number(file && file.size ? file.size : 0) || 0), 0);
+  const uploadBatchStartedAt = Date.now();
+  console.info(`[rsvp] submission_id=${submissionId} drive_upload_batch_start files=${sourceFiles.length} bytes=${totalBytes}`);
+  logRsvpServer("drive_upload_batch_start", {
+    submissionId,
+    fileCount: sourceFiles.length,
+    totalBytes,
+    t_upload_start: uploadBatchStartedAt,
+  });
+
   const uploadTasks = files.map(async (file, index) => {
     const fileIndex = index + 1;
     const mimeType = normalizeFieldValue(file.mimetype) || "application/octet-stream";
     const originalName = normalizeFieldValue(file.originalFilename) || `upload-${fileIndex}`;
     const uploadName = `${submissionId}_${fileIndex}${getUploadExtension(originalName, mimeType)}`;
+    const fileBytes = Math.max(0, Number(file && file.size ? file.size : 0) || 0);
+    const fileUploadStartedAt = Date.now();
+    console.info(
+      `[rsvp] submission_id=${submissionId} drive_upload_start file_index=${fileIndex} name=${uploadName} bytes=${fileBytes} t_upload_start=${fileUploadStartedAt}`,
+    );
+    logRsvpServer("drive_upload_start", {
+      submissionId,
+      fileIndex,
+      uploadName,
+      bytes: fileBytes,
+      t_upload_start: fileUploadStartedAt,
+    });
 
     const response = await runDriveCall("files.create(upload)", () =>
       drive.files.create({
         supportsAllDrives: true,
+        uploadType: "resumable",
         requestBody: {
           name: uploadName,
           parents: [destinationFolderId],
@@ -1057,6 +1095,21 @@ async function uploadMediaFilesToDrive(drive, destinationFolderId, submissionId,
     if (!fileId) {
       throw new Error(`Failed to upload media file ${uploadName}`);
     }
+    const fileUploadEndedAt = Date.now();
+    console.info(
+      `[rsvp] submission_id=${submissionId} drive_upload_end file_index=${fileIndex} duration_ms=${
+        fileUploadEndedAt - fileUploadStartedAt
+      } file_id=${fileId} t_upload_end=${fileUploadEndedAt}`,
+    );
+    logRsvpServer("drive_upload_end", {
+      submissionId,
+      fileIndex,
+      uploadName,
+      fileId,
+      bytes: fileBytes,
+      durationMs: fileUploadEndedAt - fileUploadStartedAt,
+      t_upload_end: fileUploadEndedAt,
+    });
 
     return {
       fileIndex,
@@ -1070,6 +1123,19 @@ async function uploadMediaFilesToDrive(drive, destinationFolderId, submissionId,
 
   const uploaded = (await Promise.all(uploadTasks)).sort((a, b) => a.fileIndex - b.fileIndex);
   await Promise.all(uploaded.map((item) => makeDriveFilePublic(drive, item.fileId)));
+  const uploadBatchEndedAt = Date.now();
+  console.info(
+    `[rsvp] submission_id=${submissionId} drive_upload_batch_end files=${uploaded.length} duration_ms=${
+      uploadBatchEndedAt - uploadBatchStartedAt
+    } bytes=${totalBytes}`,
+  );
+  logRsvpServer("drive_upload_batch_end", {
+    submissionId,
+    fileCount: uploaded.length,
+    totalBytes,
+    durationMs: uploadBatchEndedAt - uploadBatchStartedAt,
+    t_upload_end: uploadBatchEndedAt,
+  });
   return uploaded;
 }
 
@@ -1125,129 +1191,341 @@ function applyMediaSlotsToRsvpRowData(rowData, rsvpHeaders, uploadedMedia) {
   });
 }
 
-async function handleRsvpSubmission(req, res) {
-  let uploadedTempFiles = [];
+function parseRsvpSubmissionMode(rawValue) {
+  const normalized = normalizeFieldValue(rawValue).toLowerCase();
+  if (!normalized) return "full";
+  if (["save_only", "save", "details_only", "details"].includes(normalized)) return "save_only";
+  if (["upload_media", "upload", "media_only", "media"].includes(normalized)) return "upload_media";
+  return "full";
+}
 
-  try {
-    const { spreadsheetId, uploadsFolderId } = getRequiredGoogleIds();
-    const { sheets, drive } = createGoogleClients();
+function extractRsvpSubmissionFields(fields) {
+  const rsvpStatusRaw = getField(fields, "status").toLowerCase();
+  const rsvpStatus =
+    rsvpStatusRaw === "working"
+      ? "maybe"
+      : rsvpStatusRaw === "yes" || rsvpStatusRaw === "maybe" || rsvpStatusRaw === "no"
+      ? rsvpStatusRaw
+      : "";
 
-    const { fields, files } = await parseRsvpRequest(req);
-    uploadedTempFiles = files;
+  const fullName = getField(fields, "fullName") || getField(fields, "guestName");
+  const email = getField(fields, "email");
+  const phone = getField(fields, "phone");
+  const messageToCouple = getField(fields, "message");
+  const dietaryRestrictions = getField(fields, "dietary");
 
-    const submissionId = randomUUID();
-    const nowIso = new Date().toISOString();
+  const guestsRaw = safeJsonParse(getField(fields, "guests_json", "[]"), []);
+  const guests = normalizeGuests(guestsRaw);
+  const primaryFunFacts = getField(fields, "primaryFunFacts") || getField(fields, "primary_fun_facts") || (guests[0] ? guests[0].funFact : "");
 
-    const rsvpStatusRaw = getField(fields, "status").toLowerCase();
-    const rsvpStatus = rsvpStatusRaw === "working" ? "maybe" : rsvpStatusRaw === "yes" || rsvpStatusRaw === "maybe" || rsvpStatusRaw === "no" ? rsvpStatusRaw : "";
+  const maybePartySize = parseMaybeInt(getField(fields, "partySize") || getField(fields, "potentialPartySize"));
+  const partySize = rsvpStatus === "maybe" && Number.isFinite(maybePartySize) ? String(maybePartySize) : "";
+  const whenWillYouKnow = rsvpStatus === "maybe" ? getField(fields, "whenWillYouKnow") || getField(fields, "followupChoice") : "";
+  const source = inferSource(getField(fields, "userAgent"), getField(fields, "viewportWidth"));
 
-    const fullName = getField(fields, "fullName") || getField(fields, "guestName");
-    const email = getField(fields, "email");
-    const phone = getField(fields, "phone");
-    const messageToCouple = getField(fields, "message");
-    const dietaryRestrictions = getField(fields, "dietary");
+  return {
+    rsvpStatus,
+    fullName,
+    email,
+    phone,
+    messageToCouple,
+    dietaryRestrictions,
+    guests,
+    primaryFunFacts,
+    partySize,
+    whenWillYouKnow,
+    source,
+  };
+}
 
-    const guestsRaw = safeJsonParse(getField(fields, "guests_json", "[]"), []);
-    const guests = normalizeGuests(guestsRaw);
-    const primaryFunFacts = getField(fields, "primaryFunFacts") || getField(fields, "primary_fun_facts") || (guests[0] ? guests[0].funFact : "");
+function buildGuestRowsData(tabHeaders, submissionId, nowIso, parsedFields) {
+  const guestRowsData = [];
+  guestRowsData.push(
+    buildRowFromHeaders(tabHeaders.guests, {
+      submission_id: submissionId,
+      guest_index: "1",
+      guest_name: parsedFields.fullName,
+      fun_facts: parsedFields.primaryFunFacts,
+      is_primary: "TRUE",
+      created_at: nowIso,
+    }),
+  );
 
-    const maybePartySize = parseMaybeInt(getField(fields, "partySize") || getField(fields, "potentialPartySize"));
-    const partySize = rsvpStatus === "maybe" && Number.isFinite(maybePartySize) ? String(maybePartySize) : "";
-    const whenWillYouKnow = rsvpStatus === "maybe" ? getField(fields, "whenWillYouKnow") || getField(fields, "followupChoice") : "";
-
-    if (files.length > RSVP_MAX_MEDIA_FILES) {
-      throw createHttpError(400, `You can upload up to ${RSVP_MAX_MEDIA_FILES} files.`, "too_many_files");
-    }
-
-    const source = inferSource(getField(fields, "userAgent"), getField(fields, "viewportWidth"));
-
-    const tabHeaders = {
-      rsvps: await getSheetHeaders(sheets, spreadsheetId, "rsvps"),
-      guests: await getSheetHeaders(sheets, spreadsheetId, "guests"),
-      media: await getSheetHeaders(sheets, spreadsheetId, "media"),
-    };
-
-    assertHeadersPresent(tabHeaders.rsvps, TAB_SCHEMAS.rsvps, "rsvps");
-    assertHeadersPresent(tabHeaders.guests, TAB_SCHEMAS.guests, "guests");
-    assertHeadersPresent(tabHeaders.media, TAB_SCHEMAS.media, "media");
-
-    const guestRowsData = [];
+  let guestIndex = 2;
+  const additionalGuests = Array.isArray(parsedFields.guests) ? parsedFields.guests.slice(1) : [];
+  additionalGuests.forEach((guest) => {
+    if (!guest || !guest.name) return;
     guestRowsData.push(
       buildRowFromHeaders(tabHeaders.guests, {
         submission_id: submissionId,
-        guest_index: "1",
-        guest_name: fullName,
-        fun_facts: primaryFunFacts,
-        is_primary: "TRUE",
+        guest_index: String(guestIndex),
+        guest_name: guest.name,
+        fun_facts: guest.funFact || "",
+        is_primary: "FALSE",
         created_at: nowIso,
       }),
     );
+    guestIndex += 1;
+  });
 
-    let guestIndex = 2;
-    const additionalGuests = guests.slice(1);
-    additionalGuests.forEach((guest) => {
-      if (!guest.name) return;
-      guestRowsData.push(
-        buildRowFromHeaders(tabHeaders.guests, {
-          submission_id: submissionId,
-          guest_index: String(guestIndex),
-          guest_name: guest.name,
-          fun_facts: guest.funFact || "",
-          is_primary: "FALSE",
-          created_at: nowIso,
-        }),
-      );
-      guestIndex += 1;
+  return guestRowsData;
+}
+
+function buildRsvpRowData(tabHeaders, submissionId, nowIso, parsedFields, uploadedMedia = []) {
+  const mediaCount = Math.max(0, Array.isArray(uploadedMedia) ? uploadedMedia.length : 0);
+  const rsvpRowData = {
+    submission_id: submissionId,
+    submitted_at: nowIso,
+    rsvp_status: parsedFields.rsvpStatus,
+    full_name: parsedFields.fullName,
+    email: parsedFields.email,
+    phone: parsedFields.phone,
+    party_size: parsedFields.partySize,
+    when_will_you_know: parsedFields.whenWillYouKnow,
+    dietary_restrictions: parsedFields.dietaryRestrictions,
+    message_to_couple: parsedFields.messageToCouple,
+    primary_fun_facts: parsedFields.primaryFunFacts,
+    media_count: String(mediaCount),
+    source: parsedFields.source,
+    approved: "FALSE",
+  };
+  applyMediaSlotsToRsvpRowData(rsvpRowData, tabHeaders.rsvps, uploadedMedia);
+  return rsvpRowData;
+}
+
+function buildMediaRowsData(tabHeaders, submissionId, nowIso, uploadedMedia) {
+  const mediaList = Array.isArray(uploadedMedia) ? uploadedMedia : [];
+  if (!mediaList.length) return [];
+  return mediaList.map((item) =>
+    buildRowFromHeaders(tabHeaders.media, {
+      submission_id: submissionId,
+      file_index: String(item.fileIndex),
+      file_id: item.fileId,
+      file_name: item.fileName,
+      mime_type: item.mimeType,
+      file_type: item.fileType,
+      drive_view_url: item.driveViewUrl,
+      created_at: nowIso,
+    }),
+  );
+}
+
+async function loadRsvpTabHeaders(sheets, spreadsheetId, { includeMedia = true } = {}) {
+  const tasks = [
+    getSheetHeaders(sheets, spreadsheetId, "rsvps"),
+    getSheetHeaders(sheets, spreadsheetId, "guests"),
+  ];
+  if (includeMedia) {
+    tasks.push(getSheetHeaders(sheets, spreadsheetId, "media"));
+  }
+
+  const [rsvps, guests, media] = await Promise.all(tasks);
+  const tabHeaders = {
+    rsvps,
+    guests,
+    media: includeMedia ? media : null,
+  };
+
+  assertHeadersPresent(tabHeaders.rsvps, TAB_SCHEMAS.rsvps, "rsvps");
+  assertHeadersPresent(tabHeaders.guests, TAB_SCHEMAS.guests, "guests");
+  if (includeMedia) {
+    assertHeadersPresent(tabHeaders.media, TAB_SCHEMAS.media, "media");
+  }
+  return tabHeaders;
+}
+
+async function findRsvpRowBySubmissionId(sheets, spreadsheetId, submissionId) {
+  const response = await runSheetsCall("values.get(rows:rsvps-index)", () =>
+    sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: "rsvps!A:ZZ",
+    }),
+  );
+
+  const values = Array.isArray(response.data.values) ? response.data.values : [];
+  const [headerRow, ...rows] = values;
+  const headers = Array.isArray(headerRow) ? headerRow.map((header) => normalizeFieldValue(header)) : [];
+  const submissionIdIndex = headers.indexOf("submission_id");
+  if (submissionIdIndex < 0) {
+    throw new Error("Tab 'rsvps' is missing required headers: submission_id");
+  }
+
+  for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+    const row = Array.isArray(rows[rowIndex]) ? rows[rowIndex] : [];
+    if (normalizeFieldValue(row[submissionIdIndex]) !== submissionId) continue;
+    return {
+      rowNumber: rowIndex + 2,
+      rowValues: row,
+      headers,
+    };
+  }
+
+  return null;
+}
+
+async function updateRsvpRowMediaData(sheets, spreadsheetId, tabHeaders, submissionId, uploadedMedia) {
+  const found = await findRsvpRowBySubmissionId(sheets, spreadsheetId, submissionId);
+  if (!found) {
+    throw createHttpError(404, "Could not find RSVP submission for media upload.", "submission_not_found");
+  }
+
+  const rowData = {};
+  tabHeaders.rsvps.forEach((header, index) => {
+    rowData[header] = normalizeFieldValue(found.rowValues[index]);
+  });
+  rowData.media_count = String(Math.max(0, Array.isArray(uploadedMedia) ? uploadedMedia.length : 0));
+  applyMediaSlotsToRsvpRowData(rowData, tabHeaders.rsvps, uploadedMedia);
+  const updatedRow = buildRowFromHeaders(tabHeaders.rsvps, rowData);
+
+  await runSheetsCall("values.update(rsvps-media)", () =>
+    sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `rsvps!A${found.rowNumber}`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: {
+        values: [updatedRow],
+      },
+    }),
+  );
+}
+
+async function handleRsvpSubmission(req, res) {
+  let uploadedTempFiles = [];
+  const requestStartedAt = Date.now();
+  const requestId = randomUUID().slice(0, 8);
+
+  try {
+    const { fields, files } = await parseRsvpRequest(req);
+    uploadedTempFiles = files;
+    if (files.length > RSVP_MAX_MEDIA_FILES) {
+      throw createHttpError(400, `You can upload up to ${RSVP_MAX_MEDIA_FILES} files.`, "too_many_files");
+    }
+    const uploadBytes = files.reduce((sum, file) => sum + Math.max(0, Number(file && file.size ? file.size : 0) || 0), 0);
+    const mode = parseRsvpSubmissionMode(getField(fields, "submissionMode") || getField(fields, "mode"));
+    const requestedSubmissionId = getField(fields, "submissionId");
+    const expectedMediaCount = Math.max(
+      0,
+      parseBoundedInt(getField(fields, "expectedMediaCount") || getField(fields, "mediaCountExpected"), 0, 0, RSVP_MAX_MEDIA_FILES),
+    );
+    console.info(
+      `[rsvp] request_id=${requestId} request_received mode=${mode} files=${files.length} bytes=${uploadBytes} expected_media=${expectedMediaCount}`,
+    );
+    logRsvpServer("request_received", {
+      requestId,
+      mode,
+      files: files.length,
+      bytes: uploadBytes,
+      expectedMediaCount,
+      hasSubmissionId: Boolean(requestedSubmissionId),
     });
 
+    if (mode === "upload_media") {
+      if (!requestedSubmissionId) {
+        throw createHttpError(400, "Missing submissionId for media upload.", "missing_submission_id");
+      }
+
+      const { spreadsheetId, uploadsFolderId } = getRequiredGoogleIds();
+      const { sheets, drive } = createGoogleClients();
+      const nowIso = new Date().toISOString();
+      const tabHeaders = await loadRsvpTabHeaders(sheets, spreadsheetId, { includeMedia: true });
+
+      const driveUploadStartedAt = Date.now();
+      console.info(
+        `[rsvp] request_id=${requestId} submission_id=${requestedSubmissionId} phase=drive_upload_start files=${files.length} bytes=${uploadBytes}`,
+      );
+      const uploadedMedia = files.length ? await uploadMediaFilesToDrive(drive, uploadsFolderId, requestedSubmissionId, files) : [];
+      const driveUploadEndedAt = Date.now();
+
+      const mediaRowsData = buildMediaRowsData(tabHeaders, requestedSubmissionId, nowIso, uploadedMedia);
+      const sheetsWriteStartedAt = Date.now();
+      await Promise.all([
+        appendRows(sheets, spreadsheetId, "media", mediaRowsData),
+        updateRsvpRowMediaData(sheets, spreadsheetId, tabHeaders, requestedSubmissionId, uploadedMedia),
+      ]);
+      const sheetsWriteEndedAt = Date.now();
+
+      const durationMs = Date.now() - requestStartedAt;
+      console.info(
+        `[rsvp] request_id=${requestId} submission_id=${requestedSubmissionId} response_sent mode=upload_media uploaded=${
+          uploadedMedia.length
+        } drive_upload_ms=${driveUploadEndedAt - driveUploadStartedAt} sheets_write_ms=${
+          sheetsWriteEndedAt - sheetsWriteStartedAt
+        } total_ms=${durationMs}`,
+      );
+
+      send(
+        res,
+        200,
+        JSON.stringify({
+          ok: true,
+          submission_id: requestedSubmissionId,
+          uploaded_count: uploadedMedia.length,
+        }),
+        MIME_TYPES[".json"],
+        {
+          req,
+          cacheControl: "no-store",
+        },
+      );
+      return;
+    }
+
+    const parsedFields = extractRsvpSubmissionFields(fields);
+    const submissionId = requestedSubmissionId || randomUUID();
+    const nowIso = new Date().toISOString();
+    const includeMedia = mode === "full";
+
+    const requiredGoogleIds = mode === "save_only" ? { spreadsheetId: getRequiredSpreadsheetId(), uploadsFolderId: "" } : getRequiredGoogleIds();
+    const spreadsheetId = requiredGoogleIds.spreadsheetId;
+    const uploadsFolderId = mode === "full" ? requiredGoogleIds.uploadsFolderId : "";
+    const { sheets, drive } = createGoogleClients();
+
+    const saveStartedAt = Date.now();
+    console.info(`[rsvp] request_id=${requestId} submission_id=${submissionId} phase=rsvp_save_start mode=${mode}`);
+    const tabHeaders = await loadRsvpTabHeaders(sheets, spreadsheetId, { includeMedia });
+    const guestRowsData = buildGuestRowsData(tabHeaders, submissionId, nowIso, parsedFields);
     let uploadedMedia = [];
-    if (files.length) {
+    if (mode === "full" && files.length) {
       uploadedMedia = await uploadMediaFilesToDrive(drive, uploadsFolderId, submissionId, files);
     }
 
-    const mediaCount = uploadedMedia.length;
-    const rsvpRowData = {
-      submission_id: submissionId,
-      submitted_at: nowIso,
-      rsvp_status: rsvpStatus,
-      full_name: fullName,
-      email,
-      phone,
-      party_size: partySize,
-      when_will_you_know: whenWillYouKnow,
-      dietary_restrictions: dietaryRestrictions,
-      message_to_couple: messageToCouple,
-      primary_fun_facts: primaryFunFacts,
-      media_count: String(mediaCount),
-      source,
-      approved: "FALSE",
-    };
-    applyMediaSlotsToRsvpRowData(rsvpRowData, tabHeaders.rsvps, uploadedMedia);
+    const rsvpRowData = buildRsvpRowData(tabHeaders, submissionId, nowIso, parsedFields, uploadedMedia);
     const rsvpRow = buildRowFromHeaders(tabHeaders.rsvps, rsvpRowData);
-
-    let mediaRowsData = [];
-    if (files.length) {
-      mediaRowsData = uploadedMedia.map((item) =>
-        buildRowFromHeaders(tabHeaders.media, {
-          submission_id: submissionId,
-          file_index: String(item.fileIndex),
-          file_id: item.fileId,
-          file_name: item.fileName,
-          mime_type: item.mimeType,
-          file_type: item.fileType,
-          drive_view_url: item.driveViewUrl,
-          created_at: nowIso,
-        }),
-      );
-    }
-
-    await Promise.all([
+    const writeTasks = [
       appendRows(sheets, spreadsheetId, "rsvps", [rsvpRow]),
       appendRows(sheets, spreadsheetId, "guests", guestRowsData),
-      appendRows(sheets, spreadsheetId, "media", mediaRowsData),
-    ]);
+    ];
+    if (mode === "full") {
+      const mediaRowsData = buildMediaRowsData(tabHeaders, submissionId, nowIso, uploadedMedia);
+      writeTasks.push(appendRows(sheets, spreadsheetId, "media", mediaRowsData));
+    }
+    await Promise.all(writeTasks);
+    const saveEndedAt = Date.now();
+    console.info(
+      `[rsvp] request_id=${requestId} submission_id=${submissionId} phase=rsvp_save_end mode=${mode} duration_ms=${
+        saveEndedAt - saveStartedAt
+      }`,
+    );
 
-    send(res, 200, JSON.stringify({ ok: true, submission_id: submissionId }), MIME_TYPES[".json"], {
+    const responsePayload =
+      mode === "save_only"
+        ? {
+            ok: true,
+            submission_id: submissionId,
+            uploads_pending: expectedMediaCount > 0,
+          }
+        : {
+            ok: true,
+            submission_id: submissionId,
+            uploaded_count: uploadedMedia.length,
+          };
+
+    console.info(
+      `[rsvp] request_id=${requestId} submission_id=${submissionId} response_sent mode=${mode} total_ms=${
+        Date.now() - requestStartedAt
+      }`,
+    );
+    send(res, 200, JSON.stringify(responsePayload), MIME_TYPES[".json"], {
       req,
       cacheControl: "no-store",
     });
@@ -1255,6 +1533,15 @@ async function handleRsvpSubmission(req, res) {
     const message = error instanceof Error ? error.message : "RSVP submission failed";
     const status = Number(error && typeof error === "object" ? error.status : 0);
     const safeStatus = Number.isFinite(status) && status >= 400 && status <= 599 ? status : 500;
+    console.warn(
+      `[rsvp] request_id=${requestId} response_error status=${safeStatus} message=${message} total_ms=${Date.now() - requestStartedAt}`,
+    );
+    logRsvpServer("request_error", {
+      requestId,
+      status: safeStatus,
+      message,
+      totalMs: Date.now() - requestStartedAt,
+    });
     send(res, safeStatus, JSON.stringify({ ok: false, error: message }), MIME_TYPES[".json"], {
       req,
       cacheControl: "no-store",
