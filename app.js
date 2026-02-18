@@ -320,6 +320,7 @@ const makanExpandAll = document.getElementById("makanExpandAll");
 const makanCollapseAll = document.getElementById("makanCollapseAll");
 const makanLegalTrigger = document.getElementById("makanLegalTrigger");
 const makanLegalPopover = document.getElementById("makanLegalPopover");
+const makanLegalBackdrop = makanLegalPopover ? makanLegalPopover.querySelector("[data-legal-backdrop]") : null;
 const makanLegalClose = document.getElementById("makanLegalClose");
 const makanLegalWrapper = makanLegalTrigger ? makanLegalTrigger.closest(".makan-legal-row") : null;
 const makanSection = document.getElementById("makan");
@@ -573,6 +574,7 @@ let hotelMethodSheetDeltaY = 0;
 let hotelTouchSelectionLockUntil = 0;
 let makanTipOpen = false;
 let makanLegalOpen = false;
+let makanLegalScrollLocked = false;
 let makanTypeAccordions = [];
 let makanBulkToggle = false;
 
@@ -1827,14 +1829,20 @@ function initMakanTipPopover() {
 
 function closeMakanLegalModal({ restoreFocus = true } = {}) {
   if (!makanLegalPopover || !makanLegalTrigger) return;
+  const wasOpen = makanLegalOpen;
+  if (makanLegalScrollLocked) {
+    unlockBodyScroll();
+    makanLegalScrollLocked = false;
+  }
   if (makanSection) makanSection.classList.remove("has-legal-popover-open");
   setA11yHidden(makanLegalPopover, true);
   makanLegalPopover.classList.remove("is-flipped-up");
   makanLegalPopover.classList.remove("open");
+  makanLegalPopover.setAttribute("aria-modal", "false");
   if (makanLegalWrapper) makanLegalWrapper.dataset.open = "false";
   setAriaExpanded(makanLegalTrigger, false);
   makanLegalOpen = false;
-  if (restoreFocus) {
+  if (restoreFocus && wasOpen) {
     makanLegalTrigger.focus({ preventScroll: true });
   }
 }
@@ -1878,11 +1886,17 @@ function positionMakanLegalPopover() {
 
 function openMakanLegalModal() {
   if (!makanLegalPopover || !makanLegalTrigger) return;
+  if (makanLegalOpen) return;
   const mobileSheet = isMakanLegalMobile();
   if (makanSection && !mobileSheet) makanSection.classList.add("has-legal-popover-open");
   if (mobileSheet) makanLegalPopover.classList.remove("is-flipped-up");
+  if (mobileSheet && !makanLegalScrollLocked) {
+    lockBodyScroll();
+    makanLegalScrollLocked = true;
+  }
   setA11yHidden(makanLegalPopover, false);
   makanLegalPopover.classList.add("open");
+  makanLegalPopover.setAttribute("aria-modal", mobileSheet ? "true" : "false");
   if (makanLegalWrapper) makanLegalWrapper.dataset.open = "true";
   setAriaExpanded(makanLegalTrigger, true);
   makanLegalOpen = true;
@@ -1921,9 +1935,13 @@ function initMakanLegalModal() {
     });
   }
 
-  makanLegalPopover.addEventListener("pointerdown", (event) => {
-    event.stopPropagation();
-  });
+  if (makanLegalBackdrop instanceof HTMLElement) {
+    makanLegalBackdrop.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      closeMakanLegalModal({ restoreFocus: false });
+    });
+  }
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && makanLegalOpen) {
@@ -1942,6 +1960,10 @@ function initMakanLegalModal() {
   window.addEventListener("resize", () => {
     if (!makanLegalOpen) return;
     if (isMakanLegalMobile()) return;
+    if (makanLegalScrollLocked) {
+      unlockBodyScroll();
+      makanLegalScrollLocked = false;
+    }
     positionMakanLegalPopover();
   });
 

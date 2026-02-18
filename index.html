@@ -24,7 +24,7 @@
     </noscript>
     <link rel="icon" type="image/svg+xml" href="/public/favicon.svg" />
     <link rel="icon" type="image/png" href="/public/favicon-32.png" />
-    <link rel="stylesheet" href="./styles.css?v=20260218-lightbox-mobile-controls-fix1" />
+    <link rel="stylesheet" href="./styles.css?v=20260218-legal-modal-mobile-fix1" />
   </head>
   <body>
     <header id="floatingHeader" class="floating-header" aria-label="Site navigation">
@@ -180,9 +180,10 @@
               <span class="story-mobile-layer is-next" aria-hidden="true">
                 <img id="storyMobileImgNext" src="" alt="" loading="lazy" decoding="async" />
               </span>
+              <span class="story-mobile-caption-scrim" aria-hidden="true"></span>
               <span id="storyMobileYear" class="story-mobile-year"></span>
+              <span id="storyMobileBlurb" class="story-mobile-blurb"></span>
             </button>
-            <p id="storyMobileBlurb" class="story-mobile-blurb"></p>
           </div>
 
           <div class="story-mosaic-shell reveal" data-delay="120" id="storyMosaicShell">
@@ -1171,6 +1172,7 @@
                 ⚖️ Legal-ish note
               </button>
               <div id="makanLegalPopover" class="makan-legal-popover legalNoteContent" role="dialog" aria-modal="false" aria-labelledby="makanLegalTitle" hidden aria-hidden="true">
+                <button class="makan-legal-backdrop" type="button" aria-label="Close legal note" data-legal-backdrop></button>
                 <span class="makan-legal-popover-arrow" aria-hidden="true"></span>
                 <div class="makan-legal-card" role="document">
                   <h3 id="makanLegalTitle">Legal-ish note (said with love)</h3>
@@ -1359,6 +1361,6 @@
 
     <script src="./data/hotels.js?v=20260216-matrix"></script>
     <script src="./data/beijing-food.js?v=20260216-title-reveal-fix1"></script>
-    <script src="./app.js?v=20260218-legal-note-fix1"></script>
+    <script src="./app.js?v=20260218-legal-modal-mobile-fix1"></script>
   </body>
 </html>
