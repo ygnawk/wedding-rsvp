@@ -164,6 +164,13 @@ video {
   content: none;
 }
 
+#top {
+  min-height: 100vh;
+  min-height: 100svh;
+  min-height: max(var(--sectionH), 100svh);
+  overflow: clip;
+}
+
 .section--light::before {
   color: var(--color-maroon);
 }
@@ -869,19 +876,50 @@ video {
   text-transform: uppercase;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  gap: 0;
 }
 
 .hero-rsvp-arrow {
+  display: inline-block;
+  max-width: 0;
+  margin-left: 0;
+  opacity: 0;
+  overflow: hidden;
   font-size: 0.9rem;
   line-height: 1;
+  transform: translateX(-6px);
 }
 
 @media (hover: hover) and (pointer: fine) {
+  .hero-rsvp {
+    transition:
+      padding-right 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      background 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .hero-rsvp-arrow {
+    transition:
+      max-width 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      margin-left 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      opacity 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
   .hero-rsvp:hover,
   .hero-rsvp:focus-visible {
+    padding-right: 26px;
     background: #b89a5f;
     transform: translateY(-1px);
+  }
+
+  .hero-rsvp:hover .hero-rsvp-arrow,
+  .hero-rsvp:focus-visible .hero-rsvp-arrow {
+    max-width: 1.2em;
+    margin-left: 10px;
+    opacity: 1;
+    transform: translateX(0);
   }
 }
 
@@ -950,7 +988,7 @@ video {
   height: 100%;
   display: block;
   object-fit: cover;
-  object-position: 56% 60%;
+  object-position: 52% 22%;
   filter: var(--photoGradeFilter);
 }
 
@@ -4055,11 +4093,15 @@ details[open] .faq-answer {
   position: fixed;
   z-index: 9999;
   width: min(320px, calc(100vw - 24px));
+  max-height: 80vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   border-radius: 14px;
   border: 1px solid rgba(201, 174, 116, 0.38);
   background: rgba(247, 241, 230, 0.99);
   box-shadow: 0 16px 34px rgba(21, 12, 15, 0.2);
-  padding: 11px 12px;
+  padding: 11px 12px calc(16px + env(safe-area-inset-bottom));
   color: var(--ink);
 }
 
@@ -4612,7 +4654,7 @@ details[open] .faq-answer {
   border: 1px solid rgba(201, 174, 116, 0.32);
   border-bottom: 0;
   padding: max(14px, calc(env(safe-area-inset-top) + 6px)) 16px calc(16px + env(safe-area-inset-bottom));
-  max-height: min(72dvh, 540px);
+  max-height: 80vh;
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -4960,7 +5002,7 @@ details[open] .faq-answer {
   }
 
   .hotel-method-sheet-panel {
-    max-height: min(76dvh, 560px);
+    max-height: 80vh;
   }
 
   .hotel-method-sheet-title {
@@ -5619,19 +5661,27 @@ a.makan-copy-icon-btn {
 }
 
 .makan-legal-popover {
-  position: absolute;
-  left: 0;
-  top: calc(100% + 12px);
-  z-index: 200;
+  --makan-legal-arrow-left: 24px;
+  position: fixed;
+  left: 12px;
+  top: 12px;
+  z-index: 401;
   width: fit-content;
-  max-width: min(420px, 90vw);
-  max-height: min(220px, 60vh);
+  max-width: min(420px, calc(100vw - 24px));
+  max-height: min(70vh, 420px);
   overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  pointer-events: none;
+}
+
+.makan-legal-popover.open {
+  pointer-events: auto;
 }
 
 .makan-legal-popover-arrow {
   position: absolute;
-  left: 18px;
+  left: var(--makan-legal-arrow-left);
   top: -7px;
   width: 12px;
   height: 12px;
@@ -5641,15 +5691,28 @@ a.makan-copy-icon-btn {
   transform: rotate(45deg);
 }
 
+.makan-legal-popover.is-flipped-up .makan-legal-popover-arrow {
+  top: auto;
+  bottom: -7px;
+  transform: rotate(225deg);
+  border-left: 0;
+  border-top: 0;
+  border-right: 1px solid rgba(90, 55, 55, 0.18);
+  border-bottom: 1px solid rgba(90, 55, 55, 0.18);
+}
+
 .makan-legal-card {
   position: relative;
   width: max-content;
   max-width: min(420px, 90vw);
   border-radius: 16px;
-  border: 1px solid rgba(201, 174, 116, 0.36);
-  background: rgba(247, 241, 230, 0.98);
+  border: 1px solid rgba(90, 55, 55, 0.18);
+  background: var(--ivory);
   padding: 20px 22px;
   color: var(--ink);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.22),
+    0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
 .makan-legal-card h3 {
@@ -5687,6 +5750,22 @@ a.makan-copy-icon-btn {
 .makan-legal-close:focus-visible {
   outline: 2px solid rgba(117, 24, 39, 0.4);
   outline-offset: 2px;
+}
+
+.makan-legal-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+#makan.has-legal-popover-open {
+  padding-bottom: 220px;
 }
 
 .makan-copy-icon-btn.is-copied {
@@ -5745,15 +5824,21 @@ a.makan-copy-icon-btn {
   }
 
   .makan-legal-popover {
-    position: static;
-    left: auto;
-    right: auto;
-    top: auto;
-    width: min(420px, 90vw);
-    max-width: min(420px, 90vw);
+    inset: 0;
+    z-index: 401;
+    width: auto;
+    max-width: none;
     max-height: none;
+    padding: 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: stretch;
     overflow: visible;
-    margin-top: 12px;
+    pointer-events: none;
+  }
+
+  .makan-legal-popover.open {
+    pointer-events: auto;
   }
 
   .makan-legal-popover-arrow {
@@ -5761,9 +5846,25 @@ a.makan-copy-icon-btn {
   }
 
   .makan-legal-card {
-    width: max-content;
-    max-width: min(420px, 90vw);
-    padding: 14px 16px;
+    width: 100%;
+    max-width: none;
+    max-height: 80vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 20px 20px 0 0;
+    padding: 16px 16px calc(18px + env(safe-area-inset-bottom));
+    box-shadow:
+      0 -12px 32px rgba(0, 0, 0, 0.22),
+      0 2px 10px rgba(0, 0, 0, 0.1);
+  }
+
+  .makan-legal-scrim {
+    z-index: 400;
+  }
+
+  #makan.has-legal-popover-open {
+    padding-bottom: 0;
   }
 }
 
@@ -7999,6 +8100,24 @@ a.guestwall-media-retry {
   }
 }
 
+@media (max-width: 480px) {
+  .guestwall-item--polaroid .guestwall-polaroid-mat {
+    --gw-m-bottom: 40px;
+  }
+
+  .guestwall-item--polaroid .guestwall-polaroid-signature--border {
+    bottom: 14px;
+  }
+
+  .guestwall-note-panel {
+    padding-bottom: 18px;
+  }
+
+  .guestwall-note-sign--postcard {
+    margin-bottom: 8px;
+  }
+}
+
 @keyframes guestwallSpinner {
   to {
     transform: rotate(360deg);
@@ -8207,11 +8326,12 @@ body.modal-open {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0;
-  width: 48px;
-  min-height: 44px;
-  padding: 0 10px;
-  border-radius: 14px;
+  gap: 8px;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 8px;
+  border-radius: 9999px;
   border: 1px solid rgba(75, 15, 23, 0.24);
   background: rgba(247, 241, 230, 0.84);
   color: var(--ink);
@@ -8223,9 +8343,7 @@ body.modal-open {
   overflow: hidden;
   white-space: nowrap;
   transition:
-    width 300ms ease-out,
-    padding 300ms ease-out,
-    gap 300ms ease-out,
+    width 220ms ease,
     border-color 180ms ease,
     background-color 180ms ease,
     color 180ms ease,
@@ -8233,14 +8351,20 @@ body.modal-open {
 }
 
 .travel-passport-flag {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 1.12rem;
   line-height: 1;
-  flex: 0 0 auto;
+  flex: 0 0 24px;
 }
 
 .travel-passport-label-text {
   max-width: 0;
   opacity: 0;
+  transform: translateX(-6px);
   overflow: hidden;
   text-overflow: ellipsis;
   font-family: var(--font-ui);
@@ -8248,13 +8372,26 @@ body.modal-open {
   font-size: 0.92rem;
   line-height: 1.2;
   color: rgba(21, 21, 21, 0.9);
-  transition: max-width 300ms ease-out, opacity 200ms ease-out;
+  transition:
+    max-width 220ms ease,
+    opacity 200ms ease,
+    transform 200ms ease;
 }
 
 .travel-passport-pill.is-active {
+  width: clamp(148px, 20vw, 186px);
+  justify-content: flex-start;
+  padding: 0 12px;
   border-color: rgba(201, 174, 116, 0.85);
   background: rgba(201, 174, 116, 0.2);
   color: var(--maroonDeep);
+}
+
+.travel-passport-pill.is-active .travel-passport-label-text,
+.travel-passport-pill[data-selected="true"] .travel-passport-label-text {
+  max-width: 130px;
+  opacity: 1;
+  transform: translateX(0);
 }
 
 .travel-passport-pill:focus-visible {
@@ -8265,9 +8402,8 @@ body.modal-open {
 @media (hover: hover) and (pointer: fine) {
   .travel-passport-pill:hover,
   .travel-passport-pill:focus-visible {
-    width: clamp(160px, 22vw, 220px);
+    width: clamp(148px, 20vw, 186px);
     justify-content: flex-start;
-    gap: 8px;
     padding: 0 12px;
     border-color: rgba(201, 174, 116, 0.72);
     box-shadow: 0 8px 14px rgba(31, 9, 12, 0.07);
@@ -8275,8 +8411,9 @@ body.modal-open {
 
   .travel-passport-pill:hover .travel-passport-label-text,
   .travel-passport-pill:focus-visible .travel-passport-label-text {
-    max-width: 140px;
+    max-width: 130px;
     opacity: 1;
+    transform: translateX(0);
   }
 }
 
@@ -8499,9 +8636,10 @@ body.modal-open {
 
 @media (max-width: 760px) {
   .travel-passport-pill {
-    width: 46px;
-    min-height: 46px;
-    padding: 0 9px;
+    width: 40px;
+    height: 40px;
+    min-height: 40px;
+    padding: 0 8px;
   }
 
   .travel-selector-hint {
