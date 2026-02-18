@@ -95,6 +95,8 @@ const RSVP_SLOW_SUBMIT_JOKE =
 const STORY_IMAGE_PLACEHOLDER_DATA_URI =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="%23efe7da"/><stop offset="100%" stop-color="%23e4d7c1"/></linearGradient></defs><rect width="1200" height="900" fill="url(%23g)"/><circle cx="600" cy="390" r="92" fill="%23ceb998" opacity="0.45"/><rect x="356" y="548" width="488" height="22" rx="11" fill="%239b7d52" opacity="0.4"/><rect x="418" y="594" width="364" height="18" rx="9" fill="%239b7d52" opacity="0.28"/></svg>';
 const PHOTO_MANIFEST_TIMEOUT_MS = 8000;
+const GALLERY_IMAGE_STALL_TIMEOUT_MS = 12000;
+const GALLERY_IMAGE_MAX_ATTEMPTS = 3;
 const INIT_STEP_WARN_MS = 1200;
 const UPLOAD_ALLOWED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "heic", "heif", "mp4", "mov", "webm"]);
 const UPLOAD_ALLOWED_MIME_TYPES = new Set([
@@ -7010,8 +7012,9 @@ function shiftGuestWallMobileCard(step = 1) {
 
 function buildGuestWallMobileDeck(deckSize, reshuffle = false) {
   const limit = Math.max(1, Math.floor(Number(deckSize) || 1));
-  const mediaIds = guestWallCards.filter((card) => card?.kind === "media").map((card) => card.id);
-  const sourceIds = mediaIds.length ? mediaIds : guestWallCards.map((card) => card.id);
+  // Mobile should rotate through the same mixed wall artifacts as desktop.
+  // Include both polaroids (media) and postcards (notes).
+  const sourceIds = guestWallCards.map((card) => card.id);
   const seededOrder = getGuestWallSeededOrder(sourceIds, `mobile-deck:${guestWallLayoutCycle}`);
   if (!seededOrder.length) return [];
   if (reshuffle || !guestWallVisibleCardIds.length) {
@@ -7890,6 +7893,15 @@ function getConfiguredGalleryEntries(manifest) {
   return [...lmnFirst, ...nonLmn].slice(0, 9);
 }
 
+function withGalleryRetryQuery(src, attempt) {
+  if (!src) return "";
+  const hashIndex = src.indexOf("#");
+  const hash = hashIndex >= 0 ? src.slice(hashIndex) : "";
+  const withoutHash = hashIndex >= 0 ? src.slice(0, hashIndex) : src;
+  const separator = withoutHash.includes("?") ? "&" : "?";
+  return `${withoutHash}${separator}retry=${Date.now()}-${attempt}${hash}`;
+}
+
 function isGalleryLightboxOpen() {
   if (!galleryLightbox) return false;
   return !galleryLightbox.classList.contains("hidden") && galleryLightbox.getAttribute("aria-hidden") !== "true";
@@ -8059,10 +8071,10 @@ function buildGalleryCard(entry, index) {
 
   const img = document.createElement("img");
   img.className = "gallery-tile-media";
-  img.src = toPhotoSrc(entry.file);
   img.alt = entry.alt || "Miki and Yi Jie";
-  img.loading = "lazy";
-  img.decoding = "async";
+  img.loading = "eager";
+  img.decoding = "auto";
+  img.fetchPriority = index < 3 ? "high" : "auto";
   img.style.objectFit = "cover";
   const focalX = clamp01(entry.focalX, RECENT_DEFAULT_FOCAL_X);
   const focalY = clamp01(entry.focalY, RECENT_DEFAULT_FOCAL_Y);
@@ -8070,6 +8082,68 @@ function buildGalleryCard(entry, index) {
   const objectPosition = isGalleryMobileView() ? entry.mobileObjectPosition || baseObjectPosition : baseObjectPosition;
   img.style.objectPosition = objectPosition;
   card.style.setProperty("--objPos", objectPosition);
+  card.dataset.imageState = "loading";
+
+  const baseSrc = toPhotoSrc(entry.file);
+  let attempt = 0;
+  let settled = false;
+  let stallTimer = 0;
+
+  const clearStallTimer = () => {
+    if (!stallTimer) return;
+    window.clearTimeout(stallTimer);
+    stallTimer = 0;
+  };
+
+  const markLoaded = () => {
+    if (settled) return;
+    settled = true;
+    clearStallTimer();
+    card.dataset.imageState = "loaded";
+  };
+
+  const markFailed = () => {
+    settled = true;
+    clearStallTimer();
+    card.dataset.imageState = "failed";
+    img.src = STORY_IMAGE_PLACEHOLDER_DATA_URI;
+  };
+
+  const scheduleStallGuard = () => {
+    clearStallTimer();
+    stallTimer = window.setTimeout(() => {
+      if (settled) return;
+      retryLoad();
+    }, GALLERY_IMAGE_STALL_TIMEOUT_MS);
+  };
+
+  const loadAttempt = () => {
+    if (!baseSrc) {
+      markFailed();
+      return;
+    }
+    const nextSrc = attempt === 0 ? baseSrc : withGalleryRetryQuery(baseSrc, attempt);
+    img.src = nextSrc;
+    card.dataset.imageState = attempt === 0 ? "loading" : "retrying";
+    scheduleStallGuard();
+  };
+
+  const retryLoad = () => {
+    if (attempt + 1 >= GALLERY_IMAGE_MAX_ATTEMPTS) {
+      markFailed();
+      return;
+    }
+    attempt += 1;
+    loadAttempt();
+  };
+
+  img.addEventListener("load", markLoaded);
+  img.addEventListener("error", () => {
+    if (settled) return;
+    retryLoad();
+  });
+
+  loadAttempt();
   card.appendChild(img);
 
   if (ENABLE_FOCAL_TUNER) {
