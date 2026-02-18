@@ -65,6 +65,8 @@ const GUEST_WALL_IMAGE_CONCURRENCY = 4;
 const GUEST_WALL_IMAGE_OBSERVER_MARGIN = "240px";
 const GUEST_WALL_SESSION_CACHE_KEY = "guestwall-pinboard-cache-v1";
 const GUEST_WALL_SESSION_CACHE_TTL_MS = 5 * 60 * 1000;
+const INTERLUDE_CURTAIN_DESKTOP_PROGRESS_WINDOW = 0.33;
+const INTERLUDE_CURTAIN_MOBILE_PROGRESS_SPEED = 1.35;
 const GUEST_WALL_LOADING_MESSAGE = "Loading guest wall…";
 const GUEST_WALL_EMPTY_MESSAGE = "Nothing here yet—check back soon.";
 const GUEST_WALL_UNAVAILABLE_MESSAGE = "Guest Wall is temporarily unavailable.";
@@ -507,6 +509,7 @@ const storyChronologyStart = document.getElementById("storyChronologyStart");
 const storyChronologyNow = document.getElementById("storyChronologyNow");
 const storyMobileStage = document.getElementById("storyMobileStage");
 const storyMobileCard = document.getElementById("storyMobileCard");
+const storyMobileViewFullBtn = document.getElementById("storyMobileViewFullBtn");
 const storyMobileImgCurrent = document.getElementById("storyMobileImgCurrent");
 const storyMobileImgNext = document.getElementById("storyMobileImgNext");
 const storyMobileYear = document.getElementById("storyMobileYear");
@@ -525,6 +528,7 @@ const storyLightboxTitle = document.getElementById("storyLightboxTitle");
 const storyLightboxBlurb = document.getElementById("storyLightboxBlurb");
 const storyLightboxLong = document.getElementById("storyLightboxLong");
 const storyLightboxCounter = document.getElementById("storyLightboxCounter");
+const storyLightboxSwipeHint = document.getElementById("storyLightboxSwipeHint");
 const storyLightboxPrev = storyLightbox ? storyLightbox.querySelector(".story-lightbox-btn--prev") : null;
 const storyLightboxNext = storyLightbox ? storyLightbox.querySelector(".story-lightbox-btn--next") : null;
 const storyLightboxFrame = storyLightbox ? storyLightbox.querySelector(".story-lightbox-frame") : null;
@@ -547,6 +551,9 @@ let storyMobileIndex = 0;
 let storyMobileTouchStartX = null;
 let storyMobileSwapToken = 0;
 const STORY_MOBILE_CROSSFADE_MS = 320;
+const STORY_LIGHTBOX_SWIPE_HINT_STORAGE_KEY = "story-lightbox-swipe-hint-seen";
+const STORY_LIGHTBOX_SWIPE_HINT_MS = 1700;
+let storySwipeHintTimer = 0;
 let storyPathTargets = [];
 let storyPathRaf = null;
 let storyPathResizeBound = false;
@@ -1894,20 +1901,18 @@ function positionMakanLegalPopover() {
 function openMakanLegalModal() {
   if (!makanLegalPopover || !makanLegalTrigger) return;
   if (makanLegalOpen) return;
-  const mobileSheet = isMakanLegalMobile();
-  if (makanSection && !mobileSheet) makanSection.classList.add("has-legal-popover-open");
-  if (mobileSheet) makanLegalPopover.classList.remove("is-flipped-up");
-  if (mobileSheet && !makanLegalScrollLocked) {
+  if (makanSection) makanSection.classList.add("has-legal-popover-open");
+  makanLegalPopover.classList.remove("is-flipped-up");
+  if (!makanLegalScrollLocked) {
     lockBodyScroll();
     makanLegalScrollLocked = true;
   }
   setA11yHidden(makanLegalPopover, false);
   makanLegalPopover.classList.add("open");
-  makanLegalPopover.setAttribute("aria-modal", mobileSheet ? "true" : "false");
+  makanLegalPopover.setAttribute("aria-modal", "true");
   if (makanLegalWrapper) makanLegalWrapper.dataset.open = "true";
   setAriaExpanded(makanLegalTrigger, true);
   makanLegalOpen = true;
-  if (!mobileSheet) positionMakanLegalPopover();
   if (makanLegalClose instanceof HTMLElement) {
     window.requestAnimationFrame(() => makanLegalClose.focus({ preventScroll: true }));
   }
@@ -1963,26 +1968,6 @@ function initMakanLegalModal() {
     if (makanLegalPopover.contains(target) || makanLegalTrigger.contains(target)) return;
     closeMakanLegalModal({ restoreFocus: false });
   });
-
-  window.addEventListener("resize", () => {
-    if (!makanLegalOpen) return;
-    if (isMakanLegalMobile()) return;
-    if (makanLegalScrollLocked) {
-      unlockBodyScroll();
-      makanLegalScrollLocked = false;
-    }
-    positionMakanLegalPopover();
-  });
-
-  window.addEventListener(
-    "scroll",
-    () => {
-      if (!makanLegalOpen) return;
-      if (isMakanLegalMobile()) return;
-      positionMakanLegalPopover();
-    },
-    { passive: true },
-  );
 
   makanLegalTrigger.dataset.boundLegal = "true";
 }
@@ -2278,6 +2263,48 @@ function hideHotelDotTooltip() {
   hotelMatrixTooltip.setAttribute("aria-hidden", "true");
 }
 
+function showHotelDotTooltip(item, meta) {
+  if (!hotelMatrixTooltip || !hotelMatrixSvg || !hotelMatrixShell || !item || !meta) return;
+
+  hotelMatrixTooltip.innerHTML = `
+    <p class="hotel-map-dot-tooltip-title">${item.name}</p>
+    <p class="hotel-map-dot-tooltip-body">${meta.priceBand || "$$"} · ${Number(item.driveMins)} min drive</p>
+  `;
+  hotelMatrixTooltip.hidden = false;
+  hotelMatrixTooltip.setAttribute("aria-hidden", "false");
+
+  const svgRect = hotelMatrixSvg.getBoundingClientRect();
+  const viewportPadding = 10;
+  const gap = 14;
+  const scaleX = svgRect.width / Math.max(1, hotelMatrixWidth);
+  const scaleY = svgRect.height / Math.max(1, hotelMatrixHeight);
+  const dotX = svgRect.left + meta.cx * scaleX;
+  const dotY = svgRect.top + meta.cy * scaleY;
+
+  const tooltipRect = hotelMatrixTooltip.getBoundingClientRect();
+  const tooltipWidth = tooltipRect.width || 240;
+  const tooltipHeight = tooltipRect.height || 66;
+
+  let left = dotX - tooltipWidth * 0.5;
+  left = Math.max(viewportPadding, Math.min(left, window.innerWidth - tooltipWidth - viewportPadding));
+
+  let side = "top";
+  let top = dotY - tooltipHeight - gap;
+  if (top < viewportPadding) {
+    side = "bottom";
+    top = dotY + gap;
+  }
+  if (top + tooltipHeight > window.innerHeight - viewportPadding) {
+    top = Math.max(viewportPadding, window.innerHeight - tooltipHeight - viewportPadding);
+  }
+
+  const stemOffset = Math.max(16, Math.min(dotX - left, tooltipWidth - 16));
+  hotelMatrixTooltip.dataset.side = side;
+  hotelMatrixTooltip.style.setProperty("--hotelTooltipStemOffset", `${stemOffset.toFixed(1)}px`);
+  hotelMatrixTooltip.style.left = `${Math.round(left)}px`;
+  hotelMatrixTooltip.style.top = `${Math.round(top)}px`;
+}
+
 function buildHotelDetailsCard(item) {
   const card = document.createElement("article");
   card.className = "hotel-map-detail-card";
@@ -2383,6 +2410,7 @@ function swapHotelDetails(item) {
 function openHotelMatrixSheet(item) {
   if (!hotelMatrixSheet || !hotelMatrixSheetContent || !item) return;
   const wasOpen = hotelSheetOpen;
+  hideHotelDotTooltip();
   hotelMatrixSheet.hidden = false;
   hotelMatrixSheetContent.replaceChildren(buildHotelDetailsCard(item));
   hotelMatrixSheet.scrollTop = 0;
@@ -2402,6 +2430,11 @@ function closeHotelMatrixSheet() {
   hotelMatrixSheet.hidden = true;
   hotelSheetOpen = false;
   unlockBodyScroll();
+  if (isHotelMatrixMobile() && hotelMatrixPinnedId) {
+    const pinnedHotel = getHotelById(hotelMatrixPinnedId);
+    const pinnedMeta = hotelMatrixMetaById.get(hotelMatrixPinnedId);
+    showHotelDotTooltip(pinnedHotel, pinnedMeta);
+  }
 }
 
 function clearHotelMatrixSelection() {
@@ -2413,6 +2446,7 @@ function clearHotelMatrixSelection() {
 function applyHotelMatrixPointStateClasses() {
   const selectedId = getActiveHotelMatrixId();
   const hoveredId = canUseHotelMatrixHover() ? hotelMatrixHoveredId : "";
+  const dimOthers = isHotelMatrixMobile() && Boolean(selectedId);
 
   hotelMatrixMetaById.forEach((meta, hotelId) => {
     if (!meta.group) return;
@@ -2420,6 +2454,7 @@ function applyHotelMatrixPointStateClasses() {
     const isHovered = !isActive && Boolean(hoveredId) && hotelId === hoveredId;
     meta.group.classList.toggle("is-active", isActive);
     meta.group.classList.toggle("is-hovered", isHovered);
+    meta.group.classList.toggle("is-muted", dimOthers && !isActive);
   });
 }
 
@@ -2460,7 +2495,12 @@ function applyHotelMatrixSelection() {
     }
   }
   queueHotelMatrixRender();
-  hideHotelDotTooltip();
+  if (isHotelMatrixMobile() && pinnedHotel) {
+    const meta = hotelMatrixMetaById.get(selectedId);
+    showHotelDotTooltip(pinnedHotel, meta);
+  } else {
+    hideHotelDotTooltip();
+  }
 }
 
 function getHotelMatrixDimensions() {
@@ -2503,6 +2543,7 @@ function renderHotelMatrix() {
   const plotHeight = Math.max(170, height - margins.top - margins.bottom);
   const ringRadius = isCompact ? 8.2 : 12;
   const dotRadius = isCompact ? 4.8 : 7.4;
+  const hitRadius = isCompact ? 19 : 14;
 
   hotelMatrixSvg.setAttribute("viewBox", `0 0 ${width} ${height}`);
   hotelMatrixSvg.setAttribute("preserveAspectRatio", "xMidYMid meet");
@@ -2714,6 +2755,18 @@ function renderHotelMatrix() {
       class: "hotel-map-dot-anchor",
       transform: `translate(${cx.toFixed(2)} ${cy.toFixed(2)})`,
     });
+    const hitbox = createSvgNode("circle", {
+      class: "hotel-map-dot-hitbox",
+      cx: "0",
+      cy: "0",
+      r: hitRadius.toFixed(2),
+    });
+    const halo = createSvgNode("circle", {
+      class: "hotel-map-dot-halo",
+      cx: "0",
+      cy: "0",
+      r: (ringRadius + 3.2).toFixed(2),
+    });
     const ring = createSvgNode("circle", {
       class: "hotel-map-dot-ring",
       cx: "0",
@@ -2731,14 +2784,24 @@ function renderHotelMatrix() {
       event.preventDefault();
       event.stopPropagation();
       const isSameSelection = hotelMatrixPinnedId === item.id;
-      hotelMatrixPinnedId = isSameSelection ? "" : item.id;
-      applyHotelMatrixSelection();
       if (hotelMethodSheetOpen) closeHotelMethodSheet();
 
       if (isHotelMatrixMobile()) {
-        if (hotelMatrixPinnedId) openHotelMatrixSheet(item);
-        else closeHotelMatrixSheet();
+        if (!isSameSelection) {
+          hotelMatrixPinnedId = item.id;
+          closeHotelMatrixSheet();
+          applyHotelMatrixSelection();
+          return;
+        }
+
+        hotelMatrixPinnedId = item.id;
+        applyHotelMatrixSelection();
+        if (hotelSheetOpen) closeHotelMatrixSheet();
+        else openHotelMatrixSheet(item);
+        return;
       } else {
+        hotelMatrixPinnedId = isSameSelection ? "" : item.id;
+        applyHotelMatrixSelection();
         closeHotelMatrixSheet();
       }
     };
@@ -2777,6 +2840,8 @@ function renderHotelMatrix() {
       setHotelMatrixHoveredId("");
     });
 
+    dotAnchor.appendChild(hitbox);
+    dotAnchor.appendChild(halo);
     dotAnchor.appendChild(ring);
     dotAnchor.appendChild(dot);
     group.appendChild(dotAnchor);
@@ -2854,9 +2919,17 @@ function initHotelMatrix() {
   document.addEventListener(
     "pointerdown",
     (event) => {
-      if (isHotelMatrixMobile() || !hotelMatrixPinnedId) return;
       const target = event.target;
       if (!(target instanceof Element)) return;
+      if (!hotelMatrixPinnedId) return;
+
+      if (isHotelMatrixMobile()) {
+        const insideSheet = hotelMatrixSheet && hotelSheetOpen && hotelMatrixSheet.contains(target);
+        if (hotelMatrixShell.contains(target) || insideSheet) return;
+        clearHotelMatrixSelection();
+        return;
+      }
+
       if (hotelMatrixShell.contains(target) || hotelMatrixDetails.contains(target)) return;
       clearHotelMatrixSelection();
     },
@@ -2869,6 +2942,17 @@ function initHotelMatrix() {
     }
     queueHotelMatrixRender();
   });
+
+  window.addEventListener(
+    "scroll",
+    () => {
+      if (!isHotelMatrixMobile() || !hotelMatrixPinnedId || hotelSheetOpen) return;
+      const pinnedHotel = getHotelById(hotelMatrixPinnedId);
+      const pinnedMeta = hotelMatrixMetaById.get(hotelMatrixPinnedId);
+      showHotelDotTooltip(pinnedHotel, pinnedMeta);
+    },
+    { passive: true },
+  );
 
   if ("ResizeObserver" in window) {
     hotelMatrixResizeObserver = new ResizeObserver(() => {
@@ -9222,10 +9306,13 @@ function syncStoryResponsiveMode() {
 function bindStoryMobileStage() {
   if (!storyMobileCard || storyMobileCard.dataset.bound === "true") return;
 
-  storyMobileCard.addEventListener("click", () => {
-    if (!storyItems.length) return;
-    openStoryLightbox(storyMobileIndex);
-  });
+  if (storyMobileViewFullBtn && storyMobileViewFullBtn.dataset.bound !== "true") {
+    storyMobileViewFullBtn.addEventListener("click", () => {
+      if (!storyItems.length) return;
+      openStoryLightbox(storyMobileIndex);
+    });
+    storyMobileViewFullBtn.dataset.bound = "true";
+  }
 
   storyMobileCard.addEventListener(
     "touchstart",
@@ -9485,6 +9572,7 @@ function buildStoryMosaicCard(item, slot, index) {
 
   const lightboxIndex = storyItems.findIndex((storyItem) => storyItem.file === item.file);
   card.addEventListener("click", () => {
+    if (isStoryMobileView()) return;
     if (lightboxIndex < 0) return;
     openStoryLightbox(lightboxIndex);
   });
@@ -9620,6 +9708,42 @@ function isStoryLightboxOpen() {
   return !storyLightbox.classList.contains("hidden") && storyLightbox.getAttribute("aria-hidden") !== "true";
 }
 
+function hideStoryLightboxSwipeHint() {
+  if (!storyLightboxSwipeHint) return;
+  if (storySwipeHintTimer) {
+    window.clearTimeout(storySwipeHintTimer);
+    storySwipeHintTimer = 0;
+  }
+  storyLightboxSwipeHint.classList.remove("is-visible");
+  storyLightboxSwipeHint.classList.add("hidden");
+}
+
+function showStoryLightboxSwipeHintOnce() {
+  if (!storyLightboxSwipeHint || !isCoarsePointer()) return;
+  let alreadySeen = false;
+  try {
+    alreadySeen = window.localStorage.getItem(STORY_LIGHTBOX_SWIPE_HINT_STORAGE_KEY) === "1";
+  } catch (error) {
+    alreadySeen = false;
+  }
+  if (alreadySeen) return;
+
+  storyLightboxSwipeHint.classList.remove("hidden");
+  window.requestAnimationFrame(() => {
+    storyLightboxSwipeHint.classList.add("is-visible");
+  });
+
+  storySwipeHintTimer = window.setTimeout(() => {
+    hideStoryLightboxSwipeHint();
+  }, STORY_LIGHTBOX_SWIPE_HINT_MS);
+
+  try {
+    window.localStorage.setItem(STORY_LIGHTBOX_SWIPE_HINT_STORAGE_KEY, "1");
+  } catch (error) {
+    // Ignore private mode/localStorage errors.
+  }
+}
+
 function updateStoryLightboxView() {
   if (!storyLightboxImg || !storyItems.length) return;
   const item = storyItems[currentStoryIndex];
@@ -9648,11 +9772,13 @@ function openStoryLightbox(index) {
   updateStoryLightboxView();
   storyLightbox.classList.remove("hidden");
   storyLightbox.setAttribute("aria-hidden", "false");
+  showStoryLightboxSwipeHintOnce();
   if (!wasOpen) lockBodyScroll();
 }
 
 function closeStoryLightbox() {
   if (!storyLightbox || !isStoryLightboxOpen()) return;
+  hideStoryLightboxSwipeHint();
   storyLightbox.classList.add("hidden");
   storyLightbox.setAttribute("aria-hidden", "true");
   if (storyLightboxImg) storyLightboxImg.removeAttribute("src");
@@ -9822,6 +9948,13 @@ function createStoryMosaicTile(item, index, totalCount) {
   tile.appendChild(yearChip);
 
   tile.addEventListener("click", () => {
+    if (isStoryMobileView()) {
+      if (!tile.classList.contains("is-revealed")) {
+        clearStoryTileReveal(index);
+        tile.classList.add("is-revealed");
+      }
+      return;
+    }
     if (isCoarsePointer() && !tile.classList.contains("is-revealed")) {
       clearStoryTileReveal(index);
       tile.classList.add("is-revealed");
@@ -10235,7 +10368,7 @@ function initInterludeCurtainReveal() {
       // Desktop: bind reveal to interlude section progress and finish early,
       // so the curtain is done before "Our story" is meaningfully visible.
       const sectionProgress = clamp01((vh - rect.top) / Math.max(1, vh + rect.height));
-      openProgress = clamp01(sectionProgress / 0.45);
+      openProgress = clamp01(sectionProgress / INTERLUDE_CURTAIN_DESKTOP_PROGRESS_WINDOW);
 
       const storyTop = storySection instanceof HTMLElement ? storySection.getBoundingClientRect().top : Number.POSITIVE_INFINITY;
       const storyEntering = storyTop <= vh * 0.9;
@@ -10245,11 +10378,11 @@ function initInterludeCurtainReveal() {
         openProgress = 1;
       }
     } else {
-      // Mobile behavior stays as-is.
+      // Mobile keeps the same reveal style, but with a faster progression window.
       const start = vh * 0.48;
       const end = -vh * 0.42;
       const t = (start - rect.top) / Math.max(1, start - end);
-      openProgress = clamp01(t);
+      openProgress = clamp01(t * INTERLUDE_CURTAIN_MOBILE_PROGRESS_SPEED);
     }
 
     if (prefersReduced()) {
