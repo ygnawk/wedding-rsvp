@@ -31,7 +31,6 @@ const GUEST_WALL_PINBOARD_INITIAL_LIMIT_DESKTOP = 12;
 const GUEST_WALL_PINBOARD_INITIAL_LIMIT_MOBILE = 8;
 const GUEST_WALL_PINBOARD_BUFFER_DESKTOP = 24;
 const GUEST_WALL_PINBOARD_BUFFER_MOBILE = 12;
-const GUEST_WALL_PREFETCH_THRESHOLD = 4;
 const GUEST_WALL_DESKTOP_VISIBLE_SLOTS = 10;
 const GUEST_WALL_TABLET_VISIBLE_SLOTS = 8;
 const GUEST_WALL_MOBILE_VISIBLE_SLOTS = 6;
@@ -65,6 +64,7 @@ const GUEST_WALL_IMAGE_CONCURRENCY = 4;
 const GUEST_WALL_IMAGE_OBSERVER_MARGIN = "240px";
 const GUEST_WALL_SESSION_CACHE_KEY = "guestwall-pinboard-cache-v1";
 const GUEST_WALL_SESSION_CACHE_TTL_MS = 5 * 60 * 1000;
+const GUEST_WALL_DEV_SHUFFLE_SIM_ITERATIONS = 200;
 const INTERLUDE_CURTAIN_DESKTOP_PROGRESS_WINDOW = 0.33;
 const INTERLUDE_CURTAIN_MOBILE_PROGRESS_SPEED = 1.35;
 const GUEST_WALL_LOADING_MESSAGE = "Loading guest wall…";
@@ -91,9 +91,34 @@ const GUEST_WALL_NOTE_VARIANTS = [
 const GUEST_WALL_PIN_COLORS = ["#2F6F5E", "#2E5E86", "#C9A24A", "#6B1F2A"];
 const GUEST_WALL_PIN_CORNERS = ["top-left", "top-right", "bottom-left", "bottom-right"];
 const GUEST_WALL_DARK_INK_PALETTE = ["#1F1A17", "#3B0D16", "#0F2A24", "#0E1F3A"];
-const RSVP_SLOW_SUBMIT_DELAY_MS = 4000;
-const RSVP_SLOW_SUBMIT_JOKE =
-  "We know it’s taking a while — Yi Jie was too cheap to pay for a faster server (free plan life). Give it a few more seconds…";
+const RSVP_SUBMIT_STAGES = [
+  {
+    atMs: 0,
+    title: "Saving your RSVP…",
+    detail: "This may take ~1 minute on our setup. (We’ll explain in a sec.)",
+  },
+  {
+    atMs: 6000,
+    title: "Still saving…",
+    detail: "Yi Jie refused to pay for a non-free server. We’re on a lightweight plan.",
+  },
+  {
+    atMs: 18000,
+    title: "Still working…",
+    detail: "Thanks for your patience — it’s still processing in the background.",
+  },
+  {
+    atMs: 35000,
+    title: "Almost there…",
+    detail: "Wrapping up — this can still take ~30 more seconds.",
+  },
+];
+const RSVP_PENDING_SUBMISSION_KEY = "wedding_rsvp_pending_submission_v1";
+const RSVP_PENDING_SUBMISSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const RSVP_IMAGE_COMPRESS_MAX_DIMENSION = 1800;
+const RSVP_IMAGE_COMPRESS_QUALITY = 0.82;
+const RSVP_PREPARE_CONCURRENCY_MOBILE = 2;
+const RSVP_PREPARE_CONCURRENCY_DESKTOP = 4;
 const STORY_IMAGE_PLACEHOLDER_DATA_URI =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="%23efe7da"/><stop offset="100%" stop-color="%23e4d7c1"/></linearGradient></defs><rect width="1200" height="900" fill="url(%23g)"/><circle cx="600" cy="390" r="92" fill="%23ceb998" opacity="0.45"/><rect x="356" y="548" width="488" height="22" rx="11" fill="%239b7d52" opacity="0.4"/><rect x="418" y="594" width="364" height="18" rx="9" fill="%239b7d52" opacity="0.28"/></svg>';
 const PHOTO_MANIFEST_TIMEOUT_MS = 8000;
@@ -279,8 +304,19 @@ const attendanceChoice = document.getElementById("attendanceChoice");
 const rsvpFields = document.getElementById("rsvpFields");
 const rsvpForm = document.getElementById("rsvpForm");
 const submitButton = document.getElementById("submitButton");
-const rsvpSubmitHelper = document.getElementById("rsvpSubmitHelper");
-const rsvpSubmitSlowHelper = document.getElementById("rsvpSubmitSlowHelper");
+const rsvpSubmitStatus = document.getElementById("rsvpSubmitStatus");
+const rsvpSubmitStageTitle = document.getElementById("rsvpSubmitStageTitle");
+const rsvpSubmitStageDetail = document.getElementById("rsvpSubmitStageDetail");
+const rsvpSubmitOverlay = document.getElementById("rsvpSubmitOverlay");
+const rsvpSubmitOverlayTitle = document.getElementById("rsvpSubmitOverlayTitle");
+const rsvpSubmitOverlayDetail = document.getElementById("rsvpSubmitOverlayDetail");
+const rsvpSubmitProgressWrap = document.getElementById("rsvpSubmitProgressWrap");
+const rsvpSubmitProgressFill = document.getElementById("rsvpSubmitProgressFill");
+const rsvpSubmitProgressText = document.getElementById("rsvpSubmitProgressText");
+const rsvpPendingNotice = document.getElementById("rsvpPendingNotice");
+const rsvpPendingText = document.getElementById("rsvpPendingText");
+const rsvpPendingResume = document.getElementById("rsvpPendingResume");
+const rsvpPendingDismiss = document.getElementById("rsvpPendingDismiss");
 const rsvpConfirmation = document.getElementById("rsvpConfirmation");
 const rsvpPanel = document.querySelector("#rsvp .rsvp-panel");
 
@@ -416,26 +452,158 @@ let guestWallImageQueue = [];
 let guestWallImageLoadsInFlight = 0;
 let guestWallImageLoadState = new WeakMap();
 let guestWallImageStats = { started: 0, loaded: 0, failed: 0 };
+let guestWallDeckState = createGuestWallDeckState();
+let guestWallNormalizationDiagnostics = createGuestWallNormalizationDiagnostics();
+let guestWallDevDiagnosticsNode = null;
 let guestWallRuntimeDebugHandlersBound = false;
 let guestWallWarmupStarted = false;
 let overflowDebugResizeTimer = null;
 let desktopMoreCloseTimer = null;
 let activeSectionId = "top";
 let desktopMoreActiveOverride = false;
-let rsvpSlowSubmitTimer = null;
+let rsvpSubmitStageTimers = [];
+let rsvpSubmitScrollLocked = false;
+let rsvpSubmitExitGuardsBound = false;
+let rsvpActiveUploadXhr = null;
+let rsvpLastSubmissionPayload = null;
+let rsvpLastSubmissionFilesMeta = [];
 
-function clearRsvpSlowSubmitTimer() {
-  if (!rsvpSlowSubmitTimer) return;
-  window.clearTimeout(rsvpSlowSubmitTimer);
-  rsvpSlowSubmitTimer = null;
+function setRsvpSubmitOverlayVisible(visible) {
+  if (!rsvpSubmitOverlay) return;
+  setHiddenClass(rsvpSubmitOverlay, !visible);
 }
 
-function resetRsvpSlowSubmitJoke() {
-  clearRsvpSlowSubmitTimer();
-  if (rsvpSubmitSlowHelper) {
-    rsvpSubmitSlowHelper.textContent = RSVP_SLOW_SUBMIT_JOKE;
-    setHiddenClass(rsvpSubmitSlowHelper, true);
+function setRsvpFormControlsLocked(locked) {
+  if (!rsvpForm) return;
+  const controls = Array.from(rsvpForm.querySelectorAll("input, select, textarea, button"));
+  controls.forEach((control) => {
+    if (!(control instanceof HTMLElement)) return;
+    if ("disabled" in control) {
+      if (locked) {
+        control.dataset.wasDisabled = control.disabled ? "1" : "0";
+        control.disabled = true;
+      } else {
+        const shouldStayDisabled = control.dataset.wasDisabled === "1";
+        control.disabled = shouldStayDisabled;
+        delete control.dataset.wasDisabled;
+      }
+    }
+    control.setAttribute("aria-disabled", String("disabled" in control ? Boolean(control.disabled) : locked));
+  });
+}
+
+function setRsvpSubmitProgress({
+  percent = 0,
+  uploadedCount = 0,
+  totalCount = 0,
+  indeterminate = false,
+  text = "",
+} = {}) {
+  const safePercent = Math.max(0, Math.min(100, Number(percent) || 0));
+  const safeTotalCount = Math.max(0, Number(totalCount) || 0);
+  const safeUploadedCount = Math.max(0, Math.min(safeTotalCount || uploadedCount, Number(uploadedCount) || 0));
+
+  if (rsvpSubmitProgressWrap) {
+    rsvpSubmitProgressWrap.classList.toggle("is-indeterminate", Boolean(indeterminate));
   }
+  if (rsvpSubmitProgressFill) {
+    rsvpSubmitProgressFill.style.width = `${safePercent}%`;
+  }
+  const progressTrack = rsvpSubmitProgressWrap ? rsvpSubmitProgressWrap.querySelector(".rsvp-submit-progress-track") : null;
+  if (progressTrack instanceof HTMLElement) {
+    progressTrack.setAttribute("aria-valuenow", String(Math.round(safePercent)));
+  }
+  if (rsvpSubmitProgressText) {
+    if (text) {
+      rsvpSubmitProgressText.textContent = text;
+    } else if (safeTotalCount > 0 && !indeterminate) {
+      rsvpSubmitProgressText.textContent = `Uploaded ${safeUploadedCount} of ${safeTotalCount} · ${Math.round(safePercent)}%`;
+    } else {
+      rsvpSubmitProgressText.textContent = "Submitting details…";
+    }
+  }
+}
+
+function updateRsvpProgressFromUploadEvent(eventLike = {}, totalFiles = 0) {
+  const fileCount = Math.max(0, Number(totalFiles) || Number(eventLike.fileCount) || 0);
+  if (fileCount === 0) {
+    setRsvpSubmitProgress({
+      indeterminate: true,
+      totalCount: 0,
+      text: "Submitting details…",
+    });
+    return;
+  }
+  const lengthComputable = Boolean(eventLike.lengthComputable);
+  const loaded = Math.max(0, Number(eventLike.loaded) || 0);
+  const total = Math.max(0, Number(eventLike.total) || 0);
+
+  if (!lengthComputable || total <= 0) {
+    setRsvpSubmitProgress({
+      indeterminate: true,
+      totalCount: fileCount,
+      text: fileCount > 0 ? `Uploading media… 0 of ${fileCount}` : "Submitting details…",
+    });
+    return;
+  }
+
+  const percent = Math.max(0, Math.min(100, Math.round((loaded / total) * 100)));
+  const uploadedCount = fileCount > 0 ? Math.min(fileCount, Math.floor((percent / 100) * fileCount)) : 0;
+  setRsvpSubmitProgress({
+    percent,
+    uploadedCount,
+    totalCount: fileCount,
+    indeterminate: false,
+    text: fileCount > 0 ? `Uploaded ${uploadedCount} of ${fileCount} · ${percent}%` : `Uploading… ${percent}%`,
+  });
+}
+
+function clearRsvpSubmitStageTimers() {
+  if (!rsvpSubmitStageTimers.length) return;
+  rsvpSubmitStageTimers.forEach((timer) => window.clearTimeout(timer));
+  rsvpSubmitStageTimers = [];
+}
+
+function showRsvpSubmitStage(index) {
+  const stageIndex = Math.max(0, Math.min(index, RSVP_SUBMIT_STAGES.length - 1));
+  const stage = RSVP_SUBMIT_STAGES[stageIndex];
+  if (rsvpSubmitStageTitle) rsvpSubmitStageTitle.textContent = stage.title;
+  if (rsvpSubmitStageDetail) rsvpSubmitStageDetail.textContent = stage.detail;
+  if (rsvpSubmitOverlayTitle) rsvpSubmitOverlayTitle.textContent = stage.title;
+  if (rsvpSubmitOverlayDetail) rsvpSubmitOverlayDetail.textContent = stage.detail;
+  if (rsvpSubmitStatus) {
+    rsvpSubmitStatus.dataset.stage = String(stageIndex + 1);
+    setHiddenClass(rsvpSubmitStatus, false);
+  }
+}
+
+function hideRsvpSubmitStatus() {
+  clearRsvpSubmitStageTimers();
+  if (rsvpSubmitStatus) {
+    setHiddenClass(rsvpSubmitStatus, true);
+    rsvpSubmitStatus.dataset.stage = "0";
+  }
+  if (rsvpSubmitOverlayTitle) rsvpSubmitOverlayTitle.textContent = RSVP_SUBMIT_STAGES[0].title;
+  if (rsvpSubmitOverlayDetail) rsvpSubmitOverlayDetail.textContent = RSVP_SUBMIT_STAGES[0].detail;
+  setRsvpSubmitProgress({
+    percent: 0,
+    uploadedCount: 0,
+    totalCount: 0,
+    indeterminate: true,
+    text: "Preparing submission…",
+  });
+}
+
+function startRsvpSubmitStageFlow() {
+  clearRsvpSubmitStageTimers();
+  showRsvpSubmitStage(0);
+  RSVP_SUBMIT_STAGES.slice(1).forEach((stage, index) => {
+    const timer = window.setTimeout(() => {
+      if (!rsvpIsSubmitting) return;
+      showRsvpSubmitStage(index + 1);
+    }, stage.atMs);
+    rsvpSubmitStageTimers.push(timer);
+  });
 }
 
 function logHorizontalOverflowOffenders(context = "runtime") {
@@ -3643,6 +3811,125 @@ function initUploadSlots() {
   syncUploadListUi();
 }
 
+function estimatePrepareConcurrency() {
+  return isMobileViewport() ? RSVP_PREPARE_CONCURRENCY_MOBILE : RSVP_PREPARE_CONCURRENCY_DESKTOP;
+}
+
+function getImageCompressionMime() {
+  if (typeof document === "undefined") return "image/jpeg";
+  const canvas = document.createElement("canvas");
+  const probe = canvas.toDataURL("image/webp", 0.8);
+  return probe.startsWith("data:image/webp") ? "image/webp" : "image/jpeg";
+}
+
+function getCompressedFileName(originalName, mimeType) {
+  const safeOriginal = String(originalName || "upload").trim() || "upload";
+  const base = safeOriginal.replace(/\.[^.]+$/, "");
+  const extension = mimeType === "image/webp" ? "webp" : "jpg";
+  return `${base}.${extension}`;
+}
+
+function loadImageFromFile(file) {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Image decode failed"));
+    };
+    image.src = objectUrl;
+  });
+}
+
+function canvasToBlob(canvas, mimeType, quality) {
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), mimeType, quality);
+  });
+}
+
+async function compressUploadImageFile(file) {
+  if (!(file instanceof File) || !String(file.type || "").startsWith("image/")) return file;
+
+  try {
+    const image = await loadImageFromFile(file);
+    const sourceWidth = image.naturalWidth || image.width || 1;
+    const sourceHeight = image.naturalHeight || image.height || 1;
+    const longestSide = Math.max(sourceWidth, sourceHeight);
+    const scale = longestSide > RSVP_IMAGE_COMPRESS_MAX_DIMENSION ? RSVP_IMAGE_COMPRESS_MAX_DIMENSION / longestSide : 1;
+    const targetWidth = Math.max(1, Math.round(sourceWidth * scale));
+    const targetHeight = Math.max(1, Math.round(sourceHeight * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(image, 0, 0, targetWidth, targetHeight);
+
+    const mimeType = getImageCompressionMime();
+    const blob = await canvasToBlob(canvas, mimeType, RSVP_IMAGE_COMPRESS_QUALITY);
+    if (!(blob instanceof Blob) || blob.size <= 0) return file;
+    if (blob.size >= file.size * 0.97) return file;
+
+    const compressedName = getCompressedFileName(file.name, mimeType);
+    return new File([blob], compressedName, {
+      type: mimeType,
+      lastModified: file.lastModified || Date.now(),
+    });
+  } catch (_error) {
+    return file;
+  }
+}
+
+async function mapWithConcurrency(items, concurrency, mapper) {
+  const list = Array.isArray(items) ? items : [];
+  const limit = Math.max(1, Number(concurrency) || 1);
+  const results = new Array(list.length);
+  let cursor = 0;
+
+  async function runWorker() {
+    while (cursor < list.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await mapper(list[index], index);
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(limit, list.length) }, () => runWorker());
+  await Promise.all(workers);
+  return results;
+}
+
+async function prepareUploadFilesForSubmission(files, onProgress) {
+  const sourceFiles = Array.isArray(files) ? files.filter((file) => file instanceof File) : [];
+  const totalCount = sourceFiles.length;
+  if (!totalCount) return [];
+
+  let preparedCount = 0;
+  const prepared = await mapWithConcurrency(sourceFiles, estimatePrepareConcurrency(), async (file) => {
+    const nextFile = await compressUploadImageFile(file);
+    preparedCount += 1;
+    if (typeof onProgress === "function") {
+      onProgress({
+        phase: "preparing",
+        preparedCount,
+        totalCount,
+        percent: Math.round((preparedCount / totalCount) * 100),
+      });
+    }
+    return nextFile;
+  });
+
+  return prepared;
+}
+
 function getSubmitButtonLabel(choiceInput) {
   const choice = String(choiceInput || "");
   if (choice === "yes") return "Confirm attendance";
@@ -3659,6 +3946,16 @@ function updateSubmitButtonLabel() {
 function setRsvpSubmittingState(isSubmitting) {
   const active = Boolean(isSubmitting);
   rsvpIsSubmitting = active;
+  setRsvpFormControlsLocked(active);
+  setRsvpSubmitOverlayVisible(active);
+  if (active && !rsvpSubmitScrollLocked) {
+    lockBodyScroll();
+    rsvpSubmitScrollLocked = true;
+  }
+  if (!active && rsvpSubmitScrollLocked) {
+    unlockBodyScroll();
+    rsvpSubmitScrollLocked = false;
+  }
   if (!submitButton) return;
 
   submitButton.disabled = active;
@@ -3667,26 +3964,28 @@ function setRsvpSubmittingState(isSubmitting) {
   submitButton.classList.toggle("is-loading", active);
   submitButton.textContent = active ? "Submitting…" : getSubmitButtonLabel(attendanceChoice ? attendanceChoice.value : "");
 
-  if (rsvpSubmitHelper) setHiddenClass(rsvpSubmitHelper, !active);
-  resetRsvpSlowSubmitJoke();
-  if (!active) return;
-
-  rsvpSlowSubmitTimer = window.setTimeout(() => {
-    if (!rsvpIsSubmitting || !rsvpSubmitSlowHelper) return;
-    setHiddenClass(rsvpSubmitSlowHelper, false);
-  }, RSVP_SLOW_SUBMIT_DELAY_MS);
+  if (!active) {
+    hideRsvpSubmitStatus();
+    return;
+  }
+  startRsvpSubmitStageFlow();
 }
 
 function setRsvpSubmittedState() {
-  if (!submitButton) return;
   rsvpIsSubmitting = false;
-  resetRsvpSlowSubmitJoke();
+  if (rsvpSubmitScrollLocked) {
+    unlockBodyScroll();
+    rsvpSubmitScrollLocked = false;
+  }
+  setRsvpFormControlsLocked(false);
+  setRsvpSubmitOverlayVisible(false);
+  hideRsvpSubmitStatus();
+  if (!submitButton) return;
   submitButton.classList.remove("is-loading");
   submitButton.disabled = true;
   submitButton.setAttribute("aria-disabled", "true");
   submitButton.setAttribute("aria-busy", "false");
   submitButton.textContent = "Submitted ✓";
-  if (rsvpSubmitHelper) setHiddenClass(rsvpSubmitHelper, true);
 }
 
 function clearRsvpChoice() {
@@ -3873,7 +4172,7 @@ function initRsvpCards() {
   initDietaryAutosize();
 }
 
-function buildPayload() {
+function buildPayload(filesForSubmission = selectedUploadFiles) {
   const choice = attendanceChoice ? attendanceChoice.value : "";
   const status = choice === "yes" ? "yes" : choice === "working" ? "maybe" : "no";
   const fullName = (fullNameInput && fullNameInput.value.trim()) || inviteState.greetingName;
@@ -3896,7 +4195,7 @@ function buildPayload() {
     dietary: status === "yes" && dietary ? dietary.value.trim() : "",
     whenWillYouKnow: status === "maybe" && workingConfirm ? workingConfirm.value : "",
     followupChoice: status === "maybe" && workingConfirm ? workingConfirm.value : "",
-    photoFiles: selectedUploadFiles.map((file, index) => ({
+    photoFiles: (Array.isArray(filesForSubmission) ? filesForSubmission : []).map((file, index) => ({
       slot: index + 1,
       name: file.name,
       size: file.size,
@@ -3907,7 +4206,7 @@ function buildPayload() {
   };
 }
 
-function buildRsvpFormData(payload) {
+function buildRsvpFormData(payload, uploadFiles = selectedUploadFiles) {
   const formData = new FormData();
   formData.append("token", payload.token || "");
   formData.append("status", payload.status || "");
@@ -3925,7 +4224,7 @@ function buildRsvpFormData(payload) {
   formData.append("userAgent", payload.userAgent || "");
   formData.append("viewportWidth", String(payload.viewportWidth || 0));
 
-  selectedUploadFiles.forEach((file) => {
+  (Array.isArray(uploadFiles) ? uploadFiles : []).forEach((file) => {
     if (!file) return;
     formData.append("media", file, file.name);
   });
@@ -3942,40 +4241,81 @@ function resolveRsvpApiUrl() {
   return withBasePath("/api/rsvp");
 }
 
-async function submitToRsvpApi(payload) {
-  const response = await fetch(resolveRsvpApiUrl(), {
-    method: "POST",
-    body: buildRsvpFormData(payload),
+function submitToRsvpApi(payload, options = {}) {
+  const uploadFiles = Array.isArray(options.uploadFiles) ? options.uploadFiles : selectedUploadFiles;
+  const onUploadProgress = typeof options.onUploadProgress === "function" ? options.onUploadProgress : null;
+  const url = resolveRsvpApiUrl();
+  const formData = buildRsvpFormData(payload, uploadFiles);
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    rsvpActiveUploadXhr = xhr;
+    xhr.open("POST", url, true);
+    xhr.responseType = "text";
+
+    xhr.upload.onprogress = (event) => {
+      if (!onUploadProgress) return;
+      onUploadProgress({
+        phase: "uploading",
+        loaded: Number(event.loaded) || 0,
+        total: Number(event.total) || 0,
+        lengthComputable: Boolean(event.lengthComputable),
+        fileCount: uploadFiles.length,
+      });
+    };
+
+    xhr.onload = () => {
+      rsvpActiveUploadXhr = null;
+      const status = Number(xhr.status) || 0;
+      const text = typeof xhr.responseText === "string" ? xhr.responseText : "";
+      let data;
+
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (_error) {
+        data = null;
+      }
+
+      if (!data || typeof data !== "object") {
+        resolve({
+          ok: false,
+          error: status >= 200 && status < 300 ? "Unexpected RSVP response from server." : "RSVP request failed.",
+        });
+        return;
+      }
+
+      if (!(status >= 200 && status < 300) && data.ok !== true) {
+        resolve({
+          ok: false,
+          error: data.error || "RSVP request failed.",
+        });
+        return;
+      }
+
+      resolve(data);
+    };
+
+    xhr.onerror = () => {
+      rsvpActiveUploadXhr = null;
+      reject(new Error("Network error while uploading RSVP."));
+    };
+
+    xhr.onabort = () => {
+      rsvpActiveUploadXhr = null;
+      const abortError = new Error("Upload cancelled before completion.");
+      abortError.name = "AbortError";
+      reject(abortError);
+    };
+
+    xhr.send(formData);
   });
-  const text = await response.text();
-  let data;
-
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch (_error) {
-    data = null;
-  }
-
-  if (!data || typeof data !== "object") {
-    return {
-      ok: false,
-      error: response.ok ? "Unexpected RSVP response from server." : "RSVP request failed.",
-    };
-  }
-
-  if (!response.ok && data.ok !== true) {
-    return {
-      ok: false,
-      error: data.error || "RSVP request failed.",
-    };
-  }
-
-  return data;
 }
 
-async function submitRSVP(payload) {
+async function submitRSVP(payload, options = {}) {
+  const uploadFiles = Array.isArray(options.uploadFiles) ? options.uploadFiles : selectedUploadFiles;
+  const onUploadProgress = typeof options.onUploadProgress === "function" ? options.onUploadProgress : null;
   try {
-    const data = await submitToRsvpApi(payload);
+    const data = await submitToRsvpApi(payload, { uploadFiles, onUploadProgress });
     if (!data || data.ok !== true) throw new Error(data && data.error ? String(data.error) : "Sheets submit failed");
     return data;
   } catch (error) {
@@ -4089,12 +4429,189 @@ function showRsvpConfirmation(message, options = {}) {
   setHiddenClass(rsvpConfirmation, false);
 }
 
+function getRsvpFilesMeta(files = []) {
+  return (Array.isArray(files) ? files : []).map((file, index) => ({
+    slot: index + 1,
+    name: String(file?.name || "").trim(),
+    size: Number(file?.size || 0),
+    type: String(file?.type || "").trim(),
+  }));
+}
+
+function persistPendingRsvpSubmission({ payload, files = [], state = "uploading", note = "" } = {}) {
+  const safePayload = payload && typeof payload === "object" ? payload : rsvpLastSubmissionPayload;
+  if (!safePayload || typeof safePayload !== "object") return;
+
+  const record = {
+    version: 1,
+    state: String(state || "uploading"),
+    note: String(note || ""),
+    startedAt: Date.now(),
+    updatedAt: Date.now(),
+    payload: safePayload,
+    files: getRsvpFilesMeta(files.length ? files : rsvpLastSubmissionFilesMeta),
+  };
+
+  rsvpLastSubmissionPayload = safePayload;
+  rsvpLastSubmissionFilesMeta = Array.isArray(record.files) ? record.files : [];
+  try {
+    localStorage.setItem(RSVP_PENDING_SUBMISSION_KEY, JSON.stringify(record));
+  } catch (_error) {
+    // ignore storage failures
+  }
+}
+
+function readPendingRsvpSubmission() {
+  try {
+    const raw = localStorage.getItem(RSVP_PENDING_SUBMISSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    const updatedAt = Number(parsed.updatedAt || parsed.startedAt || 0);
+    if (!updatedAt || Date.now() - updatedAt > RSVP_PENDING_SUBMISSION_MAX_AGE_MS) {
+      localStorage.removeItem(RSVP_PENDING_SUBMISSION_KEY);
+      return null;
+    }
+    return parsed;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function clearPendingRsvpSubmission() {
+  rsvpLastSubmissionPayload = null;
+  rsvpLastSubmissionFilesMeta = [];
+  try {
+    localStorage.removeItem(RSVP_PENDING_SUBMISSION_KEY);
+  } catch (_error) {
+    // ignore storage failures
+  }
+}
+
+function restoreRsvpDraftFromPending(record) {
+  const payload = record && typeof record === "object" ? record.payload : null;
+  if (!payload || typeof payload !== "object") return;
+
+  const status = String(payload.status || "").toLowerCase();
+  const mappedChoice = status === "yes" ? "yes" : status === "maybe" ? "working" : status === "no" ? "no" : "";
+  if (mappedChoice) setChoice(mappedChoice);
+
+  if (fullNameInput) fullNameInput.value = String(payload.fullName || "");
+  if (emailInput) emailInput.value = String(payload.email || "");
+  if (phoneInput) phoneInput.value = String(payload.phone || "");
+  if (messageInput) messageInput.value = String(payload.message || "");
+
+  if (mappedChoice === "yes") {
+    ensurePrimaryGuestCard();
+    syncPrimaryGuestName(true);
+    const guests = Array.isArray(payload.guests) ? payload.guests : [];
+    if (youGuestCardWrap) {
+      const primaryFact = youGuestCardWrap.querySelector("textarea[data-guest-fun-fact]");
+      if (primaryFact instanceof HTMLTextAreaElement) {
+        primaryFact.value = guests[0] && guests[0].funFact ? String(guests[0].funFact) : "";
+      }
+    }
+    if (guestCardsWrap) {
+      guestCardsWrap.innerHTML = "";
+      guests.slice(1, 1 + MAX_PLUS_ONES).forEach((guest, index) => {
+        const guestName = guest && guest.name ? String(guest.name) : "";
+        const guestFunFact = guest && guest.funFact ? String(guest.funFact) : "";
+        guestCardsWrap.appendChild(buildGuestCard(index + 1, guestName, guestFunFact));
+      });
+      resequenceGuestCards();
+      updateAddGuestButtonState();
+    }
+    if (dietary) dietary.value = String(payload.dietary || "");
+  }
+
+  if (mappedChoice === "working") {
+    if (workingCount) workingCount.value = payload.potentialPartySize ? String(payload.potentialPartySize) : "";
+    if (workingConfirm) workingConfirm.value = String(payload.whenWillYouKnow || payload.followupChoice || "");
+  }
+
+  showRsvpConfirmation("We restored your draft. Please reattach media files and submit again.");
+}
+
+function syncRsvpPendingNotice() {
+  if (!(rsvpPendingNotice instanceof HTMLElement)) return;
+  const pending = readPendingRsvpSubmission();
+  if (!pending) {
+    setHiddenClass(rsvpPendingNotice, true);
+    return;
+  }
+
+  const files = Array.isArray(pending.files) ? pending.files : [];
+  if (rsvpPendingText instanceof HTMLElement) {
+    const fileCount = files.length;
+    rsvpPendingText.textContent =
+      fileCount > 0
+        ? `A previous RSVP upload was interrupted (${fileCount} media file${fileCount === 1 ? "" : "s"}).`
+        : "A previous RSVP submission was interrupted.";
+  }
+  setHiddenClass(rsvpPendingNotice, false);
+}
+
+function initRsvpSubmitExitGuards() {
+  if (rsvpSubmitExitGuardsBound) return;
+  rsvpSubmitExitGuardsBound = true;
+
+  window.addEventListener("beforeunload", (event) => {
+    if (!rsvpIsSubmitting) return;
+    event.preventDefault();
+    event.returnValue = "Your RSVP is still uploading. Leaving now will cancel it.";
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (!rsvpIsSubmitting || document.visibilityState !== "hidden") return;
+    persistPendingRsvpSubmission({ state: "backgrounded", note: "Tab hidden while upload in progress." });
+  });
+
+  window.addEventListener(
+    "pagehide",
+    () => {
+      if (!rsvpIsSubmitting) return;
+      persistPendingRsvpSubmission({ state: "interrupted", note: "Page hidden before upload completed." });
+      if (rsvpActiveUploadXhr) {
+        try {
+          rsvpActiveUploadXhr.abort();
+        } catch (_error) {
+          // ignore abort failure
+        }
+      }
+      hideRsvpSubmitStatus();
+    },
+    { passive: true },
+  );
+}
+
 function initRsvpForm() {
   if (!rsvpForm || !attendanceChoice || !rsvpConfirmation) return;
   setHiddenClass(rsvpForm, false);
-  if (rsvpSubmitHelper) setHiddenClass(rsvpSubmitHelper, true);
-  resetRsvpSlowSubmitJoke();
+  hideRsvpSubmitStatus();
   updateSubmitButtonLabel();
+  initRsvpSubmitExitGuards();
+  syncRsvpPendingNotice();
+
+  if (rsvpPendingResume instanceof HTMLButtonElement && rsvpPendingResume.dataset.bound !== "true") {
+    rsvpPendingResume.addEventListener("click", () => {
+      const pending = readPendingRsvpSubmission();
+      if (!pending) {
+        syncRsvpPendingNotice();
+        return;
+      }
+      restoreRsvpDraftFromPending(pending);
+      if (rsvpPendingNotice) setHiddenClass(rsvpPendingNotice, true);
+    });
+    rsvpPendingResume.dataset.bound = "true";
+  }
+
+  if (rsvpPendingDismiss instanceof HTMLButtonElement && rsvpPendingDismiss.dataset.bound !== "true") {
+    rsvpPendingDismiss.addEventListener("click", () => {
+      clearPendingRsvpSubmission();
+      syncRsvpPendingNotice();
+    });
+    rsvpPendingDismiss.dataset.bound = "true";
+  }
 
   rsvpForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -4120,19 +4637,83 @@ function initRsvpForm() {
       return;
     }
 
-    const payload = buildPayload();
+    const sourceUploadFiles = selectedUploadFiles.slice();
     let submissionSucceeded = false;
+    if (rsvpPendingNotice) setHiddenClass(rsvpPendingNotice, true);
     hideRsvpConfirmation();
     setRsvpSubmittingState(true);
 
+    if (sourceUploadFiles.length > 0) {
+      setRsvpSubmitProgress({
+        indeterminate: false,
+        percent: 0,
+        uploadedCount: 0,
+        totalCount: sourceUploadFiles.length,
+        text: `Preparing media 0 of ${sourceUploadFiles.length}…`,
+      });
+    } else {
+      setRsvpSubmitProgress({
+        indeterminate: true,
+        totalCount: 0,
+        text: "Submitting details…",
+      });
+    }
+
     try {
-      const result = await submitRSVP(payload);
+      const preparedUploadFiles = await prepareUploadFilesForSubmission(sourceUploadFiles, (progressState) => {
+        if (!rsvpIsSubmitting) return;
+        if (progressState.phase !== "preparing") return;
+        const totalCount = Math.max(0, Number(progressState.totalCount) || sourceUploadFiles.length);
+        const preparedCount = Math.max(0, Math.min(totalCount, Number(progressState.preparedCount) || 0));
+        const percent = Math.max(0, Math.min(100, Number(progressState.percent) || 0));
+        setRsvpSubmitProgress({
+          indeterminate: false,
+          percent,
+          uploadedCount: preparedCount,
+          totalCount,
+          text: `Preparing media ${preparedCount} of ${totalCount}…`,
+        });
+      });
+
+      const payload = buildPayload(preparedUploadFiles);
+      persistPendingRsvpSubmission({
+        payload,
+        files: preparedUploadFiles,
+        state: "uploading",
+        note: "Upload in progress.",
+      });
+
+      if (preparedUploadFiles.length > 0) {
+        setRsvpSubmitProgress({
+          indeterminate: false,
+          percent: 0,
+          uploadedCount: 0,
+          totalCount: preparedUploadFiles.length,
+          text: `Uploaded 0 of ${preparedUploadFiles.length} · 0%`,
+        });
+      }
+
+      const result = await submitRSVP(payload, {
+        uploadFiles: preparedUploadFiles,
+        onUploadProgress: (uploadProgress) => {
+          if (!rsvpIsSubmitting) return;
+          updateRsvpProgressFromUploadEvent(uploadProgress, preparedUploadFiles.length);
+        },
+      });
+
       if (!result || result.ok !== true) {
+        persistPendingRsvpSubmission({
+          state: "failed",
+          note: result && result.error ? String(result.error) : "Submission failed before completion.",
+        });
+        syncRsvpPendingNotice();
         showRsvpConfirmation(result && result.error ? result.error : "We couldn’t submit your RSVP right now. Please try again in a moment.");
         return;
       }
 
       submissionSucceeded = true;
+      clearPendingRsvpSubmission();
+      syncRsvpPendingNotice();
       setRsvpSubmittedState();
 
       const baseMessage = confirmationMessage(attendanceChoice.value);
@@ -4230,6 +4811,266 @@ function clearGuestWallContainerObserver() {
   guestWallContainerObserver = null;
 }
 
+function createGuestWallDeckState() {
+  return {
+    all: { order: [], cursor: 0 },
+    note: { order: [], cursor: 0 },
+    media: { order: [], cursor: 0 },
+  };
+}
+
+function createGuestWallNormalizationDiagnostics() {
+  return {
+    rawCount: 0,
+    eligibleCount: 0,
+    droppedCount: 0,
+    droppedByReason: {},
+  };
+}
+
+function incrementGuestWallDropReason(diagnostics, reason, amount = 1) {
+  if (!diagnostics || typeof diagnostics !== "object") return;
+  const key = String(reason || "unknown");
+  const safeAmount = Math.max(1, Math.floor(Number(amount) || 1));
+  diagnostics.droppedByReason[key] = (Number(diagnostics.droppedByReason[key]) || 0) + safeAmount;
+  diagnostics.droppedCount += safeAmount;
+}
+
+function getGuestWallDeckSources(cards = guestWallCards) {
+  const sourceCards = Array.isArray(cards) ? cards : [];
+  const dedupe = (ids) => Array.from(new Set((ids || []).map((id) => String(id || "").trim()).filter(Boolean)));
+  return {
+    allIds: dedupe(sourceCards.map((card) => card?.id)),
+    noteIds: dedupe(sourceCards.filter((card) => card?.kind === "note").map((card) => card?.id)),
+    mediaIds: dedupe(sourceCards.filter((card) => card?.kind === "media").map((card) => card?.id)),
+  };
+}
+
+function getGuestWallDeckBucket(state, kind) {
+  if (!state || typeof state !== "object") return { order: [], cursor: 0 };
+  if (kind === "note") return state.note || (state.note = { order: [], cursor: 0 });
+  if (kind === "media") return state.media || (state.media = { order: [], cursor: 0 });
+  return state.all || (state.all = { order: [], cursor: 0 });
+}
+
+function refreshGuestWallDeck(state, kind, sourceIds, { preserveUnseen = true } = {}) {
+  const bucket = getGuestWallDeckBucket(state, kind);
+  const ids = Array.from(new Set((Array.isArray(sourceIds) ? sourceIds : []).map((id) => String(id || "").trim()).filter(Boolean)));
+  const idSet = new Set(ids);
+  const unseen = preserveUnseen
+    ? (Array.isArray(bucket.order) ? bucket.order : []).slice(bucket.cursor || 0).filter((id) => idSet.has(id))
+    : [];
+  const unseenSet = new Set(unseen);
+  const remainder = ids.filter((id) => !unseenSet.has(id));
+  bucket.order = [...unseen, ...shuffleItems(remainder)];
+  bucket.cursor = 0;
+}
+
+function syncGuestWallDeckState({ preserveUnseen = true } = {}, state = guestWallDeckState, sources = getGuestWallDeckSources()) {
+  if (!state || typeof state !== "object") return;
+  refreshGuestWallDeck(state, "all", sources.allIds, { preserveUnseen });
+  refreshGuestWallDeck(state, "note", sources.noteIds, { preserveUnseen });
+  refreshGuestWallDeck(state, "media", sources.mediaIds, { preserveUnseen });
+}
+
+function drawGuestWallDeckIds({
+  kind = "all",
+  count = 0,
+  usedIds = new Set(),
+  state = guestWallDeckState,
+  sources = getGuestWallDeckSources(),
+} = {}) {
+  const targetCount = Math.max(0, Math.floor(Number(count) || 0));
+  if (!targetCount) return [];
+  const sourceIds =
+    kind === "note" ? sources.noteIds : kind === "media" ? sources.mediaIds : sources.allIds;
+  if (!Array.isArray(sourceIds) || !sourceIds.length) return [];
+
+  const sourceSet = new Set(sourceIds);
+  const picked = [];
+  const maxAttempts = Math.max(targetCount * 8, sourceIds.length * 4);
+  let attempts = 0;
+
+  while (picked.length < targetCount && attempts < maxAttempts) {
+    attempts += 1;
+    const bucket = getGuestWallDeckBucket(state, kind);
+    if (!Array.isArray(bucket.order) || bucket.cursor >= bucket.order.length) {
+      refreshGuestWallDeck(state, kind, sourceIds, { preserveUnseen: false });
+    }
+    const nextBucket = getGuestWallDeckBucket(state, kind);
+    if (!nextBucket.order.length) break;
+
+    const candidate = String(nextBucket.order[nextBucket.cursor] || "").trim();
+    nextBucket.cursor += 1;
+    if (!candidate) continue;
+    if (!sourceSet.has(candidate)) continue;
+    if (!guestWallCardById.has(candidate)) continue;
+    if (usedIds.has(candidate)) continue;
+    usedIds.add(candidate);
+    picked.push(candidate);
+  }
+
+  return picked;
+}
+
+function pickGuestWallDeckSelection({
+  slotCount = 0,
+  noteTarget = 0,
+  state = guestWallDeckState,
+  sources = getGuestWallDeckSources(),
+} = {}) {
+  const safeSlotCount = Math.max(0, Math.floor(Number(slotCount) || 0));
+  if (!safeSlotCount) return [];
+
+  const used = new Set();
+  const selected = [];
+  const safeNoteTarget = clampNumber(Math.floor(Number(noteTarget) || 0), 0, safeSlotCount);
+  const safeMediaTarget = Math.max(0, safeSlotCount - safeNoteTarget);
+
+  selected.push(
+    ...drawGuestWallDeckIds({
+      kind: "note",
+      count: safeNoteTarget,
+      usedIds: used,
+      state,
+      sources,
+    }),
+  );
+  selected.push(
+    ...drawGuestWallDeckIds({
+      kind: "media",
+      count: safeMediaTarget,
+      usedIds: used,
+      state,
+      sources,
+    }),
+  );
+
+  if (selected.length < safeSlotCount) {
+    selected.push(
+      ...drawGuestWallDeckIds({
+        kind: "all",
+        count: safeSlotCount - selected.length,
+        usedIds: used,
+        state,
+        sources,
+      }),
+    );
+  }
+
+  return shuffleItems(selected).slice(0, safeSlotCount);
+}
+
+function runGuestWallShuffleCoverageSimulation({ iterations = GUEST_WALL_DEV_SHUFFLE_SIM_ITERATIONS, slotCount = 0, mobile = false } = {}) {
+  const safeIterations = Math.max(1, Math.floor(Number(iterations) || 1));
+  const safeSlotCount = Math.max(1, Math.floor(Number(slotCount) || 1));
+  const sources = getGuestWallDeckSources();
+  const simState = createGuestWallDeckState();
+  syncGuestWallDeckState({ preserveUnseen: false }, simState, sources);
+
+  const counts = new Map(sources.allIds.map((id) => [id, 0]));
+  const noteTarget = getGuestWallTargetNoteCount(safeSlotCount, mobile);
+
+  for (let index = 0; index < safeIterations; index += 1) {
+    const picks = pickGuestWallDeckSelection({
+      slotCount: safeSlotCount,
+      noteTarget,
+      state: simState,
+      sources,
+    });
+    picks.forEach((id) => {
+      counts.set(id, (counts.get(id) || 0) + 1);
+    });
+  }
+
+  const values = Array.from(counts.values());
+  const min = values.length ? Math.min(...values) : 0;
+  const max = values.length ? Math.max(...values) : 0;
+  const avg = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+  const neverShown = Array.from(counts.entries())
+    .filter(([, value]) => value <= 0)
+    .map(([id]) => id);
+
+  return { counts, min, max, avg, neverShown };
+}
+
+function formatGuestWallShortIds(ids, max = 8) {
+  const list = Array.isArray(ids) ? ids : [];
+  return list
+    .slice(0, Math.max(0, max))
+    .map((id) => {
+      const value = String(id || "").trim();
+      if (!value) return "";
+      if (value.length <= 18) return value;
+      return `${value.slice(0, 8)}…${value.slice(-6)}`;
+    })
+    .filter(Boolean)
+    .join(", ");
+}
+
+function ensureGuestWallDevDiagnosticsNode() {
+  if (!IS_LOCAL_DEV) return null;
+  if (!(guestWallPinboardView instanceof HTMLElement)) return null;
+  if (guestWallDevDiagnosticsNode instanceof HTMLElement) return guestWallDevDiagnosticsNode;
+
+  const node = document.createElement("div");
+  node.className = "guestwall-dev-debug";
+  node.innerHTML = `
+    <p class="guestwall-dev-debug-summary"></p>
+    <p class="guestwall-dev-debug-ids"></p>
+    <div class="guestwall-dev-debug-actions">
+      <button type="button" class="guestwall-dev-debug-btn">Run 200 shuffles</button>
+    </div>
+  `;
+  const controls = guestWallPinboardView.querySelector(".guestwall-controls");
+  if (controls instanceof HTMLElement) {
+    controls.insertAdjacentElement("afterend", node);
+  } else {
+    guestWallPinboardView.prepend(node);
+  }
+
+  const button = node.querySelector(".guestwall-dev-debug-btn");
+  if (button instanceof HTMLButtonElement) {
+    button.addEventListener("click", () => {
+      const visibleCount = Math.max(1, guestWallVisibleCardIds.length || guestWallSlotNodes.length || GUEST_WALL_DESKTOP_VISIBLE_SLOTS);
+      const simulation = runGuestWallShuffleCoverageSimulation({
+        iterations: GUEST_WALL_DEV_SHUFFLE_SIM_ITERATIONS,
+        slotCount: visibleCount,
+        mobile: isGuestWallMobileView(),
+      });
+      console.info(
+        `[guestwall][shuffle-sim] iterations=${GUEST_WALL_DEV_SHUFFLE_SIM_ITERATIONS} slotCount=${visibleCount} total=${
+          guestWallCards.length
+        } min=${simulation.min} max=${simulation.max} avg=${simulation.avg.toFixed(2)} neverShown=${simulation.neverShown.length}`,
+        simulation.neverShown.length ? { neverShown: simulation.neverShown } : {},
+      );
+    });
+  }
+
+  guestWallDevDiagnosticsNode = node;
+  return node;
+}
+
+function updateGuestWallDevDiagnostics() {
+  if (!IS_LOCAL_DEV) return;
+  const node = ensureGuestWallDevDiagnosticsNode();
+  if (!(node instanceof HTMLElement)) return;
+
+  const summaryNode = node.querySelector(".guestwall-dev-debug-summary");
+  const idsNode = node.querySelector(".guestwall-dev-debug-ids");
+  if (!(summaryNode instanceof HTMLElement) || !(idsNode instanceof HTMLElement)) return;
+
+  const diagnostics = guestWallNormalizationDiagnostics || createGuestWallNormalizationDiagnostics();
+  const reasonEntries = Object.entries(diagnostics.droppedByReason || {}).sort((a, b) => Number(b[1]) - Number(a[1]));
+  const reasonSummary = reasonEntries.slice(0, 3).map(([reason, count]) => `${reason}:${count}`).join(", ");
+  const visibleIds = guestWallVisibleCardIds.slice(0, Math.max(0, guestWallSlotNodes.length || guestWallVisibleCardIds.length));
+
+  summaryNode.textContent = `Total items: ${guestWallCards.length} · Filtered out: ${diagnostics.droppedCount} · Eligible: ${diagnostics.eligibleCount} · Displayed: ${visibleIds.length}${
+    reasonSummary ? ` · Reasons: ${reasonSummary}` : ""
+  }`;
+  idsNode.textContent = visibleIds.length ? `Visible IDs: ${formatGuestWallShortIds(visibleIds, 8)}` : "Visible IDs: (none)";
+}
+
 function shuffleItems(items) {
   const list = Array.isArray(items) ? [...items] : [];
   for (let i = list.length - 1; i > 0; i -= 1) {
@@ -4237,11 +5078,6 @@ function shuffleItems(items) {
     [list[i], list[j]] = [list[j], list[i]];
   }
   return list;
-}
-
-function chooseRandomIndices(total, count) {
-  const indices = Array.from({ length: Math.max(0, total) }, (_, index) => index);
-  return shuffleItems(indices).slice(0, Math.max(0, count));
 }
 
 function randomIntInclusive(min, max) {
@@ -4623,11 +5459,17 @@ async function fetchGuestbookPage({
   };
 }
 
-function normalizeGuestWallLegacyEntry(entry) {
-  if (!entry || typeof entry !== "object") return null;
+function normalizeGuestWallLegacyEntry(entry, diagnostics = null) {
+  if (!entry || typeof entry !== "object") {
+    incrementGuestWallDropReason(diagnostics, "legacy_invalid_entry");
+    return null;
+  }
 
   const submissionId = String(entry.submission_id || entry.submissionId || "").trim();
-  if (!submissionId) return null;
+  if (!submissionId) {
+    incrementGuestWallDropReason(diagnostics, "legacy_missing_submission_id");
+    return null;
+  }
 
   const mediaRaw = Array.isArray(entry.media) ? entry.media : Array.isArray(entry.media_items) ? entry.media_items : [];
   const media = mediaRaw
@@ -4639,8 +5481,14 @@ function normalizeGuestWallLegacyEntry(entry) {
       const thumbnailUrl =
         String(item.thumbnail_url || item.thumbnailUrl || "").trim() || (fileId ? `https://lh3.googleusercontent.com/d/${fileId}=w1600` : "");
 
-      if (fileType === "image" && !thumbnailUrl && !driveViewUrl) return null;
-      if (fileType === "video" && !driveViewUrl) return null;
+      if (fileType === "image" && !thumbnailUrl && !driveViewUrl) {
+        incrementGuestWallDropReason(diagnostics, "legacy_media_missing_url");
+        return null;
+      }
+      if (fileType === "video" && !driveViewUrl) {
+        incrementGuestWallDropReason(diagnostics, "legacy_video_missing_url");
+        return null;
+      }
 
       return {
         id: `${submissionId}:media:${index + 1}`,
@@ -4666,11 +5514,17 @@ function normalizeGuestWallLegacyEntry(entry) {
   };
 }
 
-function normalizeGuestWallCardFromApi(item) {
-  if (!item || typeof item !== "object") return null;
+function normalizeGuestWallCardFromApi(item, diagnostics = null) {
+  if (!item || typeof item !== "object") {
+    incrementGuestWallDropReason(diagnostics, "api_invalid_entry");
+    return null;
+  }
 
   const id = String(item.id || "").trim();
-  if (!id) return null;
+  if (!id) {
+    incrementGuestWallDropReason(diagnostics, "api_missing_id");
+    return null;
+  }
 
   const type = String(item.type || "").toLowerCase() === "note" ? "note" : "media";
   const name = String(item.name || "").trim() || "Guest";
@@ -4678,7 +5532,10 @@ function normalizeGuestWallCardFromApi(item) {
   const message = String(item.message || "").trim();
 
   if (type === "note") {
-    if (!message) return null;
+    if (!message) {
+      incrementGuestWallDropReason(diagnostics, "api_note_empty");
+      return null;
+    }
     return {
       id,
       kind: "note",
@@ -4695,8 +5552,14 @@ function normalizeGuestWallCardFromApi(item) {
   const viewUrl = String(media.viewUrl || media.driveViewUrl || media.drive_view_url || "").trim();
   const fileId = String(media.file_id || media.fileId || "").trim();
 
-  if (mediaKind === "image" && !thumbnailUrl && !viewUrl && !fileId) return null;
-  if (mediaKind === "video" && !viewUrl) return null;
+  if (mediaKind === "image" && !thumbnailUrl && !viewUrl && !fileId) {
+    incrementGuestWallDropReason(diagnostics, "api_media_missing_url");
+    return null;
+  }
+  if (mediaKind === "video" && !viewUrl) {
+    incrementGuestWallDropReason(diagnostics, "api_video_missing_url");
+    return null;
+  }
 
   return {
     id,
@@ -4784,14 +5647,19 @@ function buildGuestWallCardsFromLegacyEntries(entries) {
 
 function normalizeGuestWallCards(rawItems) {
   const items = Array.isArray(rawItems) ? rawItems : [];
-  if (!items.length) return [];
+  const diagnostics = createGuestWallNormalizationDiagnostics();
+  diagnostics.rawCount = items.length;
+  if (!items.length) {
+    guestWallNormalizationDiagnostics = diagnostics;
+    return [];
+  }
 
   const first = items[0];
   let cards;
   if (first && typeof first === "object" && typeof first.id === "string" && typeof first.type === "string") {
-    cards = items.map((item) => normalizeGuestWallCardFromApi(item)).filter(Boolean);
+    cards = items.map((item) => normalizeGuestWallCardFromApi(item, diagnostics)).filter(Boolean);
   } else {
-    const legacyEntries = items.map((item) => normalizeGuestWallLegacyEntry(item)).filter(Boolean);
+    const legacyEntries = items.map((item) => normalizeGuestWallLegacyEntry(item, diagnostics)).filter(Boolean);
     cards = buildGuestWallCardsFromLegacyEntries(legacyEntries);
   }
 
@@ -4824,11 +5692,16 @@ function normalizeGuestWallCards(rawItems) {
   }
 
   const seen = new Set();
-  return cards.filter((card) => {
+  const filtered = cards.filter((card) => {
     if (!card || !card.id || seen.has(card.id)) return false;
     seen.add(card.id);
     return true;
   });
+  const duplicateDrops = Math.max(0, cards.length - filtered.length);
+  if (duplicateDrops > 0) incrementGuestWallDropReason(diagnostics, "duplicate_id", duplicateDrops);
+  diagnostics.eligibleCount = filtered.length;
+  guestWallNormalizationDiagnostics = diagnostics;
+  return filtered;
 }
 
 function resetGuestWallImagePipeline() {
@@ -5106,6 +5979,7 @@ function renderGuestWallLoadingSkeleton() {
     guestWallMobile.appendChild(stage);
   }
   setGuestWallLoadingRetryVisible(guestWallLoadingRetryVisible);
+  updateGuestWallDevDiagnostics();
 }
 
 function renderGuestWallErrorStateWithMessage(message) {
@@ -5146,6 +6020,7 @@ function renderGuestWallErrorStateWithMessage(message) {
   clearGuestWallBoards();
   if (guestWallPinboard instanceof HTMLElement) guestWallPinboard.appendChild(makePanel());
   if (guestWallMobile instanceof HTMLElement) guestWallMobile.appendChild(makePanel());
+  updateGuestWallDevDiagnostics();
 }
 renderGuestWallErrorStateWithMessage.lastDetail = "";
 
@@ -5282,15 +6157,6 @@ function clearGuestWallAutoplayTimer() {
   guestWallAutoplayTimer = null;
 }
 
-function areSameStringLists(a, b) {
-  if (!Array.isArray(a) || !Array.isArray(b)) return false;
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i += 1) {
-    if (String(a[i] || "") !== String(b[i] || "")) return false;
-  }
-  return true;
-}
-
 function getGuestWallSeededOrder(ids, seedKey = "") {
   const list = Array.isArray(ids) ? ids.filter(Boolean).map((id) => String(id)) : [];
   return list
@@ -5317,50 +6183,23 @@ function getGuestWallTargetNoteCount(slotCount, mobile = false) {
   return target;
 }
 
-function ensureGuestWallVisibleIds(slotCount, { reshuffle = false, mobile = false, seedLabel = "default" } = {}) {
+function ensureGuestWallVisibleIds(slotCount, { reshuffle = false, mobile = false } = {}) {
   const allIds = guestWallCards.map((card) => card.id);
   if (!allIds.length || slotCount <= 0) {
     guestWallVisibleCardIds = [];
     return;
   }
-
-  const noteIds = guestWallCards.filter((card) => card?.kind === "note").map((card) => card.id);
-  const mediaIds = guestWallCards.filter((card) => card?.kind === "media").map((card) => card.id);
-  const cycleSeed = `gw-visible:${seedLabel}:cycle-${guestWallLayoutCycle}`;
   const noteTarget = getGuestWallTargetNoteCount(slotCount, mobile);
-
-  const buildFreshSelection = () => {
-    const next = [];
-    const orderedNotes = getGuestWallSeededOrder(noteIds, `${cycleSeed}:notes`);
-    const orderedMedia = getGuestWallSeededOrder(mediaIds, `${cycleSeed}:media`);
-    const orderedAll = getGuestWallSeededOrder(allIds, `${cycleSeed}:all`);
-
-    next.push(...orderedNotes.slice(0, noteTarget));
-    const remainingForMedia = Math.max(0, slotCount - next.length);
-    next.push(...orderedMedia.filter((id) => !next.includes(id)).slice(0, remainingForMedia));
-
-    if (next.length < slotCount) {
-      next.push(...orderedAll.filter((id) => !next.includes(id)).slice(0, slotCount - next.length));
-    }
-
-    return getGuestWallSeededOrder(next, `${cycleSeed}:mix`).slice(0, slotCount);
-  };
+  const sources = getGuestWallDeckSources();
+  syncGuestWallDeckState({ preserveUnseen: true }, guestWallDeckState, sources);
 
   if (reshuffle || !guestWallVisibleCardIds.length) {
-    const previous = guestWallVisibleCardIds.slice(0, slotCount);
-    let next = buildFreshSelection();
-    if (allIds.length > slotCount && areSameStringLists(previous, next)) {
-      const outside = getGuestWallSeededOrder(
-        allIds.filter((id) => !next.includes(id)),
-        `${cycleSeed}:outside`,
-      );
-      const replaceWith = outside[0];
-      if (replaceWith) {
-        next[next.length - 1] = replaceWith;
-        next = getGuestWallSeededOrder(next, `${cycleSeed}:remix`).slice(0, slotCount);
-      }
-    }
-    guestWallVisibleCardIds = next;
+    guestWallVisibleCardIds = pickGuestWallDeckSelection({
+      slotCount,
+      noteTarget,
+      state: guestWallDeckState,
+      sources,
+    });
     return;
   }
 
@@ -5368,20 +6207,28 @@ function ensureGuestWallVisibleIds(slotCount, { reshuffle = false, mobile = fals
   const needed = slotCount - next.length;
 
   if (needed > 0) {
-    const remaining = getGuestWallSeededOrder(
-      allIds.filter((id) => !next.includes(id)),
-      `${cycleSeed}:backfill`,
-    ).slice(0, needed);
-    next.push(...remaining);
+    const used = new Set(next);
+    const backfill = drawGuestWallDeckIds({
+      kind: "all",
+      count: needed,
+      usedIds: used,
+      state: guestWallDeckState,
+      sources,
+    });
+    next.push(...backfill);
   }
 
   const currentNoteCount = next.filter((id) => guestWallCardById.get(id)?.kind === "note").length;
   if (noteTarget > currentNoteCount) {
     const neededNotes = noteTarget - currentNoteCount;
-    const replacementNotes = getGuestWallSeededOrder(
-      noteIds.filter((id) => !next.includes(id)),
-      `${cycleSeed}:topup-notes`,
-    ).slice(0, neededNotes);
+    const used = new Set(next);
+    const replacementNotes = drawGuestWallDeckIds({
+      kind: "note",
+      count: neededNotes,
+      usedIds: used,
+      state: guestWallDeckState,
+      sources,
+    });
     for (let i = 0; i < replacementNotes.length; i += 1) {
       const replacement = replacementNotes[i];
       const replaceIndex = next.findIndex((id) => guestWallCardById.get(id)?.kind !== "note");
@@ -6381,7 +7228,8 @@ function assignGuestWallCardsToSlots(slotConfigs, requestedIds) {
 
   const requested = Array.isArray(requestedIds) ? requestedIds : [];
   const allIds = guestWallCards.map((card) => card.id);
-  const combined = [...requested, ...allIds];
+  const fallbackOrder = getGuestWallSeededOrder(allIds, `gw-assign-fallback:${guestWallLayoutCycle}`);
+  const combined = [...requested, ...fallbackOrder];
   const seen = new Set();
   const uniquePool = combined.filter((id) => {
     const key = String(id || "");
@@ -7045,13 +7893,13 @@ function renderGuestWallDesktop({ reshuffle = false } = {}) {
     empty.className = "guestwall-empty";
     empty.textContent = GUEST_WALL_EMPTY_MESSAGE;
     guestWallPinboard.appendChild(empty);
+    updateGuestWallDevDiagnostics();
     return;
   }
 
   ensureGuestWallVisibleIds(slotCount, {
     reshuffle,
     mobile: false,
-    seedLabel: "desktop",
   });
   guestWallVisibleCardIds = assignGuestWallCardsToSlots(guestWallActiveSlotConfig, guestWallVisibleCardIds);
 
@@ -7073,6 +7921,7 @@ function renderGuestWallDesktop({ reshuffle = false } = {}) {
   setGuestWallArrangeMode(guestWallArrangeMode, { suppressLayoutSync: true });
   maybeLogGuestWallFirstSixRender();
   console.log("[GuestWall] render ready");
+  updateGuestWallDevDiagnostics();
 }
 
 function normalizeGuestWallMobileIndex(total) {
@@ -7096,19 +7945,28 @@ function shiftGuestWallMobileCard(step = 1) {
 
 function buildGuestWallMobileDeck(deckSize, reshuffle = false) {
   const limit = Math.max(1, Math.floor(Number(deckSize) || 1));
-  // Mobile should rotate through the same mixed wall artifacts as desktop.
-  // Include both polaroids (media) and postcards (notes).
-  const sourceIds = guestWallCards.map((card) => card.id);
-  const seededOrder = getGuestWallSeededOrder(sourceIds, `mobile-deck:${guestWallLayoutCycle}`);
-  if (!seededOrder.length) return [];
+  const sources = getGuestWallDeckSources();
+  if (!sources.allIds.length) return [];
+  syncGuestWallDeckState({ preserveUnseen: true }, guestWallDeckState, sources);
   if (reshuffle || !guestWallVisibleCardIds.length) {
-    return seededOrder.slice(0, limit);
+    return pickGuestWallDeckSelection({
+      slotCount: limit,
+      noteTarget: getGuestWallTargetNoteCount(limit, true),
+      state: guestWallDeckState,
+      sources,
+    });
   }
-  const seededSet = new Set(seededOrder);
-  const retained = guestWallVisibleCardIds.filter((id) => seededSet.has(id)).slice(0, limit);
+  const sourceSet = new Set(sources.allIds);
+  const retained = guestWallVisibleCardIds.filter((id) => sourceSet.has(id)).slice(0, limit);
   if (retained.length >= limit) return retained;
-  const needed = limit - retained.length;
-  const backfill = seededOrder.filter((id) => !retained.includes(id)).slice(0, needed);
+  const used = new Set(retained);
+  const backfill = drawGuestWallDeckIds({
+    kind: "all",
+    count: limit - retained.length,
+    usedIds: used,
+    state: guestWallDeckState,
+    sources,
+  });
   return [...retained, ...backfill];
 }
 
@@ -7135,6 +7993,7 @@ function renderGuestWallMobile({ reshuffle = false } = {}) {
     empty.className = "guestwall-status";
     empty.textContent = GUEST_WALL_EMPTY_MESSAGE;
     guestWallMobile.appendChild(empty);
+    updateGuestWallDevDiagnostics();
     return;
   }
 
@@ -7150,6 +8009,7 @@ function renderGuestWallMobile({ reshuffle = false } = {}) {
     empty.className = "guestwall-status";
     empty.textContent = GUEST_WALL_EMPTY_MESSAGE;
     guestWallMobile.appendChild(empty);
+    updateGuestWallDevDiagnostics();
     return;
   }
   if (reshuffle) {
@@ -7165,6 +8025,7 @@ function renderGuestWallMobile({ reshuffle = false } = {}) {
   const activeCard = guestWallCardById.get(activeCardId);
   if (!activeCard) {
     queueGuestWallLayoutSync("mobile-active-card-missing");
+    updateGuestWallDevDiagnostics();
     return;
   }
   guestWallActiveSlotConfig = [
@@ -7215,6 +8076,7 @@ function renderGuestWallMobile({ reshuffle = false } = {}) {
   syncGuestWallArrangeAvailability();
   maybeLogGuestWallFirstSixRender();
   console.log("[GuestWall] render ready");
+  updateGuestWallDevDiagnostics();
 }
 
 function syncGuestWallLayout({ reshuffle = false } = {}) {
@@ -7245,6 +8107,7 @@ function syncGuestWallLayout({ reshuffle = false } = {}) {
       });
     }
     queueGuestWallLayoutSync("sync-size-gate");
+    updateGuestWallDevDiagnostics();
     return;
   }
 
@@ -7449,6 +8312,7 @@ function mergeGuestWallCards(newCards) {
   });
   guestWallCards = merged;
   guestWallCardById = new Map(merged.map((card) => [card.id, card]));
+  syncGuestWallDeckState({ preserveUnseen: true });
 }
 
 function scheduleGuestWallBufferPrefetch() {
@@ -7470,11 +8334,22 @@ async function applyGuestWallPayload(payload, { fromCache = false } = {}) {
   const cards = normalizeGuestWallCards(payload?.items);
   guestWallCards = [];
   guestWallCardById = new Map();
+  guestWallDeckState = createGuestWallDeckState();
   mergeGuestWallCards(cards);
   guestWallNextCursor = String(payload?.nextCursor || "").trim() || null;
   guestWallPrefetchInFlight = null;
   guestWallHasSuccessfulLoad = true;
   setGuestWallLoadingRetryVisible(false);
+
+  if (IS_LOCAL_DEV) {
+    const reasons = guestWallNormalizationDiagnostics?.droppedByReason || {};
+    console.info(
+      `[guestwall][dataset] raw=${guestWallNormalizationDiagnostics?.rawCount || 0} filtered=${
+        guestWallNormalizationDiagnostics?.droppedCount || 0
+      } eligible=${guestWallNormalizationDiagnostics?.eligibleCount || cards.length}`,
+      { droppedByReason: reasons },
+    );
+  }
 
   if (!cards.length) {
     setGuestWallLoadState("success");
@@ -7502,11 +8377,10 @@ async function applyGuestWallPayload(payload, { fromCache = false } = {}) {
 async function maybePrefetchGuestWallBuffer() {
   if (!guestWallNextCursor || guestWallPrefetchInFlight) return;
   if (!guestWallVisibleCardIds.length) return;
-  const remainingPool = guestWallCards.length - guestWallVisibleCardIds.length;
-  if (remainingPool > GUEST_WALL_PREFETCH_THRESHOLD) return;
 
   guestWallPrefetchInFlight = (async () => {
     try {
+      const cursorBefore = guestWallNextCursor;
       const payload = await fetchGuestbookPage({
         mode: "pinboard",
         limit: getGuestWallPinboardRequestLimit(),
@@ -7515,11 +8389,22 @@ async function maybePrefetchGuestWallBuffer() {
       guestWallNextCursor = payload.nextCursor;
       const cards = normalizeGuestWallCards(payload.items);
       mergeGuestWallCards(cards);
+      if (IS_LOCAL_DEV) {
+        console.info(
+          `[guestwall][prefetch] merged=${cards.length} total=${guestWallCards.length} nextCursor=${guestWallNextCursor || "none"}`,
+        );
+      }
       writeGuestWallSessionCache({
         items: guestWallCards,
         total: Number.isFinite(Number(payload.total)) ? Number(payload.total) : guestWallCards.length,
         nextCursor: guestWallNextCursor,
       });
+      if (guestWallNextCursor && guestWallNextCursor !== cursorBefore) {
+        scheduleGuestWallBufferPrefetch();
+      } else if (guestWallNextCursor && guestWallNextCursor === cursorBefore) {
+        console.warn("[guestwall] prefetch cursor did not advance; stopping drain loop", { cursor: guestWallNextCursor });
+        guestWallNextCursor = null;
+      }
     } catch (error) {
       console.warn("[guestwall] prefetch failed", error instanceof Error ? error.message : String(error));
     } finally {

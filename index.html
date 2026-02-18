@@ -24,7 +24,7 @@
     </noscript>
     <link rel="icon" type="image/svg+xml" href="/public/favicon.svg" />
     <link rel="icon" type="image/png" href="/public/favicon-32.png" />
-    <link rel="stylesheet" href="./styles.css?v=20260218-rsvp-upload-sync1" />
+    <link rel="stylesheet" href="./styles.css?v=20260218-rsvp-submit-progress2" />
   </head>
   <body>
     <header id="floatingHeader" class="floating-header" aria-label="Site navigation">
@@ -173,7 +173,7 @@
           </div>
 
           <div id="storyMobileStage" class="story-mobile-stage reveal" data-delay="110" hidden>
-            <button id="storyMobileCard" class="story-mobile-card" type="button" aria-label="Open story photo">
+            <button id="storyMobileCard" class="story-mobile-card" type="button" aria-label="Swipe story photos">
               <span class="story-mobile-layer is-current">
                 <img id="storyMobileImgCurrent" src="" alt="" loading="eager" decoding="async" />
               </span>
@@ -184,6 +184,11 @@
               <span id="storyMobileYear" class="story-mobile-year"></span>
               <span id="storyMobileBlurb" class="story-mobile-blurb"></span>
             </button>
+            <div class="story-mobile-actions">
+              <button id="storyMobileViewFullBtn" class="story-mobile-view-full" type="button" aria-label="View full story">
+                View full story
+              </button>
+            </div>
           </div>
 
           <div class="story-mosaic-shell reveal" data-delay="120" id="storyMosaicShell">
@@ -278,6 +283,15 @@
               <br />
               We have space for about 50 people. Please RSVP by the end of February.
             </p>
+            <div id="rsvpPendingNotice" class="rsvp-pending-notice hidden" role="status" aria-live="polite">
+              <p id="rsvpPendingText" class="rsvp-pending-text">
+                It looks like a previous RSVP submission was interrupted.
+              </p>
+              <div class="rsvp-pending-actions">
+                <button id="rsvpPendingResume" type="button" class="btn btn-outline">Resume upload</button>
+                <button id="rsvpPendingDismiss" type="button" class="btn btn-outline">Dismiss</button>
+              </div>
+            </div>
 
             <form id="rsvpForm" class="rsvp-form reveal" novalidate>
               <div id="choiceGroup" class="choice-grid" role="radiogroup" aria-label="RSVP choice">
@@ -396,13 +410,29 @@
 
                 <div class="form-actions form-actions--stacked">
                   <button id="submitButton" type="submit" class="btn btn-maroon">Send reply</button>
-                  <p id="rsvpSubmitHelper" class="field-helper rsvp-submit-helper hidden">Hang tight — we’re saving your RSVP.</p>
-                  <p id="rsvpSubmitSlowHelper" class="field-helper rsvp-submit-helper rsvp-submit-helper--slow hidden">
-                    We know it’s taking a while — Yi Jie was too cheap to pay for a faster server (free plan life). Give it a few more seconds…
-                  </p>
+                  <div id="rsvpSubmitStatus" class="rsvp-submit-status hidden" role="status" aria-live="polite">
+                    <p id="rsvpSubmitStageTitle" class="rsvp-submit-stage-title"></p>
+                    <p id="rsvpSubmitStageDetail" class="rsvp-submit-stage-detail"></p>
+                  </div>
                 </div>
               </div>
             </form>
+
+            <div id="rsvpSubmitOverlay" class="rsvp-submit-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="rsvpSubmitOverlayTitle">
+              <div class="rsvp-submit-overlay-card" role="document">
+                <div class="rsvp-submit-overlay-spinner" aria-hidden="true"></div>
+                <p id="rsvpSubmitOverlayTitle" class="rsvp-submit-overlay-title">Saving your RSVP…</p>
+                <p id="rsvpSubmitOverlayDetail" class="rsvp-submit-overlay-detail">
+                  This may take ~1 minute on our setup. (We’ll explain in a sec.)
+                </p>
+                <div id="rsvpSubmitProgressWrap" class="rsvp-submit-progress-wrap is-indeterminate" aria-live="polite">
+                  <div class="rsvp-submit-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                    <span id="rsvpSubmitProgressFill" class="rsvp-submit-progress-fill" style="width: 0%"></span>
+                  </div>
+                  <p id="rsvpSubmitProgressText" class="rsvp-submit-progress-text">Preparing submission…</p>
+                </div>
+              </div>
+            </div>
 
             <div id="rsvpConfirmation" class="confirmation hidden" role="status" aria-live="polite"></div>
           </div>
@@ -1290,6 +1320,7 @@
           <button class="story-lightbox-btn story-lightbox-btn--prev" type="button" aria-label="Previous story">‹</button>
           <div id="storyLightboxCounter" class="story-lightbox-counter">1 of 1</div>
           <button class="story-lightbox-btn story-lightbox-btn--next" type="button" aria-label="Next story">›</button>
+          <p id="storyLightboxSwipeHint" class="story-lightbox-swipe-hint hidden" aria-live="polite">Swipe for next</p>
         </div>
       </div>
     </div>
@@ -1306,6 +1337,6 @@
 
     <script src="./data/hotels.js?v=20260216-matrix"></script>
     <script src="./data/beijing-food.js?v=20260216-title-reveal-fix1"></script>
-    <script src="./app.js?v=20260218-guestwall-image-kickstart1"></script>
+    <script src="./app.js?v=20260218-rsvp-submit-progress2"></script>
   </body>
 </html>

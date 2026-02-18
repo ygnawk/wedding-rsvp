@@ -140,6 +140,8 @@ const GUESTBOOK_PINBOARD_DEFAULT_LIMIT = 16;
 const GUESTBOOK_ARCHIVE_DEFAULT_LIMIT = 30;
 const STATIC_BODY_CACHE_MAX_BYTES = 512 * 1024;
 const GOOGLE_API_CALL_TIMEOUT_MS = Math.max(3000, Number.parseInt(process.env.GOOGLE_API_CALL_TIMEOUT_MS || "10000", 10) || 10000);
+const RSVP_MAX_MEDIA_FILES = 3;
+const RSVP_MAX_MEDIA_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const staticBodyCache = new Map();
 const guestbookCache = {
   expiresAt: 0,
@@ -414,35 +416,71 @@ function normalizeGuests(guestsRaw) {
     .filter(Boolean);
 }
 
+function createHttpError(status, message, code = "bad_request") {
+  const error = new Error(String(message || "Request failed"));
+  error.status = Number(status) || 500;
+  error.code = String(code || "bad_request");
+  return error;
+}
+
 function normalizeUploadedFiles(parsedFiles) {
   const collected = [];
+  let sourceIndex = 0;
   Object.entries(parsedFiles || {}).forEach(([fieldName, fileOrFiles]) => {
     const files = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles];
     files.forEach((file) => {
       if (!file) return;
       const size = Number(file.size || 0);
       if (size <= 0) return;
-      collected.push({ fieldName, file });
+      collected.push({ fieldName: String(fieldName || ""), file, sourceIndex });
+      sourceIndex += 1;
     });
   });
 
+  const isMediaField = (fieldName) => {
+    const normalized = String(fieldName || "").toLowerCase().replace(/\[\]$/, "");
+    return normalized === "media" || normalized === "mediafiles";
+  };
+  const isLegacyPhotoField = (fieldName) => /^photo\d+$/i.test(String(fieldName || ""));
   const orderFromField = (fieldName) => {
     const match = String(fieldName || "").match(/photo(\d+)/i);
     if (!match) return Number.POSITIVE_INFINITY;
     return Number.parseInt(match[1], 10);
   };
 
-  return collected
-    .sort((a, b) => orderFromField(a.fieldName) - orderFromField(b.fieldName))
-    .map((entry) => entry.file)
-    .slice(0, 3);
+  const mediaEntries = collected.filter((entry) => isMediaField(entry.fieldName));
+  const legacyEntries = collected.filter((entry) => isLegacyPhotoField(entry.fieldName));
+
+  let selectedEntries = [];
+  let selectedSource = "none";
+  if (mediaEntries.length) {
+    selectedSource = "media";
+    selectedEntries = mediaEntries.sort((a, b) => a.sourceIndex - b.sourceIndex);
+  } else if (legacyEntries.length) {
+    selectedSource = "legacy";
+    selectedEntries = legacyEntries.sort((a, b) => {
+      const orderDiff = orderFromField(a.fieldName) - orderFromField(b.fieldName);
+      if (orderDiff !== 0) return orderDiff;
+      return a.sourceIndex - b.sourceIndex;
+    });
+  } else {
+    selectedSource = "generic";
+    selectedEntries = collected.sort((a, b) => a.sourceIndex - b.sourceIndex);
+  }
+
+  const overflowCount = Math.max(0, selectedEntries.length - RSVP_MAX_MEDIA_FILES);
+  return {
+    files: selectedEntries.slice(0, RSVP_MAX_MEDIA_FILES).map((entry) => entry.file),
+    source: selectedSource,
+    overflowCount,
+  };
 }
 
 async function parseMultipartForm(req) {
   const form = formidable({
     multiples: true,
-    maxFiles: 3,
-    maxFileSize: 10 * 1024 * 1024,
+    maxFiles: RSVP_MAX_MEDIA_FILES * 4,
+    maxFileSize: RSVP_MAX_MEDIA_FILE_SIZE_BYTES,
     allowEmptyFiles: false,
     keepExtensions: true,
   });
@@ -450,13 +488,29 @@ async function parseMultipartForm(req) {
   return new Promise((resolve, reject) => {
     form.parse(req, (error, fields, files) => {
       if (error) {
+        const message = String(error && error.message ? error.message : "").toLowerCase();
+        const code = Number(error && error.code);
+        if (code === 1015 || message.includes("maxfiles")) {
+          reject(createHttpError(400, `You can upload up to ${RSVP_MAX_MEDIA_FILES} files.`, "too_many_files"));
+          return;
+        }
+        if (code === 1009 || message.includes("maxfilesize") || message.includes("too large")) {
+          reject(createHttpError(400, "One or more files exceed the 10MB size limit.", "file_too_large"));
+          return;
+        }
         reject(error);
+        return;
+      }
+
+      const normalized = normalizeUploadedFiles(files);
+      if (normalized.overflowCount > 0) {
+        reject(createHttpError(400, `You can upload up to ${RSVP_MAX_MEDIA_FILES} files.`, "too_many_files"));
         return;
       }
 
       resolve({
         fields,
-        files: normalizeUploadedFiles(files),
+        files: normalized.files,
       });
     });
   });
@@ -977,12 +1031,11 @@ function getUploadExtension(originalName, mimeType) {
 }
 
 async function uploadMediaFilesToDrive(drive, destinationFolderId, submissionId, files) {
-  const uploaded = [];
-  for (let i = 0; i < files.length; i += 1) {
-    const file = files[i];
+  const uploadTasks = files.map(async (file, index) => {
+    const fileIndex = index + 1;
     const mimeType = normalizeFieldValue(file.mimetype) || "application/octet-stream";
-    const originalName = normalizeFieldValue(file.originalFilename) || `upload-${i + 1}`;
-    const uploadName = `${submissionId}_${i + 1}${getUploadExtension(originalName, mimeType)}`;
+    const originalName = normalizeFieldValue(file.originalFilename) || `upload-${fileIndex}`;
+    const uploadName = `${submissionId}_${fileIndex}${getUploadExtension(originalName, mimeType)}`;
 
     const response = await runDriveCall("files.create(upload)", () =>
       drive.files.create({
@@ -1005,18 +1058,18 @@ async function uploadMediaFilesToDrive(drive, destinationFolderId, submissionId,
       throw new Error(`Failed to upload media file ${uploadName}`);
     }
 
-    uploaded.push({
-      fileIndex: i + 1,
+    return {
+      fileIndex,
       fileId,
       fileName: response.data.name || uploadName,
       mimeType: response.data.mimeType || mimeType,
       fileType: deriveFileTypeFromMime(response.data.mimeType || mimeType),
       driveViewUrl: `https://drive.google.com/file/d/${fileId}/view`,
-    });
+    };
+  });
 
-    await makeDriveFilePublic(drive, fileId);
-  }
-
+  const uploaded = (await Promise.all(uploadTasks)).sort((a, b) => a.fileIndex - b.fileIndex);
+  await Promise.all(uploaded.map((item) => makeDriveFilePublic(drive, item.fileId)));
   return uploaded;
 }
 
@@ -1054,6 +1107,24 @@ function getField(fields, key, fallback = "") {
   return normalizeFieldValue(raw);
 }
 
+function applyMediaSlotsToRsvpRowData(rowData, rsvpHeaders, uploadedMedia) {
+  if (!rowData || typeof rowData !== "object") return;
+  const headers = Array.isArray(rsvpHeaders) ? rsvpHeaders : [];
+  const slotValues = Array.from({ length: RSVP_MAX_MEDIA_FILES }, (_unused, index) => {
+    const mediaItem = Array.isArray(uploadedMedia) ? uploadedMedia[index] : null;
+    return normalizeFieldValue(mediaItem && mediaItem.driveViewUrl ? mediaItem.driveViewUrl : "");
+  });
+
+  headers.forEach((header) => {
+    const normalized = normalizeFieldValue(header).toLowerCase();
+    const match = normalized.match(/^media[\s_-]?([123])(?:[\s_-]?(?:url|link|view))?$/);
+    if (!match) return;
+    const slotIndex = Number.parseInt(match[1], 10) - 1;
+    if (!Number.isFinite(slotIndex) || slotIndex < 0 || slotIndex >= RSVP_MAX_MEDIA_FILES) return;
+    rowData[header] = slotValues[slotIndex] || "";
+  });
+}
+
 async function handleRsvpSubmission(req, res) {
   let uploadedTempFiles = [];
 
@@ -1084,7 +1155,10 @@ async function handleRsvpSubmission(req, res) {
     const partySize = rsvpStatus === "maybe" && Number.isFinite(maybePartySize) ? String(maybePartySize) : "";
     const whenWillYouKnow = rsvpStatus === "maybe" ? getField(fields, "whenWillYouKnow") || getField(fields, "followupChoice") : "";
 
-    const mediaCount = files.length;
+    if (files.length > RSVP_MAX_MEDIA_FILES) {
+      throw createHttpError(400, `You can upload up to ${RSVP_MAX_MEDIA_FILES} files.`, "too_many_files");
+    }
+
     const source = inferSource(getField(fields, "userAgent"), getField(fields, "viewportWidth"));
 
     const tabHeaders = {
@@ -1096,23 +1170,6 @@ async function handleRsvpSubmission(req, res) {
     assertHeadersPresent(tabHeaders.rsvps, TAB_SCHEMAS.rsvps, "rsvps");
     assertHeadersPresent(tabHeaders.guests, TAB_SCHEMAS.guests, "guests");
     assertHeadersPresent(tabHeaders.media, TAB_SCHEMAS.media, "media");
-
-    const rsvpRow = buildRowFromHeaders(tabHeaders.rsvps, {
-      submission_id: submissionId,
-      submitted_at: nowIso,
-      rsvp_status: rsvpStatus,
-      full_name: fullName,
-      email,
-      phone,
-      party_size: partySize,
-      when_will_you_know: whenWillYouKnow,
-      dietary_restrictions: dietaryRestrictions,
-      message_to_couple: messageToCouple,
-      primary_fun_facts: primaryFunFacts,
-      media_count: String(mediaCount),
-      source,
-      approved: "FALSE",
-    });
 
     const guestRowsData = [];
     guestRowsData.push(
@@ -1143,9 +1200,33 @@ async function handleRsvpSubmission(req, res) {
       guestIndex += 1;
     });
 
+    let uploadedMedia = [];
+    if (files.length) {
+      uploadedMedia = await uploadMediaFilesToDrive(drive, uploadsFolderId, submissionId, files);
+    }
+
+    const mediaCount = uploadedMedia.length;
+    const rsvpRowData = {
+      submission_id: submissionId,
+      submitted_at: nowIso,
+      rsvp_status: rsvpStatus,
+      full_name: fullName,
+      email,
+      phone,
+      party_size: partySize,
+      when_will_you_know: whenWillYouKnow,
+      dietary_restrictions: dietaryRestrictions,
+      message_to_couple: messageToCouple,
+      primary_fun_facts: primaryFunFacts,
+      media_count: String(mediaCount),
+      source,
+      approved: "FALSE",
+    };
+    applyMediaSlotsToRsvpRowData(rsvpRowData, tabHeaders.rsvps, uploadedMedia);
+    const rsvpRow = buildRowFromHeaders(tabHeaders.rsvps, rsvpRowData);
+
     let mediaRowsData = [];
     if (files.length) {
-      const uploadedMedia = await uploadMediaFilesToDrive(drive, uploadsFolderId, submissionId, files);
       mediaRowsData = uploadedMedia.map((item) =>
         buildRowFromHeaders(tabHeaders.media, {
           submission_id: submissionId,
@@ -1160,9 +1241,11 @@ async function handleRsvpSubmission(req, res) {
       );
     }
 
-    await appendRows(sheets, spreadsheetId, "rsvps", [rsvpRow]);
-    await appendRows(sheets, spreadsheetId, "guests", guestRowsData);
-    await appendRows(sheets, spreadsheetId, "media", mediaRowsData);
+    await Promise.all([
+      appendRows(sheets, spreadsheetId, "rsvps", [rsvpRow]),
+      appendRows(sheets, spreadsheetId, "guests", guestRowsData),
+      appendRows(sheets, spreadsheetId, "media", mediaRowsData),
+    ]);
 
     send(res, 200, JSON.stringify({ ok: true, submission_id: submissionId }), MIME_TYPES[".json"], {
       req,
@@ -1170,7 +1253,9 @@ async function handleRsvpSubmission(req, res) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "RSVP submission failed";
-    send(res, 500, JSON.stringify({ ok: false, error: message }), MIME_TYPES[".json"], {
+    const status = Number(error && typeof error === "object" ? error.status : 0);
+    const safeStatus = Number.isFinite(status) && status >= 400 && status <= 599 ? status : 500;
+    send(res, safeStatus, JSON.stringify({ ok: false, error: message }), MIME_TYPES[".json"], {
       req,
       cacheControl: "no-store",
     });
