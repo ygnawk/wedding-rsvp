@@ -23,14 +23,14 @@ const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const HOTEL_PANEL_TRANSITION_MS = 620;
 const HOTEL_CONTENT_FADE_MS = 620;
 const MOBILE_GALLERY_DOT_MAX = 7;
-const TIMELINE_SPEED = 0.6; // completes schedule reveal by ~60% section scroll
+const TIMELINE_SPEED = 1; // completes schedule reveal at section center anchor
 const MOSAIC_HOVER_DELAY_MS = 150;
 const GUEST_WALL_AUTOPLAY_INTERVAL_MS = 20000;
 const GUEST_WALL_PINBOARD_LIMIT = 12;
 const GUEST_WALL_PINBOARD_INITIAL_LIMIT_DESKTOP = 12;
 const GUEST_WALL_PINBOARD_INITIAL_LIMIT_MOBILE = 8;
-const GUEST_WALL_PINBOARD_BUFFER_DESKTOP = 32;
-const GUEST_WALL_PINBOARD_BUFFER_MOBILE = 16;
+const GUEST_WALL_PINBOARD_BUFFER_DESKTOP = 24;
+const GUEST_WALL_PINBOARD_BUFFER_MOBILE = 12;
 const GUEST_WALL_PREFETCH_THRESHOLD = 4;
 const GUEST_WALL_DESKTOP_VISIBLE_SLOTS = 10;
 const GUEST_WALL_TABLET_VISIBLE_SLOTS = 8;
@@ -57,12 +57,14 @@ const GUEST_WALL_ARRANGE_DEOVERLAP_GAP = 8;
 const GUEST_WALL_SLOW_MESSAGE_DELAY_MS = 4000;
 const GUEST_WALL_SLOW_MESSAGE_SECOND_DELAY_MS = 10000;
 const GUEST_WALL_LOADING_STUCK_DELAY_MS = 20000;
-const GUEST_WALL_HARD_TIMEOUT_MS = 10000;
-const GUEST_WALL_INITIAL_REQUEST_TIMEOUT_MS = 10000;
-const GUEST_WALL_RETRY_DELAY_MS = 400;
+const GUEST_WALL_HARD_TIMEOUT_MS = 120000;
+const GUEST_WALL_INITIAL_REQUEST_TIMEOUT_MS = 120000;
+const GUEST_WALL_RETRY_DELAY_MS = 1000;
 const GUEST_WALL_MAX_FETCH_ATTEMPTS = 2;
 const GUEST_WALL_IMAGE_CONCURRENCY = 4;
 const GUEST_WALL_IMAGE_OBSERVER_MARGIN = "240px";
+const GUEST_WALL_SESSION_CACHE_KEY = "guestwall-pinboard-cache-v1";
+const GUEST_WALL_SESSION_CACHE_TTL_MS = 5 * 60 * 1000;
 const GUEST_WALL_LOADING_MESSAGE = "Loading guest wall…";
 const GUEST_WALL_EMPTY_MESSAGE = "Nothing here yet—check back soon.";
 const GUEST_WALL_UNAVAILABLE_MESSAGE = "Guest Wall is temporarily unavailable.";
@@ -104,8 +106,10 @@ const UPLOAD_ALLOWED_MIME_TYPES = new Set([
   "video/quicktime",
   "video/webm",
 ]);
-const UPLOAD_SLOT_DEFAULT_META = "JPG/PNG/HEIC/MP4/MOV • up to 10MB";
-const FUN_FACT_CHIP_COUNT = 10;
+const UPLOAD_SLOT_DEFAULT_META = `0 / ${MAX_UPLOAD_FILES} selected`;
+const FUN_FACT_CHIP_COUNT_DESKTOP = 6;
+const FUN_FACT_CHIP_COUNT_MOBILE = 4;
+const FUN_FACT_FEEDBACK_MS = 900;
 const BASE_FUN_FACT_EXAMPLES = [
   "I will travel for noodles.",
   "I can’t handle horror films.",
@@ -251,8 +255,8 @@ const FUN_FACT_EXAMPLES = buildFunFactExamples();
 let photoManifest = null;
 let revealObserver = null;
 let reducedMotion = false;
-let selectedUploadFiles = Array.from({ length: MAX_UPLOAD_FILES }, () => null);
-let selectedUploadPreviewUrls = Array.from({ length: MAX_UPLOAD_FILES }, () => "");
+let selectedUploadFiles = [];
+let selectedUploadPreviewUrls = [];
 let rsvpIsSubmitting = false;
 
 const floatingHeader = document.getElementById("floatingHeader");
@@ -294,24 +298,13 @@ const workingCount = document.getElementById("workingCount");
 const workingConfirm = document.getElementById("workingConfirm");
 
 const noFields = document.getElementById("noFields");
-const photoUploadSlots = Array.from(document.querySelectorAll("[data-upload-slot]"));
-const photoUploadSlotRefs = photoUploadSlots.map((slotNode, fallbackIndex) => {
-  const slot = Number(slotNode.dataset.uploadSlot || fallbackIndex + 1);
-  return {
-    slot,
-    slotNode,
-    input: document.getElementById(`photoUpload${slot}`),
-    trigger: slotNode.querySelector(`[data-upload-trigger='${slot}']`),
-    meta: slotNode.querySelector(`[data-upload-meta='${slot}']`),
-    previewWrap: slotNode.querySelector(`[data-upload-preview-wrap='${slot}']`),
-    preview: slotNode.querySelector(`[data-upload-preview='${slot}']`),
-    previewText: slotNode.querySelector(`[data-upload-preview-text='${slot}']`),
-    actions: slotNode.querySelector(`[data-upload-actions='${slot}']`),
-    replaceButton: slotNode.querySelector(`[data-upload-replace='${slot}']`),
-    removeButton: slotNode.querySelector(`[data-upload-remove='${slot}']`),
-    errorNode: slotNode.querySelector(`[data-upload-error='${slot}']`),
-  };
-});
+const mediaUploadField = document.getElementById("mediaUploadField");
+const mediaUploadInput = document.getElementById("mediaUpload");
+const mediaUploadTrigger = document.getElementById("mediaUploadTrigger");
+const mediaUploadMeta = document.getElementById("mediaUploadMeta");
+const mediaUploadPreviewList = document.getElementById("mediaUploadPreviewList");
+const mediaUploadAddAnother = document.getElementById("mediaUploadAddAnother");
+const mediaUploadError = document.getElementById("mediaUploadError");
 const thingsThemeList = document.getElementById("thingsThemeList");
 const makanTipTrigger = document.getElementById("makanTipTrigger");
 const makanTipPopover = document.getElementById("makanTipPopover");
@@ -374,6 +367,7 @@ let galleryTouchStartX = null;
 let bodyScrollLockCount = 0;
 let bodyScrollLockY = 0;
 let bodyScrollBehaviorBeforeLock = "";
+let bodyScrollPaddingRightBeforeLock = "";
 let galleryScrollRaf = null;
 let guestWallCards = [];
 let guestWallCardById = new Map();
@@ -403,6 +397,7 @@ let guestWallLoadState = "idle";
 let guestWallSlowMessageStartTimer = null;
 let guestWallSlowMessageSecondTimer = null;
 let guestWallSlowMessageTimeoutTimer = null;
+let guestWallLoadingRetryVisible = false;
 let guestWallArrangeMode = false;
 let guestWallDragState = null;
 let guestWallArrangementByCardId = new Map();
@@ -418,6 +413,7 @@ let guestWallImageLoadsInFlight = 0;
 let guestWallImageLoadState = new WeakMap();
 let guestWallImageStats = { started: 0, loaded: 0, failed: 0 };
 let guestWallRuntimeDebugHandlersBound = false;
+let guestWallWarmupStarted = false;
 let overflowDebugResizeTimer = null;
 let desktopMoreCloseTimer = null;
 let activeSectionId = "top";
@@ -996,6 +992,12 @@ function lockBodyScroll() {
   if (bodyScrollLockCount === 0) {
     bodyScrollLockY = window.scrollY || window.pageYOffset || 0;
     bodyScrollBehaviorBeforeLock = document.documentElement.style.scrollBehavior || "";
+    bodyScrollPaddingRightBeforeLock = document.body.style.paddingRight || "";
+    const scrollbarWidth = Math.max(0, (window.innerWidth || 0) - (document.documentElement?.clientWidth || 0));
+    if (scrollbarWidth > 0) {
+      const currentPaddingRight = Number.parseFloat(window.getComputedStyle(document.body).paddingRight || "0") || 0;
+      document.body.style.paddingRight = `${currentPaddingRight + scrollbarWidth}px`;
+    }
     document.documentElement.style.scrollBehavior = "auto";
     document.body.classList.add("modal-open");
     document.body.style.position = "fixed";
@@ -1019,6 +1021,8 @@ function unlockBodyScroll() {
   document.body.style.left = "";
   document.body.style.right = "";
   document.body.style.width = "";
+  document.body.style.paddingRight = bodyScrollPaddingRightBeforeLock;
+  bodyScrollPaddingRightBeforeLock = "";
   const root = document.documentElement;
   const restoreBehavior = () => {
     root.style.scrollBehavior = bodyScrollBehaviorBeforeLock;
@@ -1378,17 +1382,18 @@ function initScheduleReveal() {
   timelineRef.style.setProperty("--schedule-line-progress", "0");
 
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-  const SCHEDULE_REVEAL_START_RATIO = 0.66;
-  const SCHEDULE_REVEAL_END_RATIO = -0.55;
+  const SCHEDULE_REVEAL_START_RATIO = 0.68;
+  const SCHEDULE_REVEAL_END_CENTER_RATIO = 0.5;
   const SCHEDULE_ROW_LEAD_IN = 0.08;
   const SCHEDULE_ROW_REVEAL_WINDOW = 0.12;
   const SCHEDULE_ROW_STAGGER_MULTIPLIER = 0.82;
   const getProgress = () => {
     const rect = sectionRef.getBoundingClientRect();
     const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-    const start = viewportHeight * SCHEDULE_REVEAL_START_RATIO;
-    const end = viewportHeight * SCHEDULE_REVEAL_END_RATIO;
-    const raw = (start - rect.top) / Math.max(1, start - end);
+    const startTop = viewportHeight * SCHEDULE_REVEAL_START_RATIO;
+    const centeredTop = viewportHeight * SCHEDULE_REVEAL_END_CENTER_RATIO - rect.height * 0.5;
+    const endTop = Math.min(startTop - 1, centeredTop);
+    const raw = (startTop - rect.top) / Math.max(1, startTop - endTop);
     return clamp(raw, 0, 1);
   };
 
@@ -2980,7 +2985,14 @@ function showGuestLimitError(message) {
   setHiddenClass(guestLimitError, false);
 }
 
-function pickRandomFunFactExamples(limit = FUN_FACT_CHIP_COUNT) {
+function getFunFactChipCount() {
+  if (typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches) {
+    return FUN_FACT_CHIP_COUNT_MOBILE;
+  }
+  return FUN_FACT_CHIP_COUNT_DESKTOP;
+}
+
+function pickRandomFunFactExamples(limit = getFunFactChipCount()) {
   const seen = new Set();
   const pool = FUN_FACT_EXAMPLES.filter((item) => {
     const normalized = normalizeFunFactPoolKey(item);
@@ -3020,47 +3032,56 @@ function buildFunFactExamplesPopover(input) {
   const controls = document.createElement("div");
   controls.className = "fun-fact-ideas-controls";
 
-  const toggle = document.createElement("button");
-  toggle.type = "button";
-  toggle.className = "fun-fact-ideas-toggle";
-  toggle.textContent = "See ideas";
-  setAriaExpanded(toggle, false);
-
   const shuffle = document.createElement("button");
   shuffle.type = "button";
-  shuffle.className = "fun-fact-ideas-shuffle hidden";
+  shuffle.className = "fun-fact-ideas-shuffle";
   shuffle.textContent = "Shuffle ideas";
 
   const chipsWrap = document.createElement("div");
-  chipsWrap.className = "fun-fact-ideas-chips hidden";
+  chipsWrap.className = "fun-fact-ideas-chips";
+  const feedback = document.createElement("p");
+  feedback.className = "field-helper fun-fact-feedback hidden";
+  feedback.setAttribute("aria-live", "polite");
   const lineCounter = document.createElement("p");
   lineCounter.className = "field-helper fun-fact-line-counter";
 
   const usedExamples = new Set();
-  let displayedExamples = pickRandomFunFactExamples();
+  let displayedExamples = pickRandomFunFactExamples(getFunFactChipCount());
+  let feedbackTimer = null;
 
   function updateLineCounter() {
     lineCounter.textContent = `${Math.min(getFunFactLines(input.value).length, 3)} / 3 lines`;
   }
 
-  function openIdeas() {
-    chipsWrap.classList.remove("hidden");
-    shuffle.classList.remove("hidden");
-    setAriaExpanded(toggle, true);
-    toggle.textContent = "Hide ideas";
-  }
-
-  function closeIdeas() {
-    chipsWrap.classList.add("hidden");
-    shuffle.classList.add("hidden");
-    setAriaExpanded(toggle, false);
-    toggle.textContent = "See ideas";
+  function showFeedback(copy, tone = "added") {
+    if (!(feedback instanceof HTMLElement)) return;
+    if (feedbackTimer) {
+      window.clearTimeout(feedbackTimer);
+      feedbackTimer = null;
+    }
+    feedback.textContent = copy;
+    feedback.classList.remove("is-added", "is-duplicate");
+    feedback.classList.add(tone === "duplicate" ? "is-duplicate" : "is-added");
+    setHiddenClass(feedback, false);
+    feedbackTimer = window.setTimeout(() => {
+      setHiddenClass(feedback, true);
+      feedbackTimer = null;
+    }, 1200);
   }
 
   function insertExampleText(example) {
+    const lines = getFunFactLines(input.value);
+    const normalizedExample = normalizeFunFactPoolKey(example);
+    if (lines.some((line) => normalizeFunFactPoolKey(line) === normalizedExample)) {
+      return "duplicate";
+    }
+    if (lines.length >= 3) {
+      return "duplicate";
+    }
     input.value = addFunFactLine(input.value, example, 3);
     input.dispatchEvent(new Event("input", { bubbles: true }));
     input.focus();
+    return "added";
   }
 
   function renderChips() {
@@ -3072,41 +3093,39 @@ function buildFunFactExamplesPopover(input) {
       chip.textContent = example;
       if (usedExamples.has(example)) chip.classList.add("is-used");
       chip.addEventListener("click", () => {
-        insertExampleText(example);
-        usedExamples.add(example);
-        chip.classList.add("is-used");
+        const result = insertExampleText(example);
+        if (result === "added") {
+          usedExamples.add(example);
+          chip.classList.add("is-used", "is-added");
+          window.setTimeout(() => {
+            chip.classList.remove("is-added");
+          }, FUN_FACT_FEEDBACK_MS);
+          showFeedback("Added!", "added");
+          return;
+        }
+        chip.classList.add("is-duplicate");
+        window.setTimeout(() => {
+          chip.classList.remove("is-duplicate");
+        }, FUN_FACT_FEEDBACK_MS);
+        showFeedback("Already added", "duplicate");
       });
       chipsWrap.appendChild(chip);
     });
   }
 
-  toggle.addEventListener("click", () => {
-    const isOpen = !chipsWrap.classList.contains("hidden");
-    if (isOpen) {
-      closeIdeas();
-      return;
-    }
-    openIdeas();
-    renderChips();
-  });
-
   shuffle.addEventListener("click", () => {
-    displayedExamples = pickRandomFunFactExamples();
+    displayedExamples = pickRandomFunFactExamples(getFunFactChipCount());
     renderChips();
   });
 
-  input.addEventListener("focus", () => {
-    if (!chipsWrap.classList.contains("hidden")) return;
-    openIdeas();
-    renderChips();
-  });
   input.addEventListener("input", updateLineCounter);
 
-  controls.appendChild(toggle);
   controls.appendChild(shuffle);
   wrap.appendChild(controls);
   wrap.appendChild(chipsWrap);
+  wrap.appendChild(feedback);
   wrap.appendChild(lineCounter);
+  renderChips();
   updateLineCounter();
   return wrap;
 }
@@ -3132,8 +3151,7 @@ function buildGuestFunFactField(index, funFact = "") {
   const factInput = document.createElement("textarea");
   factInput.id = inputId;
   factInput.rows = 2;
-  factInput.placeholder =
-    "Example (add 2–3):\n• I’m a +1 and accepting friend applications.\n• My karaoke song is painfully predictable.\n• I came for the wedding, stayed for the dumplings.";
+  factInput.placeholder = "Add 2–3 fun facts…";
   factInput.value = funFact;
   factInput.dataset.guestFunFact = "true";
 
@@ -3331,179 +3349,212 @@ function validateUploadFile(file) {
   return "";
 }
 
-function getUploadSlotRef(index) {
-  return photoUploadSlotRefs[index] || null;
+function getUploadFileKey(file) {
+  if (!file) return "";
+  return `${String(file.name || "")}:${Number(file.size || 0)}:${Number(file.lastModified || 0)}:${String(file.type || "")}`;
 }
 
-function clearUploadSlotError(index) {
-  const ref = getUploadSlotRef(index);
-  if (!ref || !ref.errorNode) return;
-  ref.errorNode.textContent = "";
-  setHiddenClass(ref.errorNode, true);
+function clearUploadError() {
+  if (!(mediaUploadError instanceof HTMLElement)) return;
+  mediaUploadError.textContent = "";
+  setHiddenClass(mediaUploadError, true);
 }
 
-function setUploadSlotError(index, message) {
-  const ref = getUploadSlotRef(index);
-  if (!ref || !ref.errorNode) return;
-  ref.errorNode.textContent = message;
-  setHiddenClass(ref.errorNode, false);
+function setUploadError(message) {
+  if (!(mediaUploadError instanceof HTMLElement)) return;
+  mediaUploadError.textContent = String(message || "");
+  setHiddenClass(mediaUploadError, false);
 }
 
-function clearUploadSlotPreview(index) {
-  const ref = getUploadSlotRef(index);
-  if (!ref) return;
-
+function revokeUploadPreviewAt(index) {
   const previewUrl = selectedUploadPreviewUrls[index];
-  if (previewUrl) {
-    URL.revokeObjectURL(previewUrl);
-    selectedUploadPreviewUrls[index] = "";
-  }
-
-  if (ref.preview) {
-    ref.preview.src = "";
-    setHiddenClass(ref.preview, true);
-  }
-
-  if (ref.previewWrap) {
-    setHiddenClass(ref.previewWrap, true);
-  }
-
-  if (ref.previewText) {
-    ref.previewText.textContent = "";
-    setHiddenClass(ref.previewText, true);
-  }
+  if (!previewUrl) return;
+  URL.revokeObjectURL(previewUrl);
+  selectedUploadPreviewUrls[index] = "";
 }
 
-function updateUploadSlotUi(index) {
-  const ref = getUploadSlotRef(index);
-  if (!ref) return;
+function formatUploadFileSize(size) {
+  const bytes = Number(size || 0);
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 KB";
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
 
-  const file = selectedUploadFiles[index];
-  const hasFile = Boolean(file);
-  ref.slotNode.classList.toggle("has-file", hasFile);
+function buildUploadPreviewCard(file, index) {
+  const item = document.createElement("div");
+  item.className = "upload-list-item";
 
-  if (ref.meta) {
-    ref.meta.textContent = hasFile ? file.name : UPLOAD_SLOT_DEFAULT_META;
-  }
-
-  if (ref.actions) {
-    ref.actions.classList.toggle("hidden", !hasFile);
-  }
-
-  clearUploadSlotPreview(index);
-
-  if (!hasFile || !ref.preview || !ref.previewWrap) return;
-
+  const media = document.createElement("div");
+  media.className = "upload-list-media";
   const extension = getUploadFileExtension(file.name);
   const isImagePreview = file.type.startsWith("image/") && extension !== "heic" && extension !== "heif";
   if (isImagePreview) {
-    const previewUrl = URL.createObjectURL(file);
-    selectedUploadPreviewUrls[index] = previewUrl;
-    ref.preview.src = previewUrl;
-    setHiddenClass(ref.preview, false);
-    setHiddenClass(ref.previewWrap, false);
+    let previewUrl = selectedUploadPreviewUrls[index];
+    if (!previewUrl) {
+      previewUrl = URL.createObjectURL(file);
+      selectedUploadPreviewUrls[index] = previewUrl;
+    }
+    const img = document.createElement("img");
+    img.src = previewUrl;
+    img.alt = "";
+    img.loading = "lazy";
+    img.decoding = "async";
+    media.appendChild(img);
+  } else {
+    const marker = document.createElement("span");
+    marker.className = "upload-list-media-fallback";
+    marker.textContent = file.type.startsWith("video/") ? "VIDEO" : "FILE";
+    media.appendChild(marker);
+  }
+  item.appendChild(media);
+
+  const text = document.createElement("div");
+  text.className = "upload-list-text";
+  const name = document.createElement("p");
+  name.className = "upload-list-name";
+  name.textContent = file.name;
+  text.appendChild(name);
+  const meta = document.createElement("p");
+  meta.className = "upload-list-meta";
+  meta.textContent = formatUploadFileSize(file.size);
+  text.appendChild(meta);
+  item.appendChild(text);
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "upload-list-remove";
+  remove.dataset.uploadRemoveIndex = String(index);
+  remove.setAttribute("aria-label", `Remove ${file.name}`);
+  remove.textContent = "×";
+  item.appendChild(remove);
+  return item;
+}
+
+function syncUploadListUi() {
+  const count = selectedUploadFiles.length;
+  if (mediaUploadField) mediaUploadField.classList.toggle("has-file", count > 0);
+  if (mediaUploadMeta) {
+    mediaUploadMeta.textContent = count ? `${count} / ${MAX_UPLOAD_FILES} selected` : UPLOAD_SLOT_DEFAULT_META;
+  }
+  if (mediaUploadAddAnother) {
+    setHiddenClass(mediaUploadAddAnother, !(count > 0 && count < MAX_UPLOAD_FILES));
+  }
+  if (!(mediaUploadPreviewList instanceof HTMLElement)) return;
+
+  mediaUploadPreviewList.innerHTML = "";
+  if (!count) {
+    setHiddenClass(mediaUploadPreviewList, true);
     return;
   }
 
-  const isVideo = file.type.startsWith("video/") || ["mp4", "mov", "webm"].includes(extension);
-  if (isVideo && ref.previewText && ref.previewWrap) {
-    ref.previewText.textContent = `Video selected: ${file.name}`;
-    setHiddenClass(ref.previewText, false);
-    setHiddenClass(ref.previewWrap, false);
-  }
+  selectedUploadFiles.forEach((file, index) => {
+    mediaUploadPreviewList.appendChild(buildUploadPreviewCard(file, index));
+  });
+  setHiddenClass(mediaUploadPreviewList, false);
 }
 
-function setUploadSlotFile(index, file) {
-  const ref = getUploadSlotRef(index);
-  if (!ref || !ref.input) return false;
+function addUploadFiles(fileList) {
+  const incoming = Array.isArray(fileList) ? fileList : Array.from(fileList || []);
+  if (!incoming.length) return;
+  clearUploadError();
 
-  clearUploadSlotError(index);
+  const selectedKeys = new Set(selectedUploadFiles.map((file) => getUploadFileKey(file)));
+  let overflowed = false;
+  let firstError = "";
 
-  if (!file) {
-    selectedUploadFiles[index] = null;
-    updateUploadSlotUi(index);
-    return true;
+  incoming.forEach((file) => {
+    if (!file) return;
+    if (selectedUploadFiles.length >= MAX_UPLOAD_FILES) {
+      overflowed = true;
+      return;
+    }
+    const key = getUploadFileKey(file);
+    if (selectedKeys.has(key)) return;
+    const errorMessage = validateUploadFile(file);
+    if (errorMessage) {
+      if (!firstError) firstError = errorMessage;
+      return;
+    }
+    selectedUploadFiles.push(file);
+    selectedUploadPreviewUrls.push("");
+    selectedKeys.add(key);
+  });
+
+  if (overflowed && !firstError) {
+    firstError = `You can upload up to ${MAX_UPLOAD_FILES} files.`;
   }
+  if (firstError) setUploadError(firstError);
+  syncUploadListUi();
+}
 
-  const errorMessage = validateUploadFile(file);
-  if (errorMessage) {
-    selectedUploadFiles[index] = null;
-    ref.input.value = "";
-    setUploadSlotError(index, errorMessage);
-    updateUploadSlotUi(index);
-    return false;
-  }
-
-  selectedUploadFiles[index] = file;
-  updateUploadSlotUi(index);
-  return true;
+function removeUploadFile(index) {
+  const nextIndex = Number(index);
+  if (!Number.isFinite(nextIndex) || nextIndex < 0 || nextIndex >= selectedUploadFiles.length) return;
+  revokeUploadPreviewAt(nextIndex);
+  selectedUploadFiles.splice(nextIndex, 1);
+  selectedUploadPreviewUrls.splice(nextIndex, 1);
+  clearUploadError();
+  syncUploadListUi();
 }
 
 function clearUploadSlots() {
-  selectedUploadFiles = Array.from({ length: MAX_UPLOAD_FILES }, () => null);
   selectedUploadPreviewUrls.forEach((previewUrl) => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
   });
-  selectedUploadPreviewUrls = Array.from({ length: MAX_UPLOAD_FILES }, () => "");
-
-  photoUploadSlotRefs.forEach((ref, index) => {
-    if (ref && ref.input) ref.input.value = "";
-    clearUploadSlotError(index);
-    updateUploadSlotUi(index);
-  });
+  selectedUploadFiles = [];
+  selectedUploadPreviewUrls = [];
+  if (mediaUploadInput instanceof HTMLInputElement) mediaUploadInput.value = "";
+  clearUploadError();
+  syncUploadListUi();
 }
 
 function validateUploadSlots() {
-  let valid = true;
-  photoUploadSlotRefs.forEach((ref, index) => {
-    if (!ref) return;
-    const file = selectedUploadFiles[index];
-    clearUploadSlotError(index);
-    if (!file) return;
-    const errorMessage = validateUploadFile(file);
-    if (!errorMessage) return;
-    valid = false;
-    setUploadSlotError(index, errorMessage);
-  });
-  return valid;
+  clearUploadError();
+  if (selectedUploadFiles.length > MAX_UPLOAD_FILES) {
+    setUploadError(`You can upload up to ${MAX_UPLOAD_FILES} files.`);
+    return false;
+  }
+  for (let i = 0; i < selectedUploadFiles.length; i += 1) {
+    const errorMessage = validateUploadFile(selectedUploadFiles[i]);
+    if (!errorMessage) continue;
+    setUploadError(errorMessage);
+    return false;
+  }
+  return true;
 }
 
 function initUploadSlots() {
-  if (!photoUploadSlotRefs.length) return;
+  if (!(mediaUploadInput instanceof HTMLInputElement) || !(mediaUploadTrigger instanceof HTMLButtonElement)) return;
+  if (mediaUploadTrigger.dataset.bound === "true") return;
 
-  photoUploadSlotRefs.forEach((ref, index) => {
-    if (!ref || !ref.slotNode || ref.slotNode.dataset.bound === "true") return;
-    const { input, trigger, replaceButton, removeButton } = ref;
-    if (!input || !trigger) return;
-
-    trigger.addEventListener("click", () => {
-      input.click();
-    });
-
-    input.addEventListener("change", () => {
-      const nextFile = input.files && input.files[0] ? input.files[0] : null;
-      setUploadSlotFile(index, nextFile);
-    });
-
-    if (replaceButton) {
-      replaceButton.addEventListener("click", () => {
-        input.click();
-      });
-    }
-
-    if (removeButton) {
-      removeButton.addEventListener("click", () => {
-        input.value = "";
-        setUploadSlotFile(index, null);
-      });
-    }
-
-    ref.slotNode.dataset.bound = "true";
+  mediaUploadTrigger.addEventListener("click", () => {
+    mediaUploadInput.click();
   });
 
-  photoUploadSlotRefs.forEach((_ref, index) => {
-    updateUploadSlotUi(index);
+  if (mediaUploadAddAnother instanceof HTMLButtonElement) {
+    mediaUploadAddAnother.addEventListener("click", () => {
+      mediaUploadInput.click();
+    });
+  }
+
+  mediaUploadInput.addEventListener("change", () => {
+    addUploadFiles(mediaUploadInput.files);
+    mediaUploadInput.value = "";
   });
+
+  if (mediaUploadPreviewList instanceof HTMLElement) {
+    mediaUploadPreviewList.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const removeButton = target.closest("[data-upload-remove-index]");
+      if (!(removeButton instanceof HTMLElement)) return;
+      const index = Number(removeButton.dataset.uploadRemoveIndex || "");
+      removeUploadFile(index);
+    });
+  }
+
+  mediaUploadTrigger.dataset.bound = "true";
+  syncUploadListUi();
 }
 
 function getSubmitButtonLabel(choiceInput) {
@@ -3661,6 +3712,39 @@ function setChoice(choice) {
   updateSubmitButtonLabel();
 }
 
+function initDietaryAutosize() {
+  if (!(dietary instanceof HTMLTextAreaElement)) return;
+
+  let minHeight = 50;
+  const resolveMinHeight = () => {
+    const rows = Math.max(2, Number(dietary.getAttribute("rows")) || 2);
+    const style = window.getComputedStyle(dietary);
+    const lineHeight = Number.parseFloat(style.lineHeight) || 24;
+    const paddingTop = Number.parseFloat(style.paddingTop) || 0;
+    const paddingBottom = Number.parseFloat(style.paddingBottom) || 0;
+    const borderTop = Number.parseFloat(style.borderTopWidth) || 0;
+    const borderBottom = Number.parseFloat(style.borderBottomWidth) || 0;
+    minHeight = Math.max(44, Math.ceil(lineHeight * rows + paddingTop + paddingBottom + borderTop + borderBottom));
+  };
+
+  const syncHeight = () => {
+    resolveMinHeight();
+    dietary.style.height = "auto";
+    const nextHeight = Math.max(minHeight, dietary.scrollHeight);
+    dietary.style.height = `${nextHeight}px`;
+  };
+
+  dietary.addEventListener("input", syncHeight);
+  window.addEventListener("resize", syncHeight);
+  if (rsvpForm) {
+    rsvpForm.addEventListener("reset", () => {
+      window.requestAnimationFrame(syncHeight);
+    });
+  }
+
+  syncHeight();
+}
+
 function initRsvpCards() {
   if (!choiceCards.length) return;
 
@@ -3700,6 +3784,7 @@ function initRsvpCards() {
   }
 
   initUploadSlots();
+  initDietaryAutosize();
 }
 
 function buildPayload() {
@@ -3725,17 +3810,12 @@ function buildPayload() {
     dietary: status === "yes" && dietary ? dietary.value.trim() : "",
     whenWillYouKnow: status === "maybe" && workingConfirm ? workingConfirm.value : "",
     followupChoice: status === "maybe" && workingConfirm ? workingConfirm.value : "",
-    photoFiles: selectedUploadFiles
-      .map((file, index) => {
-        if (!file) return null;
-        return {
-          slot: index + 1,
-          name: file.name,
-          size: file.size,
-          type: file.type || "",
-        };
-      })
-      .filter(Boolean),
+    photoFiles: selectedUploadFiles.map((file, index) => ({
+      slot: index + 1,
+      name: file.name,
+      size: file.size,
+      type: file.type || "",
+    })),
     userAgent: navigator.userAgent || "",
     viewportWidth: window.innerWidth || 0,
   };
@@ -3759,9 +3839,9 @@ function buildRsvpFormData(payload) {
   formData.append("userAgent", payload.userAgent || "");
   formData.append("viewportWidth", String(payload.viewportWidth || 0));
 
-  selectedUploadFiles.forEach((file, index) => {
+  selectedUploadFiles.forEach((file) => {
     if (!file) return;
-    formData.append(`photo${index + 1}`, file, file.name);
+    formData.append("media", file, file.name);
   });
 
   return formData;
@@ -3950,7 +4030,7 @@ function initRsvpForm() {
     }
 
     if (!validateUploadSlots()) {
-      showRsvpConfirmation("Please fix the photo upload errors before submitting.");
+      showRsvpConfirmation("Please fix the media upload errors before submitting.");
       return;
     }
 
@@ -4092,6 +4172,64 @@ function setGuestWallLoadState(nextState) {
   }
 }
 
+function setGuestWallLoadingRetryVisible(visible) {
+  guestWallLoadingRetryVisible = Boolean(visible);
+  const centers = document.querySelectorAll(".guestwall-loading-center");
+  centers.forEach((center) => {
+    if (!(center instanceof HTMLElement)) return;
+    center.classList.toggle("has-retry", guestWallLoadingRetryVisible);
+  });
+  const retryButtons = document.querySelectorAll(".guestwall-loading-retry");
+  retryButtons.forEach((button) => {
+    if (!(button instanceof HTMLElement)) return;
+    setHiddenClass(button, !guestWallLoadingRetryVisible);
+  });
+}
+
+function getGuestWallSessionCacheBucket() {
+  const hostKey = String(window.location.hostname || "unknown");
+  return `${GUEST_WALL_SESSION_CACHE_KEY}:${hostKey}`;
+}
+
+function readGuestWallSessionCache() {
+  try {
+    const raw = window.sessionStorage.getItem(getGuestWallSessionCacheBucket());
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const fetchedAt = Number(parsed && parsed.fetchedAt);
+    const items = Array.isArray(parsed && parsed.items) ? parsed.items : [];
+    if (!items.length || !Number.isFinite(fetchedAt)) return null;
+    if (Date.now() - fetchedAt > GUEST_WALL_SESSION_CACHE_TTL_MS) {
+      window.sessionStorage.removeItem(getGuestWallSessionCacheBucket());
+      return null;
+    }
+    return {
+      items,
+      nextCursor: String((parsed && parsed.nextCursor) || "").trim() || null,
+      total: Number.isFinite(Number(parsed && parsed.total)) ? Number(parsed.total) : items.length,
+      fetchedAt,
+    };
+  } catch (_error) {
+    return null;
+  }
+}
+
+function writeGuestWallSessionCache(payload) {
+  try {
+    const items = Array.isArray(payload?.items) ? payload.items : [];
+    if (!items.length) return;
+    const serializable = {
+      fetchedAt: Date.now(),
+      total: Number.isFinite(Number(payload?.total)) ? Number(payload.total) : items.length,
+      nextCursor: String(payload?.nextCursor || "").trim() || null,
+      items,
+    };
+    window.sessionStorage.setItem(getGuestWallSessionCacheBucket(), JSON.stringify(serializable));
+  } catch (_error) {
+    // no-op (private mode quota/security limits)
+  }
+}
+
 function bindGuestWallRuntimeDebugHandlers() {
   if (guestWallRuntimeDebugHandlersBound) return;
   if (typeof window === "undefined") return;
@@ -4124,6 +4262,7 @@ function clearGuestWallSlowMessageTimers() {
 function startGuestWallSlowMessageRotation() {
   clearGuestWallSlowMessageTimers();
   setGuestWallStatus(GUEST_WALL_LOADING_MESSAGE);
+  setGuestWallLoadingRetryVisible(false);
   guestWallSlowMessageStartTimer = window.setTimeout(() => {
     if (guestWallLoadState !== "loading") return;
     setGuestWallStatus(GUEST_WALL_LOADING_MESSAGE_SLOW);
@@ -4134,18 +4273,8 @@ function startGuestWallSlowMessageRotation() {
   }, GUEST_WALL_SLOW_MESSAGE_SECOND_DELAY_MS);
   guestWallSlowMessageTimeoutTimer = window.setTimeout(() => {
     if (guestWallLoadState !== "loading") return;
-    guestWallRequestToken += 1;
-    guestWallRequestInFlight = null;
-    setGuestWallLoadState("timeout");
     setGuestWallStatus(GUEST_WALL_LOADING_MESSAGE_STUCK);
-    setGuestWallControlsDisabled(true);
-    renderGuestWallErrorStateWithMessage.lastDetail = IS_LOCAL_DEV
-      ? `[dev] status=408 reason=timeout durationMs=${Math.round(performance.now() - guestWallLoadStartedAt)} url=${resolveGuestbookApiUrl({
-          mode: "pinboard",
-          limit: getGuestWallPinboardInitialRequestLimit(),
-        })}`
-      : "";
-    renderGuestWallErrorStateWithMessage(GUEST_WALL_LOADING_MESSAGE_STUCK);
+    setGuestWallLoadingRetryVisible(true);
   }, GUEST_WALL_LOADING_STUCK_DELAY_MS);
 }
 
@@ -4163,9 +4292,9 @@ function classifyGuestWallError(error) {
   const status = Number(error?.status || 0);
   if (error?.isTimeout || status === 408) {
     return {
-      state: "timeout",
-      statusMessage: "Still loading longer than expected. Please try again.",
-      panelMessage: "Still loading longer than expected. Please try again.",
+      state: "loading",
+      statusMessage: GUEST_WALL_LOADING_MESSAGE_STUCK,
+      panelMessage: GUEST_WALL_LOADING_MESSAGE_STUCK,
       reason: "timeout",
     };
   }
@@ -4226,11 +4355,10 @@ function isGuestWallRetryableError(error) {
 }
 
 function getGuestWallRequestTimeoutMs(attemptIndex = 0) {
-  const normalizedAttempt = Math.max(0, Number(attemptIndex) || 0);
   if (!guestWallHasSuccessfulLoad) {
-    return Math.max(9000, GUEST_WALL_INITIAL_REQUEST_TIMEOUT_MS - normalizedAttempt * 1500);
+    return GUEST_WALL_INITIAL_REQUEST_TIMEOUT_MS;
   }
-  return Math.max(8000, GUEST_WALL_HARD_TIMEOUT_MS - normalizedAttempt * 1000);
+  return GUEST_WALL_HARD_TIMEOUT_MS;
 }
 
 function waitGuestWallRetryDelay(attemptIndex = 0) {
@@ -4260,7 +4388,9 @@ function resolveGuestbookApiUrl(params = {}) {
 }
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
-  const safeTimeoutMs = Math.max(1000, Number(timeoutMs) || 8000);
+  const parsedTimeoutMs = Number(timeoutMs);
+  const hasTimeout = Number.isFinite(parsedTimeoutMs) && parsedTimeoutMs > 0;
+  const safeTimeoutMs = hasTimeout ? Math.max(1000, parsedTimeoutMs) : 0;
   const controller = new AbortController();
   const supportsAbortSignal = typeof AbortSignal !== "undefined";
   const externalSignal = options && supportsAbortSignal && options.signal instanceof AbortSignal ? options.signal : null;
@@ -4276,23 +4406,25 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
   }
 
   let timeoutHandle = null;
-  const timeoutPromise = new Promise((_, reject) => {
-    timeoutHandle = window.setTimeout(() => {
-      controller.abort("guestwall-timeout");
-      const timeoutError = new Error("guestwall-timeout");
-      timeoutError.name = "AbortError";
-      reject(timeoutError);
-    }, safeTimeoutMs);
-  });
+  let timeoutPromise = null;
+  if (hasTimeout) {
+    timeoutPromise = new Promise((_, reject) => {
+      timeoutHandle = window.setTimeout(() => {
+        controller.abort("guestwall-timeout");
+        const timeoutError = new Error("guestwall-timeout");
+        timeoutError.name = "AbortError";
+        reject(timeoutError);
+      }, safeTimeoutMs);
+    });
+  }
 
   try {
-    return await Promise.race([
-      fetch(url, {
-        ...options,
-        signal: controller.signal,
-      }),
-      timeoutPromise,
-    ]);
+    const fetchPromise = fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    if (!timeoutPromise) return await fetchPromise;
+    return await Promise.race([fetchPromise, timeoutPromise]);
   } finally {
     if (timeoutHandle) window.clearTimeout(timeoutHandle);
     if (externalSignal) {
@@ -4308,6 +4440,8 @@ async function fetchGuestbookPage({
   cursor = "",
   timeoutMs = GUEST_WALL_HARD_TIMEOUT_MS,
   attempt = 1,
+  cacheMode = "default",
+  quiet = false,
 } = {}) {
   const startedAt = performance.now();
   const apiUrl = resolveGuestbookApiUrl({
@@ -4320,13 +4454,15 @@ async function fetchGuestbookPage({
   let text = "";
   let ttfbMs = 0;
 
-  console.info(`[guestwall][request] endpoint=GET /api/guestbook attempt=${attempt} timeoutMs=${Math.round(timeoutMs)} url=${apiUrl}`);
-  console.log("[GuestWall] fetching…", apiUrl);
+  if (!quiet) {
+    console.info(`[guestwall][request] endpoint=GET /api/guestbook attempt=${attempt} timeoutMs=${Math.round(timeoutMs)} url=${apiUrl}`);
+    console.log("[GuestWall] fetching…", apiUrl);
+  }
 
   try {
-    response = await fetchWithTimeout(apiUrl, { cache: "default" }, timeoutMs);
+    response = await fetchWithTimeout(apiUrl, { cache: cacheMode }, timeoutMs);
     ttfbMs = Math.round(performance.now() - startedAt);
-    console.log("[GuestWall] response status", response.status);
+    if (!quiet) console.log("[GuestWall] response status", response.status);
     text = await response.text();
   } catch (error) {
     const durationMs = Math.round(performance.now() - startedAt);
@@ -4341,9 +4477,11 @@ async function fetchGuestbookPage({
     wrappedError.responseBytes = 0;
     wrappedError.itemCount = 0;
     wrappedError.isTimeout = isTimeout;
-    console.error(
-      `[guestwall][fetch] endpoint=GET /api/guestbook attempt=${attempt} status=${wrappedError.status} ttfbMs=${ttfbMs} durationMs=${durationMs} bytes=0 items=0 error=${wrappedError.code}`,
-    );
+    if (!quiet) {
+      console.error(
+        `[guestwall][fetch] endpoint=GET /api/guestbook attempt=${attempt} status=${wrappedError.status} ttfbMs=${ttfbMs} durationMs=${durationMs} bytes=0 items=0 error=${wrappedError.code}`,
+      );
+    }
     throw wrappedError;
   }
 
@@ -4365,10 +4503,12 @@ async function fetchGuestbookPage({
         ? data.results
         : null;
 
-  console.info(
-    `[guestwall][fetch] endpoint=GET /api/guestbook attempt=${attempt} status=${response.status} ttfbMs=${ttfbMs} durationMs=${durationMs} bytes=${responseBytes} items=${Array.isArray(items) ? items.length : "invalid"}`,
-  );
-  console.log("[GuestWall] items", Array.isArray(items) ? items.length : 0);
+  if (!quiet) {
+    console.info(
+      `[guestwall][fetch] endpoint=GET /api/guestbook attempt=${attempt} status=${response.status} ttfbMs=${ttfbMs} durationMs=${durationMs} bytes=${responseBytes} items=${Array.isArray(items) ? items.length : "invalid"}`,
+    );
+    console.log("[GuestWall] items", Array.isArray(items) ? items.length : 0);
+  }
 
   if (!response.ok || !data || data.ok !== true || !Array.isArray(items)) {
     const error = new Error(GUEST_WALL_UNAVAILABLE_MESSAGE);
@@ -4833,14 +4973,25 @@ function clearGuestWallBoards() {
 function createGuestWallLoadingCenterNode() {
   const center = document.createElement("div");
   center.className = "guestwall-loading-center";
-  const spinner = document.createElement("span");
-  spinner.className = "guestwall-loading-spinner";
-  spinner.setAttribute("aria-hidden", "true");
+  center.classList.toggle("has-retry", guestWallLoadingRetryVisible);
   const copy = document.createElement("p");
   copy.className = "guestwall-loading-copy";
   const currentStatus = String(guestWallStatus?.textContent || "").trim();
   copy.textContent = currentStatus || GUEST_WALL_LOADING_MESSAGE;
-  center.append(spinner, copy);
+  const spinner = document.createElement("span");
+  spinner.className = "guestwall-loading-spinner";
+  spinner.setAttribute("aria-hidden", "true");
+
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.className = "guestwall-control-btn guestwall-retry-btn guestwall-loading-retry";
+  retry.textContent = "Try again";
+  if (!guestWallLoadingRetryVisible) setHiddenClass(retry, true);
+  retry.addEventListener("click", () => {
+    loadGuestWallPinboard({ refresh: true, force: true });
+  });
+
+  center.append(copy, spinner, retry);
   return center;
 }
 
@@ -4867,6 +5018,7 @@ function renderGuestWallLoadingSkeleton() {
     stage.appendChild(createGuestWallLoadingCenterNode());
     guestWallMobile.appendChild(stage);
   }
+  setGuestWallLoadingRetryVisible(guestWallLoadingRetryVisible);
 }
 
 function renderGuestWallErrorStateWithMessage(message) {
@@ -5162,8 +5314,14 @@ function getGuestWallVisibleCardId(slotIndex) {
 function setGuestWallStatus(message) {
   if (!guestWallStatus) return;
   const text = String(message || "").trim();
-  guestWallStatus.textContent = text;
-  setHiddenClass(guestWallStatus, !text);
+  const isLoadingStatus =
+    text === GUEST_WALL_LOADING_MESSAGE ||
+    text === GUEST_WALL_LOADING_MESSAGE_SLOW ||
+    text === GUEST_WALL_LOADING_MESSAGE_ALMOST ||
+    text === GUEST_WALL_LOADING_MESSAGE_STUCK ||
+    text.startsWith(`${GUEST_WALL_LOADING_MESSAGE} `);
+  guestWallStatus.textContent = isLoadingStatus ? "" : text;
+  setHiddenClass(guestWallStatus, !text || isLoadingStatus);
   const loadingCopies = document.querySelectorAll(".guestwall-loading-copy");
   loadingCopies.forEach((node) => {
     if (!(node instanceof HTMLElement)) return;
@@ -5528,20 +5686,147 @@ function setGuestWallActiveSlot(nextSlotNode) {
   }
 }
 
+function getGuestWallDetailCardNode() {
+  if (!(guestWallDetailContent instanceof HTMLElement)) return null;
+  return guestWallDetailContent.querySelector(".guestwall-detail-polaroid, .guestwall-detail-postcard-card");
+}
+
+function resolveGuestWallOriginSlotNode(cardId, fallbackSlotNode = null) {
+  if (fallbackSlotNode instanceof HTMLElement && fallbackSlotNode.isConnected) return fallbackSlotNode;
+  const normalizedCardId = String(cardId || "").trim();
+  if (!normalizedCardId || !Array.isArray(guestWallSlotNodes)) return null;
+  for (let index = 0; index < guestWallSlotNodes.length; index += 1) {
+    const slotNode = guestWallSlotNodes[index];
+    if (!(slotNode instanceof HTMLElement)) continue;
+    if (String(slotNode.dataset.cardId || "").trim() !== normalizedCardId) continue;
+    if (!slotNode.isConnected) continue;
+    return slotNode;
+  }
+  return null;
+}
+
+function getGuestWallOriginCardRect(cardId, fallbackSlotNode = null) {
+  const slotNode = resolveGuestWallOriginSlotNode(cardId, fallbackSlotNode);
+  if (!(slotNode instanceof HTMLElement)) return null;
+  const itemNode = slotNode.querySelector(".guestwall-item");
+  if (!(itemNode instanceof HTMLElement)) return null;
+  const rect = itemNode.getBoundingClientRect();
+  if (!(rect.width > 0 && rect.height > 0)) return null;
+  return rect;
+}
+
+function clearGuestWallDetailCardAnimation(cardNode) {
+  if (!(cardNode instanceof HTMLElement)) return;
+  cardNode.classList.remove("is-flip-animating");
+  cardNode.style.transition = "";
+  cardNode.style.transformOrigin = "";
+  cardNode.style.transform = "";
+  cardNode.style.opacity = "";
+}
+
+function animateGuestWallDetailOpen(cardId, originSlotNode = null) {
+  if (!(guestWallDetailModal instanceof HTMLElement)) return;
+  if (prefersReducedMotion()) {
+    guestWallDetailModal.classList.remove("is-flip-opening");
+    guestWallDetailModal.classList.add("is-open");
+    return;
+  }
+  const cardNode = getGuestWallDetailCardNode();
+  const fromRect = getGuestWallOriginCardRect(cardId, originSlotNode);
+  if (!(cardNode instanceof HTMLElement) || !fromRect) {
+    guestWallDetailModal.classList.remove("is-flip-opening");
+    guestWallDetailModal.classList.add("is-open");
+    return;
+  }
+  const toRect = cardNode.getBoundingClientRect();
+  if (!(toRect.width > 0 && toRect.height > 0)) {
+    guestWallDetailModal.classList.remove("is-flip-opening");
+    guestWallDetailModal.classList.add("is-open");
+    return;
+  }
+  const translateX = fromRect.left + fromRect.width / 2 - (toRect.left + toRect.width / 2);
+  const translateY = fromRect.top + fromRect.height / 2 - (toRect.top + toRect.height / 2);
+  const scaleX = clampNumber(fromRect.width / toRect.width, 0.2, 3);
+  const scaleY = clampNumber(fromRect.height / toRect.height, 0.2, 3);
+
+  guestWallDetailModal.classList.add("is-flip-opening");
+  guestWallDetailModal.classList.add("is-open");
+  cardNode.classList.add("is-flip-animating");
+  cardNode.style.transition = "none";
+  cardNode.style.transformOrigin = "center center";
+  cardNode.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scaleX}, ${scaleY})`;
+  cardNode.style.opacity = "0.96";
+
+  window.requestAnimationFrame(() => {
+    cardNode.style.transition = "transform 360ms cubic-bezier(0.22, 1, 0.36, 1), opacity 220ms ease";
+    cardNode.style.transform = "translate(0px, 0px) scale(1, 1)";
+    cardNode.style.opacity = "1";
+  });
+
+  const finish = () => {
+    clearGuestWallDetailCardAnimation(cardNode);
+    guestWallDetailModal.classList.remove("is-flip-opening");
+  };
+  cardNode.addEventListener("transitionend", finish, { once: true });
+  window.setTimeout(finish, 420);
+}
+
+function animateGuestWallDetailClose(cardId, originSlotNode = null) {
+  if (!(guestWallDetailModal instanceof HTMLElement)) return false;
+  if (prefersReducedMotion()) return false;
+  const cardNode = getGuestWallDetailCardNode();
+  const toRect = getGuestWallOriginCardRect(cardId, originSlotNode);
+  if (!(cardNode instanceof HTMLElement) || !toRect) return false;
+  const fromRect = cardNode.getBoundingClientRect();
+  if (!(fromRect.width > 0 && fromRect.height > 0)) return false;
+
+  const translateX = toRect.left + toRect.width / 2 - (fromRect.left + fromRect.width / 2);
+  const translateY = toRect.top + toRect.height / 2 - (fromRect.top + fromRect.height / 2);
+  const scaleX = clampNumber(toRect.width / fromRect.width, 0.2, 3);
+  const scaleY = clampNumber(toRect.height / fromRect.height, 0.2, 3);
+
+  guestWallDetailModal.classList.remove("is-open");
+  guestWallDetailModal.classList.remove("is-flip-opening");
+  guestWallDetailModal.classList.add("is-flip-closing");
+  cardNode.classList.add("is-flip-animating");
+  cardNode.style.transition = "transform 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease";
+  cardNode.style.transformOrigin = "center center";
+  cardNode.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scaleX}, ${scaleY})`;
+  cardNode.style.opacity = "0.92";
+  return true;
+}
+
+function finishGuestWallDetailClose() {
+  if (!(guestWallDetailModal instanceof HTMLElement)) return;
+  setHiddenClass(guestWallDetailModal, true);
+  guestWallDetailModal.classList.remove("is-closing");
+  guestWallDetailModal.classList.remove("is-flip-closing");
+  guestWallDetailModal.classList.remove("is-flip-opening");
+  guestWallDetailModal.classList.remove("is-open");
+  guestWallDetailModal.dataset.detailKind = "";
+  guestWallDetailModal.setAttribute("aria-hidden", "true");
+  const cardNode = getGuestWallDetailCardNode();
+  clearGuestWallDetailCardAnimation(cardNode);
+  guestWallDetailOriginSlotNode = null;
+  guestWallDetailOriginCardId = "";
+  unlockBodyScroll();
+}
+
 function closeGuestWallDetail() {
   if (!(guestWallDetailModal instanceof HTMLElement) || !guestWallDetailOpen) return;
-  guestWallDetailModal.classList.remove("is-open");
-  guestWallDetailModal.classList.add("is-closing");
-  guestWallDetailModal.dataset.detailKind = "";
+  guestWallDetailOpen = false;
+  const animated = animateGuestWallDetailClose(guestWallDetailOriginCardId, guestWallDetailOriginSlotNode);
+  if (!animated) {
+    guestWallDetailModal.classList.remove("is-open");
+    guestWallDetailModal.classList.remove("is-flip-opening");
+    guestWallDetailModal.classList.add("is-closing");
+  }
+  const delay = animated ? 340 : 240;
   window.setTimeout(() => {
     if (!(guestWallDetailModal instanceof HTMLElement)) return;
     if (guestWallDetailOpen) return;
-    setHiddenClass(guestWallDetailModal, true);
-    guestWallDetailModal.classList.remove("is-closing");
-    guestWallDetailModal.setAttribute("aria-hidden", "true");
-    unlockBodyScroll();
-  }, 240);
-  guestWallDetailOpen = false;
+    finishGuestWallDetailClose();
+  }, delay);
 }
 
 function buildGuestWallDetailMediaNode(card) {
@@ -5633,11 +5918,13 @@ function buildGuestWallDetailPhotoBlock(card, name) {
   return photoBlock;
 }
 
-function openGuestWallDetail(card) {
+function openGuestWallDetail(card, originSlotNode = null) {
   if (!(guestWallDetailModal instanceof HTMLElement) || !(guestWallDetailContent instanceof HTMLElement) || !card) return;
   const wasOpen = guestWallDetailOpen;
   const guestName = String(card.name || "Guest");
   const isMediaCard = card.kind === "media";
+  guestWallDetailOriginSlotNode = originSlotNode instanceof HTMLElement ? originSlotNode : resolveGuestWallOriginSlotNode(card.id, null);
+  guestWallDetailOriginCardId = String(card.id || "").trim();
 
   guestWallDetailContent.innerHTML = "";
   if (isMediaCard) {
@@ -5654,14 +5941,16 @@ function openGuestWallDetail(card) {
 
   setHiddenClass(guestWallDetailModal, false);
   guestWallDetailModal.classList.remove("is-closing");
+  guestWallDetailModal.classList.remove("is-flip-closing");
+  guestWallDetailModal.classList.remove("is-flip-opening");
   guestWallDetailModal.classList.remove("is-open");
-  window.requestAnimationFrame(() => {
-    if (!(guestWallDetailModal instanceof HTMLElement) || !guestWallDetailOpen) return;
-    guestWallDetailModal.classList.add("is-open");
-  });
   guestWallDetailModal.setAttribute("aria-hidden", "false");
   if (!wasOpen) lockBodyScroll();
   guestWallDetailOpen = true;
+  window.requestAnimationFrame(() => {
+    if (!(guestWallDetailModal instanceof HTMLElement) || !guestWallDetailOpen) return;
+    animateGuestWallDetailOpen(guestWallDetailOriginCardId, guestWallDetailOriginSlotNode);
+  });
 
   if (guestWallDetailClose instanceof HTMLButtonElement) {
     window.setTimeout(() => {
@@ -5702,7 +5991,7 @@ function openGuestWallDetailWithPickup(slotNode, card, options = {}) {
   clearGuestWallSlotOpenTimer(slotNode);
   if (immediate) {
     slotNode.classList.remove("is-opening");
-    openGuestWallDetail(card);
+    openGuestWallDetail(card, slotNode);
     return;
   }
 
@@ -5711,7 +6000,7 @@ function openGuestWallDetailWithPickup(slotNode, card, options = {}) {
     if (!(slotNode instanceof HTMLElement)) return;
     slotNode.classList.remove("is-opening");
     slotNode.dataset.openTimerId = "";
-    openGuestWallDetail(card);
+    openGuestWallDetail(card, slotNode);
   }, GUEST_WALL_PICKUP_OPEN_DELAY_MS);
   slotNode.dataset.openTimerId = String(timer);
 }
@@ -7074,6 +7363,54 @@ function mergeGuestWallCards(newCards) {
   guestWallCardById = new Map(merged.map((card) => [card.id, card]));
 }
 
+function scheduleGuestWallBufferPrefetch() {
+  if (typeof window.requestIdleCallback === "function") {
+    window.requestIdleCallback(
+      () => {
+        maybePrefetchGuestWallBuffer();
+      },
+      { timeout: 1200 },
+    );
+    return;
+  }
+  window.setTimeout(() => {
+    maybePrefetchGuestWallBuffer();
+  }, 120);
+}
+
+async function applyGuestWallPayload(payload, { fromCache = false } = {}) {
+  const cards = normalizeGuestWallCards(payload?.items);
+  guestWallCards = [];
+  guestWallCardById = new Map();
+  mergeGuestWallCards(cards);
+  guestWallNextCursor = String(payload?.nextCursor || "").trim() || null;
+  guestWallPrefetchInFlight = null;
+  guestWallHasSuccessfulLoad = true;
+  setGuestWallLoadingRetryVisible(false);
+
+  if (!cards.length) {
+    setGuestWallLoadState("success");
+    setGuestWallStatus(GUEST_WALL_EMPTY_MESSAGE);
+    setGuestWallControlsDisabled(false);
+    syncGuestWallLayout({ reshuffle: true });
+    return cards;
+  }
+
+  setGuestWallLoadState("success");
+  setGuestWallStatus(GUEST_WALL_READY_MESSAGE);
+  setGuestWallControlsDisabled(false);
+  guestWallLayoutCycle = 0;
+  guestWallVisibleCardIds = [];
+  setGuestWallPaused(false);
+  await new Promise((resolve) => {
+    window.requestAnimationFrame(resolve);
+  });
+  syncGuestWallLayout({ reshuffle: true });
+  maybeLogGuestWallFirstSixRender();
+  if (!fromCache) scheduleGuestWallBufferPrefetch();
+  return cards;
+}
+
 async function maybePrefetchGuestWallBuffer() {
   if (!guestWallNextCursor || guestWallPrefetchInFlight) return;
   if (!guestWallVisibleCardIds.length) return;
@@ -7090,6 +7427,11 @@ async function maybePrefetchGuestWallBuffer() {
       guestWallNextCursor = payload.nextCursor;
       const cards = normalizeGuestWallCards(payload.items);
       mergeGuestWallCards(cards);
+      writeGuestWallSessionCache({
+        items: guestWallCards,
+        total: Number.isFinite(Number(payload.total)) ? Number(payload.total) : guestWallCards.length,
+        nextCursor: guestWallNextCursor,
+      });
     } catch (error) {
       console.warn("[guestwall] prefetch failed", error instanceof Error ? error.message : String(error));
     } finally {
@@ -7114,21 +7456,78 @@ async function initGuestWall() {
   await loadGuestWallPinboard({ refresh: false });
 }
 
+function warmGuestWallRouteInBackground() {
+  if (guestWallWarmupStarted) return;
+  guestWallWarmupStarted = true;
+  const normalizedPath = String(window.location.pathname || "").replace(/\/+$/, "") || "/";
+  if (normalizedPath === "/guest-wall") return;
+
+  const runWarmup = async () => {
+    try {
+      const payload = await fetchGuestbookPage({
+        mode: "pinboard",
+        limit: getGuestWallPinboardInitialRequestLimit(),
+        timeoutMs: GUEST_WALL_INITIAL_REQUEST_TIMEOUT_MS,
+        attempt: 0,
+        cacheMode: "force-cache",
+        quiet: true,
+      });
+      writeGuestWallSessionCache(payload);
+      console.info(`[guestwall][warm] session cache primed items=${Array.isArray(payload.items) ? payload.items.length : 0}`);
+    } catch (error) {
+      console.warn("[guestwall][warm] failed", error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  if (typeof window.requestIdleCallback === "function") {
+    window.requestIdleCallback(() => {
+      void runWarmup();
+    }, { timeout: 2500 });
+    return;
+  }
+  window.setTimeout(() => {
+    void runWarmup();
+  }, 1400);
+}
+
 async function loadGuestWallPinboard({ refresh = false, force = false } = {}) {
   if (guestWallRequestInFlight && !force) return guestWallRequestInFlight;
   const requestToken = ++guestWallRequestToken;
+  const seededPayload = !refresh ? readGuestWallSessionCache() : null;
+  const hasSeededItems = Array.isArray(seededPayload?.items) && seededPayload.items.length > 0;
 
   guestWallLoadStartedAt = performance.now();
   guestWallFirstResponseLogged = false;
   guestWallFirstSixRenderLogged = false;
   resetGuestWallImagePipeline();
-  setGuestWallLoadState("loading");
-  setGuestWallStatus(GUEST_WALL_LOADING_MESSAGE);
   setGuestWallShuffleState(false);
-  setGuestWallControlsDisabled(true);
-  renderGuestWallLoadingSkeleton();
-  refreshGuestWallContainerSizes("loading-start");
-  startGuestWallSlowMessageRotation();
+  setGuestWallLoadingRetryVisible(false);
+
+  if (!hasSeededItems) {
+    setGuestWallLoadState("loading");
+    setGuestWallStatus(GUEST_WALL_LOADING_MESSAGE);
+    setGuestWallControlsDisabled(true);
+    renderGuestWallLoadingSkeleton();
+    refreshGuestWallContainerSizes("loading-start");
+    startGuestWallSlowMessageRotation();
+  } else {
+    try {
+      await applyGuestWallPayload(seededPayload, { fromCache: true });
+      if (requestToken !== guestWallRequestToken) return;
+      refreshGuestWallContainerSizes("session-cache-seed");
+      console.info(
+        `[guestwall][cache] session_seed items=${guestWallCards.length} age_ms=${Math.max(0, Date.now() - Number(seededPayload.fetchedAt || 0))}`,
+      );
+    } catch (error) {
+      console.warn("[guestwall] failed to hydrate from session cache", error instanceof Error ? error.message : String(error));
+      setGuestWallLoadState("loading");
+      setGuestWallStatus(GUEST_WALL_LOADING_MESSAGE);
+      setGuestWallControlsDisabled(true);
+      renderGuestWallLoadingSkeleton();
+      refreshGuestWallContainerSizes("loading-start");
+      startGuestWallSlowMessageRotation();
+    }
+  }
 
   const request = (async () => {
     try {
@@ -7161,56 +7560,25 @@ async function loadGuestWallPinboard({ refresh = false, force = false } = {}) {
             }`,
           );
           if (!retryable || !hasRetryRemaining) break;
-          setGuestWallStatus(`${GUEST_WALL_LOADING_MESSAGE} Retrying once…`);
+          if (guestWallLoadState === "loading") {
+            setGuestWallStatus(`${GUEST_WALL_LOADING_MESSAGE} Retrying once…`);
+          }
           await waitGuestWallRetryDelay(attemptIndex);
         }
       }
       if (!payload) throw attemptError || new Error(GUEST_WALL_UNAVAILABLE_MESSAGE);
       if (requestToken !== guestWallRequestToken) return;
 
-      const cards = normalizeGuestWallCards(payload.items);
-      guestWallCards = [];
-      guestWallCardById = new Map();
-      mergeGuestWallCards(cards);
+      writeGuestWallSessionCache(payload);
+      clearGuestWallSlowMessageTimers();
+      const cards = await applyGuestWallPayload(payload);
+      if (requestToken !== guestWallRequestToken) return;
       console.log("[GuestWall] items", guestWallCards.length);
       if (IS_LOCAL_DEV) {
         console.info("[guestwall] items", guestWallCards.length);
       }
-      guestWallNextCursor = payload.nextCursor;
-      guestWallPrefetchInFlight = null;
-      guestWallHasSuccessfulLoad = true;
-      if (!cards.length) {
-        clearGuestWallSlowMessageTimers();
-        setGuestWallLoadState("success");
-        setGuestWallStatus(GUEST_WALL_EMPTY_MESSAGE);
-        syncGuestWallLayout({ reshuffle: true });
-        return;
-      }
-
-      clearGuestWallSlowMessageTimers();
-      setGuestWallLoadState("success");
-      setGuestWallStatus(GUEST_WALL_READY_MESSAGE);
-      setGuestWallControlsDisabled(false);
-      guestWallLayoutCycle = 0;
-      guestWallVisibleCardIds = [];
-      setGuestWallPaused(false);
-      await new Promise((resolve) => {
-        window.requestAnimationFrame(resolve);
-      });
-      syncGuestWallLayout({ reshuffle: true });
-      maybeLogGuestWallFirstSixRender();
-      if (typeof window.requestIdleCallback === "function") {
-        window.requestIdleCallback(
-          () => {
-            maybePrefetchGuestWallBuffer();
-          },
-          { timeout: 1200 },
-        );
-      } else {
-        window.setTimeout(() => {
-          maybePrefetchGuestWallBuffer();
-        }, 120);
-      }
+      if (!cards.length) return;
+      scheduleGuestWallBufferPrefetch();
     } catch (error) {
       if (requestToken !== guestWallRequestToken) return;
       console.error("[guestwall] load failed", {
@@ -7233,21 +7601,33 @@ async function loadGuestWallPinboard({ refresh = false, force = false } = {}) {
         `[dev] status=${error && typeof error === "object" ? error.status || 0 : 0} reason=${classified.reason} durationMs=${
           error && typeof error === "object" ? error.durationMs || 0 : 0
         } url=${error && typeof error === "object" ? error.url || "n/a" : "n/a"}`;
+
+      if (guestWallCards.length) {
+        setGuestWallLoadState("success");
+        setGuestWallStatus(GUEST_WALL_READY_MESSAGE);
+        setGuestWallControlsDisabled(false);
+        return;
+      }
+
+      if (classified.reason === "timeout") {
+        setGuestWallLoadState("loading");
+        setGuestWallStatus(classified.statusMessage);
+        setGuestWallControlsDisabled(true);
+        setGuestWallLoadingRetryVisible(true);
+        renderGuestWallLoadingSkeleton();
+        return;
+      }
+
       setGuestWallLoadState(classified.state);
       setGuestWallStatus("");
       setGuestWallControlsDisabled(true);
+      setGuestWallLoadingRetryVisible(false);
       guestWallNextCursor = null;
       guestWallPrefetchInFlight = null;
       renderGuestWallErrorStateWithMessage(classified.panelMessage);
     } finally {
       if (requestToken !== guestWallRequestToken) return;
       clearGuestWallSlowMessageTimers();
-      if (guestWallLoadState === "loading") {
-        setGuestWallLoadState("timeout");
-        setGuestWallStatus(GUEST_WALL_LOADING_MESSAGE_STUCK);
-        setGuestWallControlsDisabled(true);
-        renderGuestWallErrorStateWithMessage(GUEST_WALL_LOADING_MESSAGE_STUCK);
-      }
       guestWallRequestInFlight = null;
     }
   })();
@@ -9878,6 +10258,7 @@ async function init() {
     await initGallery();
   });
   void runInitStep("guest-wall", () => initGuestWall());
+  warmGuestWallRouteInBackground();
   void runInitStep("invite-token-lookup", () => lookupToken(inviteState.token));
 
   const initDurationMs = Math.round(
