@@ -1000,7 +1000,7 @@ video {
   height: 100%;
   display: block;
   object-fit: cover;
-  object-position: 52% 72%;
+  object-position: 52% 50%;
   filter: var(--photoGradeFilter);
 }
 
@@ -8953,7 +8953,7 @@ body.modal-open {
   }
 
   .interlude-photo-half img {
-    object-position: 52% 72%;
+    object-position: 52% 50%;
   }
 
   .interlude-color-half .motif-layer__item {
