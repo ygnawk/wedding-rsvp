@@ -5752,18 +5752,6 @@ a.makan-copy-icon-btn {
   outline-offset: 2px;
 }
 
-.makan-legal-scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 400;
-  border: 0;
-  padding: 0;
-  margin: 0;
-  background: rgba(0, 0, 0, 0.12);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-}
-
 #makan.has-legal-popover-open {
   padding-bottom: 220px;
 }
@@ -5857,10 +5845,6 @@ a.makan-copy-icon-btn {
     box-shadow:
       0 -12px 32px rgba(0, 0, 0, 0.22),
       0 2px 10px rgba(0, 0, 0, 0.1);
-  }
-
-  .makan-legal-scrim {
-    z-index: 400;
   }
 
   #makan.has-legal-popover-open {
@@ -7181,7 +7165,6 @@ a.guestwall-media-retry {
   align-self: end;
 }
 
-.guestwall-note-sign.guestwall-detail-name,
 .guestwall-modal-entry .guestwall-note-sign {
   font-family: var(--font-signature);
   font-size: clamp(17px, 1.05vw, 20px);
@@ -7209,6 +7192,7 @@ a.guestwall-media-retry {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
+  align-content: stretch;
 }
 
 .guestwall-skeleton {
@@ -7222,6 +7206,36 @@ a.guestwall-media-retry {
 .guestwall-skeleton--mobile {
   width: 100%;
   aspect-ratio: 4 / 3;
+}
+
+.guestwall-loading-center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  gap: 12px;
+  z-index: 3;
+  pointer-events: none;
+  text-align: center;
+  padding: 18px;
+}
+
+.guestwall-loading-spinner {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 3px solid rgba(75, 15, 23, 0.22);
+  border-top-color: rgba(75, 15, 23, 0.86);
+  animation: guestwallSpinner 860ms linear infinite;
+}
+
+.guestwall-loading-copy {
+  margin: 0;
+  max-width: min(420px, 94%);
+  font-size: clamp(0.84rem, 0.8rem + 0.18vw, 0.95rem);
+  line-height: 1.45;
+  color: rgba(75, 15, 23, 0.78);
+  font-weight: 500;
 }
 
 @keyframes guestWallShimmer {
@@ -7299,6 +7313,13 @@ a.guestwall-media-retry {
   overflow: hidden;
 }
 
+.guestwall-mobile-stage--single {
+  min-height: clamp(380px, 105vw, 520px);
+  padding: 12px;
+  display: grid;
+  align-items: center;
+}
+
 .guestwall-mobile-nav {
   display: flex;
   justify-content: space-between;
@@ -7334,6 +7355,11 @@ a.guestwall-media-retry {
   width: 100%;
   max-width: none;
   transform: none;
+}
+
+.guestwall-slot--mobile-single {
+  width: min(100%, 420px);
+  margin: 0 auto;
 }
 
 .guestwall-archive-view {
@@ -7573,86 +7599,14 @@ a.guestwall-media-retry {
 }
 
 .guestwall-detail-postcard {
-  justify-self: center;
-  width: min(840px, 100%);
-  border-radius: 2px;
-  border: 0;
-  background:
-    repeating-linear-gradient(
-      132deg,
-      rgba(146, 41, 52, 0.78) 0 8px,
-      rgba(255, 255, 255, 0.01) 8px 16px,
-      rgba(32, 62, 98, 0.74) 16px 24px,
-      rgba(255, 255, 255, 0.01) 24px 32px
-    );
-  padding: 7px;
-  box-shadow: 0 14px 24px rgba(10, 4, 6, 0.18), 0 2px 6px rgba(10, 4, 6, 0.08);
-}
-
-.guestwall-detail-postcard-inner {
-  position: relative;
-  overflow: hidden;
-  aspect-ratio: 3 / 2;
-  min-height: min(56vh, 480px);
-  background:
-    linear-gradient(178deg, rgba(255, 255, 255, 0.42), rgba(236, 220, 191, 0.88)),
-    radial-gradient(circle at 18% 16%, rgba(255, 255, 255, 0.24), transparent 44%),
-    radial-gradient(circle at 84% 84%, rgba(122, 93, 62, 0.08), transparent 48%),
-    repeating-linear-gradient(90deg, rgba(132, 104, 73, 0.03) 0 1px, transparent 1px 5px);
-  border: 1px solid rgba(157, 126, 89, 0.34);
-  border-radius: 1px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(150px, 0.52fr);
-  gap: 14px;
-  padding: 18px 16px 14px;
+  place-items: center;
+  padding: 4px 0;
 }
 
-.guestwall-detail-postcard-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  background: rgba(255, 255, 255, 0.78);
-  -webkit-backdrop-filter: blur(1.5px);
-  backdrop-filter: blur(1.5px);
-}
-
-.guestwall-detail-postcard-message {
-  position: relative;
-  z-index: 2;
-  min-width: 0;
-  overflow: auto;
-  max-height: min(46vh, 410px);
-  padding-right: 10px;
-}
-
-.guestwall-detail-postcard-meta {
-  position: relative;
-  z-index: 2;
-  min-width: 0;
-  border-left: 1px solid rgba(123, 90, 59, 0.28);
-  padding-left: 12px;
-  display: grid;
-  align-content: space-between;
-  justify-items: end;
-}
-
-.guestwall-detail-postcard-meta .guestwall-note-stamp {
-  width: clamp(42px, 40%, 58px);
-}
-
-.guestwall-detail-note-full {
-  font-size: 18px;
-  line-height: 1.45;
-  letter-spacing: 0.1px;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
-  display: block;
-  -webkit-line-clamp: unset;
-  line-clamp: unset;
-  overflow: visible;
-  text-overflow: initial;
-  max-height: none;
-  min-height: 0;
+.guestwall-detail-postcard-card {
+  width: min(920px, 92vw);
+  max-width: 100%;
 }
 
 .guestwall-detail-media {
@@ -7685,17 +7639,6 @@ a.guestwall-media-retry {
   font-size: clamp(20px, 2.1vw, 30px);
   bottom: 10px;
   max-width: 85%;
-}
-
-.guestwall-detail-note {
-  margin: 0;
-  font-size: 1rem;
-  line-height: 1.6;
-}
-
-.guestwall-detail-name {
-  margin: 0;
-  font-size: 0.92rem;
 }
 
 .guestwall-modal-list {
@@ -7960,7 +7903,7 @@ a.guestwall-media-retry {
   }
 
   .guestwall-mobile-stage {
-    min-height: clamp(580px, 148vw, 760px);
+    min-height: clamp(420px, 116vw, 640px);
   }
 
   .guestwall-item--polaroid {
@@ -7994,6 +7937,10 @@ a.guestwall-media-retry {
     grid-template-columns: 1fr;
   }
 
+  .guestwall-loading-center {
+    position: absolute;
+  }
+
   .guestwall-modal-panel {
     width: min(560px, calc(100vw - 20px));
     max-height: min(88vh, 880px);
@@ -8022,25 +7969,8 @@ a.guestwall-media-retry {
     bottom: 8px;
   }
 
-  .guestwall-detail-postcard {
-    width: min(96vw, 700px);
-  }
-
-  .guestwall-detail-postcard-inner {
-    min-height: min(62vh, 520px);
-    grid-template-columns: minmax(0, 1fr) minmax(120px, 0.44fr);
-    padding: 14px 12px 12px;
-    gap: 10px;
-  }
-
-  .guestwall-detail-postcard-message {
-    max-height: min(48vh, 380px);
-    padding-right: 8px;
-  }
-
-  .guestwall-detail-note-full {
-    font-size: 16px;
-    line-height: 1.45;
+  .guestwall-detail-postcard-card {
+    width: min(96vw, 740px);
   }
 
   .guestwall-item--note {
@@ -8326,11 +8256,12 @@ body.modal-open {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  width: 40px;
-  height: 40px;
-  min-height: 40px;
-  padding: 0 8px;
+  gap: 0;
+  width: auto;
+  max-width: 46px;
+  min-height: 38px;
+  height: 38px;
+  padding: 0 10px;
   border-radius: 9999px;
   border: 1px solid rgba(75, 15, 23, 0.24);
   background: rgba(247, 241, 230, 0.84);
@@ -8343,7 +8274,9 @@ body.modal-open {
   overflow: hidden;
   white-space: nowrap;
   transition:
-    width 220ms ease,
+    max-width 260ms ease,
+    gap 220ms ease,
+    padding 220ms ease,
     border-color 180ms ease,
     background-color 180ms ease,
     color 180ms ease,
@@ -8379,8 +8312,9 @@ body.modal-open {
 }
 
 .travel-passport-pill.is-active {
-  width: clamp(148px, 20vw, 186px);
+  max-width: 220px;
   justify-content: flex-start;
+  gap: 8px;
   padding: 0 12px;
   border-color: rgba(201, 174, 116, 0.85);
   background: rgba(201, 174, 116, 0.2);
@@ -8402,8 +8336,9 @@ body.modal-open {
 @media (hover: hover) and (pointer: fine) {
   .travel-passport-pill:hover,
   .travel-passport-pill:focus-visible {
-    width: clamp(148px, 20vw, 186px);
+    max-width: 220px;
     justify-content: flex-start;
+    gap: 8px;
     padding: 0 12px;
     border-color: rgba(201, 174, 116, 0.72);
     box-shadow: 0 8px 14px rgba(31, 9, 12, 0.07);
@@ -8636,10 +8571,10 @@ body.modal-open {
 
 @media (max-width: 760px) {
   .travel-passport-pill {
-    width: 40px;
-    height: 40px;
-    min-height: 40px;
-    padding: 0 8px;
+    max-width: 44px;
+    min-height: 36px;
+    height: 36px;
+    padding: 0 9px;
   }
 
   .travel-selector-hint {

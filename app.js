@@ -53,8 +53,9 @@ const GUEST_WALL_PICKUP_OPEN_DELAY_MS = 130;
 const GUEST_WALL_ARRANGE_STORAGE_KEY = "guestwall-arrangement-v1";
 const GUEST_WALL_ARRANGE_DEOVERLAP_STEPS = 20;
 const GUEST_WALL_ARRANGE_DEOVERLAP_GAP = 8;
-const GUEST_WALL_SLOW_MESSAGE_DELAY_MS = 5000;
-const GUEST_WALL_SLOW_MESSAGE_ROTATE_MS = 3000;
+const GUEST_WALL_SLOW_MESSAGE_DELAY_MS = 4000;
+const GUEST_WALL_SLOW_MESSAGE_SECOND_DELAY_MS = 10000;
+const GUEST_WALL_LOADING_STUCK_DELAY_MS = 20000;
 const GUEST_WALL_HARD_TIMEOUT_MS = 10000;
 const GUEST_WALL_INITIAL_REQUEST_TIMEOUT_MS = 10000;
 const GUEST_WALL_RETRY_DELAY_MS = 400;
@@ -65,14 +66,9 @@ const GUEST_WALL_LOADING_MESSAGE = "Loading guest wall…";
 const GUEST_WALL_EMPTY_MESSAGE = "Nothing here yet—check back soon.";
 const GUEST_WALL_UNAVAILABLE_MESSAGE = "Guest Wall is temporarily unavailable.";
 const GUEST_WALL_READY_MESSAGE = "";
-const GUEST_WALL_SLOW_MESSAGES = [
-  "Sorry—this is taking a minute. The Wall is… emotionally buffering.",
-  "Hang tight. We’re fetching your sweet words from the cloud (literally).",
-  "Still loading. Really. Blame it on Yi Jie for relying on a free server plan.",
-  "I know it’s been like 10 seconds. Trust us — it’s still loading.",
-  "If this takes forever, blame Yi Jie’s free hosting plan 😅",
-  "Knock knock. Who’s there? RSVP. RSVP who? RSVP… right after this page loads 😭",
-];
+const GUEST_WALL_LOADING_MESSAGE_SLOW = "Still loading… (Yi Jie was too cheap to pay for a faster server)";
+const GUEST_WALL_LOADING_MESSAGE_ALMOST = "Almost there. Give it a few more seconds…";
+const GUEST_WALL_LOADING_MESSAGE_STUCK = "Something’s stuck. Please try again.";
 const GUEST_WALL_POLAROID_TONES = ["#5a1720", "#1f3c35", "#203652", "#3f2f2b", "#4c2a42"];
 const GUEST_WALL_NOTE_TONES = ["#FAF3E8", "#F7EEDB", "#FFF4D8", "#F3E9D6"];
 const GUEST_WALL_NOTE_VARIANTS = [
@@ -322,7 +318,6 @@ const makanMenuRows = document.getElementById("makanMenuRows");
 const makanExpandAll = document.getElementById("makanExpandAll");
 const makanCollapseAll = document.getElementById("makanCollapseAll");
 const makanLegalTrigger = document.getElementById("makanLegalTrigger");
-const makanLegalScrim = document.getElementById("makanLegalScrim");
 const makanLegalPopover = document.getElementById("makanLegalPopover");
 const makanLegalClose = document.getElementById("makanLegalClose");
 const makanLegalWrapper = makanLegalTrigger ? makanLegalTrigger.closest(".makan-legal-row") : null;
@@ -399,15 +394,17 @@ let guestWallContainerSize = {
 let guestWallNextCursor = null;
 let guestWallPrefetchInFlight = null;
 let guestWallRequestInFlight = null;
+let guestWallRequestToken = 0;
 let guestWallLayoutCycle = 0;
 let guestWallActiveSlotConfig = [];
 let guestWallLoadState = "idle";
 let guestWallSlowMessageStartTimer = null;
-let guestWallSlowMessageRotateTimer = null;
-let guestWallSlowMessageIndex = 0;
+let guestWallSlowMessageSecondTimer = null;
+let guestWallSlowMessageTimeoutTimer = null;
 let guestWallArrangeMode = false;
 let guestWallDragState = null;
 let guestWallArrangementByCardId = new Map();
+let guestWallArrangementSaveTimer = null;
 let guestWallHasSuccessfulLoad = false;
 let guestWallLoadStartedAt = 0;
 let guestWallFirstResponseLogged = false;
@@ -418,6 +415,7 @@ let guestWallImageQueue = [];
 let guestWallImageLoadsInFlight = 0;
 let guestWallImageLoadState = new WeakMap();
 let guestWallImageStats = { started: 0, loaded: 0, failed: 0 };
+let guestWallRuntimeDebugHandlersBound = false;
 let overflowDebugResizeTimer = null;
 let desktopMoreCloseTimer = null;
 let activeSectionId = "top";
@@ -1830,7 +1828,6 @@ function initMakanTipPopover() {
 function closeMakanLegalModal({ restoreFocus = true } = {}) {
   if (!makanLegalPopover || !makanLegalTrigger) return;
   if (makanSection) makanSection.classList.remove("has-legal-popover-open");
-  if (makanLegalScrim) setA11yHidden(makanLegalScrim, true);
   setA11yHidden(makanLegalPopover, true);
   makanLegalPopover.classList.remove("is-flipped-up");
   makanLegalPopover.classList.remove("open");
@@ -1884,7 +1881,6 @@ function openMakanLegalModal() {
   const mobileSheet = isMakanLegalMobile();
   if (makanSection && !mobileSheet) makanSection.classList.add("has-legal-popover-open");
   if (mobileSheet) makanLegalPopover.classList.remove("is-flipped-up");
-  if (makanLegalScrim) setA11yHidden(makanLegalScrim, false);
   setA11yHidden(makanLegalPopover, false);
   makanLegalPopover.classList.add("open");
   if (makanLegalWrapper) makanLegalWrapper.dataset.open = "true";
@@ -1912,9 +1908,6 @@ function initMakanLegalModal() {
   if (makanLegalClose) {
     makanLegalClose.addEventListener("click", () => closeMakanLegalModal());
   }
-  if (makanLegalScrim) {
-    makanLegalScrim.addEventListener("click", () => closeMakanLegalModal({ restoreFocus: false }));
-  }
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && makanLegalOpen) {
@@ -1926,7 +1919,7 @@ function initMakanLegalModal() {
     if (!makanLegalOpen) return;
     const target = event.target;
     if (!(target instanceof Element)) return;
-    if (makanLegalPopover.contains(target) || makanLegalTrigger.contains(target) || (makanLegalScrim && makanLegalScrim.contains(target))) return;
+    if (makanLegalPopover.contains(target) || makanLegalTrigger.contains(target)) return;
     closeMakanLegalModal({ restoreFocus: false });
   });
 
@@ -4061,30 +4054,61 @@ function setGuestWallLoadState(nextState) {
   }
 }
 
+function bindGuestWallRuntimeDebugHandlers() {
+  if (guestWallRuntimeDebugHandlersBound) return;
+  if (typeof window === "undefined") return;
+  guestWallRuntimeDebugHandlersBound = true;
+
+  window.addEventListener("unhandledrejection", (event) => {
+    console.error("[GuestWall] unhandledrejection", event?.reason || event);
+  });
+  window.addEventListener("error", (event) => {
+    const error = event?.error || event?.message || event;
+    console.error("[GuestWall] window.error", error);
+  });
+}
+
 function clearGuestWallSlowMessageTimers() {
   if (guestWallSlowMessageStartTimer) {
     window.clearTimeout(guestWallSlowMessageStartTimer);
     guestWallSlowMessageStartTimer = null;
   }
-  if (guestWallSlowMessageRotateTimer) {
-    window.clearTimeout(guestWallSlowMessageRotateTimer);
-    guestWallSlowMessageRotateTimer = null;
+  if (guestWallSlowMessageSecondTimer) {
+    window.clearTimeout(guestWallSlowMessageSecondTimer);
+    guestWallSlowMessageSecondTimer = null;
   }
-  guestWallSlowMessageIndex = 0;
+  if (guestWallSlowMessageTimeoutTimer) {
+    window.clearTimeout(guestWallSlowMessageTimeoutTimer);
+    guestWallSlowMessageTimeoutTimer = null;
+  }
 }
 
 function startGuestWallSlowMessageRotation() {
   clearGuestWallSlowMessageTimers();
+  setGuestWallStatus(GUEST_WALL_LOADING_MESSAGE);
   guestWallSlowMessageStartTimer = window.setTimeout(() => {
-    const rotateMessage = () => {
-      if (guestWallLoadState !== "loading") return;
-      const nextMessage = GUEST_WALL_SLOW_MESSAGES[guestWallSlowMessageIndex % GUEST_WALL_SLOW_MESSAGES.length];
-      setGuestWallStatus(`${GUEST_WALL_LOADING_MESSAGE} ${nextMessage}`);
-      guestWallSlowMessageIndex += 1;
-      guestWallSlowMessageRotateTimer = window.setTimeout(rotateMessage, GUEST_WALL_SLOW_MESSAGE_ROTATE_MS);
-    };
-    rotateMessage();
+    if (guestWallLoadState !== "loading") return;
+    setGuestWallStatus(GUEST_WALL_LOADING_MESSAGE_SLOW);
   }, GUEST_WALL_SLOW_MESSAGE_DELAY_MS);
+  guestWallSlowMessageSecondTimer = window.setTimeout(() => {
+    if (guestWallLoadState !== "loading") return;
+    setGuestWallStatus(GUEST_WALL_LOADING_MESSAGE_ALMOST);
+  }, GUEST_WALL_SLOW_MESSAGE_SECOND_DELAY_MS);
+  guestWallSlowMessageTimeoutTimer = window.setTimeout(() => {
+    if (guestWallLoadState !== "loading") return;
+    guestWallRequestToken += 1;
+    guestWallRequestInFlight = null;
+    setGuestWallLoadState("timeout");
+    setGuestWallStatus(GUEST_WALL_LOADING_MESSAGE_STUCK);
+    setGuestWallControlsDisabled(true);
+    renderGuestWallErrorStateWithMessage.lastDetail = IS_LOCAL_DEV
+      ? `[dev] status=408 reason=timeout durationMs=${Math.round(performance.now() - guestWallLoadStartedAt)} url=${resolveGuestbookApiUrl({
+          mode: "pinboard",
+          limit: getGuestWallPinboardInitialRequestLimit(),
+        })}`
+      : "";
+    renderGuestWallErrorStateWithMessage(GUEST_WALL_LOADING_MESSAGE_STUCK);
+  }, GUEST_WALL_LOADING_STUCK_DELAY_MS);
 }
 
 function classifyGuestWallError(error) {
@@ -4197,6 +4221,48 @@ function resolveGuestbookApiUrl(params = {}) {
   return `${withBasePath("/api/guestbook")}${suffix}`;
 }
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
+  const safeTimeoutMs = Math.max(1000, Number(timeoutMs) || 8000);
+  const controller = new AbortController();
+  const supportsAbortSignal = typeof AbortSignal !== "undefined";
+  const externalSignal = options && supportsAbortSignal && options.signal instanceof AbortSignal ? options.signal : null;
+  const forwardAbort = () => {
+    controller.abort(externalSignal?.reason || "external-abort");
+  };
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      forwardAbort();
+    } else {
+      externalSignal.addEventListener("abort", forwardAbort, { once: true });
+    }
+  }
+
+  let timeoutHandle = null;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutHandle = window.setTimeout(() => {
+      controller.abort("guestwall-timeout");
+      const timeoutError = new Error("guestwall-timeout");
+      timeoutError.name = "AbortError";
+      reject(timeoutError);
+    }, safeTimeoutMs);
+  });
+
+  try {
+    return await Promise.race([
+      fetch(url, {
+        ...options,
+        signal: controller.signal,
+      }),
+      timeoutPromise,
+    ]);
+  } finally {
+    if (timeoutHandle) window.clearTimeout(timeoutHandle);
+    if (externalSignal) {
+      externalSignal.removeEventListener("abort", forwardAbort);
+    }
+  }
+}
+
 async function fetchGuestbookPage({
   mode = "pinboard",
   limit = GUEST_WALL_PINBOARD_LIMIT,
@@ -4212,19 +4278,17 @@ async function fetchGuestbookPage({
     refresh: refresh ? "1" : "",
     cursor,
   });
-  const controller = new AbortController();
-  const timeoutHandle = window.setTimeout(() => {
-    controller.abort("guestwall-timeout");
-  }, Math.max(1000, Number(timeoutMs) || GUEST_WALL_HARD_TIMEOUT_MS));
   let response = null;
   let text = "";
   let ttfbMs = 0;
 
   console.info(`[guestwall][request] endpoint=GET /api/guestbook attempt=${attempt} timeoutMs=${Math.round(timeoutMs)} url=${apiUrl}`);
+  console.log("[GuestWall] fetching…", apiUrl);
 
   try {
-    response = await fetch(apiUrl, { cache: "default", signal: controller.signal });
+    response = await fetchWithTimeout(apiUrl, { cache: "default" }, timeoutMs);
     ttfbMs = Math.round(performance.now() - startedAt);
+    console.log("[GuestWall] response status", response.status);
     text = await response.text();
   } catch (error) {
     const durationMs = Math.round(performance.now() - startedAt);
@@ -4243,8 +4307,6 @@ async function fetchGuestbookPage({
       `[guestwall][fetch] endpoint=GET /api/guestbook attempt=${attempt} status=${wrappedError.status} ttfbMs=${ttfbMs} durationMs=${durationMs} bytes=0 items=0 error=${wrappedError.code}`,
     );
     throw wrappedError;
-  } finally {
-    window.clearTimeout(timeoutHandle);
   }
 
   let data = null;
@@ -4268,6 +4330,7 @@ async function fetchGuestbookPage({
   console.info(
     `[guestwall][fetch] endpoint=GET /api/guestbook attempt=${attempt} status=${response.status} ttfbMs=${ttfbMs} durationMs=${durationMs} bytes=${responseBytes} items=${Array.isArray(items) ? items.length : "invalid"}`,
   );
+  console.log("[GuestWall] items", Array.isArray(items) ? items.length : 0);
 
   if (!response.ok || !data || data.ok !== true || !Array.isArray(items)) {
     const error = new Error(GUEST_WALL_UNAVAILABLE_MESSAGE);
@@ -4729,6 +4792,20 @@ function clearGuestWallBoards() {
   resetGuestWallImagePipeline();
 }
 
+function createGuestWallLoadingCenterNode() {
+  const center = document.createElement("div");
+  center.className = "guestwall-loading-center";
+  const spinner = document.createElement("span");
+  spinner.className = "guestwall-loading-spinner";
+  spinner.setAttribute("aria-hidden", "true");
+  const copy = document.createElement("p");
+  copy.className = "guestwall-loading-copy";
+  const currentStatus = String(guestWallStatus?.textContent || "").trim();
+  copy.textContent = currentStatus || GUEST_WALL_LOADING_MESSAGE;
+  center.append(spinner, copy);
+  return center;
+}
+
 function renderGuestWallLoadingSkeleton() {
   clearGuestWallBoards();
   if (guestWallPinboard instanceof HTMLElement) {
@@ -4739,6 +4816,7 @@ function renderGuestWallLoadingSkeleton() {
       block.className = "guestwall-skeleton";
       wrap.appendChild(block);
     }
+    wrap.appendChild(createGuestWallLoadingCenterNode());
     guestWallPinboard.appendChild(wrap);
   }
 
@@ -4748,12 +4826,13 @@ function renderGuestWallLoadingSkeleton() {
     const block = document.createElement("div");
     block.className = "guestwall-skeleton guestwall-skeleton--mobile";
     stage.appendChild(block);
+    stage.appendChild(createGuestWallLoadingCenterNode());
     guestWallMobile.appendChild(stage);
   }
 }
 
 function renderGuestWallErrorStateWithMessage(message) {
-  const fallbackMessage = GUEST_WALL_UNAVAILABLE_MESSAGE;
+  const fallbackMessage = String(message || GUEST_WALL_UNAVAILABLE_MESSAGE).trim() || GUEST_WALL_UNAVAILABLE_MESSAGE;
   const detailMessage = String(renderGuestWallErrorStateWithMessage.lastDetail || "").trim();
   const makePanel = () => {
     const panel = document.createElement("div");
@@ -4774,7 +4853,7 @@ function renderGuestWallErrorStateWithMessage(message) {
     button.className = "guestwall-control-btn guestwall-retry-btn";
     button.textContent = "Try again";
     button.addEventListener("click", () => {
-      loadGuestWallPinboard({ refresh: true });
+      loadGuestWallPinboard({ refresh: true, force: true });
     });
     panel.appendChild(button);
 
@@ -5047,6 +5126,11 @@ function setGuestWallStatus(message) {
   const text = String(message || "").trim();
   guestWallStatus.textContent = text;
   setHiddenClass(guestWallStatus, !text);
+  const loadingCopies = document.querySelectorAll(".guestwall-loading-copy");
+  loadingCopies.forEach((node) => {
+    if (!(node instanceof HTMLElement)) return;
+    node.textContent = text || GUEST_WALL_LOADING_MESSAGE;
+  });
 }
 
 function setGuestWallControlsDisabled(disabled) {
@@ -5146,7 +5230,7 @@ function loadGuestWallArrangementFromStorage() {
   }
 }
 
-function saveGuestWallArrangementToStorage() {
+function writeGuestWallArrangementToStorageNow() {
   try {
     const payload = {};
     guestWallArrangementByCardId.forEach((offsets, cardId) => {
@@ -5160,6 +5244,22 @@ function saveGuestWallArrangementToStorage() {
   } catch (error) {
     console.warn("[guestwall] failed to save arrangement", error instanceof Error ? error.message : String(error));
   }
+}
+
+function saveGuestWallArrangementToStorage(options = {}) {
+  const immediate = Boolean(options && options.immediate);
+  if (guestWallArrangementSaveTimer) {
+    window.clearTimeout(guestWallArrangementSaveTimer);
+    guestWallArrangementSaveTimer = null;
+  }
+  if (immediate) {
+    writeGuestWallArrangementToStorageNow();
+    return;
+  }
+  guestWallArrangementSaveTimer = window.setTimeout(() => {
+    guestWallArrangementSaveTimer = null;
+    writeGuestWallArrangementToStorageNow();
+  }, 400);
 }
 
 function clampGuestWallSlotOffsetToBounds(slotNode, nextDx, nextDy) {
@@ -5313,10 +5413,8 @@ function runGuestWallDeoverlapPass() {
   snapshotGuestWallArrangementFromSlots();
 }
 
-function setGuestWallArrangeMode(enabled, options = {}) {
-  const suppressLayoutSync = Boolean(options?.suppressLayoutSync);
+function setGuestWallArrangeMode(enabled) {
   const nextMode = Boolean(enabled) && isGuestWallArrangeCapable();
-  const modeChanged = guestWallArrangeMode !== nextMode;
   if (!nextMode && guestWallDragState) {
     cancelGuestWallDrag(true);
   }
@@ -5339,9 +5437,6 @@ function setGuestWallArrangeMode(enabled, options = {}) {
     guestWallArrangeState.textContent = nextMode ? "ON" : "OFF";
     guestWallArrangeState.classList.toggle("is-on", nextMode);
     guestWallArrangeState.classList.toggle("is-off", !nextMode);
-  }
-  if (modeChanged && !suppressLayoutSync && guestWallCards.length) {
-    syncGuestWallLayout();
   }
 }
 
@@ -5449,43 +5544,17 @@ function buildGuestWallDetailMediaNode(card) {
   return img;
 }
 
-function buildGuestWallDetailNoteBlock(noteText, name) {
+function buildGuestWallDetailNoteBlock(card) {
+  if (!card || card.kind !== "note") return null;
   const noteBlock = document.createElement("article");
   noteBlock.className = "guestwall-detail-postcard";
 
-  const inner = document.createElement("div");
-  inner.className = "guestwall-detail-postcard-inner";
+  // Reuse the exact same postcard artifact as the wall; modal only changes scale.
+  const postcard = buildGuestWallCard(card, "detail");
+  postcard.classList.add("guestwall-detail-postcard-card");
+  postcard.tabIndex = -1;
 
-  const readabilityOverlay = document.createElement("div");
-  readabilityOverlay.className = "guestwall-detail-postcard-overlay";
-  readabilityOverlay.setAttribute("aria-hidden", "true");
-
-  const messagePane = document.createElement("div");
-  messagePane.className = "guestwall-detail-postcard-message";
-
-  const noteTextNode = document.createElement("p");
-  noteTextNode.className = "guestwall-note-text guestwall-detail-note guestwall-detail-note-full";
-  noteTextNode.textContent = noteText;
-  messagePane.appendChild(noteTextNode);
-
-  const metaPane = document.createElement("div");
-  metaPane.className = "guestwall-detail-postcard-meta";
-
-  const stamp = document.createElement("span");
-  stamp.className = "guestwall-note-stamp";
-  stamp.setAttribute("aria-hidden", "true");
-
-  const sign = document.createElement("p");
-  sign.className = "guestwall-note-sign guestwall-detail-name guestwall-note-sign--postcard";
-  sign.textContent = `— ${name}`;
-
-  metaPane.appendChild(stamp);
-  metaPane.appendChild(sign);
-
-  inner.appendChild(readabilityOverlay);
-  inner.appendChild(messagePane);
-  inner.appendChild(metaPane);
-  noteBlock.appendChild(inner);
+  noteBlock.appendChild(postcard);
   return noteBlock;
 }
 
@@ -5531,18 +5600,16 @@ function openGuestWallDetail(card) {
   const wasOpen = guestWallDetailOpen;
   const guestName = String(card.name || "Guest");
   const isMediaCard = card.kind === "media";
-  const fullNote = String(card.kind === "note" ? card.text : card.message || "").trim();
 
   guestWallDetailContent.innerHTML = "";
   if (isMediaCard) {
     const photoBlock = buildGuestWallDetailPhotoBlock(card, guestName);
     if (!photoBlock) return;
     if (photoBlock) guestWallDetailContent.appendChild(photoBlock);
-  } else if (fullNote) {
-    const noteBlock = buildGuestWallDetailNoteBlock(fullNote, guestName);
-    guestWallDetailContent.appendChild(noteBlock);
   } else {
-    return;
+    const noteBlock = buildGuestWallDetailNoteBlock(card);
+    if (!noteBlock) return;
+    guestWallDetailContent.appendChild(noteBlock);
   }
 
   guestWallDetailModal.dataset.detailKind = isMediaCard ? "media" : "note";
@@ -6549,9 +6616,7 @@ function renderGuestWallDesktop({ reshuffle = false } = {}) {
     width: measuredSize.w,
     height: measuredSize.h,
   };
-  const arrangedSlots = guestWallArrangeMode
-    ? buildGuestWallArrangeGridSlots(containerRect, slotCount, false, `desktop:${guestWallLayoutCycle}`, noteSlotTarget)
-    : buildGuestWallScatterSlots(containerRect, slotCount, false, `desktop:${guestWallLayoutCycle}`, noteSlotTarget);
+  const arrangedSlots = buildGuestWallScatterSlots(containerRect, slotCount, false, `desktop:${guestWallLayoutCycle}`, noteSlotTarget);
   if (IS_LOCAL_DEV) {
     console.info("[guestwall] placements", {
       viewport: "desktop",
@@ -6593,13 +6658,55 @@ function renderGuestWallDesktop({ reshuffle = false } = {}) {
   syncGuestWallArrangeAvailability();
   setGuestWallArrangeMode(guestWallArrangeMode, { suppressLayoutSync: true });
   maybeLogGuestWallFirstSixRender();
+  console.log("[GuestWall] render ready");
+}
+
+function normalizeGuestWallMobileIndex(total) {
+  const max = Math.max(0, Number(total) || 0);
+  if (max <= 0) {
+    guestWallMobileIndex = 0;
+    return;
+  }
+  const nextIndex = Number.isFinite(guestWallMobileIndex) ? Math.floor(guestWallMobileIndex) : 0;
+  guestWallMobileIndex = ((nextIndex % max) + max) % max;
+}
+
+function shiftGuestWallMobileCard(step = 1) {
+  if (!guestWallVisibleCardIds.length || !isGuestWallMobileView()) return;
+  const delta = Number.isFinite(Number(step)) ? Math.trunc(Number(step)) : 1;
+  if (!delta) return;
+  guestWallMobileIndex += delta;
+  normalizeGuestWallMobileIndex(guestWallVisibleCardIds.length);
+  renderGuestWallMobile({ reshuffle: false });
+}
+
+function buildGuestWallMobileDeck(deckSize, reshuffle = false) {
+  const limit = Math.max(1, Math.floor(Number(deckSize) || 1));
+  const mediaIds = guestWallCards.filter((card) => card?.kind === "media").map((card) => card.id);
+  const sourceIds = mediaIds.length ? mediaIds : guestWallCards.map((card) => card.id);
+  const seededOrder = getGuestWallSeededOrder(sourceIds, `mobile-deck:${guestWallLayoutCycle}`);
+  if (!seededOrder.length) return [];
+  if (reshuffle || !guestWallVisibleCardIds.length) {
+    return seededOrder.slice(0, limit);
+  }
+  const seededSet = new Set(seededOrder);
+  const retained = guestWallVisibleCardIds.filter((id) => seededSet.has(id)).slice(0, limit);
+  if (retained.length >= limit) return retained;
+  const needed = limit - retained.length;
+  const backfill = seededOrder.filter((id) => !retained.includes(id)).slice(0, needed);
+  return [...retained, ...backfill];
 }
 
 function startGuestWallAutoplayInterval() {
   clearGuestWallAutoplayTimer();
   if (guestWallPaused) return;
   guestWallAutoplayTimer = window.setInterval(() => {
-    if (guestWallPaused || guestWallVisibleCardIds.length <= 1 || guestWallSlotNodes.length <= 1) return;
+    if (guestWallPaused || guestWallVisibleCardIds.length <= 1) return;
+    if (isGuestWallMobileView()) {
+      shiftGuestWallMobileCard(1);
+      return;
+    }
+    if (guestWallSlotNodes.length <= 1) return;
     shuffleGuestWallVisibleSubset();
   }, GUEST_WALL_AUTOPLAY_INTERVAL_MS);
 }
@@ -6607,7 +6714,6 @@ function startGuestWallAutoplayInterval() {
 function renderGuestWallMobile({ reshuffle = false } = {}) {
   if (!(guestWallMobile instanceof HTMLElement)) return;
   guestWallMobile.innerHTML = "";
-  refreshGuestWallContainerSizes("render-mobile");
 
   if (!guestWallCards.length) {
     const empty = document.createElement("p");
@@ -6617,76 +6723,98 @@ function renderGuestWallMobile({ reshuffle = false } = {}) {
     return;
   }
 
-  const stage = document.createElement("div");
-  stage.className = "guestwall-mobile-stage guestwall-mobile-stage--collage";
-  guestWallMobile.appendChild(stage);
-  guestWallSlotNodes = [];
-
-  const measuredSize = guestWallContainerSize.mobile;
-  if (!hasRenderableGuestWallSize(measuredSize)) {
-    if (IS_LOCAL_DEV) {
-      console.info("[guestwall] mobile render deferred (size too small)", measuredSize);
-    }
-    queueGuestWallLayoutSync("mobile-size-wait");
+  const mobileViewportWidth = guestWallContainerSize.mobile.w || guestWallMobile.clientWidth || window.innerWidth || 0;
+  const deckSize = Math.min(
+    Math.max(1, getGuestWallVisibleSlotCap(mobileViewportWidth, true)),
+    guestWallCards.length,
+    GUEST_WALL_MOBILE_VISIBLE_SLOTS,
+  );
+  guestWallVisibleCardIds = buildGuestWallMobileDeck(deckSize, reshuffle);
+  if (!guestWallVisibleCardIds.length) {
+    const empty = document.createElement("p");
+    empty.className = "guestwall-status";
+    empty.textContent = GUEST_WALL_EMPTY_MESSAGE;
+    guestWallMobile.appendChild(empty);
     return;
   }
-
-  const slotCap = getGuestWallVisibleSlotCap(measuredSize.w || stage.clientWidth || window.innerWidth || 0, true);
-  const hasNotes = guestWallCards.some((card) => card?.kind === "note");
-  const densityCap = hasNotes ? Math.max(2, slotCap - 1) : slotCap;
-  const slotCount = Math.min(Math.max(0, densityCap), guestWallCards.length, GUEST_WALL_MOBILE_VISIBLE_SLOTS);
-  const noteSlotTarget = getGuestWallTargetNoteCount(slotCount, true);
-  const containerRect = {
-    ...stage.getBoundingClientRect(),
-    width: measuredSize.w,
-    height: measuredSize.h,
-  };
-  const arrangedSlots = guestWallArrangeMode
-    ? buildGuestWallArrangeGridSlots(containerRect, slotCount, true, `mobile:${guestWallLayoutCycle}`, noteSlotTarget)
-    : buildGuestWallScatterSlots(containerRect, slotCount, true, `mobile:${guestWallLayoutCycle}`, noteSlotTarget);
-  if (IS_LOCAL_DEV) {
-    console.info("[guestwall] placements", {
-      viewport: "mobile",
-      items: guestWallCards.length,
-      visibleCount: slotCount,
-      placements: arrangedSlots.length,
-    });
+  if (reshuffle) {
+    guestWallMobileIndex = 0;
   }
-  guestWallActiveSlotConfig = arrangedSlots.slice(0, slotCount);
-  ensureGuestWallVisibleIds(slotCount, {
-    reshuffle,
-    mobile: true,
-    seedLabel: "mobile",
+  normalizeGuestWallMobileIndex(guestWallVisibleCardIds.length);
+
+  const stage = document.createElement("div");
+  stage.className = "guestwall-mobile-stage guestwall-mobile-stage--single";
+  guestWallMobile.appendChild(stage);
+  guestWallSlotNodes = [];
+  const activeCardId = String(guestWallVisibleCardIds[guestWallMobileIndex] || "");
+  const activeCard = guestWallCardById.get(activeCardId);
+  if (!activeCard) {
+    queueGuestWallLayoutSync("mobile-active-card-missing");
+    return;
+  }
+  guestWallActiveSlotConfig = [
+    {
+      id: `mobile-single-${guestWallMobileIndex}`,
+      role: "hero",
+      kind: activeCard.kind === "note" ? "note" : "media",
+      format: "any",
+    },
+  ];
+
+  const slotNode = document.createElement("div");
+  slotNode.className = "guestwall-slot guestwall-slot--mobile-single";
+  bindGuestWallSlotInteraction(slotNode);
+  mountGuestWallSlotCard(slotNode, activeCardId, false);
+  stage.appendChild(slotNode);
+  guestWallSlotNodes.push(slotNode);
+
+  const nav = document.createElement("div");
+  nav.className = "guestwall-mobile-nav";
+  const prevButton = document.createElement("button");
+  prevButton.type = "button";
+  prevButton.className = "guestwall-mobile-nav-btn";
+  prevButton.textContent = "Previous";
+  prevButton.disabled = guestWallVisibleCardIds.length <= 1;
+  prevButton.addEventListener("click", () => {
+    shiftGuestWallMobileCard(-1);
   });
-  guestWallVisibleCardIds = assignGuestWallCardsToSlots(guestWallActiveSlotConfig, guestWallVisibleCardIds);
 
-  for (let slotIndex = 0; slotIndex < slotCount; slotIndex += 1) {
-    const slotNode = document.createElement("div");
-    slotNode.className = "guestwall-slot";
-    bindGuestWallSlotInteraction(slotNode);
-    placeGuestWallSlot(slotNode, arrangedSlots[slotIndex] || arrangedSlots[0]);
-    const cardId = getGuestWallVisibleCardId(slotIndex);
-    if (cardId) {
-      mountGuestWallSlotCard(slotNode, cardId, false);
-    }
-    stage.appendChild(slotNode);
-    guestWallSlotNodes.push(slotNode);
-  }
+  const count = document.createElement("p");
+  count.className = "guestwall-mobile-count";
+  count.textContent = `${guestWallMobileIndex + 1} / ${guestWallVisibleCardIds.length}`;
+
+  const nextButton = document.createElement("button");
+  nextButton.type = "button";
+  nextButton.className = "guestwall-mobile-nav-btn";
+  nextButton.textContent = "Next";
+  nextButton.disabled = guestWallVisibleCardIds.length <= 1;
+  nextButton.addEventListener("click", () => {
+    shiftGuestWallMobileCard(1);
+  });
+
+  nav.append(prevButton, count, nextButton);
+  guestWallMobile.appendChild(nav);
   markGuestWallInitialImageExpectation();
   hydrateGuestWallSlotArrangeMetrics();
   setGuestWallArrangeMode(false, { suppressLayoutSync: true });
   syncGuestWallArrangeAvailability();
   maybeLogGuestWallFirstSixRender();
+  console.log("[GuestWall] render ready");
 }
 
 function syncGuestWallLayout({ reshuffle = false } = {}) {
   if (!(guestWallPinboard instanceof HTMLElement) || !(guestWallMobile instanceof HTMLElement)) return;
-  refreshGuestWallContainerSizes("sync-layout");
-
   const mobile = isGuestWallMobileView();
-  const activeSize = mobile ? guestWallContainerSize.mobile : guestWallContainerSize.desktop;
   setHiddenClass(guestWallPinboard, mobile);
   setHiddenClass(guestWallMobile, !mobile);
+  refreshGuestWallContainerSizes("sync-layout");
+  const activeSize = mobile ? guestWallContainerSize.mobile : guestWallContainerSize.desktop;
+
+  if (mobile) {
+    renderGuestWallMobile({ reshuffle });
+    startGuestWallAutoplayInterval();
+    return;
+  }
 
   if (!hasRenderableGuestWallSize(activeSize)) {
     if (guestWallLoadState === "success") {
@@ -6702,12 +6830,6 @@ function syncGuestWallLayout({ reshuffle = false } = {}) {
       });
     }
     queueGuestWallLayoutSync("sync-size-gate");
-    return;
-  }
-
-  if (mobile) {
-    renderGuestWallMobile({ reshuffle });
-    startGuestWallAutoplayInterval();
     return;
   }
 
@@ -6792,6 +6914,8 @@ function waitForGuestWallVisibleMediaReady(maxWaitMs = 1500) {
 
 function shuffleGuestWallVisibleSubset() {
   if (!guestWallCards.length || guestWallLoadState !== "success") return;
+  guestWallArrangementByCardId = new Map();
+  saveGuestWallArrangementToStorage({ immediate: true });
   guestWallLayoutCycle += 1;
   guestWallVisibleCardIds = [];
   syncGuestWallLayout({ reshuffle: true });
@@ -6871,6 +6995,7 @@ function bindGuestWallEvents() {
   window.addEventListener(
     "pagehide",
     () => {
+      saveGuestWallArrangementToStorage({ immediate: true });
       clearGuestWallAutoplayTimer();
       clearGuestWallContainerObserver();
       if (guestWallLayoutRetryRaf) {
@@ -6940,6 +7065,8 @@ async function maybePrefetchGuestWallBuffer() {
 async function initGuestWall() {
   if (!(guestWallPinboard instanceof HTMLElement)) return;
 
+  console.log("[GuestWall] mount");
+  bindGuestWallRuntimeDebugHandlers();
   guestWallArrangementByCardId = loadGuestWallArrangementFromStorage();
   bindGuestWallDetailModalEvents();
   bindGuestWallEvents();
@@ -6949,8 +7076,9 @@ async function initGuestWall() {
   await loadGuestWallPinboard({ refresh: false });
 }
 
-async function loadGuestWallPinboard({ refresh = false } = {}) {
-  if (guestWallRequestInFlight) return guestWallRequestInFlight;
+async function loadGuestWallPinboard({ refresh = false, force = false } = {}) {
+  if (guestWallRequestInFlight && !force) return guestWallRequestInFlight;
+  const requestToken = ++guestWallRequestToken;
 
   guestWallLoadStartedAt = performance.now();
   guestWallFirstResponseLogged = false;
@@ -7000,11 +7128,13 @@ async function loadGuestWallPinboard({ refresh = false } = {}) {
         }
       }
       if (!payload) throw attemptError || new Error(GUEST_WALL_UNAVAILABLE_MESSAGE);
+      if (requestToken !== guestWallRequestToken) return;
 
       const cards = normalizeGuestWallCards(payload.items);
       guestWallCards = [];
       guestWallCardById = new Map();
       mergeGuestWallCards(cards);
+      console.log("[GuestWall] items", guestWallCards.length);
       if (IS_LOCAL_DEV) {
         console.info("[guestwall] items", guestWallCards.length);
       }
@@ -7044,6 +7174,7 @@ async function loadGuestWallPinboard({ refresh = false } = {}) {
         }, 120);
       }
     } catch (error) {
+      if (requestToken !== guestWallRequestToken) return;
       console.error("[guestwall] load failed", {
         message: error instanceof Error ? error.message : String(error),
         status: error && typeof error === "object" ? error.status : undefined,
@@ -7071,7 +7202,14 @@ async function loadGuestWallPinboard({ refresh = false } = {}) {
       guestWallPrefetchInFlight = null;
       renderGuestWallErrorStateWithMessage(classified.panelMessage);
     } finally {
+      if (requestToken !== guestWallRequestToken) return;
       clearGuestWallSlowMessageTimers();
+      if (guestWallLoadState === "loading") {
+        setGuestWallLoadState("timeout");
+        setGuestWallStatus(GUEST_WALL_LOADING_MESSAGE_STUCK);
+        setGuestWallControlsDisabled(true);
+        renderGuestWallErrorStateWithMessage(GUEST_WALL_LOADING_MESSAGE_STUCK);
+      }
       guestWallRequestInFlight = null;
     }
   })();
