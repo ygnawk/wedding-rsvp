@@ -70,6 +70,7 @@ const GUEST_WALL_RETRY_DELAY_MS = 1000;
 const GUEST_WALL_MAX_FETCH_ATTEMPTS = 2;
 const GUEST_WALL_IMAGE_CONCURRENCY = 4;
 const GUEST_WALL_IMAGE_OBSERVER_MARGIN = "240px";
+const GUEST_WALL_IMAGE_STALL_TIMEOUT_MS = 30000;
 const GUEST_WALL_SESSION_CACHE_KEY = "guestwall-pinboard-cache-v1";
 const GUEST_WALL_SESSION_CACHE_TTL_MS = 5 * 60 * 1000;
 const GUEST_WALL_DEV_SHUFFLE_SIM_ITERATIONS = 200;
@@ -132,7 +133,7 @@ const RSVP_MEDIA_UPLOAD_TIMEOUT_MS = 120000;
 const STORY_IMAGE_PLACEHOLDER_DATA_URI =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="%23efe7da"/><stop offset="100%" stop-color="%23e4d7c1"/></linearGradient></defs><rect width="1200" height="900" fill="url(%23g)"/><circle cx="600" cy="390" r="92" fill="%23ceb998" opacity="0.45"/><rect x="356" y="548" width="488" height="22" rx="11" fill="%239b7d52" opacity="0.4"/><rect x="418" y="594" width="364" height="18" rx="9" fill="%239b7d52" opacity="0.28"/></svg>';
 const PHOTO_MANIFEST_TIMEOUT_MS = 8000;
-const GALLERY_IMAGE_STALL_TIMEOUT_MS = 12000;
+const GALLERY_IMAGE_STALL_TIMEOUT_MS = 90000;
 const GALLERY_IMAGE_MAX_ATTEMPTS = 3;
 const INIT_STEP_WARN_MS = 1200;
 const UPLOAD_ALLOWED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "heic", "heif", "mp4", "mov", "webm"]);
@@ -843,6 +844,7 @@ let hotelTouchSelectionLockUntil = 0;
 let makanTipOpen = false;
 let makanLegalOpen = false;
 let makanLegalScrollLocked = false;
+let makanLegalTriggerArmed = false;
 let makanTypeAccordions = [];
 let makanBulkToggle = false;
 
@@ -2244,6 +2246,8 @@ function positionMakanLegalPopover() {
 
 function openMakanLegalModal() {
   if (!makanLegalPopover || !makanLegalTrigger) return;
+  if (!makanLegalTriggerArmed) return;
+  makanLegalTriggerArmed = false;
   if (makanLegalOpen) return;
   if (makanSection) makanSection.classList.add("has-legal-popover-open");
   makanLegalPopover.classList.remove("is-flipped-up");
@@ -2267,6 +2271,9 @@ function initMakanLegalModal() {
   if (makanLegalTrigger.dataset.boundLegal === "true") return;
 
   if (makanLegalWrapper) makanLegalWrapper.dataset.open = "false";
+  setA11yHidden(makanLegalPopover, true);
+  makanLegalPopover.classList.remove("open");
+  makanLegalPopover.classList.remove("is-flipped-up");
   closeMakanLegalModal({ restoreFocus: false });
 
   window.addEventListener("pageshow", () => {
@@ -2279,6 +2286,7 @@ function initMakanLegalModal() {
     event.preventDefault();
     event.stopPropagation();
     if (!event.isTrusted) return;
+    makanLegalTriggerArmed = true;
     if (makanLegalOpen) closeMakanLegalModal();
     else openMakanLegalModal();
   });
@@ -4638,7 +4646,7 @@ function confirmationMessage(choice) {
   if (choice === "working") {
     return "Perfect — thank you for telling us early. We won’t hold seats yet. We’ll follow up around the time you picked.";
   }
-  return "Thank you. We’ll miss you in Beijing. We’ll share photos after the wedding.";
+  return "Thank you. We’ll miss you in Beijing.";
 }
 
 function getRsvpChoiceSummary(choice) {
@@ -4654,6 +4662,7 @@ function hideRsvpConfirmation() {
   setHiddenClass(rsvpConfirmation, true);
   rsvpConfirmation.classList.remove("confirmation--success");
   rsvpConfirmation.innerHTML = "";
+  delete rsvpConfirmation.dataset.baseSubtitle;
   if (rsvpPanel) rsvpPanel.classList.remove("is-success");
 }
 
@@ -4695,6 +4704,7 @@ function showRsvpConfirmation(message, options = {}) {
     subtitle.className = "confirmation-subtitle";
     subtitle.textContent = successSubtitle;
     rsvpConfirmation.appendChild(subtitle);
+    rsvpConfirmation.dataset.baseSubtitle = successSubtitle;
 
     const actions = document.createElement("div");
     actions.className = "confirmation-actions";
@@ -4708,6 +4718,7 @@ function showRsvpConfirmation(message, options = {}) {
     rsvpConfirmation.appendChild(actions);
   } else {
     rsvpConfirmation.classList.remove("confirmation--success");
+    delete rsvpConfirmation.dataset.baseSubtitle;
     if (rsvpPanel) rsvpPanel.classList.remove("is-success");
 
     const copy = document.createElement("p");
@@ -4730,6 +4741,36 @@ function showRsvpConfirmation(message, options = {}) {
   }
 
   setHiddenClass(rsvpConfirmation, false);
+}
+
+function updateRsvpSuccessUploadMessage(state = "none", options = {}) {
+  if (!(rsvpConfirmation instanceof HTMLElement)) return;
+  if (!rsvpConfirmation.classList.contains("confirmation--success")) return;
+  const subtitle = rsvpConfirmation.querySelector(".confirmation-subtitle");
+  if (!(subtitle instanceof HTMLElement)) return;
+
+  const currentText = String(subtitle.textContent || "").trim();
+  const baseText = String(rsvpConfirmation.dataset.baseSubtitle || currentText).trim();
+  if (baseText && !rsvpConfirmation.dataset.baseSubtitle) {
+    rsvpConfirmation.dataset.baseSubtitle = baseText;
+  }
+
+  const normalizedState = String(state || "none").toLowerCase();
+  let uploadText = "";
+
+  if (normalizedState === "uploading") {
+    const totalCount = Math.max(0, Number(options.totalCount) || 0);
+    const uploadedCount = Math.max(0, Math.min(totalCount, Number(options.uploadedCount) || 0));
+    uploadText = totalCount > 0 ? `Uploading media… ${uploadedCount} of ${totalCount}.` : "Uploading media…";
+  } else if (normalizedState === "complete") {
+    uploadText = "Media uploaded ✅.";
+  } else if (normalizedState === "failed") {
+    uploadText = "Media upload paused — retry below.";
+  } else if (normalizedState === "cancelled") {
+    uploadText = "Media upload cancelled — you can retry below.";
+  }
+
+  subtitle.textContent = uploadText ? `${baseText} ${uploadText}`.trim() : baseText;
 }
 
 function getRsvpFilesMeta(files = []) {
@@ -4892,6 +4933,7 @@ function cancelBackgroundRsvpUpload(reason = "cancelled") {
     showCancel: false,
     stage: "upload-cancelled",
   });
+  updateRsvpSuccessUploadMessage("cancelled");
   persistPendingRsvpSubmission({
     state: "cancelled",
     note: String(reason || "Upload cancelled"),
@@ -4917,6 +4959,10 @@ async function runBackgroundRsvpMediaUpload(job, { isRetry = false } = {}) {
       stage: "uploading",
     },
   );
+  updateRsvpSuccessUploadMessage("uploading", {
+    uploadedCount: 0,
+    totalCount: sourceFiles.length,
+  });
   persistPendingRsvpSubmission({
     payload: job.payload,
     files: sourceFiles,
@@ -4941,6 +4987,10 @@ async function runBackgroundRsvpMediaUpload(job, { isRetry = false } = {}) {
           showRetry: false,
           showCancel: true,
           stage: "preparing-upload",
+        });
+        updateRsvpSuccessUploadMessage("uploading", {
+          uploadedCount: preparedCount,
+          totalCount,
         });
       });
       job.preparedFiles = preparedFiles;
@@ -4980,6 +5030,10 @@ async function runBackgroundRsvpMediaUpload(job, { isRetry = false } = {}) {
           showCancel: true,
           stage: "uploading",
         });
+        updateRsvpSuccessUploadMessage("uploading", {
+          uploadedCount,
+          totalCount: totalFiles,
+        });
       },
     });
 
@@ -4993,7 +5047,7 @@ async function runBackgroundRsvpMediaUpload(job, { isRetry = false } = {}) {
 
     const completedCount = Math.max(0, Number(uploadResult.uploaded_count) || sourceFiles.length);
     showRsvpInlineUploadStatus(
-      "Media upload complete.",
+      "Media uploaded ✅",
       `Uploaded ${completedCount} of ${Math.max(0, sourceFiles.length)} file${sourceFiles.length === 1 ? "" : "s"}.`,
       {
         showRetry: false,
@@ -5001,6 +5055,10 @@ async function runBackgroundRsvpMediaUpload(job, { isRetry = false } = {}) {
         stage: "upload-success",
       },
     );
+    updateRsvpSuccessUploadMessage("complete", {
+      uploadedCount: completedCount,
+      totalCount: sourceFiles.length,
+    });
     scheduleRsvpUploadStatusHide(14000);
     logRsvpDebug("all_done", {
       submissionId: job.submissionId,
@@ -5019,6 +5077,7 @@ async function runBackgroundRsvpMediaUpload(job, { isRetry = false } = {}) {
         showCancel: false,
         stage: "upload-cancelled",
       });
+      updateRsvpSuccessUploadMessage("cancelled");
       persistPendingRsvpSubmission({
         payload: job.payload,
         files: sourceFiles,
@@ -5040,6 +5099,7 @@ async function runBackgroundRsvpMediaUpload(job, { isRetry = false } = {}) {
       showCancel: false,
       stage: "upload-failed",
     });
+    updateRsvpSuccessUploadMessage("failed");
   } finally {
     if (rsvpBackgroundUploadJob === job) {
       rsvpBackgroundUploadJob.active = false;
@@ -5252,24 +5312,20 @@ function initRsvpForm() {
 
       const baseMessage = confirmationMessage(attendanceChoice.value);
       const saveWarning = saveResult.warning ? `${saveResult.warning} ` : "";
-      const uploadFollowup = sourceUploadFiles.length
-        ? "Your RSVP is saved. Media upload is continuing in the background."
-        : "Your RSVP is fully complete.";
       showRsvpConfirmation("", {
         includeGuestWallLink: true,
         variant: "success",
         selectedChoice: attendanceChoice.value,
-        subtitle: `${saveWarning}${baseMessage} ${uploadFollowup}`.trim(),
+        subtitle: `${saveWarning}${baseMessage}`.trim(),
+      });
+      updateRsvpSuccessUploadMessage(sourceUploadFiles.length ? "uploading" : "none", {
+        uploadedCount: 0,
+        totalCount: sourceUploadFiles.length,
       });
       setHiddenClass(rsvpForm, sourceUploadFiles.length === 0);
 
       if (!sourceUploadFiles.length) {
-        showRsvpInlineUploadStatus("RSVP saved.", "No media upload needed.", {
-          showRetry: false,
-          showCancel: false,
-          stage: "saved-only",
-        });
-        scheduleRsvpUploadStatusHide(7000);
+        hideRsvpSubmitStatus();
         logRsvpDebug("all_done", {
           t_all_done: Math.round(performance.now()),
           totalDurationMs: Math.round(performance.now() - submitClickedAt),
@@ -5846,7 +5902,7 @@ function getGuestWallRequestTimeoutMs(attemptIndex = 0) {
 function waitGuestWallRetryDelay(attemptIndex = 0) {
   const factor = Math.max(1, Number(attemptIndex) + 1);
   const baseDelay = GUEST_WALL_RETRY_DELAY_MS * factor;
-  const jitter = randomInt(120, 420);
+  const jitter = randomIntInclusive(120, 420);
   const waitMs = baseDelay + jitter;
   return new Promise((resolve) => {
     window.setTimeout(resolve, waitMs);
@@ -6144,6 +6200,7 @@ function buildGuestWallImageCandidates(mediaItem, size = "w720") {
   const fileId = String(mediaItem.file_id || mediaItem.fileId || "").trim();
   const directUrl = String(mediaItem.thumbnailUrl || mediaItem.url || "").trim();
   const driveThumbnailUrl = String(mediaItem.thumbnail_url || "").trim();
+  const driveViewUrl = String(mediaItem.driveViewUrl || mediaItem.viewUrl || mediaItem.url || "").trim();
 
   const candidates = [];
   const addCandidate = (value) => {
@@ -6154,12 +6211,14 @@ function buildGuestWallImageCandidates(mediaItem, size = "w720") {
     candidates.push(url);
   };
 
-  addCandidate(directUrl);
-  addCandidate(driveThumbnailUrl);
-
   if (fileId) {
     addCandidate(`https://lh3.googleusercontent.com/d/${fileId}=${size}`);
+    addCandidate(`https://lh3.googleusercontent.com/d/${fileId}=w1200`);
+    addCandidate(`https://lh3.googleusercontent.com/d/${fileId}=w800`);
   }
+  addCandidate(directUrl);
+  addCandidate(driveThumbnailUrl);
+  addCandidate(driveViewUrl);
   return candidates;
 }
 
@@ -6288,8 +6347,18 @@ function maybeLogGuestWallImageProgress(reason = "progress") {
   );
 }
 
+function clearGuestWallImageStallTimer(state) {
+  if (!state || typeof state !== "object") return;
+  const timerId = Number(state.stallTimerId || 0);
+  if (timerId > 0) {
+    window.clearTimeout(timerId);
+  }
+  state.stallTimerId = 0;
+}
+
 function finishGuestWallImageLoad(state, outcome = "loaded") {
   if (!state || typeof state !== "object") return;
+  clearGuestWallImageStallTimer(state);
   if (state.inFlight) {
     state.inFlight = false;
     guestWallImageLoadsInFlight = Math.max(0, guestWallImageLoadsInFlight - 1);
@@ -6325,6 +6394,21 @@ function startGuestWallLazyImage(imgNode, state) {
   guestWallImageLoadsInFlight += 1;
   guestWallImageStats.started += 1;
   imgNode.src = nextSrc;
+  clearGuestWallImageStallTimer(state);
+  state.stallTimerId = window.setTimeout(() => {
+    if (!state.loading || state.completed) return;
+    const candidatesList = Array.isArray(state.candidates) ? state.candidates : [];
+    state.candidateIndex += 1;
+    const nextCandidate = String(candidatesList[state.candidateIndex] || "").trim();
+    if (nextCandidate) {
+      imgNode.src = nextCandidate;
+      return;
+    }
+    imgNode.classList.add("is-loading");
+    if (state.fallback instanceof HTMLElement) setHiddenClass(state.fallback, false);
+    imgNode.removeAttribute("src");
+    finishGuestWallImageLoad(state, "failed");
+  }, GUEST_WALL_IMAGE_STALL_TIMEOUT_MS);
 }
 
 function pumpGuestWallImageQueue() {
@@ -6373,6 +6457,7 @@ function resetGuestWallImageNodeForRetry(imgNode, fallbackNode) {
   if (!(imgNode instanceof HTMLImageElement)) return;
   const state = guestWallImageLoadState.get(imgNode);
   if (!state || typeof state !== "object") return;
+  clearGuestWallImageStallTimer(state);
   if (state.loading && state.inFlight) {
     guestWallImageLoadsInFlight = Math.max(0, guestWallImageLoadsInFlight - 1);
   }
@@ -6418,6 +6503,7 @@ function registerGuestWallLazyImage({ imgNode, fallbackNode, card, candidates, c
     loading: false,
     inFlight: false,
     completed: false,
+    stallTimerId: 0,
   };
   guestWallImageLoadState.set(imgNode, state);
 
@@ -6428,12 +6514,26 @@ function registerGuestWallLazyImage({ imgNode, fallbackNode, card, candidates, c
   });
 
   imgNode.addEventListener("error", () => {
+    clearGuestWallImageStallTimer(state);
     const candidatesList = Array.isArray(state.candidates) ? state.candidates : [];
     const attemptedSrc = candidatesList[state.candidateIndex] || imgNode.currentSrc || imgNode.src || "";
     state.candidateIndex += 1;
     const nextCandidate = String(candidatesList[state.candidateIndex] || "").trim();
     if (nextCandidate) {
       imgNode.src = nextCandidate;
+      state.stallTimerId = window.setTimeout(() => {
+        if (!state.loading || state.completed) return;
+        state.candidateIndex += 1;
+        const fallbackCandidate = String(candidatesList[state.candidateIndex] || "").trim();
+        if (fallbackCandidate) {
+          imgNode.src = fallbackCandidate;
+          return;
+        }
+        imgNode.classList.add("is-loading");
+        if (state.fallback instanceof HTMLElement) setHiddenClass(state.fallback, false);
+        imgNode.removeAttribute("src");
+        finishGuestWallImageLoad(state, "failed");
+      }, GUEST_WALL_IMAGE_STALL_TIMEOUT_MS);
       return;
     }
     console.error("[guestwall:image-load-failed]", {
@@ -6808,12 +6908,15 @@ function getGuestWallVisibleCardId(slotIndex) {
 function setGuestWallStatus(message) {
   if (!guestWallStatus) return;
   const text = String(message || "").trim();
+  const loadingPrefixPattern = /^(Loading guest wall|Still loading|Almost there|Something’s stuck)\b/i;
   const isLoadingStatus =
+    guestWallLoadState === "loading" ||
     text === GUEST_WALL_LOADING_MESSAGE ||
     text === GUEST_WALL_LOADING_MESSAGE_SLOW ||
     text === GUEST_WALL_LOADING_MESSAGE_ALMOST ||
     text === GUEST_WALL_LOADING_MESSAGE_STUCK ||
-    text.startsWith(`${GUEST_WALL_LOADING_MESSAGE} `);
+    text.startsWith(`${GUEST_WALL_LOADING_MESSAGE} `) ||
+    loadingPrefixPattern.test(text);
   guestWallStatus.textContent = isLoadingStatus ? "" : text;
   setHiddenClass(guestWallStatus, !text || isLoadingStatus);
   const loadingCopies = document.querySelectorAll(".guestwall-loading-copy");
@@ -8508,10 +8611,11 @@ function buildGuestWallMobileDeck(deckSize, reshuffle = false) {
   const sources = getGuestWallDeckSources();
   if (!sources.allIds.length) return [];
   syncGuestWallDeckState({ preserveUnseen: true }, guestWallDeckState, sources);
+  const noteTarget = getGuestWallTargetNoteCount(limit, true);
   if (reshuffle || !guestWallVisibleCardIds.length) {
     return pickGuestWallDeckSelection({
       slotCount: limit,
-      noteTarget: getGuestWallTargetNoteCount(limit, true),
+      noteTarget,
       state: guestWallDeckState,
       sources,
     });
@@ -8527,7 +8631,22 @@ function buildGuestWallMobileDeck(deckSize, reshuffle = false) {
     state: guestWallDeckState,
     sources,
   });
-  return [...retained, ...backfill];
+  const next = [...retained, ...backfill];
+  const noteCount = next.filter((id) => guestWallCardById.get(id)?.kind === "note").length;
+  if (noteTarget > noteCount) {
+    const replacementNotes = drawGuestWallDeckIds({
+      kind: "note",
+      count: noteTarget - noteCount,
+      usedIds: new Set(next),
+      state: guestWallDeckState,
+      sources,
+    });
+    replacementNotes.forEach((replacementId) => {
+      const replaceIndex = next.findIndex((id) => guestWallCardById.get(id)?.kind !== "note");
+      if (replaceIndex >= 0) next[replaceIndex] = replacementId;
+    });
+  }
+  return shuffleItems(next).slice(0, limit);
 }
 
 function startGuestWallAutoplayInterval() {
@@ -8573,7 +8692,7 @@ function renderGuestWallMobile({ reshuffle = false } = {}) {
     return;
   }
   if (reshuffle) {
-    guestWallMobileIndex = 0;
+    guestWallMobileIndex = randomIntInclusive(0, Math.max(0, guestWallVisibleCardIds.length - 1));
   }
   normalizeGuestWallMobileIndex(guestWallVisibleCardIds.length);
 
@@ -9601,9 +9720,9 @@ function buildGalleryCard(entry, index) {
   const img = document.createElement("img");
   img.className = "gallery-tile-media";
   img.alt = entry.alt || "Miki and Yi Jie";
-  img.loading = "eager";
-  img.decoding = "auto";
-  img.fetchPriority = index < 3 ? "high" : "auto";
+  img.loading = index < 3 ? "eager" : "lazy";
+  img.decoding = "async";
+  img.fetchPriority = index < 2 ? "high" : "low";
   img.style.objectFit = "cover";
   const focalX = clamp01(entry.focalX, RECENT_DEFAULT_FOCAL_X);
   const focalY = clamp01(entry.focalY, RECENT_DEFAULT_FOCAL_Y);

@@ -314,6 +314,8 @@ video {
   position: relative;
   top: 0.03em;
   font-size: 1.06em;
+  margin-left: -1px;
+  margin-right: 1px;
 }
 
 .brand-wordmark-rest {
@@ -327,7 +329,7 @@ video {
 }
 
 .brand-wordmark-rest--m {
-  margin-right: 2px;
+  margin-right: 0;
 }
 
 .brand-wordmark-rest--y {
@@ -2738,6 +2740,11 @@ a:focus-visible,
     overflow-x: hidden;
   }
 
+  .story-mobile-actions,
+  .story-mobile-view-full {
+    display: none;
+  }
+
   .story-mobile-card {
     width: 100%;
     max-width: 100%;
@@ -2888,8 +2895,8 @@ a:focus-visible,
   min-height: auto;
   align-items: stretch;
   overflow: visible;
-  padding-top: clamp(72px, 8vh, 100px);
-  padding-bottom: clamp(44px, 5vh, 68px);
+  padding-top: clamp(54px, 6vh, 76px);
+  padding-bottom: clamp(22px, 3.2vh, 40px);
 }
 
 .venue-container {
@@ -2902,7 +2909,7 @@ a:focus-visible,
 .venue-scene-scroll {
   position: relative;
   width: 100%;
-  height: clamp(760px, 120vh, 1120px);
+  height: clamp(620px, 96vh, 860px);
 }
 
 .venue-sticky {
@@ -2910,7 +2917,7 @@ a:focus-visible,
   top: calc(var(--headerH) + 24px);
   height: calc(100vh - var(--headerH) - 48px);
   height: calc(100dvh - var(--headerH) - 48px);
-  min-height: 520px;
+  min-height: 420px;
   display: flex;
   align-items: center;
 }
@@ -3022,18 +3029,18 @@ a:focus-visible,
 
 @media (min-width: 980px) {
   #venue.venue-scene {
-    padding-top: clamp(36px, 4vh, 56px);
-    padding-bottom: clamp(16px, 2.2vh, 28px);
+    padding-top: clamp(22px, 2.8vh, 34px);
+    padding-bottom: clamp(6px, 1.2vh, 16px);
   }
 
   .venue-scene-scroll {
-    height: clamp(520px, 72vh, 700px);
+    height: clamp(430px, 58vh, 560px);
   }
 
   .venue-sticky {
     top: calc(var(--headerH) + 14px);
-    height: clamp(420px, 62vh, 620px);
-    min-height: 420px;
+    height: clamp(360px, 50vh, 500px);
+    min-height: 360px;
   }
 
   .venue-layout {
@@ -4806,8 +4813,6 @@ details[open] .faq-answer {
   fill: rgba(75, 15, 23, 0.06);
   stroke: rgba(75, 15, 23, 0.34);
   stroke-width: 1.3;
-  transform-box: fill-box;
-  transform-origin: center center;
   transition: opacity 220ms ease, stroke 240ms ease, fill 240ms ease, stroke-width 220ms ease;
   opacity: 0.95;
 }
@@ -4817,8 +4822,6 @@ details[open] .faq-answer {
   stroke: rgba(201, 174, 116, 0.46);
   stroke-width: 1;
   opacity: 0;
-  transform-box: fill-box;
-  transform-origin: center center;
   transition: opacity 220ms ease;
   pointer-events: none;
 }
@@ -4832,8 +4835,6 @@ details[open] .faq-answer {
   fill: rgba(247, 241, 230, 0.98);
   stroke: rgba(75, 15, 23, 0.9);
   stroke-width: 2.2;
-  transform-box: fill-box;
-  transform-origin: center center;
   transition: fill 320ms ease, stroke 320ms ease, stroke-width 220ms ease, opacity 220ms ease;
   outline: none;
 }
@@ -4860,7 +4861,7 @@ details[open] .faq-answer {
 
 .hotel-map-point.is-active .hotel-map-dot-halo {
   opacity: 1;
-  animation: hotelMapDotPulse 1250ms ease-out infinite;
+  animation: none;
 }
 
 .hotel-map-point.is-active .hotel-map-dot {
@@ -4881,15 +4882,12 @@ details[open] .faq-answer {
 @keyframes hotelMapDotPulse {
   0% {
     opacity: 0.52;
-    transform: scale(0.84);
   }
   72% {
     opacity: 0;
-    transform: scale(1.7);
   }
   100% {
     opacity: 0;
-    transform: scale(1.85);
   }
 }
 
@@ -6515,7 +6513,7 @@ a.makan-copy-icon-btn {
   height: 100%;
   min-height: 0;
   aspect-ratio: auto;
-  background: rgba(0, 0, 0, 0.04);
+  background: linear-gradient(120deg, rgba(247, 241, 230, 0.2), rgba(235, 221, 199, 0.16));
   cursor: pointer;
   border: 1px solid rgba(255, 245, 230, 0.18);
   box-shadow: 0 8px 18px rgba(8, 3, 5, 0.18);
@@ -6527,6 +6525,15 @@ a.makan-copy-icon-btn {
   will-change: box-shadow;
   transition:
     box-shadow 220ms ease;
+}
+
+.gallery-tile[data-image-state="loading"],
+.gallery-tile[data-image-state="retrying"] {
+  background: linear-gradient(120deg, rgba(247, 241, 230, 0.22), rgba(232, 217, 194, 0.18));
+}
+
+.gallery-tile[data-image-state="failed"] {
+  background: linear-gradient(120deg, rgba(247, 241, 230, 0.28), rgba(227, 208, 183, 0.22));
 }
 
 .gallery-tile--slot-1 {

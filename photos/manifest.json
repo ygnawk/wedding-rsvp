@@ -10,7 +10,7 @@
       "file": "interlude1.jpg",
       "alt": "Miki and Yi Jie",
       "cropClass": "img-round",
-      "objectPosition": "52% 60%"
+      "objectPosition": "52% 68%"
     },
     "venueMain": {
       "file": "Location-main-opt.jpg",
@@ -94,7 +94,7 @@
   "gallery": [
     {
       "id": "lmn-0527",
-      "file": "LMN_0527.jpg",
+      "file": "gallery-optimized/LMN_0527.jpg",
       "alt": "Miki and Yi Jie",
       "cropClass": "img-round",
       "focalX": 0.53,
@@ -103,7 +103,7 @@
     },
     {
       "id": "lmn-0953",
-      "file": "LMN_0953.jpg",
+      "file": "gallery-optimized/LMN_0953.jpg",
       "alt": "Miki and Yi Jie",
       "cropClass": "img-round",
       "focalX": 0.54,
@@ -111,7 +111,7 @@
     },
     {
       "id": "lmn-2093",
-      "file": "LMN_2093.jpg",
+      "file": "gallery-optimized/LMN_2093.jpg",
       "alt": "Miki and Yi Jie",
       "cropClass": "img-round",
       "focalX": 0.54,
@@ -121,7 +121,7 @@
     },
     {
       "id": "lmn-4200",
-      "file": "LMN_4200.jpg",
+      "file": "gallery-optimized/LMN_4200.jpg",
       "alt": "Miki and Yi Jie",
       "cropClass": "img-round",
       "focalX": 0.51,
@@ -129,7 +129,7 @@
     },
     {
       "id": "lmn-4326",
-      "file": "LMN_4326.jpg",
+      "file": "gallery-optimized/LMN_4326.jpg",
       "alt": "Miki and Yi Jie",
       "cropClass": "img-round",
       "focalX": 0.5,
@@ -137,7 +137,7 @@
     },
     {
       "id": "lmn-1503",
-      "file": "LMN_1503.jpg",
+      "file": "gallery-optimized/LMN_1503.jpg",
       "alt": "Miki and Yi Jie",
       "cropClass": "img-round",
       "focalX": 0.52,
@@ -145,7 +145,7 @@
     },
     {
       "id": "lmn-0812",
-      "file": "LMN_0812.jpg",
+      "file": "gallery-optimized/LMN_0812.jpg",
       "alt": "Miki and Yi Jie",
       "cropClass": "img-round",
       "focalX": 0.53,
@@ -153,7 +153,7 @@
     },
     {
       "id": "lmn-1409",
-      "file": "LMN_1409.jpg",
+      "file": "gallery-optimized/LMN_1409.jpg",
       "alt": "Miki and Yi Jie",
       "cropClass": "img-round",
       "focalX": 0.5,
@@ -161,7 +161,7 @@
     },
     {
       "id": "lmn-2075",
-      "file": "LMN_2075.jpg",
+      "file": "gallery-optimized/LMN_2075.jpg",
       "alt": "Miki and Yi Jie",
       "cropClass": "img-round",
       "focalX": 0.52,
