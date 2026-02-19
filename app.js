@@ -30,6 +30,7 @@ const MAX_UPLOAD_FILES = 3;
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const HOTEL_PANEL_TRANSITION_MS = 620;
 const HOTEL_CONTENT_FADE_MS = 620;
+const HOTEL_SELECTION_CUE_DURATION_MS = 2500;
 const MOBILE_GALLERY_DOT_MAX = 7;
 const TIMELINE_SPEED = 1; // completes schedule reveal at section center anchor
 const MOSAIC_HOVER_DELAY_MS = 150;
@@ -70,7 +71,7 @@ const GUEST_WALL_RETRY_DELAY_MS = 1000;
 const GUEST_WALL_MAX_FETCH_ATTEMPTS = 2;
 const GUEST_WALL_IMAGE_CONCURRENCY = 4;
 const GUEST_WALL_IMAGE_OBSERVER_MARGIN = "240px";
-const GUEST_WALL_IMAGE_STALL_TIMEOUT_MS = 30000;
+const GUEST_WALL_IMAGE_STALL_TIMEOUT_MS = 10000;
 const GUEST_WALL_SESSION_CACHE_KEY = "guestwall-pinboard-cache-v1";
 const GUEST_WALL_SESSION_CACHE_TTL_MS = 5 * 60 * 1000;
 const GUEST_WALL_DEV_SHUFFLE_SIM_ITERATIONS = 200;
@@ -834,6 +835,8 @@ let hotelMatrixResizeObserver = null;
 let hotelMatrixResizeRaf = null;
 let hotelMatrixWidth = 760;
 let hotelMatrixHeight = 460;
+let hotelMatrixSelectionCueId = "";
+let hotelMatrixSelectionCueTimer = 0;
 let hotelMethodOpen = false;
 let hotelMethodCloseTimer = null;
 let hotelMethodPinned = false;
@@ -2612,37 +2615,118 @@ function initHotelMethodology() {
 
 function hideHotelDotTooltip() {
   if (!hotelMatrixTooltip) return;
+  hotelMatrixTooltip.classList.remove("hotel-map-dot-tooltip--cue");
+  delete hotelMatrixTooltip.dataset.side;
   hotelMatrixTooltip.hidden = true;
   hotelMatrixTooltip.setAttribute("aria-hidden", "true");
 }
 
-function showHotelDotTooltip(item, meta) {
-  if (!hotelMatrixTooltip || !hotelMatrixSvg || !hotelMatrixShell || !item || !meta) return;
+function getHotelSelectionCueLabel(item) {
+  const rawName = String(item?.name || "").trim();
+  if (!rawName) return "Hotel";
+  const withoutCity = rawName.replace(/,\s*Beijing\b.*$/i, "").trim();
+  return withoutCity || rawName;
+}
 
-  hotelMatrixTooltip.innerHTML = `
-    <p class="hotel-map-dot-tooltip-title">${item.name}</p>
-    <p class="hotel-map-dot-tooltip-body">${meta.priceBand || "$$"} · ${Number(item.driveMins)} min drive</p>
-  `;
+function clearHotelMatrixSelectionCueTimer() {
+  if (!hotelMatrixSelectionCueTimer) return;
+  window.clearTimeout(hotelMatrixSelectionCueTimer);
+  hotelMatrixSelectionCueTimer = 0;
+}
+
+function clearHotelMatrixSelectionCue({ hideTooltip = true } = {}) {
+  clearHotelMatrixSelectionCueTimer();
+  if (!hotelMatrixSelectionCueId) {
+    if (hideTooltip) hideHotelDotTooltip();
+    return;
+  }
+  hotelMatrixSelectionCueId = "";
+  applyHotelMatrixPointStateClasses();
+  if (hideTooltip) hideHotelDotTooltip();
+}
+
+function showHotelMatrixSelectionCue(hotelId) {
+  if (!isHotelMatrixMobile()) return;
+  const cueId = String(hotelId || "").trim();
+  if (!cueId) return;
+  const cueHotel = getHotelById(cueId);
+  const cueMeta = hotelMatrixMetaById.get(cueId);
+  if (!cueHotel || !cueMeta) return;
+
+  clearHotelMatrixSelectionCueTimer();
+  hotelMatrixSelectionCueId = cueId;
+  applyHotelMatrixPointStateClasses();
+  showHotelDotTooltip(cueHotel, cueMeta, { cueOnly: true });
+  hotelMatrixSelectionCueTimer = window.setTimeout(() => {
+    hotelMatrixSelectionCueId = "";
+    applyHotelMatrixPointStateClasses();
+    hideHotelDotTooltip();
+    hotelMatrixSelectionCueTimer = 0;
+  }, HOTEL_SELECTION_CUE_DURATION_MS);
+}
+
+function showHotelDotTooltip(item, meta, options = {}) {
+  if (!hotelMatrixTooltip || !hotelMatrixSvg || !hotelMatrixShell || !item || !meta) return;
+  const cueOnly = Boolean(options.cueOnly);
+
+  hotelMatrixTooltip.innerHTML = "";
+  const title = document.createElement("p");
+  title.className = "hotel-map-dot-tooltip-title";
+  title.textContent = cueOnly ? getHotelSelectionCueLabel(item) : item.name;
+  hotelMatrixTooltip.appendChild(title);
+
+  if (!cueOnly) {
+    const body = document.createElement("p");
+    body.className = "hotel-map-dot-tooltip-body";
+    body.textContent = `${meta.priceBand || "$$"} · ${Number(item.driveMins)} min drive`;
+    hotelMatrixTooltip.appendChild(body);
+  }
+  hotelMatrixTooltip.classList.toggle("hotel-map-dot-tooltip--cue", cueOnly);
   hotelMatrixTooltip.hidden = false;
   hotelMatrixTooltip.setAttribute("aria-hidden", "false");
 
   const svgRect = hotelMatrixSvg.getBoundingClientRect();
   const viewportPadding = 10;
-  const gap = 14;
+  const gap = cueOnly ? 10 : 14;
   const scaleX = svgRect.width / Math.max(1, hotelMatrixWidth);
   const scaleY = svgRect.height / Math.max(1, hotelMatrixHeight);
   const dotX = svgRect.left + meta.cx * scaleX;
   const dotY = svgRect.top + meta.cy * scaleY;
 
   const tooltipRect = hotelMatrixTooltip.getBoundingClientRect();
-  const tooltipWidth = tooltipRect.width || 240;
-  const tooltipHeight = tooltipRect.height || 66;
+  const tooltipWidth = tooltipRect.width || (cueOnly ? 140 : 240);
+  const tooltipHeight = tooltipRect.height || (cueOnly ? 34 : 66);
 
-  let left = dotX - tooltipWidth * 0.5;
+  let left;
+  let top;
+  let side = cueOnly ? "right" : "top";
+
+  if (cueOnly) {
+    left = dotX + gap;
+    top = dotY - tooltipHeight * 0.5;
+    if (left + tooltipWidth > window.innerWidth - viewportPadding) {
+      left = dotX - tooltipWidth - gap;
+      side = "left";
+    }
+    if (top < viewportPadding) {
+      top = dotY + gap;
+      side = side === "left" ? "left-down" : "right-down";
+    } else if (top + tooltipHeight > window.innerHeight - viewportPadding) {
+      top = dotY - tooltipHeight - gap;
+      side = side === "left" ? "left-up" : "right-up";
+    }
+    left = Math.max(viewportPadding, Math.min(left, window.innerWidth - tooltipWidth - viewportPadding));
+    top = Math.max(viewportPadding, Math.min(top, window.innerHeight - tooltipHeight - viewportPadding));
+    hotelMatrixTooltip.dataset.side = side;
+    hotelMatrixTooltip.style.left = `${Math.round(left)}px`;
+    hotelMatrixTooltip.style.top = `${Math.round(top)}px`;
+    return;
+  }
+
+  left = dotX - tooltipWidth * 0.5;
   left = Math.max(viewportPadding, Math.min(left, window.innerWidth - tooltipWidth - viewportPadding));
 
-  let side = "top";
-  let top = dotY - tooltipHeight - gap;
+  top = dotY - tooltipHeight - gap;
   if (top < viewportPadding) {
     side = "bottom";
     top = dotY + gap;
@@ -2763,6 +2847,7 @@ function swapHotelDetails(item) {
 function openHotelMatrixSheet(item) {
   if (!hotelMatrixSheet || !hotelMatrixSheetContent || !item) return;
   const wasOpen = hotelSheetOpen;
+  clearHotelMatrixSelectionCue({ hideTooltip: true });
   hideHotelDotTooltip();
   hotelMatrixSheet.hidden = false;
   hotelMatrixSheetContent.replaceChildren(buildHotelDetailsCard(item));
@@ -2774,8 +2859,10 @@ function openHotelMatrixSheet(item) {
   if (hotelMatrixSheetClose) hotelMatrixSheetClose.focus({ preventScroll: true });
 }
 
-function closeHotelMatrixSheet() {
+function closeHotelMatrixSheet({ showSelectionCue = false } = {}) {
   if (!hotelMatrixSheet || !hotelSheetOpen) return;
+  const wasMobile = isHotelMatrixMobile();
+  const cueHotelId = wasMobile ? String(hotelMatrixPinnedId || "").trim() : "";
   const active = document.activeElement;
   if (active instanceof HTMLElement && hotelMatrixSheet.contains(active)) {
     active.blur();
@@ -2783,29 +2870,35 @@ function closeHotelMatrixSheet() {
   hotelMatrixSheet.hidden = true;
   hotelSheetOpen = false;
   unlockBodyScroll();
-  if (isHotelMatrixMobile() && hotelMatrixPinnedId) {
-    const pinnedHotel = getHotelById(hotelMatrixPinnedId);
-    const pinnedMeta = hotelMatrixMetaById.get(hotelMatrixPinnedId);
-    showHotelDotTooltip(pinnedHotel, pinnedMeta);
+  if (wasMobile) {
+    hotelMatrixPinnedId = "";
+    applyHotelMatrixSelection();
+    if (showSelectionCue && cueHotelId) {
+      showHotelMatrixSelectionCue(cueHotelId);
+    }
   }
 }
 
 function clearHotelMatrixSelection() {
+  clearHotelMatrixSelectionCue({ hideTooltip: true });
   hotelMatrixPinnedId = "";
-  closeHotelMatrixSheet();
+  closeHotelMatrixSheet({ showSelectionCue: false });
   applyHotelMatrixSelection();
 }
 
 function applyHotelMatrixPointStateClasses() {
   const selectedId = getActiveHotelMatrixId();
+  const cueId = isHotelMatrixMobile() ? hotelMatrixSelectionCueId : "";
   const hoveredId = canUseHotelMatrixHover() ? hotelMatrixHoveredId : "";
   const dimOthers = isHotelMatrixMobile() && Boolean(selectedId);
 
   hotelMatrixMetaById.forEach((meta, hotelId) => {
     if (!meta.group) return;
     const isActive = hotelId === selectedId;
+    const isCue = Boolean(cueId) && hotelId === cueId;
     const isHovered = !isActive && Boolean(hoveredId) && hotelId === hoveredId;
     meta.group.classList.toggle("is-active", isActive);
+    meta.group.classList.toggle("is-cue", isCue);
     meta.group.classList.toggle("is-hovered", isHovered);
     meta.group.classList.toggle("is-muted", dimOthers && !isActive);
   });
@@ -2848,9 +2941,19 @@ function applyHotelMatrixSelection() {
     }
   }
   queueHotelMatrixRender();
-  if (isHotelMatrixMobile() && pinnedHotel) {
-    const meta = hotelMatrixMetaById.get(selectedId);
-    showHotelDotTooltip(pinnedHotel, meta);
+  if (isHotelMatrixMobile()) {
+    const cueId = String(hotelMatrixSelectionCueId || "").trim();
+    if (cueId && !hotelSheetOpen) {
+      const cueHotel = getHotelById(cueId);
+      const cueMeta = hotelMatrixMetaById.get(cueId);
+      if (cueHotel && cueMeta) {
+        showHotelDotTooltip(cueHotel, cueMeta, { cueOnly: true });
+      } else {
+        hideHotelDotTooltip();
+      }
+    } else {
+      hideHotelDotTooltip();
+    }
   } else {
     hideHotelDotTooltip();
   }
@@ -3140,6 +3243,7 @@ function renderHotelMatrix() {
       if (hotelMethodSheetOpen) closeHotelMethodSheet();
 
       if (isHotelMatrixMobile()) {
+        clearHotelMatrixSelectionCue({ hideTooltip: true });
         hotelMatrixPinnedId = item.id;
         applyHotelMatrixSelection();
         openHotelMatrixSheet(item);
@@ -3245,18 +3349,18 @@ function initHotelMatrix() {
     control.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      closeHotelMatrixSheet();
-      applyHotelMatrixSelection();
+      closeHotelMatrixSheet({ showSelectionCue: isHotelMatrixMobile() });
     });
   });
 
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
-    if (hotelSheetOpen) closeHotelMatrixSheet();
+    if (hotelSheetOpen) closeHotelMatrixSheet({ showSelectionCue: false });
     if (hotelMatrixPinnedId) {
       hotelMatrixPinnedId = "";
       applyHotelMatrixSelection();
     }
+    clearHotelMatrixSelectionCue({ hideTooltip: true });
     hideHotelDotTooltip();
   });
 
@@ -3290,10 +3394,11 @@ function initHotelMatrix() {
   window.addEventListener(
     "scroll",
     () => {
-      if (!isHotelMatrixMobile() || !hotelMatrixPinnedId || hotelSheetOpen) return;
-      const pinnedHotel = getHotelById(hotelMatrixPinnedId);
-      const pinnedMeta = hotelMatrixMetaById.get(hotelMatrixPinnedId);
-      showHotelDotTooltip(pinnedHotel, pinnedMeta);
+      if (!isHotelMatrixMobile() || hotelSheetOpen) return;
+      if (!hotelMatrixSelectionCueId) return;
+      const cueHotel = getHotelById(hotelMatrixSelectionCueId);
+      const cueMeta = hotelMatrixMetaById.get(hotelMatrixSelectionCueId);
+      showHotelDotTooltip(cueHotel, cueMeta, { cueOnly: true });
     },
     { passive: true },
   );
@@ -6212,14 +6317,16 @@ function buildGuestWallImageCandidates(mediaItem, size = "w720") {
     candidates.push(url);
   };
 
-  if (fileId) {
-    addCandidate(`https://lh3.googleusercontent.com/d/${fileId}=${size}`);
-    addCandidate(`https://lh3.googleusercontent.com/d/${fileId}=w1200`);
-    addCandidate(`https://lh3.googleusercontent.com/d/${fileId}=w800`);
-  }
   addCandidate(directUrl);
   addCandidate(driveThumbnailUrl);
   addCandidate(driveViewUrl);
+  if (fileId) {
+    // Keep a stable, larger-first fallback chain that matches modal reliability.
+    addCandidate(`https://lh3.googleusercontent.com/d/${fileId}=w1600`);
+    addCandidate(`https://lh3.googleusercontent.com/d/${fileId}=w1200`);
+    addCandidate(`https://lh3.googleusercontent.com/d/${fileId}=w800`);
+    addCandidate(`https://lh3.googleusercontent.com/d/${fileId}=${size}`);
+  }
   return candidates;
 }
 
@@ -6378,7 +6485,6 @@ function finishGuestWallImageLoad(state, outcome = "loaded") {
 function startGuestWallLazyImage(imgNode, state) {
   if (!(imgNode instanceof HTMLImageElement) || !state || typeof state !== "object") return;
   if (state.loading || state.completed) return;
-  if (!imgNode.isConnected && state.context === "board") return;
 
   const candidates = Array.isArray(state.candidates) ? state.candidates : [];
   const nextSrc = String(candidates[state.candidateIndex] || "").trim();
@@ -6705,7 +6811,7 @@ function buildGuestWallMediaNode(card, context = "board") {
     const img = document.createElement("img");
     img.classList.add("guestwall-media-img", "is-loading");
     img.alt = `Uploaded by ${card.name}`;
-    img.loading = context === "board" ? "lazy" : "eager";
+    img.loading = "eager";
     img.decoding = "async";
     const fallback = document.createElement("div");
     fallback.className = "guestwall-media-fallback hidden";
@@ -6716,7 +6822,7 @@ function buildGuestWallMediaNode(card, context = "board") {
     retry.textContent = "Tap to retry";
     fallback.appendChild(retry);
 
-    const imageCandidates = buildGuestWallImageCandidates(card.media, context === "board" ? "w720" : "w1600");
+    const imageCandidates = buildGuestWallImageCandidates(card.media, "w1600");
     registerGuestWallLazyImage({
       imgNode: img,
       fallbackNode: fallback,

@@ -4835,7 +4835,9 @@ details[open] .faq-answer {
   fill: rgba(247, 241, 230, 0.98);
   stroke: rgba(75, 15, 23, 0.9);
   stroke-width: 2.2;
-  transition: fill 320ms ease, stroke 320ms ease, stroke-width 220ms ease, opacity 220ms ease;
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: fill 320ms ease, stroke 320ms ease, stroke-width 220ms ease, opacity 220ms ease, transform 220ms ease;
   outline: none;
 }
 
@@ -4868,6 +4870,26 @@ details[open] .faq-answer {
   fill: rgba(75, 15, 23, 0.98);
   stroke: rgba(75, 15, 23, 0.98);
   stroke-width: 2.4;
+  transform: scale(1);
+}
+
+.hotel-map-point.is-cue .hotel-map-dot-ring {
+  opacity: 1;
+  stroke: rgba(201, 174, 116, 0.9);
+  stroke-width: 2;
+  fill: rgba(75, 15, 23, 0.14);
+}
+
+.hotel-map-point.is-cue .hotel-map-dot-halo {
+  opacity: 1;
+  animation: hotelMapDotPulse 1000ms ease-out infinite;
+}
+
+.hotel-map-point.is-cue .hotel-map-dot {
+  fill: rgba(75, 15, 23, 0.98);
+  stroke: rgba(75, 15, 23, 0.98);
+  stroke-width: 2.5;
+  transform: scale(1.15);
 }
 
 .hotel-map-point.is-muted {
@@ -5214,6 +5236,18 @@ details[open] .faq-answer {
   transform: translateY(0) scale(1);
 }
 
+.hotel-map-dot-tooltip--cue {
+  width: auto;
+  max-width: min(180px, calc(100vw - 20px));
+  border-radius: 999px;
+  padding: 6px 10px;
+  box-shadow: 0 10px 16px rgba(21, 12, 15, 0.14);
+}
+
+.hotel-map-dot-tooltip.hotel-map-dot-tooltip--cue::after {
+  content: none;
+}
+
 .hotel-map-dot-tooltip::after {
   content: "";
   position: absolute;
@@ -5242,6 +5276,15 @@ details[open] .faq-answer {
   font-size: 0.92rem;
   font-weight: 620;
   line-height: 1.35;
+}
+
+.hotel-map-dot-tooltip--cue .hotel-map-dot-tooltip-title {
+  font-size: 0.76rem;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.01em;
 }
 
 .hotel-map-dot-tooltip-body {
