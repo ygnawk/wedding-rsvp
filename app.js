@@ -76,6 +76,7 @@ const GUEST_WALL_SESSION_CACHE_TTL_MS = 5 * 60 * 1000;
 const GUEST_WALL_DEV_SHUFFLE_SIM_ITERATIONS = 200;
 const INTERLUDE_CURTAIN_DESKTOP_PROGRESS_WINDOW = 0.33;
 const INTERLUDE_CURTAIN_MOBILE_PROGRESS_SPEED = 1.35;
+const INTERLUDE_CURTAIN_SPEED_MULTIPLIER = 1.3;
 const GUEST_WALL_LOADING_MESSAGE = "Loading guest wall…";
 const GUEST_WALL_EMPTY_MESSAGE = "Nothing here yet—check back soon.";
 const GUEST_WALL_UNAVAILABLE_MESSAGE = "Guest Wall is temporarily unavailable.";
@@ -11932,7 +11933,7 @@ function initInterludeCurtainReveal() {
       // Desktop: bind reveal to interlude section progress and finish early,
       // so the curtain is done before "Our story" is meaningfully visible.
       const sectionProgress = clamp01((vh - rect.top) / Math.max(1, vh + rect.height));
-      openProgress = clamp01(sectionProgress / INTERLUDE_CURTAIN_DESKTOP_PROGRESS_WINDOW);
+      openProgress = clamp01((sectionProgress / INTERLUDE_CURTAIN_DESKTOP_PROGRESS_WINDOW) * INTERLUDE_CURTAIN_SPEED_MULTIPLIER);
 
       const storyTop = storySection instanceof HTMLElement ? storySection.getBoundingClientRect().top : Number.POSITIVE_INFINITY;
       const storyEntering = storyTop <= vh * 0.9;
@@ -11946,7 +11947,7 @@ function initInterludeCurtainReveal() {
       const start = vh * 0.48;
       const end = -vh * 0.42;
       const t = (start - rect.top) / Math.max(1, start - end);
-      openProgress = clamp01(t * INTERLUDE_CURTAIN_MOBILE_PROGRESS_SPEED);
+      openProgress = clamp01(t * INTERLUDE_CURTAIN_MOBILE_PROGRESS_SPEED * INTERLUDE_CURTAIN_SPEED_MULTIPLIER);
     }
 
     if (prefersReduced()) {
