@@ -432,7 +432,7 @@ let guestWallSlotNodes = [];
 let guestWallActiveSlotNode = null;
 let guestWallAutoplayTimer = null;
 let guestWallMobileIndex = 0;
-let guestWallPaused = false;
+let guestWallPaused = true;
 let guestWallIsShuffling = false;
 let guestWallDetailOpen = false;
 let guestWallResizeRaf = null;
@@ -9157,7 +9157,7 @@ async function applyGuestWallPayload(payload, { fromCache = false } = {}) {
   setGuestWallControlsDisabled(false);
   guestWallLayoutCycle = 0;
   guestWallVisibleCardIds = [];
-  setGuestWallPaused(false);
+  setGuestWallPaused(true);
   await new Promise((resolve) => {
     window.requestAnimationFrame(resolve);
   });
