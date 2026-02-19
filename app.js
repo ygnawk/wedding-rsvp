@@ -1103,6 +1103,7 @@ const STORY_OVERRIDES = {
   "2020-covid-v2.jpg": { rotate: 0, objPos: "50% 25%" },
   "2020-covid-from-heic.jpg": { rotate: 0, objPos: "50% 25%" },
   "2020 - COVID.HEIC": { rotate: 0, objPos: "50% 25%" },
+  "2013-army.webp": { rotate: 0, objPos: "50% 20%" },
   "2024-proposal.jpg": { rotate: 0, objPos: "50% 44%" },
   "2024-proposal-v2.jpg": { rotate: 0, objPos: "50% 44%" },
   "2024 - She said yes.JPG": { rotate: 0, objPos: "50% 44%" },
