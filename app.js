@@ -1017,17 +1017,17 @@ const STORY_COPY = {
   },
   2020: {
     title: "2020 — NYC",
-    blurb: "Moved during COVID. Oops.",
+    blurb: "Graduated and moved to NYC during COVID. Oops.",
     longCaption: "We moved to New York in the middle of COVID and learned flexibility very quickly.",
   },
   2021: {
     title: "2021 — SF",
-    blurb: "SF for the outdoors. But we couldn't afford a car.",
+    blurb: "Escaped to SF for the outdoors. But we couldn't afford a car",
     longCaption: "California sun, lots of optimism, and absolutely no car budget. We still made it fun.",
   },
   2023: {
     title: "2023 — Asia year",
-    blurb: "Mostly in Tokyo.",
+    blurb: "Gap year of sorts - mostly in Tokyo",
     longCaption: "Asia year, mostly in Tokyo — Miki quit her job, YJ found projects in JP.",
   },
   2024: {
