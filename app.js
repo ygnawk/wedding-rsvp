@@ -8,13 +8,21 @@ const ENABLE_FOCAL_TUNER = IS_LOCAL_DEV && ["1", "true", "yes", "on"].includes(D
 const DEBUG_SLOT_PARAM = String(new URLSearchParams(window.location.search).get("debugSlots") || "").toLowerCase();
 const SHOW_SLOT_DEBUG = IS_LOCAL_DEV && ["1", "true", "yes", "on"].includes(DEBUG_SLOT_PARAM);
 let debugRsvpStorageFlag = "";
+let debugAccordionStorageFlag = "";
 try {
   debugRsvpStorageFlag = String(window.localStorage.getItem("debugRsvp") || "").toLowerCase();
 } catch (_error) {
   debugRsvpStorageFlag = "";
 }
+try {
+  debugAccordionStorageFlag = String(window.localStorage.getItem("debugAccordion") || "").toLowerCase();
+} catch (_error) {
+  debugAccordionStorageFlag = "";
+}
 const DEBUG_RSVP_PARAM = String(new URLSearchParams(window.location.search).get("debugRsvp") || debugRsvpStorageFlag).toLowerCase();
 const DEBUG_RSVP = ["1", "true", "yes", "on"].includes(DEBUG_RSVP_PARAM);
+const DEBUG_ACCORDION_PARAM = String(new URLSearchParams(window.location.search).get("debugAccordion") || debugAccordionStorageFlag).toLowerCase();
+const DEBUG_ACCORDION = IS_LOCAL_DEV && ["1", "true", "yes", "on"].includes(DEBUG_ACCORDION_PARAM);
 
 const SECTION_IDS = ["top", "interlude", "story", "venue", "schedule", "rsvp", "faq", "stay", "things-to-do", "makan", "travel-visa", "gallery"];
 
@@ -74,10 +82,12 @@ const GUEST_WALL_IMAGE_OBSERVER_MARGIN = "240px";
 const GUEST_WALL_IMAGE_STALL_TIMEOUT_MS = 10000;
 const GUEST_WALL_SESSION_CACHE_KEY = "guestwall-pinboard-cache-v1";
 const GUEST_WALL_SESSION_CACHE_TTL_MS = 5 * 60 * 1000;
-const GUEST_WALL_DEV_SHUFFLE_SIM_ITERATIONS = 200;
+const GUEST_WALL_DEV_SHUFFLE_SIM_ITERATIONS = 1000;
 const INTERLUDE_CURTAIN_DESKTOP_PROGRESS_WINDOW = 0.33;
-const INTERLUDE_CURTAIN_MOBILE_PROGRESS_SPEED = 1.35;
+const INTERLUDE_CURTAIN_MOBILE_PROGRESS_SPEED = 2.025; // ~50% faster on mobile only
 const INTERLUDE_CURTAIN_SPEED_MULTIPLIER = 1.3;
+const MOBILE_ACCORDION_ANCHOR_MIN_DELTA_PX = 6;
+const MOBILE_ACCORDION_INTERACTION_TTL_MS = 1200;
 const GUEST_WALL_LOADING_MESSAGE = "Loading guest wall…";
 const GUEST_WALL_EMPTY_MESSAGE = "Nothing here yet—check back soon.";
 const GUEST_WALL_UNAVAILABLE_MESSAGE = "Guest Wall is temporarily unavailable.";
@@ -778,6 +788,10 @@ const storyMobileCard = document.getElementById("storyMobileCard");
 const storyMobileViewFullBtn = document.getElementById("storyMobileViewFullBtn");
 const storyMobileImgCurrent = document.getElementById("storyMobileImgCurrent");
 const storyMobileImgNext = document.getElementById("storyMobileImgNext");
+const storyMobileLayerCurrent = storyMobileCard ? storyMobileCard.querySelector(".story-mobile-layer.is-current") : null;
+const storyMobileLayerNext = storyMobileCard ? storyMobileCard.querySelector(".story-mobile-layer.is-next") : null;
+const storyMobileBgCurrent = document.getElementById("storyMobileBgCurrent");
+const storyMobileBgNext = document.getElementById("storyMobileBgNext");
 const storyMobileYear = document.getElementById("storyMobileYear");
 const storyMobileBlurb = document.getElementById("storyMobileBlurb");
 const storyScrollyTrack = document.getElementById("storyScrollyTrack");
@@ -857,6 +871,12 @@ let makanLegalScrollLocked = false;
 let makanLegalTriggerArmed = false;
 let makanTypeAccordions = [];
 let makanBulkToggle = false;
+let mobileAccordionInteractionCounter = 0;
+let mobileAccordionInteractionState = null;
+let mobileAccordionCorrectionToken = 0;
+let mobileAccordionDebugPatched = false;
+let mobileAccordionDebugHashListenerBound = false;
+let mobileAccordionDebugToggleActive = false;
 
 const jumpMenuWrap = document.getElementById("jumpMenuWrap");
 const jumpWallButton = document.getElementById("jumpWallButton");
@@ -1261,6 +1281,191 @@ function isMobileViewport() {
   return window.matchMedia("(max-width: 768px)").matches;
 }
 
+function isMobileAccordionViewport() {
+  return window.matchMedia("(max-width: 760px)").matches;
+}
+
+function describeAccordionDebugNode(node) {
+  if (!(node instanceof Element)) return "(unknown)";
+  const parts = [node.tagName.toLowerCase()];
+  if (node.id) parts.push(`#${node.id}`);
+  if (node.classList.length) {
+    parts.push(
+      `.${Array.from(node.classList)
+        .slice(0, 2)
+        .join(".")}`,
+    );
+  }
+  return parts.join("");
+}
+
+function initAccordionDebugHooks() {
+  if (!DEBUG_ACCORDION) return;
+
+  if (!mobileAccordionDebugHashListenerBound) {
+    window.addEventListener("hashchange", () => {
+      if (!mobileAccordionDebugToggleActive) return;
+      console.info("[accordion-debug] hashchange", {
+        hash: window.location.hash || "",
+        scrollY: Math.round(window.scrollY || 0),
+      });
+    });
+    mobileAccordionDebugHashListenerBound = true;
+  }
+
+  if (mobileAccordionDebugPatched) return;
+  const nativeScrollIntoView = Element.prototype.scrollIntoView;
+  Element.prototype.scrollIntoView = function patchedScrollIntoView(...args) {
+    if (mobileAccordionDebugToggleActive) {
+      console.info("[accordion-debug] scrollIntoView", {
+        node: describeAccordionDebugNode(this),
+        args,
+        scrollY: Math.round(window.scrollY || 0),
+      });
+    }
+    return nativeScrollIntoView.apply(this, args);
+  };
+  mobileAccordionDebugPatched = true;
+}
+
+function recordMobileAccordionInteraction(anchor, source = "unknown") {
+  if (!(anchor instanceof HTMLElement)) return;
+  mobileAccordionInteractionCounter += 1;
+  mobileAccordionInteractionState = {
+    id: mobileAccordionInteractionCounter,
+    anchor,
+    source,
+    startedAt: performance.now(),
+    beforeTop: anchor.getBoundingClientRect().top,
+    beforeScrollY: window.scrollY || window.pageYOffset || 0,
+    beforeHash: window.location.hash || "",
+    beforeActiveNode: describeAccordionDebugNode(document.activeElement),
+  };
+  if (DEBUG_ACCORDION) {
+    console.info("[accordion-debug] interaction", {
+      id: mobileAccordionInteractionState.id,
+      source,
+      anchor: describeAccordionDebugNode(anchor),
+      beforeTop: Number(mobileAccordionInteractionState.beforeTop.toFixed(2)),
+      scrollY: Math.round(mobileAccordionInteractionState.beforeScrollY),
+      hash: mobileAccordionInteractionState.beforeHash,
+    });
+  }
+}
+
+function getActiveMobileAccordionInteraction() {
+  const state = mobileAccordionInteractionState;
+  if (!state) return null;
+  if (!(state.anchor instanceof HTMLElement) || !state.anchor.isConnected) return null;
+  if (performance.now() - state.startedAt > MOBILE_ACCORDION_INTERACTION_TTL_MS) return null;
+  return state;
+}
+
+function bindMobileAccordionAnchorLock(detailsNode, summaryNode) {
+  if (!(detailsNode instanceof HTMLDetailsElement)) return;
+  if (detailsNode.dataset.mobileAnchorLockBound === "true") return;
+
+  const summary =
+    summaryNode instanceof HTMLElement
+      ? summaryNode
+      : detailsNode.querySelector("summary");
+  if (!(summary instanceof HTMLElement)) return;
+
+  initAccordionDebugHooks();
+
+  const captureAnchorTop = () => {
+    if (!isMobileAccordionViewport()) return;
+    recordMobileAccordionInteraction(summary, "pointer");
+  };
+
+  summary.addEventListener("pointerdown", captureAnchorTop, { passive: true });
+  summary.addEventListener("touchstart", captureAnchorTop, { passive: true });
+  summary.addEventListener("click", () => {
+    if (!isMobileAccordionViewport()) return;
+    const active = getActiveMobileAccordionInteraction();
+    if (active && active.anchor === summary && performance.now() - active.startedAt < 180) return;
+    recordMobileAccordionInteraction(summary, "click");
+  });
+  summary.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    recordMobileAccordionInteraction(summary, `keyboard:${event.key}`);
+  });
+
+  detailsNode.addEventListener("toggle", () => {
+    if (!isMobileAccordionViewport()) {
+      return;
+    }
+
+    const interaction = getActiveMobileAccordionInteraction();
+    const anchor = interaction?.anchor instanceof HTMLElement ? interaction.anchor : summary;
+    const beforeTop = Number.isFinite(interaction?.beforeTop) ? interaction.beforeTop : anchor.getBoundingClientRect().top;
+    const beforeScrollY = Number.isFinite(interaction?.beforeScrollY) ? interaction.beforeScrollY : window.scrollY || window.pageYOffset || 0;
+    const beforeHash = String(interaction?.beforeHash || window.location.hash || "");
+    const beforeActiveNode = String(interaction?.beforeActiveNode || describeAccordionDebugNode(document.activeElement));
+    const correctionToken = ++mobileAccordionCorrectionToken;
+    mobileAccordionDebugToggleActive = DEBUG_ACCORDION;
+    if (DEBUG_ACCORDION) {
+      console.info("[accordion-debug] toggle:start", {
+        token: correctionToken,
+        detail: describeAccordionDebugNode(detailsNode),
+        summary: describeAccordionDebugNode(summary),
+        anchor: describeAccordionDebugNode(anchor),
+        open: detailsNode.open,
+        beforeTop: Number(beforeTop.toFixed(2)),
+        beforeScrollY: Math.round(beforeScrollY),
+        beforeHash,
+        beforeActiveNode,
+        source: interaction?.source || "fallback",
+      });
+    }
+
+    const adjustViewport = (stage) => {
+      if (correctionToken !== mobileAccordionCorrectionToken) return;
+      const afterTop = anchor.getBoundingClientRect().top;
+      const delta = afterTop - beforeTop;
+      const afterScrollY = window.scrollY || window.pageYOffset || 0;
+      const afterHash = window.location.hash || "";
+      const afterActiveNode = describeAccordionDebugNode(document.activeElement);
+      if (DEBUG_ACCORDION) {
+        console.info("[accordion-debug] toggle:measure", {
+          token: correctionToken,
+          stage,
+          detail: describeAccordionDebugNode(detailsNode),
+          anchor: describeAccordionDebugNode(anchor),
+          delta: Number(delta.toFixed(2)),
+          beforeTop: Number(beforeTop.toFixed(2)),
+          afterTop: Number(afterTop.toFixed(2)),
+          beforeScrollY: Math.round(beforeScrollY),
+          afterScrollY: Math.round(afterScrollY),
+          hashChanged: beforeHash !== afterHash,
+          beforeHash,
+          afterHash,
+          focusChanged: beforeActiveNode !== afterActiveNode,
+          beforeActiveNode,
+          afterActiveNode,
+        });
+      }
+      if (Math.abs(delta) <= MOBILE_ACCORDION_ANCHOR_MIN_DELTA_PX) return;
+      window.scrollBy({ top: delta, left: 0, behavior: "auto" });
+    };
+
+    window.requestAnimationFrame(() => {
+      adjustViewport("raf-1");
+      window.requestAnimationFrame(() => {
+        adjustViewport("raf-2");
+        window.setTimeout(() => {
+          adjustViewport("timeout-120");
+          if (correctionToken === mobileAccordionCorrectionToken) {
+            mobileAccordionDebugToggleActive = false;
+          }
+        }, 120);
+      });
+    });
+  });
+
+  detailsNode.dataset.mobileAnchorLockBound = "true";
+}
+
 function scrollToElement(target, options = {}) {
   if (!(target instanceof Element)) return;
   const allowMobile = options.allowMobile === true;
@@ -1580,6 +1785,7 @@ function initThingsThemes() {
   if (!detailsNodes.length) return;
 
   detailsNodes.forEach((node) => {
+    bindMobileAccordionAnchorLock(node);
     node.open = false;
   });
 
@@ -2090,6 +2296,7 @@ function renderMakanMenuRows() {
     accordion.appendChild(panel);
     makanMenuRows.appendChild(accordion);
     makanTypeAccordions.push(accordion);
+    bindMobileAccordionAnchorLock(accordion, summary);
 
     accordion.addEventListener("toggle", () => {
       if (makanBulkToggle) return;
@@ -5644,70 +5851,51 @@ function drawGuestWallDeckIds({
 
 function pickGuestWallDeckSelection({
   slotCount = 0,
-  noteTarget = 0,
   state = guestWallDeckState,
   sources = getGuestWallDeckSources(),
 } = {}) {
   const safeSlotCount = Math.max(0, Math.floor(Number(slotCount) || 0));
   if (!safeSlotCount) return [];
-
-  const used = new Set();
-  const selected = [];
-  const safeNoteTarget = clampNumber(Math.floor(Number(noteTarget) || 0), 0, safeSlotCount);
-  const safeMediaTarget = Math.max(0, safeSlotCount - safeNoteTarget);
-
-  selected.push(
-    ...drawGuestWallDeckIds({
-      kind: "note",
-      count: safeNoteTarget,
-      usedIds: used,
-      state,
-      sources,
-    }),
-  );
-  selected.push(
-    ...drawGuestWallDeckIds({
-      kind: "media",
-      count: safeMediaTarget,
-      usedIds: used,
-      state,
-      sources,
-    }),
-  );
-
-  if (selected.length < safeSlotCount) {
-    selected.push(
-      ...drawGuestWallDeckIds({
-        kind: "all",
-        count: safeSlotCount - selected.length,
-        usedIds: used,
-        state,
-        sources,
-      }),
-    );
-  }
-
-  return shuffleItems(selected).slice(0, safeSlotCount);
+  // Unbiased selection: draw from the combined deck (without replacement).
+  return drawGuestWallDeckIds({
+    kind: "all",
+    count: safeSlotCount,
+    usedIds: new Set(),
+    state,
+    sources,
+  });
 }
 
-function runGuestWallShuffleCoverageSimulation({ iterations = GUEST_WALL_DEV_SHUFFLE_SIM_ITERATIONS, slotCount = 0, mobile = false } = {}) {
+function runGuestWallShuffleCoverageSimulation({
+  iterations = GUEST_WALL_DEV_SHUFFLE_SIM_ITERATIONS,
+  slotCount = 0,
+  mobile = false,
+  slotConfigs = [],
+} = {}) {
   const safeIterations = Math.max(1, Math.floor(Number(iterations) || 1));
   const safeSlotCount = Math.max(1, Math.floor(Number(slotCount) || 1));
   const sources = getGuestWallDeckSources();
   const simState = createGuestWallDeckState();
   syncGuestWallDeckState({ preserveUnseen: false }, simState, sources);
+  const activeSlots = Array.isArray(slotConfigs) && slotConfigs.length
+    ? slotConfigs.slice(0, safeSlotCount)
+    : Array.from({ length: safeSlotCount }, (_, slotIndex) => ({
+        id: `sim-${mobile ? "mobile" : "desktop"}-${slotIndex}`,
+        role: slotIndex === 0 ? "hero" : "support",
+        kind: "any",
+        format: "any",
+      }));
 
   const counts = new Map(sources.allIds.map((id) => [id, 0]));
-  const noteTarget = getGuestWallTargetNoteCount(safeSlotCount, mobile);
 
   for (let index = 0; index < safeIterations; index += 1) {
     const picks = pickGuestWallDeckSelection({
       slotCount: safeSlotCount,
-      noteTarget,
       state: simState,
       sources,
     });
-    picks.forEach((id) => {
+    const rendered = assignGuestWallCardsToSlots(activeSlots, picks);
+    rendered.forEach((id) => {
       counts.set(id, (counts.get(id) || 0) + 1);
     });
   }
@@ -5716,11 +5904,18 @@ function runGuestWallShuffleCoverageSimulation({ iterations = GUEST_WALL_DEV_SHU
   const min = values.length ? Math.min(...values) : 0;
   const max = values.length ? Math.max(...values) : 0;
   const avg = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+  const expected = values.length ? (safeIterations * safeSlotCount) / values.length : 0;
+  const highOutliers = Array.from(counts.entries())
+    .filter(([, value]) => expected > 0 && value > expected * 2)
+    .map(([id, value]) => ({ id, count: value }));
+  const lowOutliers = Array.from(counts.entries())
+    .filter(([, value]) => expected > 0 && value < expected * 0.5)
+    .map(([id, value]) => ({ id, count: value }));
   const neverShown = Array.from(counts.entries())
     .filter(([, value]) => value <= 0)
     .map(([id]) => id);
 
-  return { counts, min, max, avg, neverShown };
+  return { counts, min, max, avg, expected, neverShown, highOutliers, lowOutliers };
 }
 
 function formatGuestWallShortIds(ids, max = 8) {
@@ -5748,7 +5943,7 @@ function ensureGuestWallDevDiagnosticsNode() {
     <p class="guestwall-dev-debug-summary"></p>
     <p class="guestwall-dev-debug-ids"></p>
     <div class="guestwall-dev-debug-actions">
-      <button type="button" class="guestwall-dev-debug-btn">Run 200 shuffles</button>
+      <button type="button" class="guestwall-dev-debug-btn">Run ${GUEST_WALL_DEV_SHUFFLE_SIM_ITERATIONS} shuffles</button>
     </div>
   `;
   const controls = guestWallPinboardView.querySelector(".guestwall-controls");
@@ -5765,13 +5960,22 @@ function ensureGuestWallDevDiagnosticsNode() {
       const simulation = runGuestWallShuffleCoverageSimulation({
         iterations: GUEST_WALL_DEV_SHUFFLE_SIM_ITERATIONS,
         slotCount: visibleCount,
+        slotConfigs: guestWallActiveSlotConfig.slice(0, visibleCount),
         mobile: isGuestWallMobileView(),
       });
       console.info(
         `[guestwall][shuffle-sim] iterations=${GUEST_WALL_DEV_SHUFFLE_SIM_ITERATIONS} slotCount=${visibleCount} total=${
           guestWallCards.length
-        } min=${simulation.min} max=${simulation.max} avg=${simulation.avg.toFixed(2)} neverShown=${simulation.neverShown.length}`,
-        simulation.neverShown.length ? { neverShown: simulation.neverShown } : {},
+        } min=${simulation.min} max=${simulation.max} avg=${simulation.avg.toFixed(2)} expected=${simulation.expected.toFixed(
+          2,
+        )} neverShown=${simulation.neverShown.length} highOutliers=${simulation.highOutliers.length} lowOutliers=${simulation.lowOutliers.length}`,
+        simulation.neverShown.length || simulation.highOutliers.length || simulation.lowOutliers.length
+          ? {
+              neverShown: simulation.neverShown,
+              highOutliers: simulation.highOutliers,
+              lowOutliers: simulation.lowOutliers,
+            }
+          : {},
       );
     });
   }
@@ -6931,29 +7135,20 @@ function clearGuestWallAutoplayTimer() {
   guestWallAutoplayTimer = null;
 }
 
-function getGuestWallSeededOrder(ids, seedKey = "") {
-  const list = Array.isArray(ids) ? ids.filter(Boolean).map((id) => String(id)) : [];
-  return list
-    .map((id, index) => ({
-      id,
-      rank: hashStringToUint32(`${seedKey}:${id}:${index}`),
-    }))
-    .sort((a, b) => {
-      if (a.rank !== b.rank) return a.rank - b.rank;
-      return a.id.localeCompare(b.id);
-    })
-    .map((entry) => entry.id);
-}
-
-function getGuestWallTargetNoteCount(slotCount, mobile = false) {
+function getGuestWallTargetNoteCount(slotCount) {
   const safeSlots = Math.max(0, Math.floor(Number(slotCount) || 0));
   if (!safeSlots) return 0;
   const noteCount = guestWallCards.filter((card) => card?.kind === "note").length;
   const mediaCount = guestWallCards.filter((card) => card?.kind === "media").length;
   if (!noteCount) return 0;
-  let target = mobile ? 1 : isGuestWallTabletView() ? 2 : 2;
-  target = Math.min(target, noteCount, safeSlots);
-  if (mediaCount > 0) target = Math.min(target, Math.max(0, safeSlots - 1));
+  const total = noteCount + mediaCount;
+  if (total <= 0) return 0;
+  let target = Math.round((safeSlots * noteCount) / total);
+  target = clampNumber(target, 0, Math.min(noteCount, safeSlots));
+  // Keep both card types represented when possible without creating heavy bias.
+  if (mediaCount > 0 && noteCount > 0 && safeSlots > 1) {
+    target = clampNumber(target, 1, Math.min(noteCount, safeSlots - 1));
+  }
   return target;
 }
 
@@ -6963,14 +7158,12 @@ function ensureGuestWallVisibleIds(slotCount, { reshuffle = false, mobile = fals
     guestWallVisibleCardIds = [];
     return;
   }
-  const noteTarget = getGuestWallTargetNoteCount(slotCount, mobile);
   const sources = getGuestWallDeckSources();
   syncGuestWallDeckState({ preserveUnseen: true }, guestWallDeckState, sources);
 
   if (reshuffle || !guestWallVisibleCardIds.length) {
     guestWallVisibleCardIds = pickGuestWallDeckSelection({
       slotCount,
-      noteTarget,
       state: guestWallDeckState,
       sources,
     });
@@ -6990,25 +7183,6 @@ function ensureGuestWallVisibleIds(slotCount, { reshuffle = false, mobile = fals
       sources,
     });
     next.push(...backfill);
-  }
-
-  const currentNoteCount = next.filter((id) => guestWallCardById.get(id)?.kind === "note").length;
-  if (noteTarget > currentNoteCount) {
-    const neededNotes = noteTarget - currentNoteCount;
-    const used = new Set(next);
-    const replacementNotes = drawGuestWallDeckIds({
-      kind: "note",
-      count: neededNotes,
-      usedIds: used,
-      state: guestWallDeckState,
-      sources,
-    });
-    for (let i = 0; i < replacementNotes.length; i += 1) {
-      const replacement = replacementNotes[i];
-      const replaceIndex = next.findIndex((id) => guestWallCardById.get(id)?.kind !== "note");
-      if (replaceIndex < 0) break;
-      next[replaceIndex] = replacement;
-    }
   }
 
   guestWallVisibleCardIds = next;
@@ -8005,15 +8179,24 @@ function assignGuestWallCardsToSlots(slotConfigs, requestedIds) {
 
   const requested = Array.isArray(requestedIds) ? requestedIds : [];
   const allIds = guestWallCards.map((card) => card.id);
-  const fallbackOrder = getGuestWallSeededOrder(allIds, `gw-assign-fallback:${guestWallLayoutCycle}`);
-  const combined = [...requested, ...fallbackOrder];
   const seen = new Set();
-  const uniquePool = combined.filter((id) => {
+  const uniqueRequested = requested.filter((id) => {
     const key = String(id || "");
     if (!key || !guestWallCardById.has(key) || seen.has(key)) return false;
     seen.add(key);
     return true;
   });
+  const uniquePool = [...uniqueRequested];
+  if (uniquePool.length < slots.length) {
+    const fallbackOrder = shuffleItems(allIds);
+    fallbackOrder.forEach((id) => {
+      if (uniquePool.length >= slots.length) return;
+      const key = String(id || "");
+      if (!key || !guestWallCardById.has(key) || seen.has(key)) return;
+      seen.add(key);
+      uniquePool.push(key);
+    });
+  }
 
   const mediaQueue = uniquePool.filter((id) => guestWallCardById.get(id)?.kind === "media");
   const noteQueue = uniquePool.filter((id) => guestWallCardById.get(id)?.kind === "note");
@@ -8022,10 +8205,7 @@ function assignGuestWallCardsToSlots(slotConfigs, requestedIds) {
   const canCardFitSlot = (slotConfig, id) => {
     const card = guestWallCardById.get(id);
     if (!card) return false;
-    const slotKind = getGuestWallSlotKind(slotConfig);
     const slotFormat = getGuestWallSlotFormat(slotConfig);
-    if (slotKind === "note") return card.kind === "note";
-    if (slotKind === "media") return card.kind === "media";
     if (slotFormat === "wide") return card.kind === "media";
     return true;
   };
@@ -8039,7 +8219,7 @@ function assignGuestWallCardsToSlots(slotConfigs, requestedIds) {
 
   const assignedByIndex = Array.from({ length: slots.length }, () => "");
   slots.forEach((slotConfig, slotIndex) => {
-    const requestedId = String(requested[slotIndex] || "");
+    const requestedId = String(uniqueRequested[slotIndex] || "");
     if (!requestedId || used.has(requestedId)) return;
     if (!canCardFitSlot(slotConfig, requestedId)) return;
     assignedByIndex[slotIndex] = requestedId;
@@ -8649,7 +8829,7 @@ function renderGuestWallDesktop({ reshuffle = false } = {}) {
   const hasNotes = guestWallCards.some((card) => card?.kind === "note");
   const densityCap = hasNotes ? Math.max(3, slotCap - 1) : slotCap;
   const slotCount = Math.min(Math.max(0, densityCap), guestWallCards.length, GUEST_WALL_DESKTOP_VISIBLE_SLOTS);
-  const noteSlotTarget = getGuestWallTargetNoteCount(slotCount, false);
+  const noteSlotTarget = getGuestWallTargetNoteCount(slotCount);
   const containerRect = {
     ...guestWallPinboard.getBoundingClientRect(),
     width: measuredSize.w,
@@ -8725,11 +8905,9 @@ function buildGuestWallMobileDeck(deckSize, reshuffle = false) {
   const sources = getGuestWallDeckSources();
   if (!sources.allIds.length) return [];
   syncGuestWallDeckState({ preserveUnseen: true }, guestWallDeckState, sources);
-  const noteTarget = getGuestWallTargetNoteCount(limit, true);
   if (reshuffle || !guestWallVisibleCardIds.length) {
     return pickGuestWallDeckSelection({
       slotCount: limit,
-      noteTarget,
       state: guestWallDeckState,
       sources,
     });
@@ -8746,21 +8924,7 @@ function buildGuestWallMobileDeck(deckSize, reshuffle = false) {
     sources,
   });
   const next = [...retained, ...backfill];
-  const noteCount = next.filter((id) => guestWallCardById.get(id)?.kind === "note").length;
-  if (noteTarget > noteCount) {
-    const replacementNotes = drawGuestWallDeckIds({
-      kind: "note",
-      count: noteTarget - noteCount,
-      usedIds: new Set(next),
-      state: guestWallDeckState,
-      sources,
-    });
-    replacementNotes.forEach((replacementId) => {
-      const replaceIndex = next.findIndex((id) => guestWallCardById.get(id)?.kind !== "note");
-      if (replaceIndex >= 0) next[replaceIndex] = replacementId;
-    });
-  }
-  return shuffleItems(next).slice(0, limit);
+  return next.slice(0, limit);
 }
 
 function startGuestWallAutoplayInterval() {
@@ -9306,7 +9470,7 @@ async function loadGuestWallPinboard({ refresh = false, force = false } = {}) {
           payload = await fetchGuestbookPage({
             mode: "pinboard",
             limit: getGuestWallPinboardInitialRequestLimit(),
-            refresh,
+            refresh: refresh || attemptIndex > 0,
             timeoutMs: getGuestWallRequestTimeoutMs(attemptIndex),
             attempt: attemptNumber,
           });
@@ -9314,6 +9478,17 @@ async function loadGuestWallPinboard({ refresh = false, force = false } = {}) {
             guestWallFirstResponseLogged = true;
             const responseMs = Math.round(performance.now() - guestWallLoadStartedAt);
             console.info(`[guestwall][perf] first_response_ms=${responseMs} items=${Array.isArray(payload.items) ? payload.items.length : 0}`);
+          }
+          const payloadItems = Array.isArray(payload?.items) ? payload.items.length : 0;
+          const hasRetryRemaining = attemptIndex < maxAttempts - 1;
+          if (payloadItems === 0 && hasRetryRemaining) {
+            console.warn(`[guestwall][retry] attempt=${attemptNumber} received=0_items remaining=true`);
+            if (guestWallLoadState === "loading") {
+              setGuestWallStatus(`${GUEST_WALL_LOADING_MESSAGE} Syncing new posts…`);
+            }
+            await waitGuestWallRetryDelay(attemptIndex);
+            payload = null;
+            continue;
           }
           break;
         } catch (error) {
@@ -9334,6 +9509,15 @@ async function loadGuestWallPinboard({ refresh = false, force = false } = {}) {
       }
       if (!payload) throw attemptError || new Error(GUEST_WALL_UNAVAILABLE_MESSAGE);
       if (requestToken !== guestWallRequestToken) return;
+      const payloadItems = Array.isArray(payload?.items) ? payload.items.length : 0;
+      if (payloadItems === 0 && hasSeededItems && guestWallCards.length) {
+        console.warn("[guestwall] received empty payload; preserving seeded cards");
+        setGuestWallLoadState("success");
+        setGuestWallStatus(GUEST_WALL_READY_MESSAGE);
+        setGuestWallControlsDisabled(false);
+        clearGuestWallSlowMessageTimers();
+        return;
+      }
 
       writeGuestWallSessionCache(payload);
       clearGuestWallSlowMessageTimers();
@@ -9526,6 +9710,10 @@ function initFaqAccordionGroups() {
   };
 
   groupNodes.forEach((group) => {
+    bindMobileAccordionAnchorLock(group);
+  });
+
+  groupNodes.forEach((group) => {
     group.addEventListener("toggle", () => {
       if (!group.open) return;
       groupNodes.forEach((other) => {
@@ -9545,6 +9733,7 @@ function initFaqAccordionGroups() {
   };
 
   detailsNodes.forEach((node) => {
+    bindMobileAccordionAnchorLock(node);
     node.addEventListener("toggle", () => {
       if (!node.open) return;
       const parentGroup = node.closest(".faq-group-disclosure");
@@ -10845,11 +11034,11 @@ function waitForImageElementReady(img, src) {
 
     let settled = false;
     const cleanup = () => {
-      img.onload = null;
-      img.onerror = null;
+      img.removeEventListener("load", onLoad);
+      img.removeEventListener("error", onError);
     };
 
-    img.onload = async () => {
+    const onLoad = async () => {
       if (settled) return;
       settled = true;
       cleanup();
@@ -10861,16 +11050,18 @@ function waitForImageElementReady(img, src) {
       resolve();
     };
 
-    img.onerror = (error) => {
+    const onError = (error) => {
       if (settled) return;
       settled = true;
       cleanup();
       reject(error || new Error("image load failed"));
     };
 
+    img.addEventListener("load", onLoad);
+    img.addEventListener("error", onError);
     img.src = src;
-    if (img.complete) {
-      img.onload?.();
+    if (img.complete && img.naturalWidth > 0) {
+      onLoad();
     }
   });
 }
@@ -10880,6 +11071,36 @@ function storyCssUrl(src) {
   if (!value) return "none";
   const escaped = value.replace(/"/g, '\\"');
   return `url("${escaped}")`;
+}
+
+function setStoryMobileLayerBackground(layerBg, imageSrc) {
+  if (!(layerBg instanceof HTMLElement)) return;
+  layerBg.style.setProperty("--storyMobileLayerBg", storyCssUrl(imageSrc));
+}
+
+function setStoryMobileLayerLoading(layer, loading) {
+  if (!(layer instanceof HTMLElement)) return;
+  layer.classList.toggle("is-loading", Boolean(loading));
+}
+
+function bindStoryMobileLayerLoadState(layer, img) {
+  if (!(layer instanceof HTMLElement) || !(img instanceof HTMLImageElement)) return;
+  if (img.dataset.storyMobileLayerBound === "true") return;
+
+  const syncLoadedState = () => {
+    const stillLoading = img.classList.contains("is-loading") || !img.complete || img.naturalWidth <= 0;
+    setStoryMobileLayerLoading(layer, stillLoading);
+  };
+
+  img.addEventListener("load", () => {
+    window.requestAnimationFrame(syncLoadedState);
+  });
+  img.addEventListener("error", () => {
+    window.requestAnimationFrame(syncLoadedState);
+  });
+
+  img.dataset.storyMobileLayerBound = "true";
+  syncLoadedState();
 }
 
 function updateStoryMobilePeek(index, total) {
@@ -10991,7 +11212,15 @@ function bindStoryMobileSwipeHintObserver() {
 }
 
 async function setStoryMobileSlide(index, options = {}) {
-  if (!storyItems.length || !storyMobileImgCurrent || !storyMobileImgNext || !storyMobileYear) return;
+  if (
+    !storyItems.length ||
+    !storyMobileImgCurrent ||
+    !storyMobileImgNext ||
+    !storyMobileYear ||
+    !storyMobileLayerCurrent ||
+    !storyMobileLayerNext
+  )
+    return;
 
   const { scrollPill = true } = options;
   const mobileView = isStoryMobileView();
@@ -11002,7 +11231,7 @@ async function setStoryMobileSlide(index, options = {}) {
   updateStoryMobilePeek(safeIndex, total);
   const swapToken = ++storyMobileSwapToken;
   const imageSources = storyImageSources(item, true);
-  const imageSrc = imageSources.original || imageSources.preferred;
+  const imageSrc = imageSources.preferred || imageSources.original;
   const fallbackSrc = imageSources.fallback;
   if (IS_LOCAL_DEV) {
     console.info("[story] selected image", {
@@ -11013,8 +11242,10 @@ async function setStoryMobileSlide(index, options = {}) {
     });
   }
 
-  applyStoryImagePresentation(storyMobileImgCurrent, item, mobileView, fallbackSrc, imageSrc);
+  setStoryMobileLayerLoading(storyMobileLayerNext, true);
+  setStoryMobileLayerBackground(storyMobileBgNext, imageSrc);
   applyStoryImagePresentation(storyMobileImgNext, item, mobileView, fallbackSrc, imageSrc);
+  storyMobileImgNext.src = imageSrc;
 
   try {
     await preloadStoryImage(imageSrc);
@@ -11029,27 +11260,27 @@ async function setStoryMobileSlide(index, options = {}) {
     imageReady = true;
   } catch (_error) {
     // Broken preferred source is handled by fallback on the element itself.
-    storyMobileImgNext.src = imageSrc;
   }
   if (swapToken !== storyMobileSwapToken) return;
+  if (imageReady) setStoryMobileLayerLoading(storyMobileLayerNext, false);
 
   if (!storyMobileImgCurrent.src || !storyMobileImgCurrent.getAttribute("src")) {
+    setStoryMobileLayerLoading(storyMobileLayerCurrent, true);
+    setStoryMobileLayerBackground(storyMobileBgCurrent, imageSrc);
+    applyStoryImagePresentation(storyMobileImgCurrent, item, mobileView, fallbackSrc, imageSrc);
     storyMobileImgCurrent.src = imageSrc;
-    if (storyMobileCard) {
-      storyMobileCard.classList.remove("is-swapping");
-      storyMobileCard.classList.toggle("is-contain", true);
-      storyMobileCard.style.setProperty("--storyMobileBgImage", imageSrc ? `url("${imageSrc}")` : "none");
-    }
+    if (storyMobileCard) storyMobileCard.classList.remove("is-swapping");
+    if (imageReady) setStoryMobileLayerLoading(storyMobileLayerCurrent, false);
   } else if (imageReady) {
-    if (storyMobileCard) {
-      storyMobileCard.classList.add("is-swapping");
-      storyMobileCard.classList.toggle("is-contain", true);
-      storyMobileCard.style.setProperty("--storyMobileBgImage", imageSrc ? `url("${imageSrc}")` : "none");
-    }
+    if (storyMobileCard) storyMobileCard.classList.add("is-swapping");
 
     await new Promise((resolve) => window.setTimeout(resolve, STORY_MOBILE_CROSSFADE_MS));
     if (swapToken !== storyMobileSwapToken) return;
+    setStoryMobileLayerLoading(storyMobileLayerCurrent, true);
+    setStoryMobileLayerBackground(storyMobileBgCurrent, imageSrc);
+    applyStoryImagePresentation(storyMobileImgCurrent, item, mobileView, fallbackSrc, imageSrc);
     storyMobileImgCurrent.src = imageSrc;
+    setStoryMobileLayerLoading(storyMobileLayerCurrent, false);
     if (storyMobileCard) storyMobileCard.classList.remove("is-swapping");
   }
 
@@ -11101,6 +11332,9 @@ function syncStoryResponsiveMode() {
 
 function bindStoryMobileStage() {
   if (!storyMobileCard || storyMobileCard.dataset.bound === "true") return;
+
+  bindStoryMobileLayerLoadState(storyMobileLayerCurrent, storyMobileImgCurrent);
+  bindStoryMobileLayerLoadState(storyMobileLayerNext, storyMobileImgNext);
 
   if (storyMobileViewFullBtn && storyMobileViewFullBtn.dataset.bound !== "true") {
     storyMobileViewFullBtn.addEventListener("click", () => {
