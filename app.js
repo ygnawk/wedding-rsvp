@@ -819,7 +819,13 @@ let storyMobileSwapToken = 0;
 const STORY_MOBILE_CROSSFADE_MS = 320;
 const STORY_LIGHTBOX_SWIPE_HINT_STORAGE_KEY = "story-lightbox-swipe-hint-seen";
 const STORY_LIGHTBOX_SWIPE_HINT_MS = 1700;
+const STORY_MOBILE_SWIPE_HINT_STORAGE_KEY = "ourStorySwipeHintShown";
+const STORY_MOBILE_SWIPE_HINT_NUDGE_MS = 250;
+const STORY_MOBILE_SWIPE_HINT_VISIBLE_MS = 2000;
 let storySwipeHintTimer = 0;
+let storyMobileSwipeHintObserver = null;
+let storyMobileSwipeHintTimer = 0;
+let storyMobileSwipeHintNudgeTimer = 0;
 let storyPathTargets = [];
 let storyPathRaf = null;
 let storyPathResizeBound = false;
@@ -10868,6 +10874,121 @@ function waitForImageElementReady(img, src) {
   });
 }
 
+function storyCssUrl(src) {
+  const value = String(src || "").trim();
+  if (!value) return "none";
+  const escaped = value.replace(/"/g, '\\"');
+  return `url("${escaped}")`;
+}
+
+function updateStoryMobilePeek(index, total) {
+  if (!storyMobileStage || !Array.isArray(storyItems) || !storyItems.length) return;
+  const hasPeek = Number(total) > 1;
+  storyMobileStage.classList.toggle("has-peek", hasPeek);
+  if (!hasPeek) {
+    storyMobileStage.style.setProperty("--storyMobilePrevBg", "none");
+    storyMobileStage.style.setProperty("--storyMobileNextBg", "none");
+    return;
+  }
+
+  const safeTotal = Math.max(1, Number(total) || storyItems.length);
+  const safeIndex = ((Number(index) || 0) % safeTotal + safeTotal) % safeTotal;
+  const prevItem = storyItems[(safeIndex - 1 + safeTotal) % safeTotal];
+  const nextItem = storyItems[(safeIndex + 1) % safeTotal];
+  const prevSources = prevItem ? storyImageSources(prevItem, true) : null;
+  const nextSources = nextItem ? storyImageSources(nextItem, true) : null;
+  const prevSrc = prevSources ? prevSources.preferred || prevSources.original : "";
+  const nextSrc = nextSources ? nextSources.preferred || nextSources.original : "";
+
+  storyMobileStage.style.setProperty("--storyMobilePrevBg", storyCssUrl(prevSrc));
+  storyMobileStage.style.setProperty("--storyMobileNextBg", storyCssUrl(nextSrc));
+}
+
+function clearStoryMobileSwipeHintTimers() {
+  if (storyMobileSwipeHintTimer) {
+    window.clearTimeout(storyMobileSwipeHintTimer);
+    storyMobileSwipeHintTimer = 0;
+  }
+  if (storyMobileSwipeHintNudgeTimer) {
+    window.clearTimeout(storyMobileSwipeHintNudgeTimer);
+    storyMobileSwipeHintNudgeTimer = 0;
+  }
+}
+
+function hideStoryMobileSwipeHintVisual() {
+  clearStoryMobileSwipeHintTimers();
+  if (storyMobileCard) storyMobileCard.classList.remove("is-swipe-hint-nudge");
+  if (storyMobileStage) storyMobileStage.classList.remove("is-swipe-hint-visible");
+}
+
+function hasSeenStoryMobileSwipeHint() {
+  try {
+    return window.localStorage.getItem(STORY_MOBILE_SWIPE_HINT_STORAGE_KEY) === "1";
+  } catch (_error) {
+    return false;
+  }
+}
+
+function markStoryMobileSwipeHintSeen() {
+  try {
+    window.localStorage.setItem(STORY_MOBILE_SWIPE_HINT_STORAGE_KEY, "1");
+  } catch (_error) {
+    // Ignore private mode/localStorage errors.
+  }
+}
+
+function triggerStoryMobileSwipeHintOnce() {
+  if (!storyMobileStage || !storyMobileCard || reducedMotion || !isStoryMobileView() || !storyItems.length) return;
+  if (hasSeenStoryMobileSwipeHint()) return;
+
+  markStoryMobileSwipeHintSeen();
+  hideStoryMobileSwipeHintVisual();
+  storyMobileStage.classList.add("is-swipe-hint-visible");
+  storyMobileCard.classList.add("is-swipe-hint-nudge");
+
+  storyMobileSwipeHintNudgeTimer = window.setTimeout(() => {
+    if (storyMobileCard) storyMobileCard.classList.remove("is-swipe-hint-nudge");
+    storyMobileSwipeHintNudgeTimer = 0;
+  }, STORY_MOBILE_SWIPE_HINT_NUDGE_MS + 70);
+
+  storyMobileSwipeHintTimer = window.setTimeout(() => {
+    if (storyMobileStage) storyMobileStage.classList.remove("is-swipe-hint-visible");
+    storyMobileSwipeHintTimer = 0;
+  }, STORY_MOBILE_SWIPE_HINT_VISIBLE_MS);
+
+  if (storyMobileSwipeHintObserver) {
+    storyMobileSwipeHintObserver.disconnect();
+    storyMobileSwipeHintObserver = null;
+  }
+}
+
+function bindStoryMobileSwipeHintObserver() {
+  if (!storyMobileStage || reducedMotion || hasSeenStoryMobileSwipeHint()) return;
+  if (storyMobileSwipeHintObserver) return;
+
+  if (!("IntersectionObserver" in window)) {
+    window.setTimeout(() => {
+      if (!isStoryMobileView()) return;
+      triggerStoryMobileSwipeHintOnce();
+    }, 120);
+    return;
+  }
+
+  storyMobileSwipeHintObserver = new IntersectionObserver(
+    (entries) => {
+      const inView = entries.some((entry) => entry.isIntersecting && entry.intersectionRatio >= 0.45);
+      if (!inView || !isStoryMobileView()) return;
+      triggerStoryMobileSwipeHintOnce();
+    },
+    {
+      threshold: [0.32, 0.45, 0.6],
+      rootMargin: "0px 0px -8% 0px",
+    },
+  );
+
+  storyMobileSwipeHintObserver.observe(storyMobileStage);
+}
+
 async function setStoryMobileSlide(index, options = {}) {
   if (!storyItems.length || !storyMobileImgCurrent || !storyMobileImgNext || !storyMobileYear) return;
 
@@ -10877,6 +10998,7 @@ async function setStoryMobileSlide(index, options = {}) {
   const safeIndex = ((Number(index) || 0) % total + total) % total;
   const item = storyItems[safeIndex];
   storyMobileIndex = safeIndex;
+  updateStoryMobilePeek(safeIndex, total);
   const swapToken = ++storyMobileSwapToken;
   const imageSources = storyImageSources(item, true);
   const imageSrc = imageSources.original || imageSources.preferred;
@@ -10966,11 +11088,13 @@ function syncStoryResponsiveMode() {
   bindStoryYearObserver(isMobile ? [] : storyPathTargets);
 
   if (isMobile && storyItems.length) {
+    bindStoryMobileSwipeHintObserver();
     setStoryMobileSlide(storyMobileIndex, { scrollPill: true });
     clearStoryChronologyPath();
     return;
   }
 
+  hideStoryMobileSwipeHintVisual();
   queueStoryChronologyPathRender();
 }
 
@@ -11001,6 +11125,7 @@ function bindStoryMobileStage() {
       const delta = endX - storyMobileTouchStartX;
       storyMobileTouchStartX = null;
       if (Math.abs(delta) < 48) return;
+      hideStoryMobileSwipeHintVisual();
       if (delta < 0) setStoryMobileSlide(storyMobileIndex + 1);
       else setStoryMobileSlide(storyMobileIndex - 1);
     },
@@ -11008,6 +11133,7 @@ function bindStoryMobileStage() {
   );
 
   window.addEventListener("resize", syncStoryResponsiveMode);
+  bindStoryMobileSwipeHintObserver();
   storyMobileCard.dataset.bound = "true";
 }
 

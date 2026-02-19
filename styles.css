@@ -1390,15 +1390,20 @@ a:focus-visible,
 
 .story-mobile-stage {
   display: none;
+  position: relative;
+  --story-mobile-card-width: 100%;
+  --storyMobilePrevBg: none;
+  --storyMobileNextBg: none;
   width: 100%;
   gap: 10px;
 }
 
 .story-mobile-card {
   position: relative;
-  width: 100%;
+  width: var(--story-mobile-card-width);
+  max-width: 100%;
   aspect-ratio: 4 / 5;
-  margin: 0;
+  margin: 0 auto;
   padding: 0;
   border: 1px solid rgba(201, 174, 116, 0.24);
   border-radius: 18px;
@@ -1407,6 +1412,22 @@ a:focus-visible,
   isolation: isolate;
   cursor: grab;
   touch-action: pan-y;
+}
+
+.story-mobile-card.is-swipe-hint-nudge {
+  animation: storyMobileSwipeNudge 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes storyMobileSwipeNudge {
+  0% {
+    transform: translateX(0);
+  }
+  38% {
+    transform: translateX(-3px);
+  }
+  100% {
+    transform: translateX(0);
+  }
 }
 
 .story-mobile-card::before {
@@ -2735,9 +2756,53 @@ a:focus-visible,
   }
 
   .story-mobile-stage {
+    --story-mobile-card-width: 94%;
     display: grid;
     width: 100%;
-    overflow-x: hidden;
+    position: relative;
+    justify-items: center;
+    padding-inline: clamp(6px, 2.8vw, 12px);
+    overflow: visible;
+  }
+
+  .story-mobile-stage::before,
+  .story-mobile-stage::after {
+    content: "";
+    position: absolute;
+    top: 10px;
+    bottom: 10px;
+    width: clamp(7px, 2.6vw, 10px);
+    border-radius: 9px;
+    border: 1px solid rgba(201, 174, 116, 0.2);
+    background-color: rgba(247, 241, 230, 0.38);
+    background-size: cover;
+    background-position: center;
+    pointer-events: none;
+    z-index: 1;
+    opacity: 0;
+    filter: saturate(0.9) brightness(0.92);
+    transition: opacity 220ms ease, filter 220ms ease;
+  }
+
+  .story-mobile-stage::before {
+    left: calc((100% - var(--story-mobile-card-width)) / 2 - 1px);
+    background-image: var(--storyMobilePrevBg);
+  }
+
+  .story-mobile-stage::after {
+    right: calc((100% - var(--story-mobile-card-width)) / 2 - 1px);
+    background-image: var(--storyMobileNextBg);
+  }
+
+  .story-mobile-stage.has-peek::before,
+  .story-mobile-stage.has-peek::after {
+    opacity: 0.64;
+  }
+
+  .story-mobile-stage.is-swipe-hint-visible::before,
+  .story-mobile-stage.is-swipe-hint-visible::after {
+    opacity: 0.9;
+    filter: saturate(1) brightness(1);
   }
 
   .story-mobile-actions,
@@ -2746,8 +2811,8 @@ a:focus-visible,
   }
 
   .story-mobile-card {
-    width: 100%;
-    max-width: 100%;
+    width: var(--story-mobile-card-width);
+    max-width: var(--story-mobile-card-width);
     aspect-ratio: 4 / 5;
     max-height: min(56svh, 460px);
     background: linear-gradient(180deg, rgba(247, 241, 230, 0.98) 0%, rgba(236, 226, 210, 0.92) 100%);
@@ -5587,6 +5652,10 @@ details[open] .faq-answer {
   .hotel-map-dot,
   .hotel-map-dot-tooltip {
     transition: none !important;
+    animation: none !important;
+  }
+
+  .story-mobile-card.is-swipe-hint-nudge {
     animation: none !important;
   }
 }
