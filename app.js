@@ -8732,25 +8732,31 @@ function resolveGuestWallSlotLayout(slotMap, containerRect, mobile = false, opti
 }
 
 function placeGuestWallSlot(slotNode, slotConfig) {
+  const resolvedRole = String(slotConfig.role || getGuestWallSlotRole(slotConfig));
+  const resolvedSize = String(slotConfig.size || "M");
+  const resolvedWidth = Math.round(slotConfig.pxWidth || 140);
   slotNode.style.setProperty("--gw-left", String(slotConfig.xPct));
   slotNode.style.setProperty("--gw-top", String(slotConfig.yPct));
   slotNode.style.setProperty("--gw-x-offset", `${Math.round(Number(slotConfig.xOffsetPx || 0))}px`);
   slotNode.style.setProperty("--gw-y-offset", `${Math.round(Number(slotConfig.yOffsetPx || 0))}px`);
-  slotNode.style.setProperty("--gw-card-width", `${Math.round(slotConfig.pxWidth || 140)}px`);
+  slotNode.style.setProperty("--gw-card-width", `${resolvedWidth}px`);
   slotNode.style.setProperty("--gw-rotate", `${slotConfig.tiltBase}deg`);
   slotNode.style.setProperty("--gw-skew-x", "0deg");
   slotNode.style.setProperty("--gw-skew-y", "0deg");
   slotNode.style.setProperty("--gw-z", String(slotConfig.baseZ));
   slotNode.dataset.slotId = String(slotConfig.id || "");
-  slotNode.dataset.slotSize = String(slotConfig.size || "M");
-  slotNode.dataset.slotRole = String(slotConfig.role || getGuestWallSlotRole(slotConfig));
+  slotNode.dataset.slotSize = resolvedSize;
+  slotNode.dataset.slotRole = resolvedRole;
+  slotNode.dataset.baseSlotSize = resolvedSize;
+  slotNode.dataset.baseSlotRole = resolvedRole;
+  slotNode.dataset.baseCardWidthPx = String(resolvedWidth);
   slotNode.dataset.slotFormat = String(slotConfig.format || "any");
   slotNode.dataset.slotKind = String(getGuestWallSlotKind(slotConfig));
   slotNode.dataset.tiltBase = String(slotConfig.tiltBase || 0);
-  slotNode.classList.toggle("slot-size-s", slotConfig.size === "S");
-  slotNode.classList.toggle("slot-size-m", slotConfig.size === "M");
-  slotNode.classList.toggle("slot-size-l", slotConfig.size === "L");
-  slotNode.classList.toggle("slot-size-xl", slotConfig.size === "XL");
+  slotNode.classList.toggle("slot-size-s", resolvedSize === "S");
+  slotNode.classList.toggle("slot-size-m", resolvedSize === "M");
+  slotNode.classList.toggle("slot-size-l", resolvedSize === "L");
+  slotNode.classList.toggle("slot-size-xl", resolvedSize === "XL");
 
   if (SHOW_SLOT_DEBUG && !slotNode.querySelector(".guestwall-slot-debug")) {
     const debugNode = document.createElement("div");
@@ -8764,6 +8770,36 @@ function mountGuestWallSlotCard(slotNode, cardId, animate = false) {
   if (!(slotNode instanceof HTMLElement)) return;
   const card = guestWallCardById.get(cardId);
   if (!card) return;
+
+  const isMobileSingle = slotNode.classList.contains("guestwall-slot--mobile-single");
+  const baseWidthPx = Math.max(0, Number(slotNode.dataset.baseCardWidthPx || 0));
+  const baseRole = String(slotNode.dataset.baseSlotRole || "support");
+  const baseSize = String(slotNode.dataset.baseSlotSize || slotNode.dataset.slotSize || "M");
+
+  if (card.kind === "media" && !isMobileSingle) {
+    const boardWidth = Math.max(
+      320,
+      Number(guestWallContainerSize?.desktop?.w || 0),
+      Number((guestWallPinboard instanceof HTMLElement ? guestWallPinboard.clientWidth : 0) || 0),
+      Number(window.innerWidth || 0),
+    );
+    const smallWidthPx = Math.round(getGuestWallSlotWidthPx(boardWidth, "S", false));
+    slotNode.style.setProperty("--gw-card-width", `${smallWidthPx}px`);
+    slotNode.dataset.slotSize = "S";
+    slotNode.dataset.slotRole = "support";
+    slotNode.classList.add("slot-size-s");
+    slotNode.classList.remove("slot-size-m", "slot-size-l", "slot-size-xl");
+  } else {
+    if (baseWidthPx > 0) {
+      slotNode.style.setProperty("--gw-card-width", `${baseWidthPx}px`);
+    }
+    slotNode.dataset.slotSize = baseSize;
+    slotNode.dataset.slotRole = baseRole;
+    slotNode.classList.toggle("slot-size-s", baseSize === "S");
+    slotNode.classList.toggle("slot-size-m", baseSize === "M");
+    slotNode.classList.toggle("slot-size-l", baseSize === "L");
+    slotNode.classList.toggle("slot-size-xl", baseSize === "XL");
+  }
 
   const stableRotate = getStableGuestWallSlotRotation(slotNode, cardId);
   const stableWarp = getStableGuestWallSlotWarp(slotNode, cardId);
