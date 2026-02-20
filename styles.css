@@ -3049,8 +3049,8 @@ a:focus-visible,
   max-width: 100%;
   justify-self: start;
   aspect-ratio: 4 / 5;
-  margin-top: clamp(14px, 2.2vh, 30px);
-  margin-bottom: clamp(14px, 2.2vh, 30px);
+  margin-top: clamp(10px, 1.6vh, 15px);
+  margin-bottom: clamp(20px, 3.2vh, 30px);
   --venue-image-pad-y: 30px;
 }
 
@@ -3157,7 +3157,7 @@ a:focus-visible,
     grid-column: 2;
     grid-row: 1;
     justify-self: start;
-    margin-top: 30px;
+    margin-top: 15px;
     margin-bottom: 30px;
   }
 }
@@ -3192,8 +3192,8 @@ a:focus-visible,
     max-width: min(680px, 100%);
     justify-self: center;
     aspect-ratio: 4 / 3;
-    margin-top: clamp(10px, 2.4vh, 18px);
-    margin-bottom: clamp(8px, 2vh, 14px);
+    margin-top: clamp(8px, 1.6vh, 12px);
+    margin-bottom: clamp(16px, 3.2vh, 24px);
   }
 
   .venue-copy {
