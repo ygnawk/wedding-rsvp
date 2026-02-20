@@ -8358,13 +8358,14 @@ function buildGuestWallScatterSlots(containerRect, slotCount, mobile = false, se
   for (let index = 0; index < placementOrder.length; index += 1) {
     const cell = placementOrder[index];
     const isNoteSlot = noteSlotIndexes.has(index);
+    const mediaSlotSize = "S";
     const slotBase = {
       id: `scatter-${seedKey}-${cell.id}-${index}`,
-      size: isNoteSlot ? (mobile ? "L" : "XL") : "M",
-      role: isNoteSlot ? "note" : index === 0 ? "hero" : "support",
+      size: isNoteSlot ? (mobile ? "L" : "XL") : mediaSlotSize,
+      role: isNoteSlot ? "note" : "support",
       format: "any",
       kind: isNoteSlot ? "note" : "media",
-      baseZ: isNoteSlot ? 5 : index === 0 ? 6 : 4,
+      baseZ: isNoteSlot ? 5 : 4,
       tiltBase: Math.round((seededRandomFromHash(hashStringToUint32(`${seedKey}:tilt:${cell.id}:${index}`)) * 8 - 4) * 100) / 100,
       xPct: (cell.centerX / Math.max(1, containerRect.width)) * 100,
       yPct: (cell.centerY / Math.max(1, containerRect.height)) * 100,
@@ -8444,7 +8445,7 @@ function buildGuestWallArrangeGridSlots(containerRect, slotCount, mobile = false
 
   for (let index = 0; index < targetCount; index += 1) {
     const isNoteSlot = noteSlotIndexes.has(index);
-    const slotSize = isNoteSlot ? (mobile ? "L" : "XL") : "M";
+    const slotSize = isNoteSlot ? (mobile ? "L" : "XL") : "S";
     const slotKind = isNoteSlot ? "note" : "media";
     const width = Math.max(120, Math.min(cellW, getGuestWallSlotWidthPx(containerRect.width, slotSize, mobile)));
     const aspectRatio = getGuestWallSlotAspectRatio({ kind: slotKind, format: "any" });
@@ -8734,6 +8735,7 @@ function resolveGuestWallSlotLayout(slotMap, containerRect, mobile = false, opti
 function placeGuestWallSlot(slotNode, slotConfig) {
   const resolvedRole = String(slotConfig.role || getGuestWallSlotRole(slotConfig));
   const resolvedSize = String(slotConfig.size || "M");
+  const resolvedKind = String(getGuestWallSlotKind(slotConfig) || "all");
   const resolvedWidth = Math.round(slotConfig.pxWidth || 140);
   slotNode.style.setProperty("--gw-left", String(slotConfig.xPct));
   slotNode.style.setProperty("--gw-top", String(slotConfig.yPct));
@@ -8747,11 +8749,12 @@ function placeGuestWallSlot(slotNode, slotConfig) {
   slotNode.dataset.slotId = String(slotConfig.id || "");
   slotNode.dataset.slotSize = resolvedSize;
   slotNode.dataset.slotRole = resolvedRole;
+  slotNode.dataset.slotKind = resolvedKind;
   slotNode.dataset.baseSlotSize = resolvedSize;
   slotNode.dataset.baseSlotRole = resolvedRole;
+  slotNode.dataset.baseSlotKind = resolvedKind;
   slotNode.dataset.baseCardWidthPx = String(resolvedWidth);
   slotNode.dataset.slotFormat = String(slotConfig.format || "any");
-  slotNode.dataset.slotKind = String(getGuestWallSlotKind(slotConfig));
   slotNode.dataset.tiltBase = String(slotConfig.tiltBase || 0);
   slotNode.classList.toggle("slot-size-s", resolvedSize === "S");
   slotNode.classList.toggle("slot-size-m", resolvedSize === "M");
@@ -8774,6 +8777,7 @@ function mountGuestWallSlotCard(slotNode, cardId, animate = false) {
   const isMobileSingle = slotNode.classList.contains("guestwall-slot--mobile-single");
   const baseWidthPx = Math.max(0, Number(slotNode.dataset.baseCardWidthPx || 0));
   const baseRole = String(slotNode.dataset.baseSlotRole || "support");
+  const baseKind = String(slotNode.dataset.baseSlotKind || slotNode.dataset.slotKind || "all");
   const baseSize = String(slotNode.dataset.baseSlotSize || slotNode.dataset.slotSize || "M");
 
   if (card.kind === "media" && !isMobileSingle) {
@@ -8785,16 +8789,22 @@ function mountGuestWallSlotCard(slotNode, cardId, animate = false) {
     );
     const smallWidthPx = Math.round(getGuestWallSlotWidthPx(boardWidth, "S", false));
     slotNode.style.setProperty("--gw-card-width", `${smallWidthPx}px`);
+    slotNode.style.setProperty("--gw-media-card-width", `${smallWidthPx}px`);
     slotNode.dataset.slotSize = "S";
     slotNode.dataset.slotRole = "support";
+    slotNode.dataset.slotKind = "media";
+    slotNode.classList.add("guestwall-slot--media-small");
     slotNode.classList.add("slot-size-s");
     slotNode.classList.remove("slot-size-m", "slot-size-l", "slot-size-xl");
   } else {
     if (baseWidthPx > 0) {
       slotNode.style.setProperty("--gw-card-width", `${baseWidthPx}px`);
     }
+    slotNode.style.removeProperty("--gw-media-card-width");
     slotNode.dataset.slotSize = baseSize;
     slotNode.dataset.slotRole = baseRole;
+    slotNode.dataset.slotKind = baseKind;
+    slotNode.classList.remove("guestwall-slot--media-small");
     slotNode.classList.toggle("slot-size-s", baseSize === "S");
     slotNode.classList.toggle("slot-size-m", baseSize === "M");
     slotNode.classList.toggle("slot-size-l", baseSize === "L");
