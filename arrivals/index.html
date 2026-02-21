@@ -17,50 +17,11 @@
         min-height: 100vh;
         background: var(--bg-maroon);
       }
-      .arrivals-shell__header {
-        position: sticky;
-        top: 0;
-        z-index: 20;
-        backdrop-filter: blur(10px);
-        background: rgba(56, 6, 14, 0.9);
-        border-bottom: 1px solid rgba(201, 174, 116, 0.35);
-      }
-      .arrivals-shell__header-inner {
-        width: 100%;
-        max-width: none;
-        margin: 0;
-        padding: 14px 28px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-      }
-      .arrivals-shell__brand {
-        color: var(--ivory);
-        text-decoration: none;
-        font-family: var(--serifDisplay);
-        font-size: clamp(1.15rem, 2vw, 1.45rem);
-        letter-spacing: 0.02em;
-      }
-      .arrivals-shell__nav {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-      }
-      .arrivals-shell__nav a {
-        color: var(--ivory);
-        text-decoration: none;
-        opacity: 0.9;
-      }
-      .arrivals-shell__nav a:hover {
-        color: var(--gold);
-        opacity: 1;
-      }
       .arrivals-shell__main {
         width: 100%;
         max-width: none;
         margin: 0;
-        padding: 0;
+        padding-top: calc(var(--headerH) + 28px);
       }
       .arrivals-shell__frame {
         border: 0;
@@ -78,9 +39,8 @@
         overflow: visible;
       }
       @media (max-width: 900px) {
-        .arrivals-shell__header-inner {
-          padding: 12px 16px;
-          flex-wrap: wrap;
+        .arrivals-shell__main {
+          padding-top: calc(var(--headerH) + 18px);
         }
         .arrivals-shell__iframe {
           min-height: 780px;
@@ -89,16 +49,37 @@
     </style>
   </head>
   <body class="arrivals-shell">
-    <header class="arrivals-shell__header">
-      <div class="arrivals-shell__header-inner">
-        <a class="arrivals-shell__brand" href="/">Miki &amp; Yi Jie</a>
-        <nav class="arrivals-shell__nav" aria-label="Secondary">
+    <header id="floatingHeader" class="floating-header" aria-label="Site navigation">
+      <div class="header-pill">
+        <a class="brand" href="/" aria-label="Go to home page">
+          <span class="brand-pill" aria-hidden="true">
+            <span class="brand-wordmark" aria-hidden="true">
+              <span class="brand-wordmark-core">M</span><span class="brand-wordmark-rest brand-wordmark-rest--m">iki</span>
+              <span class="brand-wordmark-amp amp-fancy">&amp;</span>
+              <span class="brand-wordmark-core">Y</span><span class="brand-wordmark-rest brand-wordmark-rest--y">i Jie</span>
+            </span>
+          </span>
+          <span class="sr-only">Miki &amp; Yi Jie</span>
+        </a>
+
+        <button id="menuToggle" class="menu-toggle" aria-expanded="false" aria-controls="mobileNavSheet" aria-label="Open menu">☰</button>
+
+        <nav class="desktop-nav" aria-label="Primary">
           <a href="/">Home</a>
           <a href="/guest-wall">Guest Wall</a>
-          <a href="/#rsvp">RSVP</a>
         </nav>
+
+        <a class="header-rsvp" href="/#rsvp">RSVP</a>
       </div>
     </header>
+
+    <aside id="mobileNavSheet" class="mobile-sheet" aria-label="Mobile menu">
+      <nav class="mobile-nav">
+        <a href="/">Home</a>
+        <a href="/guest-wall">Guest Wall</a>
+        <a href="/#rsvp">RSVP</a>
+      </nav>
+    </aside>
 
     <main class="arrivals-shell__main">
       <section class="arrivals-shell__frame" aria-label="Live Arrivals Tracker">
@@ -113,6 +94,38 @@
     </main>
     <script>
       (() => {
+        const menuToggle = document.getElementById("menuToggle");
+        const mobileNavSheet = document.getElementById("mobileNavSheet");
+
+        const closeMobileMenu = () => {
+          if (!menuToggle || !mobileNavSheet) return;
+          menuToggle.setAttribute("aria-expanded", "false");
+          mobileNavSheet.classList.remove("open");
+        };
+
+        if (menuToggle && mobileNavSheet) {
+          menuToggle.addEventListener("click", () => {
+            const isOpen = menuToggle.getAttribute("aria-expanded") === "true";
+            menuToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
+            mobileNavSheet.classList.toggle("open", !isOpen);
+          });
+
+          document.addEventListener("click", (event) => {
+            const target = event.target;
+            if (!(target instanceof Element)) return;
+            if (target.closest("#menuToggle") || target.closest("#mobileNavSheet")) return;
+            closeMobileMenu();
+          });
+
+          document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") closeMobileMenu();
+          });
+
+          mobileNavSheet.querySelectorAll("a").forEach((link) => {
+            link.addEventListener("click", closeMobileMenu);
+          });
+        }
+
         const iframe = document.getElementById("arrivalsTrackerFrame");
         if (!iframe) return;
 
