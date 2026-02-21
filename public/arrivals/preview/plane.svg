@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -6 24 12" role="img" aria-label="Paper plane">
+  <path
+    d="M-11.2 0L10.8 -5.1L4.4 -0.85L10.8 5.1L-11.2 0Z"
+    fill="#f8f4ec"
+    stroke="#0f0d0a"
+    stroke-width="0.42"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M-11.2 0L4.4 -0.85L0.7 2.35"
+    fill="none"
+    stroke="#0f0d0a"
+    stroke-width="0.4"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    opacity="0.78"
+  />
+  <path
+    d="M2.1 -0.2L4.4 -0.85L3.2 1.05"
+    fill="none"
+    stroke="#0f0d0a"
+    stroke-width="0.36"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    opacity="0.72"
+  />
+</svg>

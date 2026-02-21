@@ -524,6 +524,61 @@ video {
   color: rgba(75, 15, 23, 1);
 }
 
+.nav-live-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(201, 174, 116, 0.72);
+  font-size: 10px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.desktop-nav-more-menu .live-pill {
+  color: rgba(92, 25, 34, 0.9);
+}
+
+.mobile-nav .live-pill {
+  color: var(--ivory);
+}
+
+.live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(201, 174, 116, 0.95);
+  animation: livePulse 2.2s ease-in-out infinite;
+}
+
+@keyframes livePulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.68;
+  }
+  50% {
+    transform: scale(1.32);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-dot {
+    animation: none;
+  }
+}
+
 .desktop-nav-more-menu a.active {
   color: rgba(75, 15, 23, 1);
 }

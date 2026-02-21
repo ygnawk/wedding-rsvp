@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Arrivals | Miki &amp; Yi Jie</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+    <style>
+      .arrivals-shell {
+        min-height: 100vh;
+        background: var(--bg-maroon);
+      }
+      .arrivals-shell__header {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        backdrop-filter: blur(10px);
+        background: rgba(56, 6, 14, 0.9);
+        border-bottom: 1px solid rgba(201, 174, 116, 0.35);
+      }
+      .arrivals-shell__header-inner {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 14px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .arrivals-shell__brand {
+        color: var(--ivory);
+        text-decoration: none;
+        font-family: var(--serifDisplay);
+        font-size: clamp(1.15rem, 2vw, 1.45rem);
+        letter-spacing: 0.02em;
+      }
+      .arrivals-shell__nav {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      .arrivals-shell__nav a {
+        color: var(--ivory);
+        text-decoration: none;
+        opacity: 0.9;
+      }
+      .arrivals-shell__nav a:hover {
+        color: var(--gold);
+        opacity: 1;
+      }
+      .arrivals-shell__main {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 24px 20px 40px;
+      }
+      .arrivals-shell__eyebrow {
+        margin: 0;
+        text-transform: uppercase;
+        letter-spacing: 0.22em;
+        font-size: 0.74rem;
+        color: rgba(245, 234, 216, 0.76);
+      }
+      .arrivals-shell__title {
+        margin: 10px 0 8px;
+        color: var(--ivory);
+        font-family: var(--serifDisplay);
+        font-size: clamp(2rem, 5vw, 3.1rem);
+        line-height: 1.05;
+      }
+      .arrivals-shell__subtitle {
+        margin: 0 0 16px;
+        color: rgba(245, 234, 216, 0.86);
+      }
+      .arrivals-shell__frame {
+        border: 1px solid rgba(201, 174, 116, 0.34);
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 22px 64px rgba(16, 4, 8, 0.38);
+      }
+      .arrivals-shell__iframe {
+        display: block;
+        width: 100%;
+        height: min(82vh, 980px);
+        border: 0;
+        background: #090807;
+      }
+      @media (max-width: 900px) {
+        .arrivals-shell__header-inner {
+          flex-wrap: wrap;
+        }
+        .arrivals-shell__iframe {
+          height: 78vh;
+        }
+      }
+    </style>
+  </head>
+  <body class="arrivals-shell">
+    <header class="arrivals-shell__header">
+      <div class="arrivals-shell__header-inner">
+        <a class="arrivals-shell__brand" href="/">Miki &amp; Yi Jie</a>
+        <nav class="arrivals-shell__nav" aria-label="Secondary">
+          <a href="/">Home</a>
+          <a href="/guest-wall">Guest Wall</a>
+          <a href="/#rsvp">RSVP</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="arrivals-shell__main">
+      <p class="arrivals-shell__eyebrow">September 2026 Wedding</p>
+      <h1 class="arrivals-shell__title">Arrivals</h1>
+      <p class="arrivals-shell__subtitle">A slightly nerdy page we made for fun, to see where everyone’s coming from.</p>
+      <section class="arrivals-shell__frame" aria-label="Live Arrivals Tracker">
+        <iframe class="arrivals-shell__iframe" src="/arrivals/index.html" title="Arrivals Tracker"></iframe>
+      </section>
+    </main>
+  </body>
+</html>
