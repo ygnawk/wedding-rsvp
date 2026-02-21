@@ -66,7 +66,34 @@
 
         <nav class="desktop-nav" aria-label="Primary">
           <a href="/">Home</a>
-          <a href="/guest-wall">Guest Wall</a>
+          <a href="/#story">Our story</a>
+          <a href="/#venue">Venue</a>
+          <a href="/#schedule">Schedule</a>
+          <div id="desktopNavMore" class="desktop-nav-more">
+            <button
+              id="desktopMoreToggle"
+              class="desktop-nav-more-toggle"
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="desktopMoreMenu"
+            >
+              More
+            </button>
+            <div id="desktopMoreMenu" class="desktop-nav-more-menu" role="menu" hidden>
+              <a href="/#faq" role="menuitem">FAQ</a>
+              <a href="/#stay" role="menuitem">Where to stay</a>
+              <a href="/#things-to-do" role="menuitem">Things to do</a>
+              <a href="/#makan" role="menuitem">What to eat</a>
+              <a href="/#travel-visa" role="menuitem">Travel &amp; Visa</a>
+              <a href="/#gallery" role="menuitem">Recent moments</a>
+              <a href="/arrivals/" role="menuitem" class="nav-live-link"
+                >Live Arrivals
+                <span class="live-pill" aria-hidden="true"><span class="live-dot"></span>Live</span>
+              </a>
+              <a href="/guest-wall" role="menuitem">Guest Wall</a>
+            </div>
+          </div>
         </nav>
 
         <a class="header-rsvp" href="/#rsvp">RSVP</a>
@@ -76,8 +103,21 @@
     <aside id="mobileNavSheet" class="mobile-sheet" aria-label="Mobile menu">
       <nav class="mobile-nav">
         <a href="/">Home</a>
-        <a href="/guest-wall">Guest Wall</a>
+        <a href="/#story">Our story</a>
+        <a href="/#venue">Venue</a>
+        <a href="/#schedule">Schedule</a>
         <a href="/#rsvp">RSVP</a>
+        <a href="/#faq">FAQ</a>
+        <a href="/#stay">Where to stay</a>
+        <a href="/#things-to-do">Things to do</a>
+        <a href="/#makan">What to eat</a>
+        <a href="/#travel-visa">Travel &amp; Visa</a>
+        <a href="/#gallery">Recent moments</a>
+        <a href="/arrivals/" class="nav-live-link"
+          >Live Arrivals
+          <span class="live-pill" aria-hidden="true"><span class="live-dot"></span>Live</span>
+        </a>
+        <a href="/guest-wall">Guest Wall</a>
       </nav>
     </aside>
 
@@ -96,6 +136,20 @@
       (() => {
         const menuToggle = document.getElementById("menuToggle");
         const mobileNavSheet = document.getElementById("mobileNavSheet");
+        const desktopMoreToggle = document.getElementById("desktopMoreToggle");
+        const desktopMoreMenu = document.getElementById("desktopMoreMenu");
+
+        const closeDesktopMoreMenu = () => {
+          if (!desktopMoreToggle || !desktopMoreMenu) return;
+          desktopMoreToggle.setAttribute("aria-expanded", "false");
+          desktopMoreMenu.hidden = true;
+        };
+
+        const openDesktopMoreMenu = () => {
+          if (!desktopMoreToggle || !desktopMoreMenu) return;
+          desktopMoreToggle.setAttribute("aria-expanded", "true");
+          desktopMoreMenu.hidden = false;
+        };
 
         const closeMobileMenu = () => {
           if (!menuToggle || !mobileNavSheet) return;
@@ -125,6 +179,38 @@
             link.addEventListener("click", closeMobileMenu);
           });
         }
+
+        if (desktopMoreToggle && desktopMoreMenu) {
+          desktopMoreToggle.addEventListener("click", () => {
+            const isOpen = desktopMoreToggle.getAttribute("aria-expanded") === "true";
+            if (isOpen) {
+              closeDesktopMoreMenu();
+            } else {
+              openDesktopMoreMenu();
+            }
+          });
+
+          desktopMoreMenu.querySelectorAll("a").forEach((link) => {
+            link.addEventListener("click", closeDesktopMoreMenu);
+          });
+        }
+
+        const handleGlobalClose = (event) => {
+          const target = event.target;
+          if (!(target instanceof Element)) return;
+          if (target.closest("#menuToggle") || target.closest("#mobileNavSheet")) return;
+          if (target.closest("#desktopMoreToggle") || target.closest("#desktopMoreMenu")) return;
+          closeMobileMenu();
+          closeDesktopMoreMenu();
+        };
+
+        document.addEventListener("click", handleGlobalClose);
+
+        document.addEventListener("keydown", (event) => {
+          if (event.key !== "Escape") return;
+          closeMobileMenu();
+          closeDesktopMoreMenu();
+        });
 
         const iframe = document.getElementById("arrivalsTrackerFrame");
         if (!iframe) return;
