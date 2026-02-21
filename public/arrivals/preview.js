@@ -25,10 +25,10 @@ const MAP_PROJECTION = {
   },
 };
 
-const WORLD_GEOJSON_HREF = "/arrivals/world.geojson?v=20260219-solari50";
-const WORLD_SVG_FALLBACK_HREF = "/arrivals/world.svg?v=20260219-solari50";
-const PLANE_IMAGE_HREF = "/arrivals/plane.svg?v=20260219-solari50";
-const BEIJING_ICON_HREF = "/arrivals/beijing-icon.png?v=20260219-solari79";
+const WORLD_GEOJSON_HREF = "/public/arrivals/world.geojson?v=20260219-solari50";
+const WORLD_SVG_FALLBACK_HREF = "/public/arrivals/world.svg?v=20260219-solari50";
+const PLANE_IMAGE_HREF = "/public/arrivals/plane.svg?v=20260219-solari50";
+const BEIJING_ICON_HREF = "/public/arrivals/beijing-icon.png?v=20260219-solari79";
 const EQUIRECTANGULAR_ASPECT_RATIO = 2;
 const GRID_MINOR_DEGREES = 10;
 const GRID_MAJOR_DEGREES = 30;
@@ -84,11 +84,15 @@ const PLANE_HEADING_OFFSET_DEGREES = 180;
 const PLANE_TANGENT_LOOK_DISTANCE = 2.8;
 const PLANE_EDGE_FADE_PROGRESS = 0.08;
 const PLANE_MAX_TRAVEL_PROGRESS = 0.996;
-const PLANE_BOOTSTRAP_DELAY_MIN_MS = 480;
-const PLANE_BOOTSTRAP_DELAY_MAX_MS = 9200;
-const PLANE_BOOTSTRAP_PRIORITY_BONUS_MS = 3600;
-const PLANE_SAME_ROUTE_LAUNCH_STAGGER_MS = 520;
+const PLANE_GLOBAL_LAUNCH_INTERVAL_MS = 2000;
 const LOCAL_ROUTE_DISTANCE_KM_THRESHOLD = 25;
+const BEIJING_LABEL_OFFSET_X = 0;
+const BEIJING_LABEL_OFFSET_Y = 0;
+const BEIJING_ICON_SCALE = 1.5;
+const BEIJING_LABEL_BASE_X = 0;
+const BEIJING_LABEL_BASE_Y = -22;
+const BEIJING_ICON_OFFSET_X = 0;
+const BEIJING_ICON_OFFSET_Y = -22;
 const BOARD_HEADER_LINE = `${"COUNTRY".padEnd(COL_COUNTRY, " ")}${LINE_SEPARATOR}${"CITY".padEnd(
   COL_CITY,
   " ",
@@ -1684,8 +1688,6 @@ function positionPlanesAtProgress(progress) {
 }
 
 function buildPlaneTracks(container) {
-  const maxRouteCount = state.routes.reduce((highest, route) => Math.max(highest, Number(route.count) || 0), 0);
-
   return Array.from(container.querySelectorAll("[data-plane-id]"))
     .map((planeEl, index) => {
       const planeId = planeEl.getAttribute("data-plane-id");
@@ -1703,17 +1705,7 @@ function buildPlaneTracks(container) {
 
       const normalizedLength = Math.max(0, Math.min(1, (length - 420) / 1300));
       const durationSeconds = 36 + normalizedLength * 32;
-      const parsedPlaneIndex = Number(String(planeId || "").split("::")[1]);
-      const planeOrdinal = Number.isFinite(parsedPlaneIndex) && parsedPlaneIndex > 0 ? parsedPlaneIndex - 1 : 0;
-      const routeWeight = maxRouteCount > 0 ? Math.max(0, Math.min(1, (Number(route.count) || 0) / maxRouteCount)) : 0;
-      const weightedMaxDelay = Math.max(
-        PLANE_BOOTSTRAP_DELAY_MIN_MS,
-        PLANE_BOOTSTRAP_DELAY_MAX_MS - routeWeight * PLANE_BOOTSTRAP_PRIORITY_BONUS_MS,
-      );
-      const randomDelayMs =
-        PLANE_BOOTSTRAP_DELAY_MIN_MS +
-        Math.random() * Math.max(0, weightedMaxDelay - PLANE_BOOTSTRAP_DELAY_MIN_MS);
-      const launchDelayMs = randomDelayMs + planeOrdinal * PLANE_SAME_ROUTE_LAUNCH_STAGGER_MS;
+      const routeWeight = Math.max(1, Number(route.count) || 1);
 
       return {
         routeId: route.routeId,
@@ -1721,11 +1713,101 @@ function buildPlaneTracks(container) {
         planeEl,
         length,
         speed: 1 / durationSeconds,
-        launchDelayMs,
+        launchDelayMs: 0,
+        routeWeight,
+        hasLaunched: false,
         phaseSeed: hashString(`${planeId || route.routeId}-plane-${index}`),
       };
     })
     .filter(Boolean);
+}
+
+function shuffleInPlace(values) {
+  for (let index = values.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    const current = values[index];
+    values[index] = values[swapIndex];
+    values[swapIndex] = current;
+  }
+  return values;
+}
+
+function pickWeightedCandidate(candidates) {
+  if (!candidates.length) {
+    return null;
+  }
+
+  const totalWeight = candidates.reduce((sum, candidate) => sum + Math.max(0, candidate.weight || 0), 0);
+  if (!totalWeight) {
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+
+  let threshold = Math.random() * totalWeight;
+  for (const candidate of candidates) {
+    threshold -= Math.max(0, candidate.weight || 0);
+    if (threshold <= 0) {
+      return candidate;
+    }
+  }
+
+  return candidates[candidates.length - 1];
+}
+
+function assignPlaneLaunchSchedule(tracks) {
+  if (!tracks.length) {
+    return;
+  }
+
+  const queueByRouteId = new Map();
+  tracks.forEach((track) => {
+    const queue = queueByRouteId.get(track.routeId) || [];
+    queue.push(track);
+    queueByRouteId.set(track.routeId, queue);
+  });
+
+  for (const queue of queueByRouteId.values()) {
+    shuffleInPlace(queue);
+  }
+
+  let launchSlot = 0;
+  let lastRouteId = "";
+
+  while (true) {
+    const available = Array.from(queueByRouteId.entries())
+      .filter(([, queue]) => Array.isArray(queue) && queue.length > 0)
+      .map(([routeId, queue]) => ({
+        routeId,
+        queue,
+        weight: Math.max(1, Number(queue[0]?.routeWeight) || 1),
+      }));
+
+    if (!available.length) {
+      break;
+    }
+
+    let candidates = available;
+    if (lastRouteId && available.length > 1) {
+      const alternateCandidates = available.filter((candidate) => candidate.routeId !== lastRouteId);
+      if (alternateCandidates.length) {
+        candidates = alternateCandidates;
+      }
+    }
+
+    const chosen = pickWeightedCandidate(candidates);
+    if (!chosen || !chosen.queue.length) {
+      break;
+    }
+
+    const track = chosen.queue.shift();
+    if (!track) {
+      break;
+    }
+
+    track.launchDelayMs = launchSlot * PLANE_GLOBAL_LAUNCH_INTERVAL_MS;
+    track.hasLaunched = false;
+    launchSlot += 1;
+    lastRouteId = chosen.routeId;
+  }
 }
 
 function assignPlanePhaseOffsets(tracks) {
@@ -1759,11 +1841,18 @@ function startPlaneAnimation(container) {
   }
 
   const tracks = buildPlaneTracks(container);
+  assignPlaneLaunchSchedule(tracks);
   state.planeTracks = tracks;
 
   if (!tracks.length) {
     return;
   }
+
+  tracks.forEach((track) => {
+    track.hasLaunched = false;
+    track.planeEl.style.visibility = "hidden";
+    track.planeEl.style.setProperty("--plane-cycle-opacity", "0");
+  });
 
   const startTime = performance.now();
 
@@ -1772,8 +1861,12 @@ function startPlaneAnimation(container) {
 
     for (const track of tracks) {
       if (elapsedMs < track.launchDelayMs) {
-        track.planeEl.style.setProperty("--plane-cycle-opacity", "0");
         continue;
+      }
+
+      if (!track.hasLaunched) {
+        track.hasLaunched = true;
+        track.planeEl.style.visibility = "visible";
       }
 
       const elapsedSeconds = (elapsedMs - track.launchDelayMs) / 1000;
@@ -1997,11 +2090,16 @@ function render() {
       const pulseRadius = node.hub ? 16.4 : 13;
       const innerRingRadius = node.hub ? 13.4 : 11.5;
       const outerRingRadius = node.hub ? 18 : 14.5;
-      const labelX = node.hub ? 17 : 14;
-      const labelY = node.hub ? -14 : -12;
-      const iconSize = 22;
-      const iconX = labelX + 25;
-      const iconY = labelY - 27;
+      const baseLabelX = node.hub ? BEIJING_LABEL_BASE_X : 14;
+      const baseLabelY = node.hub ? BEIJING_LABEL_BASE_Y : -12;
+      const labelX = baseLabelX + (node.hub ? BEIJING_LABEL_OFFSET_X : 0);
+      const labelY = baseLabelY + (node.hub ? BEIJING_LABEL_OFFSET_Y : 0);
+      const iconBaseSize = 22;
+      const iconSize = node.hub ? iconBaseSize * BEIJING_ICON_SCALE : iconBaseSize;
+      const iconCenterOffsetX = node.hub ? BEIJING_ICON_OFFSET_X : 36;
+      const iconCenterOffsetY = node.hub ? BEIJING_ICON_OFFSET_Y : -16;
+      const iconX = labelX + iconCenterOffsetX - iconSize / 2;
+      const iconY = labelY + iconCenterOffsetY - iconSize / 2;
       const iconCenterX = iconX + iconSize / 2;
       const iconCenterY = iconY + iconSize / 2;
       const beijingIconMarkup = node.hub
@@ -2043,7 +2141,7 @@ function render() {
           <circle class="arrivals-map__node-dot-outer" r="${(coreRadius + 0.9).toFixed(2)}"></circle>
           <circle class="arrivals-map__node-dot" r="${coreRadius.toFixed(2)}"></circle>
           ${beijingIconMarkup}
-          <text class="arrivals-map__node-label" x="${labelX}" y="${labelY}">${escapeHtml(node.label)}</text>
+          <text class="arrivals-map__node-label${node.hub ? " arrivals-map__node-label--hub" : ""}" x="${labelX}" y="${labelY}">${escapeHtml(node.label)}</text>
         </g>
       `;
     })
@@ -2171,6 +2269,7 @@ function render() {
             >
               <h3 class="arrivals-map__disclaimer-title">Disclaimer</h3>
               <p class="arrivals-map__disclaimer-body">Not a war game. These are wedding flight paths, not missiles.</p>
+              <p class="arrivals-map__disclaimer-body">Also: "Live" = RSVP updates. We are not tracking your plane. Promise.</p>
             </section>
           </div>
         </div>
@@ -2533,7 +2632,7 @@ function updateInteractionVisuals() {
     const isLocked = lockedRouteId === routeId;
     const isActive = activeRouteId === routeId;
     const isRoutePinged = state.routePingIds.has(routeId);
-    const isDimmedByHighlight = hasActiveRoute && !isActive;
+    const isDimmedByHighlight = false;
     const isDimmed = isDimmedByHighlight;
 
     if (routeGroupNode) {
@@ -3116,7 +3215,7 @@ function attachEventHandlers() {
 }
 
 async function fetchPreviewData() {
-  const response = await fetch("/arrivals/mock-arrivals.json", { cache: "no-store" });
+  const response = await fetch("/public/arrivals/mock-arrivals.json", { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Preview API returned ${response.status}`);
   }
