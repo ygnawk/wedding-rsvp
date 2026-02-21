@@ -57,13 +57,14 @@ const GUEST_WALL_SLOT_JITTER_DESKTOP = 10;
 const GUEST_WALL_SLOT_JITTER_MOBILE = 6;
 const GUEST_WALL_MAX_OVERLAP_RATIO_DESKTOP = 0.12;
 const GUEST_WALL_MAX_OVERLAP_RATIO_MOBILE = 0.1;
-const GUEST_WALL_SCATTER_MAX_OVERLAP_RATIO = 0.03;
-const GUEST_WALL_SCATTER_MAX_OVERLAP_RATIO_MOBILE = 0.02;
-const GUEST_WALL_SCATTER_MIN_GAP_PX = 14;
-const GUEST_WALL_SCATTER_ATTEMPTS_PER_CARD = 36;
+const GUEST_WALL_SCATTER_MAX_OVERLAP_RATIO = 0.012;
+const GUEST_WALL_SCATTER_MAX_OVERLAP_RATIO_MOBILE = 0.01;
+const GUEST_WALL_SCATTER_MIN_GAP_PX = 20;
+const GUEST_WALL_SCATTER_ATTEMPTS_PER_CARD = 48;
 const GUEST_WALL_SCATTER_JITTER_FACTOR = 0.55;
 const GUEST_WALL_NOTE_SIZE_MULTIPLIER_DESKTOP = 1.78;
 const GUEST_WALL_NOTE_SIZE_MULTIPLIER_MOBILE = 1.48;
+const GUEST_WALL_MAX_VISIBLE_NOTES = 2;
 const GUEST_WALL_SWAP_FADE_OUT_MS = 200;
 const GUEST_WALL_SWAP_FADE_IN_MS = 260;
 const GUEST_WALL_PICKUP_OPEN_DELAY_MS = 130;
@@ -5856,14 +5857,65 @@ function pickGuestWallDeckSelection({
 } = {}) {
   const safeSlotCount = Math.max(0, Math.floor(Number(slotCount) || 0));
   if (!safeSlotCount) return [];
-  // Unbiased selection: draw from the combined deck (without replacement).
-  return drawGuestWallDeckIds({
-    kind: "all",
-    count: safeSlotCount,
-    usedIds: new Set(),
+  const noteSourceCount = Array.isArray(sources.noteIds) ? sources.noteIds.length : 0;
+  const mediaSourceCount = Array.isArray(sources.mediaIds) ? sources.mediaIds.length : 0;
+  const maxNotesAllowed = Math.min(safeSlotCount, noteSourceCount, GUEST_WALL_MAX_VISIBLE_NOTES);
+  const proportionalNoteTarget = clampNumber(getGuestWallTargetNoteCount(safeSlotCount), 0, maxNotesAllowed);
+  const targetNoteCount = mediaSourceCount > 0 ? proportionalNoteTarget : maxNotesAllowed;
+
+  const used = new Set();
+  const pickedNotes = drawGuestWallDeckIds({
+    kind: "note",
+    count: targetNoteCount,
+    usedIds: used,
     state,
     sources,
   });
+
+  const pickedMedia = drawGuestWallDeckIds({
+    kind: "media",
+    count: Math.max(0, safeSlotCount - pickedNotes.length),
+    usedIds: used,
+    state,
+    sources,
+  });
+
+  const selected = [...pickedNotes, ...pickedMedia];
+  const selectedNoteCount = pickedNotes.length;
+  if (selected.length < safeSlotCount) {
+    const fallback = drawGuestWallDeckIds({
+      kind: "all",
+      count: Math.max(0, safeSlotCount - selected.length) * 4,
+      usedIds: used,
+      state,
+      sources,
+    });
+
+    let noteCount = selectedNoteCount;
+    fallback.forEach((id) => {
+      if (selected.length >= safeSlotCount) return;
+      const card = guestWallCardById.get(id);
+      if (!card) return;
+      if (card.kind === "note" && noteCount >= GUEST_WALL_MAX_VISIBLE_NOTES) return;
+      if (card.kind === "note") noteCount += 1;
+      selected.push(id);
+    });
+  }
+
+  if (selected.length < safeSlotCount && selected.filter((id) => guestWallCardById.get(id)?.kind === "note").length < GUEST_WALL_MAX_VISIBLE_NOTES) {
+    const remainingNoteRoom =
+      GUEST_WALL_MAX_VISIBLE_NOTES - selected.filter((id) => guestWallCardById.get(id)?.kind === "note").length;
+    const extraNotes = drawGuestWallDeckIds({
+      kind: "note",
+      count: Math.min(remainingNoteRoom, safeSlotCount - selected.length),
+      usedIds: used,
+      state,
+      sources,
+    });
+    selected.push(...extraNotes);
+  }
+
+  return shuffleItems(selected).slice(0, safeSlotCount);
 }
 
 function runGuestWallShuffleCoverageSimulation({
@@ -7143,11 +7195,16 @@ function getGuestWallTargetNoteCount(slotCount) {
   if (!noteCount) return 0;
   const total = noteCount + mediaCount;
   if (total <= 0) return 0;
+  const maxNotesAllowed = Math.min(noteCount, safeSlots, GUEST_WALL_MAX_VISIBLE_NOTES);
+  if (!maxNotesAllowed) return 0;
   let target = Math.round((safeSlots * noteCount) / total);
-  target = clampNumber(target, 0, Math.min(noteCount, safeSlots));
+  target = clampNumber(target, 0, maxNotesAllowed);
   // Keep both card types represented when possible without creating heavy bias.
   if (mediaCount > 0 && noteCount > 0 && safeSlots > 1) {
-    target = clampNumber(target, 1, Math.min(noteCount, safeSlots - 1));
+    target = clampNumber(target, 1, Math.min(maxNotesAllowed, safeSlots - 1));
+  } else if (mediaCount === 0) {
+    // If there are only notes available, still respect the global note cap.
+    target = Math.min(maxNotesAllowed, safeSlots);
   }
   return target;
 }
@@ -8182,6 +8239,7 @@ function assignGuestWallCardsToSlots(slotConfigs, requestedIds) {
 
   const requested = Array.isArray(requestedIds) ? requestedIds : [];
   const allIds = guestWallCards.map((card) => card.id);
+  const maxNotesForLayout = Math.max(0, Math.min(GUEST_WALL_MAX_VISIBLE_NOTES, slots.length));
   const seen = new Set();
   const uniqueRequested = requested.filter((id) => {
     const key = String(id || "");
@@ -8192,7 +8250,9 @@ function assignGuestWallCardsToSlots(slotConfigs, requestedIds) {
   const uniquePool = [...uniqueRequested];
   if (uniquePool.length < slots.length) {
     const fallbackOrder = shuffleItems(allIds);
-    fallbackOrder.forEach((id) => {
+    const fallbackMedia = fallbackOrder.filter((id) => guestWallCardById.get(id)?.kind === "media");
+    const fallbackNotes = fallbackOrder.filter((id) => guestWallCardById.get(id)?.kind === "note");
+    [...fallbackMedia, ...fallbackNotes].forEach((id) => {
       if (uniquePool.length >= slots.length) return;
       const key = String(id || "");
       if (!key || !guestWallCardById.has(key) || seen.has(key)) return;
@@ -8205,9 +8265,11 @@ function assignGuestWallCardsToSlots(slotConfigs, requestedIds) {
   const noteQueue = uniquePool.filter((id) => guestWallCardById.get(id)?.kind === "note");
   const fallbackQueue = [...uniquePool];
   const used = new Set();
+  let noteAssignedCount = 0;
   const canCardFitSlot = (slotConfig, id) => {
     const card = guestWallCardById.get(id);
     if (!card) return false;
+    if (card.kind === "note" && noteAssignedCount >= maxNotesForLayout) return false;
     const slotFormat = getGuestWallSlotFormat(slotConfig);
     const slotKind = getGuestWallSlotKind(slotConfig);
     if (slotKind === "note") return card.kind === "note";
@@ -8216,10 +8278,17 @@ function assignGuestWallCardsToSlots(slotConfigs, requestedIds) {
     return true;
   };
   const takeNext = (queue, predicate = null) => {
-    const index = queue.findIndex((id) => !used.has(id) && (!predicate || predicate(id)));
+    const index = queue.findIndex((id) => {
+      if (used.has(id)) return false;
+      const card = guestWallCardById.get(id);
+      if (!card) return false;
+      if (card.kind === "note" && noteAssignedCount >= maxNotesForLayout) return false;
+      return !predicate || predicate(id);
+    });
     if (index < 0) return "";
     const [picked] = queue.splice(index, 1);
     used.add(picked);
+    if (guestWallCardById.get(picked)?.kind === "note") noteAssignedCount += 1;
     return picked;
   };
 
@@ -8230,6 +8299,7 @@ function assignGuestWallCardsToSlots(slotConfigs, requestedIds) {
     if (!canCardFitSlot(slotConfig, requestedId)) return;
     assignedByIndex[slotIndex] = requestedId;
     used.add(requestedId);
+    if (guestWallCardById.get(requestedId)?.kind === "note") noteAssignedCount += 1;
   });
 
   return slots.map((slotConfig, slotIndex) => {
@@ -8362,8 +8432,8 @@ function buildGuestWallScatterSlots(containerRect, slotCount, mobile = false, se
   const jitterY = cellH * GUEST_WALL_SCATTER_JITTER_FACTOR;
   const edgePadding = mobile ? 10 : 14;
   const minGapPx = mobile ? Math.max(12, GUEST_WALL_SCATTER_MIN_GAP_PX - 1) : Math.max(16, GUEST_WALL_SCATTER_MIN_GAP_PX);
-  const maxCandidateCells = mobile ? Math.min(shuffledCells.length, 10) : Math.min(shuffledCells.length, 14);
-  const protectedOverlapRatioLimit = mobile ? 0.02 : 0.015;
+  const maxCandidateCells = mobile ? Math.min(shuffledCells.length, 14) : Math.min(shuffledCells.length, 22);
+  const protectedOverlapRatioLimit = mobile ? 0.014 : 0.01;
   const noteSlotIndexes = getGuestWallPreferredNoteSlotIndexes(placementOrder.length, noteSlotCount, seedKey);
 
   for (let index = 0; index < placementOrder.length; index += 1) {
@@ -8428,10 +8498,12 @@ function buildGuestWallScatterSlots(containerRect, slotCount, mobile = false, se
 
           const overlapRatioCandidate = candidateArea > 0 ? overlapArea / candidateArea : 1;
           const overlapRatioExisting = existing.area > 0 ? overlapArea / existing.area : 1;
-          if (overlapRatioCandidate > maxOverlapRatio || overlapRatioExisting > maxOverlapRatio) {
-            penalty += 25_000 + overlapArea * 8;
+          const noteInvolved = slotBase.kind === "note" || existing.kind === "note";
+          const strictOverlapLimit = noteInvolved ? maxOverlapRatio * 0.65 : maxOverlapRatio;
+          if (overlapRatioCandidate > strictOverlapLimit || overlapRatioExisting > strictOverlapLimit) {
+            penalty += noteInvolved ? 90_000 + overlapArea * 20 : 35_000 + overlapArea * 10;
           } else {
-            penalty += 2_000 + overlapArea * 2;
+            penalty += noteInvolved ? 10_000 + overlapArea * 6 : 3_000 + overlapArea * 2.5;
           }
 
           const protectedOverlapA = getRectIntersection(candidateProtectedRect, existing.rect);
@@ -8476,6 +8548,7 @@ function buildGuestWallScatterSlots(containerRect, slotCount, mobile = false, se
       rect: bestPlacement.rect,
       area: getRectArea(bestPlacement.rect),
       protectedRect: getGuestWallProtectedRect(bestPlacement.rect, bestPlacement.slotBase.kind),
+      kind: bestPlacement.slotBase.kind,
     });
 
     resolved.push({
@@ -8947,9 +9020,12 @@ function renderGuestWallDesktop({ reshuffle = false } = {}) {
   }
 
   const slotCap = getGuestWallVisibleSlotCap(measuredSize.w || window.innerWidth || 0, false);
-  const hasNotes = guestWallCards.some((card) => card?.kind === "note");
-  const densityCap = hasNotes ? Math.max(3, slotCap - 1) : slotCap;
-  const slotCount = Math.min(Math.max(0, densityCap), guestWallCards.length, GUEST_WALL_DESKTOP_VISIBLE_SLOTS);
+  const noteCount = guestWallCards.filter((card) => card?.kind === "note").length;
+  const mediaCount = guestWallCards.filter((card) => card?.kind === "media").length;
+  const hasNotes = noteCount > 0;
+  const densityCap = hasNotes ? Math.max(3, slotCap - 2) : slotCap;
+  const noteCapBound = mediaCount > 0 ? mediaCount + Math.min(noteCount, GUEST_WALL_MAX_VISIBLE_NOTES) : Math.min(noteCount, GUEST_WALL_MAX_VISIBLE_NOTES);
+  const slotCount = Math.min(Math.max(0, densityCap), guestWallCards.length, GUEST_WALL_DESKTOP_VISIBLE_SLOTS, Math.max(0, noteCapBound));
   const noteSlotTarget = getGuestWallTargetNoteCount(slotCount);
   const containerRect = {
     ...guestWallPinboard.getBoundingClientRect(),
