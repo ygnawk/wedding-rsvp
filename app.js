@@ -7687,6 +7687,7 @@ function finishGuestWallDetailClose() {
   guestWallDetailModal.classList.remove("is-closing");
   guestWallDetailModal.classList.remove("is-flip-closing");
   guestWallDetailModal.classList.remove("is-flip-opening");
+  guestWallDetailModal.classList.remove("is-close-control-hidden");
   guestWallDetailModal.classList.remove("is-open");
   guestWallDetailModal.dataset.detailKind = "";
   guestWallDetailModal.setAttribute("aria-hidden", "true");
@@ -7700,6 +7701,7 @@ function finishGuestWallDetailClose() {
 function closeGuestWallDetail() {
   if (!(guestWallDetailModal instanceof HTMLElement) || !guestWallDetailOpen) return;
   guestWallDetailOpen = false;
+  guestWallDetailModal.classList.add("is-close-control-hidden");
   const animated = animateGuestWallDetailClose(guestWallDetailOriginCardId, guestWallDetailOriginSlotNode);
   if (!animated) {
     guestWallDetailModal.classList.remove("is-open");
@@ -7828,6 +7830,7 @@ function openGuestWallDetail(card, originSlotNode = null) {
   guestWallDetailModal.classList.remove("is-closing");
   guestWallDetailModal.classList.remove("is-flip-closing");
   guestWallDetailModal.classList.remove("is-flip-opening");
+  guestWallDetailModal.classList.remove("is-close-control-hidden");
   guestWallDetailModal.classList.remove("is-open");
   guestWallDetailModal.setAttribute("aria-hidden", "false");
   if (!wasOpen) lockBodyScroll();
@@ -8206,6 +8209,9 @@ function assignGuestWallCardsToSlots(slotConfigs, requestedIds) {
     const card = guestWallCardById.get(id);
     if (!card) return false;
     const slotFormat = getGuestWallSlotFormat(slotConfig);
+    const slotKind = getGuestWallSlotKind(slotConfig);
+    if (slotKind === "note") return card.kind === "note";
+    if (slotKind === "media") return card.kind === "media";
     if (slotFormat === "wide") return card.kind === "media";
     return true;
   };
@@ -8350,79 +8356,133 @@ function buildGuestWallScatterSlots(containerRect, slotCount, mobile = false, se
   const placementOrder = selectedCells.slice(0, targetCount);
   const placedRects = [];
   const resolved = [];
+  const usedCellIds = new Set();
   const maxOverlapRatio = mobile ? GUEST_WALL_SCATTER_MAX_OVERLAP_RATIO_MOBILE : GUEST_WALL_SCATTER_MAX_OVERLAP_RATIO;
   const jitterX = cellW * GUEST_WALL_SCATTER_JITTER_FACTOR;
   const jitterY = cellH * GUEST_WALL_SCATTER_JITTER_FACTOR;
+  const edgePadding = mobile ? 10 : 14;
+  const minGapPx = mobile ? Math.max(12, GUEST_WALL_SCATTER_MIN_GAP_PX - 1) : Math.max(16, GUEST_WALL_SCATTER_MIN_GAP_PX);
+  const maxCandidateCells = mobile ? Math.min(shuffledCells.length, 10) : Math.min(shuffledCells.length, 14);
+  const protectedOverlapRatioLimit = mobile ? 0.02 : 0.015;
   const noteSlotIndexes = getGuestWallPreferredNoteSlotIndexes(placementOrder.length, noteSlotCount, seedKey);
 
   for (let index = 0; index < placementOrder.length; index += 1) {
-    const cell = placementOrder[index];
+    const primaryCell = placementOrder[index] || shuffledCells[index % shuffledCells.length];
+    if (!primaryCell) continue;
     const isNoteSlot = noteSlotIndexes.has(index);
     const mediaSlotSize = "S";
-    const slotBase = {
-      id: `scatter-${seedKey}-${cell.id}-${index}`,
-      size: isNoteSlot ? (mobile ? "L" : "XL") : mediaSlotSize,
-      role: isNoteSlot ? "note" : "support",
-      format: "any",
-      kind: isNoteSlot ? "note" : "media",
-      baseZ: isNoteSlot ? 5 : 4,
-      tiltBase: Math.round((seededRandomFromHash(hashStringToUint32(`${seedKey}:tilt:${cell.id}:${index}`)) * 8 - 4) * 100) / 100,
-      xPct: (cell.centerX / Math.max(1, containerRect.width)) * 100,
-      yPct: (cell.centerY / Math.max(1, containerRect.height)) * 100,
-      xOffsetPx: 0,
-      yOffsetPx: 0,
-    };
-    const baseRect = getGuestWallSlotRect(slotBase, containerRect, mobile);
-    let bestPlacement = null;
-    let bestPenalty = Number.POSITIVE_INFINITY;
-
-    for (let attempt = 0; attempt < GUEST_WALL_SCATTER_ATTEMPTS_PER_CARD; attempt += 1) {
-      const xRand = seededRandomFromHash(hashStringToUint32(`${seedKey}:x:${cell.id}:${index}:${attempt}`));
-      const yRand = seededRandomFromHash(hashStringToUint32(`${seedKey}:y:${cell.id}:${index}:${attempt}`));
-      const offsetX = Math.round((xRand * 2 - 1) * jitterX);
-      const offsetY = Math.round((yRand * 2 - 1) * jitterY);
-
-      let left = baseRect.left + offsetX;
-      let top = baseRect.top + offsetY;
-      left = clampNumber(left, 0, Math.max(0, containerRect.width - baseRect.width));
-      top = clampNumber(top, 0, Math.max(0, containerRect.height - baseRect.height));
-      const rect = {
-        left,
-        top,
-        right: left + baseRect.width,
-        bottom: top + baseRect.height,
-      };
-
-      let penalty = 0;
-      const candidateArea = getRectArea(rect);
-      for (let i = 0; i < placedRects.length; i += 1) {
-        const existingRect = placedRects[i];
-        if (!rectsOverlap(existingRect, rect, GUEST_WALL_SCATTER_MIN_GAP_PX)) continue;
-        const overlapRect = getRectIntersection(existingRect, rect);
-        if (!overlapRect) continue;
-        const overlapArea = getRectArea(overlapRect);
-        const overlapRatio = candidateArea > 0 ? overlapArea / candidateArea : 1;
-        if (overlapRatio > maxOverlapRatio) {
-          penalty += 10_000 + overlapArea;
-        } else {
-          penalty += overlapArea;
-        }
-      }
-
-      if (penalty < bestPenalty) {
-        bestPenalty = penalty;
-        bestPlacement = { rect, offsetX, offsetY };
-      }
-      if (penalty === 0) break;
+    const candidateCells = [primaryCell];
+    const alternateCells = shuffleItems(shuffledCells.filter((cell) => cell.id !== primaryCell.id));
+    for (let i = 0; i < alternateCells.length && candidateCells.length < maxCandidateCells; i += 1) {
+      candidateCells.push(alternateCells[i]);
     }
 
-    if (!bestPlacement) continue;
-    placedRects.push(bestPlacement.rect);
+    let bestPlacement = null;
+    let bestPenalty = Number.POSITIVE_INFINITY;
+    for (let cellIndex = 0; cellIndex < candidateCells.length; cellIndex += 1) {
+      const cell = candidateCells[cellIndex];
+      const slotBase = {
+        id: `scatter-${seedKey}-${cell.id}-${index}`,
+        size: isNoteSlot ? (mobile ? "L" : "XL") : mediaSlotSize,
+        role: isNoteSlot ? "note" : "support",
+        format: "any",
+        kind: isNoteSlot ? "note" : "media",
+        baseZ: isNoteSlot ? 5 : 4,
+        tiltBase: Math.round((seededRandomFromHash(hashStringToUint32(`${seedKey}:tilt:${cell.id}:${index}`)) * 8 - 4) * 100) / 100,
+        xPct: (cell.centerX / Math.max(1, containerRect.width)) * 100,
+        yPct: (cell.centerY / Math.max(1, containerRect.height)) * 100,
+        xOffsetPx: 0,
+        yOffsetPx: 0,
+      };
+      const baseRect = getGuestWallSlotRect(slotBase, containerRect, mobile);
+
+      for (let attempt = 0; attempt < GUEST_WALL_SCATTER_ATTEMPTS_PER_CARD; attempt += 1) {
+        const xRand = seededRandomFromHash(hashStringToUint32(`${seedKey}:x:${cell.id}:${index}:${attempt}`));
+        const yRand = seededRandomFromHash(hashStringToUint32(`${seedKey}:y:${cell.id}:${index}:${attempt}`));
+        const offsetX = Math.round((xRand * 2 - 1) * jitterX);
+        const offsetY = Math.round((yRand * 2 - 1) * jitterY);
+
+        let left = baseRect.left + offsetX;
+        let top = baseRect.top + offsetY;
+        left = clampNumber(left, edgePadding, Math.max(edgePadding, containerRect.width - baseRect.width - edgePadding));
+        top = clampNumber(top, edgePadding, Math.max(edgePadding, containerRect.height - baseRect.height - edgePadding));
+        const rect = {
+          left,
+          top,
+          right: left + baseRect.width,
+          bottom: top + baseRect.height,
+        };
+
+        const candidateArea = getRectArea(rect);
+        const candidateProtectedRect = getGuestWallProtectedRect(rect, slotBase.kind);
+        let penalty = 0;
+        if (usedCellIds.has(cell.id)) penalty += 450;
+
+        for (let placedIndex = 0; placedIndex < placedRects.length; placedIndex += 1) {
+          const existing = placedRects[placedIndex];
+          if (!rectsOverlap(existing.rect, rect, minGapPx)) continue;
+          const overlapRect = getRectIntersection(existing.rect, rect);
+          if (!overlapRect) continue;
+          const overlapArea = getRectArea(overlapRect);
+          if (overlapArea <= 0) continue;
+
+          const overlapRatioCandidate = candidateArea > 0 ? overlapArea / candidateArea : 1;
+          const overlapRatioExisting = existing.area > 0 ? overlapArea / existing.area : 1;
+          if (overlapRatioCandidate > maxOverlapRatio || overlapRatioExisting > maxOverlapRatio) {
+            penalty += 25_000 + overlapArea * 8;
+          } else {
+            penalty += 2_000 + overlapArea * 2;
+          }
+
+          const protectedOverlapA = getRectIntersection(candidateProtectedRect, existing.rect);
+          if (protectedOverlapA && candidateArea > 0 && getRectArea(protectedOverlapA) > candidateArea * protectedOverlapRatioLimit) {
+            penalty += 30_000 + getRectArea(protectedOverlapA) * 10;
+          }
+          const protectedOverlapB = getRectIntersection(existing.protectedRect, rect);
+          if (protectedOverlapB && existing.area > 0 && getRectArea(protectedOverlapB) > existing.area * protectedOverlapRatioLimit) {
+            penalty += 30_000 + getRectArea(protectedOverlapB) * 10;
+          }
+        }
+
+        if (penalty < bestPenalty) {
+          bestPenalty = penalty;
+          bestPlacement = { rect, slotBase, cell, baseRect };
+        }
+        if (penalty === 0) break;
+      }
+      if (bestPenalty === 0) break;
+    }
+
+    if (!bestPlacement) {
+      const fallbackSlotBase = {
+        id: `scatter-${seedKey}-${primaryCell.id}-${index}`,
+        size: isNoteSlot ? (mobile ? "L" : "XL") : mediaSlotSize,
+        role: isNoteSlot ? "note" : "support",
+        format: "any",
+        kind: isNoteSlot ? "note" : "media",
+        baseZ: isNoteSlot ? 5 : 4,
+        tiltBase: Math.round((seededRandomFromHash(hashStringToUint32(`${seedKey}:tilt:${primaryCell.id}:${index}`)) * 8 - 4) * 100) / 100,
+        xPct: (primaryCell.centerX / Math.max(1, containerRect.width)) * 100,
+        yPct: (primaryCell.centerY / Math.max(1, containerRect.height)) * 100,
+        xOffsetPx: 0,
+        yOffsetPx: 0,
+      };
+      const fallbackRect = getGuestWallSlotRect(fallbackSlotBase, containerRect, mobile);
+      bestPlacement = { rect: fallbackRect, slotBase: fallbackSlotBase, cell: primaryCell, baseRect: fallbackRect };
+    }
+
+    usedCellIds.add(bestPlacement.cell.id);
+    placedRects.push({
+      rect: bestPlacement.rect,
+      area: getRectArea(bestPlacement.rect),
+      protectedRect: getGuestWallProtectedRect(bestPlacement.rect, bestPlacement.slotBase.kind),
+    });
+
     resolved.push({
-      ...slotBase,
-      xOffsetPx: Math.round(bestPlacement.rect.left + baseRect.width / 2 - cell.centerX),
-      yOffsetPx: Math.round(bestPlacement.rect.top + baseRect.height / 2 - cell.centerY),
-      pxWidth: baseRect.width,
+      ...bestPlacement.slotBase,
+      xOffsetPx: Math.round(bestPlacement.rect.left + bestPlacement.baseRect.width / 2 - bestPlacement.cell.centerX),
+      yOffsetPx: Math.round(bestPlacement.rect.top + bestPlacement.baseRect.height / 2 - bestPlacement.cell.centerY),
+      pxWidth: bestPlacement.baseRect.width,
       mapKey: "scatter",
     });
   }
@@ -8796,6 +8856,21 @@ function mountGuestWallSlotCard(slotNode, cardId, animate = false) {
     slotNode.classList.add("guestwall-slot--media-small");
     slotNode.classList.add("slot-size-s");
     slotNode.classList.remove("slot-size-m", "slot-size-l", "slot-size-xl");
+  } else if (card.kind === "note" && !isMobileSingle) {
+    const boardWidth = Math.max(
+      320,
+      Number(guestWallContainerSize?.desktop?.w || 0),
+      Number((guestWallPinboard instanceof HTMLElement ? guestWallPinboard.clientWidth : 0) || 0),
+      Number(window.innerWidth || 0),
+    );
+    const largeNoteWidthPx = Math.round(getGuestWallSlotWidthPx(boardWidth, "XL", false) * GUEST_WALL_NOTE_SIZE_MULTIPLIER_DESKTOP);
+    slotNode.style.setProperty("--gw-card-width", `${largeNoteWidthPx}px`);
+    slotNode.dataset.slotSize = "XL";
+    slotNode.dataset.slotRole = "note";
+    slotNode.dataset.slotKind = "note";
+    slotNode.classList.remove("guestwall-slot--media-small");
+    slotNode.classList.remove("slot-size-s", "slot-size-m", "slot-size-l");
+    slotNode.classList.add("slot-size-xl");
   } else {
     if (baseWidthPx > 0) {
       slotNode.style.setProperty("--gw-card-width", `${baseWidthPx}px`);

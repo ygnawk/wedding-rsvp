@@ -8,6 +8,7 @@ npm run dev
 ```
 
 Live preview (auto-reload): `http://localhost:3001`
+Arrivals preview is gated: set `NEXT_PUBLIC_ARRIVALS_PREVIEW=true` in `.env.local` and open `http://localhost:3000/arrivals-preview`.
 
 Server only (no auto-reload):
 ```bash

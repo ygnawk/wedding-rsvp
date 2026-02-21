@@ -3070,8 +3070,9 @@ a:focus-visible,
 }
 
 .cutout-parallax__media--arch {
-  border-radius: 999px 999px 12px 12px;
-  clip-path: inset(0 round 999px 999px 12px 12px);
+  /* Match the arch geometry used by Things-to-do image cutouts (e.g. Forbidden City). */
+  border-radius: 999px 999px 22px 22px;
+  clip-path: inset(0 round 999px 999px 22px 22px);
   border: 1px solid rgba(247, 241, 230, 0.34);
   background: rgba(20, 8, 11, 0.12);
 }
@@ -8362,6 +8363,13 @@ a.guestwall-media-retry {
 .guestwall-modal-close:focus-visible {
   outline: 2px solid rgba(201, 174, 116, 0.7);
   outline-offset: 1px;
+}
+
+.guestwall-modal.is-close-control-hidden .guestwall-modal-close {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: none;
 }
 
 .guestwall-detail-content {

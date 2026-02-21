@@ -4,7 +4,16 @@ const http = require("http");
 const zlib = require("zlib");
 const { randomUUID } = require("crypto");
 const { formidable } = require("formidable");
-const { google } = require("googleapis");
+const { handleArrivalsPreviewRequest } = require("./arrivals-preview.route");
+
+let googleApi = null;
+
+function getGoogleApi() {
+  if (!googleApi) {
+    googleApi = require("googleapis").google;
+  }
+  return googleApi;
+}
 
 const ROOT = __dirname;
 
@@ -67,6 +76,9 @@ if (loadedEnvFiles.length) {
 
 const PORT = process.env.PORT || 3000;
 const NODE_ENV = String(process.env.NODE_ENV || "development").toLowerCase();
+const GUESTBOOK_WARMUP_ON_BOOT = /^(1|true|yes|on)$/i.test(
+  String(process.env.GUESTBOOK_WARMUP_ON_BOOT || "").trim(),
+);
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -643,6 +655,7 @@ function buildGuestbookConfigErrorPayload(req, configStatus) {
 }
 
 function createGoogleClients() {
+  const google = getGoogleApi();
   const oauthClientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
   const oauthClientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
   const oauthRefreshToken = process.env.GOOGLE_OAUTH_REFRESH_TOKEN;
@@ -2150,6 +2163,20 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (
+    handleArrivalsPreviewRequest({
+      req,
+      res,
+      pathname,
+      send,
+      serveStaticFile,
+      safeMountedPath,
+      MIME_TYPES,
+    })
+  ) {
+    return;
+  }
+
   const photosPath = safeMountedPath(req.url || "", "/photos", path.join(ROOT, "photos"));
   if (photosPath) {
     serveStaticFile(req, res, photosPath);
@@ -2223,5 +2250,9 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`Wedding site running at http://localhost:${PORT}`);
   console.log("RSVP submissions will be written to Google Sheets + Google Drive");
-  scheduleGuestbookWarmup();
+  if (GUESTBOOK_WARMUP_ON_BOOT) {
+    scheduleGuestbookWarmup();
+  } else {
+    console.log("[guestbook] warmup on boot skipped (set GUESTBOOK_WARMUP_ON_BOOT=true to enable)");
+  }
 });
