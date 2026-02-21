@@ -2243,14 +2243,8 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (pathname === "/arrivals" || pathname === "/arrivals/") {
-    serveStaticFile(req, res, path.join(ROOT, "arrivals.html"));
-    return;
-  }
-
-  const arrivalsPath = safeMountedPath(req.url || "", "/arrivals", path.join(ROOT, "public", "arrivals"));
-  if (arrivalsPath) {
-    serveStaticFile(req, res, arrivalsPath);
+  if (pathname === "/arrivals" || pathname === "/arrivals/" || pathname === "/arrivals/index.html") {
+    serveStaticFile(req, res, path.join(ROOT, "arrivals", "index.html"));
     return;
   }
 
