@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Arrivals | Miki &amp; Yi Jie</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: var(--bg-maroon) !important;
+      }
+      .arrivals-shell {
+        min-height: 100vh;
+        background: var(--bg-maroon);
+      }
+      .arrivals-shell__header {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        backdrop-filter: blur(10px);
+        background: rgba(56, 6, 14, 0.9);
+        border-bottom: 1px solid rgba(201, 174, 116, 0.35);
+      }
+      .arrivals-shell__header-inner {
+        width: 100%;
+        max-width: none;
+        margin: 0;
+        padding: 14px 28px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .arrivals-shell__brand {
+        color: var(--ivory);
+        text-decoration: none;
+        font-family: var(--serifDisplay);
+        font-size: clamp(1.15rem, 2vw, 1.45rem);
+        letter-spacing: 0.02em;
+      }
+      .arrivals-shell__nav {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      .arrivals-shell__nav a {
+        color: var(--ivory);
+        text-decoration: none;
+        opacity: 0.9;
+      }
+      .arrivals-shell__nav a:hover {
+        color: var(--gold);
+        opacity: 1;
+      }
+      .arrivals-shell__main {
+        width: 100%;
+        max-width: none;
+        margin: 0;
+        padding: 0;
+      }
+      .arrivals-shell__frame {
+        border: 0;
+        border-radius: 0;
+        overflow: hidden;
+        box-shadow: none;
+      }
+      .arrivals-shell__iframe {
+        display: block;
+        width: 100%;
+        height: auto;
+        min-height: 900px;
+        border: 0;
+        background: #090807;
+        overflow: visible;
+      }
+      @media (max-width: 900px) {
+        .arrivals-shell__header-inner {
+          padding: 12px 16px;
+          flex-wrap: wrap;
+        }
+        .arrivals-shell__iframe {
+          min-height: 780px;
+        }
+      }
+    </style>
+  </head>
+  <body class="arrivals-shell">
+    <header class="arrivals-shell__header">
+      <div class="arrivals-shell__header-inner">
+        <a class="arrivals-shell__brand" href="/">Miki &amp; Yi Jie</a>
+        <nav class="arrivals-shell__nav" aria-label="Secondary">
+          <a href="/">Home</a>
+          <a href="/guest-wall">Guest Wall</a>
+          <a href="/#rsvp">RSVP</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="arrivals-shell__main">
+      <section class="arrivals-shell__frame" aria-label="Live Arrivals Tracker">
+        <iframe
+          id="arrivalsTrackerFrame"
+          class="arrivals-shell__iframe"
+          src="/public/arrivals/index.html"
+          title="Arrivals Tracker"
+          scrolling="no"
+        ></iframe>
+      </section>
+    </main>
+    <script>
+      (() => {
+        const iframe = document.getElementById("arrivalsTrackerFrame");
+        if (!iframe) return;
+
+        let frameResizeObserver = null;
+        let frameMutationObserver = null;
+
+        const setFrameHeight = () => {
+          const doc = iframe.contentDocument;
+          if (!doc) return;
+
+          const rootHeight = doc.documentElement ? doc.documentElement.scrollHeight : 0;
+          const bodyHeight = doc.body ? doc.body.scrollHeight : 0;
+          const nextHeight = Math.max(900, Math.ceil(Math.max(rootHeight, bodyHeight)));
+
+          iframe.style.height = `${nextHeight}px`;
+        };
+
+        const scheduleFrameHeight = () => {
+          window.requestAnimationFrame(setFrameHeight);
+        };
+
+        iframe.addEventListener("load", () => {
+          setFrameHeight();
+          const doc = iframe.contentDocument;
+          if (!doc) return;
+
+          if (frameResizeObserver) frameResizeObserver.disconnect();
+          if (frameMutationObserver) frameMutationObserver.disconnect();
+
+          if ("ResizeObserver" in window) {
+            frameResizeObserver = new ResizeObserver(scheduleFrameHeight);
+            frameResizeObserver.observe(doc.documentElement);
+            if (doc.body) frameResizeObserver.observe(doc.body);
+          }
+
+          frameMutationObserver = new MutationObserver(scheduleFrameHeight);
+          frameMutationObserver.observe(doc.documentElement, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            characterData: false,
+          });
+
+          window.setTimeout(setFrameHeight, 80);
+          window.setTimeout(setFrameHeight, 320);
+        });
+
+        window.addEventListener("resize", scheduleFrameHeight);
+      })();
+    </script>
+  </body>
+</html>

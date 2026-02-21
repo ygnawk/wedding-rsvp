@@ -2243,6 +2243,11 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (pathname === "/arrivals" || pathname === "/arrivals/" || pathname === "/arrivals/index.html") {
+    serveStaticFile(req, res, path.join(ROOT, "arrivals", "index.html"));
+    return;
+  }
+
   const filePath = safePath(req.url || "/");
   serveStaticFile(req, res, filePath);
 });

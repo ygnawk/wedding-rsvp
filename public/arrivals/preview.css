@@ -1,0 +1,121 @@
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(circle at 20% 14%, rgba(255, 240, 214, 0.07), transparent 34%),
+    radial-gradient(circle at 84% 78%, rgba(255, 240, 214, 0.05), transparent 40%),
+    #4d0d19;
+  color: rgba(247, 238, 222, 0.94);
+  font-family: inherit;
+}
+
+#arrivals-preview-root {
+  min-height: 100vh;
+}
+
+.arrivals-preview {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: clamp(0.75rem, 1.15vw, 1.1rem);
+  overflow: hidden;
+}
+
+.arrivals-preview::before {
+  content: "";
+  position: absolute;
+  inset: 0.45rem;
+  border: 1px solid rgba(242, 229, 204, 0.12);
+  pointer-events: none;
+}
+
+.arrivals-preview__message {
+  display: grid;
+  place-items: center;
+  min-height: 40vh;
+  border: 1px solid rgba(242, 229, 204, 0.18);
+  background: rgba(18, 12, 10, 0.28);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: clamp(1.02rem, 1.25vw, 1.22rem);
+}
+
+.arrivals-preview__message--error {
+  border-color: rgba(242, 229, 204, 0.3);
+  color: rgba(247, 238, 222, 0.94);
+}
+
+.arrivals-map__base-image {
+  opacity: 0.42;
+  filter: grayscale(1) brightness(1) contrast(0.95);
+}
+
+.arrivals-map__land--inline {
+  opacity: 0.42;
+  filter: grayscale(1) brightness(1) contrast(0.95);
+}
+
+.arrivals-map__land--inline path {
+  fill: var(--land-fill);
+  stroke: var(--land-stroke);
+  stroke-width: 0.34;
+  vector-effect: non-scaling-stroke;
+}
+
+.arrivals-map__geo-bounds {
+  pointer-events: none;
+}
+
+.arrivals-map__debug-point-dot {
+  fill: var(--accent-strong);
+  stroke: var(--panel-0);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.arrivals-map__debug-point-label {
+  fill: var(--text-strong);
+  font-family: var(--font-board);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  paint-order: stroke;
+  stroke: var(--panel-0);
+  stroke-width: 0.45;
+  vector-effect: non-scaling-stroke;
+}
+
+.arrivals-map__plane-image {
+  filter: grayscale(1) saturate(0.15) brightness(1.45) contrast(1.08);
+  opacity: 0.95;
+  transition: filter 180ms ease, opacity 180ms ease;
+}
+
+.arrivals-map__plane {
+  opacity: 0.74;
+}
+
+.arrivals-map__plane--active .arrivals-map__plane-image {
+  filter: grayscale(0.55) saturate(0.35) brightness(1.48) contrast(1.1);
+}
+
+.arrivals-map__plane--muted .arrivals-map__plane-image {
+  filter: grayscale(1) saturate(0) brightness(1.12) contrast(1.02);
+  opacity: 0.62;
+}
+
+.arrivals-map__plane--focus-dim .arrivals-map__plane-image {
+  filter: grayscale(1) saturate(0) brightness(0.95) contrast(0.98);
+  opacity: 0.18;
+}
