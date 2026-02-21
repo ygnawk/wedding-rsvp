@@ -6501,36 +6501,26 @@ a.makan-copy-icon-btn {
   }
 
   .makan-legal-popover {
-    inset: 0;
-    z-index: 16000;
-    width: auto;
-    max-width: none;
+    position: static;
+    inset: auto;
+    z-index: auto;
+    width: 100%;
+    max-width: min(420px, 100%);
     max-height: none;
     padding: 0;
-    align-items: flex-end;
-    justify-content: center;
-    overflow: hidden;
+    align-items: stretch;
+    justify-content: flex-start;
+    overflow: visible;
     pointer-events: auto;
+    margin-top: 12px;
   }
 
   .makan-legal-popover:not([hidden]) {
-    display: flex;
+    display: block;
   }
 
   .makan-legal-backdrop {
-    position: absolute;
-    inset: 0;
-    display: block;
-    min-height: 0;
-    border-radius: 0;
-    padding: 0;
-    transform: none;
-    transition: none;
-    border: 0;
-    background: rgba(12, 6, 8, 0.46);
-    backdrop-filter: blur(1.5px);
-    -webkit-backdrop-filter: blur(1.5px);
-    cursor: pointer;
+    display: none;
   }
 
   .makan-legal-backdrop:hover,
@@ -6549,7 +6539,7 @@ a.makan-copy-icon-btn {
 
   .makan-legal-card {
     position: relative;
-    z-index: 2;
+    z-index: 1;
     width: 100%;
     max-width: none;
     max-height: 80vh;
@@ -6567,6 +6557,11 @@ a.makan-copy-icon-btn {
 
   #makan.has-legal-popover-open {
     padding-bottom: 0;
+  }
+
+  .makan-legal-row {
+    width: 100%;
+    margin-bottom: 16px;
   }
 }
 

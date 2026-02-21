@@ -2469,13 +2469,13 @@ function openMakanLegalModal() {
   if (makanLegalOpen) return;
   if (makanSection) makanSection.classList.add("has-legal-popover-open");
   makanLegalPopover.classList.remove("is-flipped-up");
-  if (!makanLegalScrollLocked) {
+  if (!isMakanLegalMobile() && !makanLegalScrollLocked) {
     lockBodyScroll();
     makanLegalScrollLocked = true;
   }
   setA11yHidden(makanLegalPopover, false);
   makanLegalPopover.classList.add("open");
-  makanLegalPopover.setAttribute("aria-modal", "true");
+  makanLegalPopover.setAttribute("aria-modal", isMakanLegalMobile() ? "false" : "true");
   if (makanLegalWrapper) makanLegalWrapper.dataset.open = "true";
   setAriaExpanded(makanLegalTrigger, true);
   makanLegalOpen = true;
