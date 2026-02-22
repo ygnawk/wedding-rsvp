@@ -5,9 +5,7 @@ import { mockArrivals, mockCountryGroups, mockRoutes, mockTotalArrivals } from "
 import type { ArrivalsSelection } from "../types";
 import "../styles/arrivals.css";
 
-const ARRIVALS_CELEBRATION_LABEL = "SEPTEMBER 2026 WEDDING";
-const ARRIVALS_TITLE_LABEL = "Arrivals Tracker";
-const ARRIVALS_HELPER_LABEL = "Tracking everyone’s journey to Beijing";
+const ARRIVALS_TITLE_LABEL = "Tracking everyon's journey to Beijing";
 
 export function ArrivalsPage() {
   const [selection, setSelection] = useState<ArrivalsSelection | null>(null);
@@ -107,11 +105,9 @@ export function ArrivalsPage() {
   return (
     <section className="arrivals-page" aria-labelledby="arrivals-page-title">
       <header className="arrivals-page__header">
-        <p className="arrivals-page__eyebrow">{ARRIVALS_CELEBRATION_LABEL}</p>
         <h1 id="arrivals-page-title" className="arrivals-page__title">
           {ARRIVALS_TITLE_LABEL}
         </h1>
-        <p className="arrivals-page__helper">{ARRIVALS_HELPER_LABEL}</p>
       </header>
 
       <div className="arrivals-page__content">

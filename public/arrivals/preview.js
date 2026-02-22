@@ -57,8 +57,7 @@ const BOARD_IDLE_FLIP_MIN_MS = 20000;
 const BOARD_IDLE_FLIP_MAX_MS = 45000;
 const BOARD_IDLE_FLIP_DURATION_MIN_MS = 300;
 const BOARD_IDLE_FLIP_DURATION_MAX_MS = 450;
-const ARRIVALS_TITLE_LABEL = "Arrivals Tracker";
-const ARRIVALS_HELPER_LABEL = "Tracking everyone’s journey to Beijing";
+const ARRIVALS_TITLE_LABEL = "Tracking everyon's journey to Beijing";
 const MAP_LABEL = "WORLD MAP";
 const BOARD_END_LABEL = "END";
 const BEIJING_TIME_ZONE = "Asia/Shanghai";
@@ -1040,7 +1039,7 @@ function getArrivalsTimestampLabel(lastUpdatedIso) {
     typeof lastUpdatedIso === "string" && lastUpdatedIso.trim().length > 0 ? new Date(lastUpdatedIso) : null;
   const hasValidIso = parsedDate instanceof Date && !Number.isNaN(parsedDate.getTime());
   if (!hasValidIso) {
-    return "Updated: Pending RSVP timestamp · Based on RSVP timestamps";
+    return "Updated: Pending RSVP timestamp";
   }
 
   const displayDate = parsedDate.toLocaleDateString("en-US", {
@@ -1050,7 +1049,7 @@ function getArrivalsTimestampLabel(lastUpdatedIso) {
     timeZone: BEIJING_TIME_ZONE,
   });
 
-  return `Updated: ${displayDate} · Based on RSVP timestamps`;
+  return `Updated: ${displayDate}`;
 }
 
 function buildMapStatsSummary(routes) {
@@ -2316,7 +2315,7 @@ function render() {
               aria-expanded="${state.disclaimerOpen ? "true" : "false"}"
               aria-controls="arrivals-map-disclaimer-panel"
             >
-              <span class="arrivals-map__control-icon" aria-hidden="true">ⓘ</span>
+              <span class="arrivals-map__control-icon" aria-hidden="true"><span class="arrivals-map__control-glyph">i</span></span>
             </button>
             <section
               id="arrivals-map-disclaimer-panel"
@@ -2411,7 +2410,7 @@ function render() {
               aria-expanded="${state.boardDisclaimerOpen ? "true" : "false"}"
               aria-controls="arrivals-board-disclaimer-panel"
             >
-              <span class="arrivals-map__control-icon" aria-hidden="true">ⓘ</span>
+              <span class="arrivals-map__control-icon" aria-hidden="true"><span class="arrivals-map__control-glyph">i</span></span>
             </button>
             <div
               id="arrivals-board-disclaimer-panel"
@@ -2431,8 +2430,11 @@ function render() {
             </div>
           </div>
         </div>
-        <p class="arrivals-board__meta">${totalGuests} GUESTS INBOUND</p>
-        <time class="arrivals-board__timestamp">${escapeHtml(lastUpdated)}</time>
+        <p class="arrivals-board__status-line">
+          <span class="arrivals-board__meta">${totalGuests} GUESTS INBOUND</span>
+          <span class="arrivals-board__status-separator" aria-hidden="true">·</span>
+          <time class="arrivals-board__timestamp">${escapeHtml(lastUpdated)}</time>
+        </p>
       </header>
 
       <div class="arrivals-board__segments">
@@ -2460,7 +2462,6 @@ function render() {
         </svg>
         <header class="arrivals-page__header">
           <h1 id="arrivals-page-title" class="arrivals-page__title">${ARRIVALS_TITLE_LABEL}</h1>
-          <p class="arrivals-page__helper">${ARRIVALS_HELPER_LABEL}</p>
         </header>
 
         <div class="arrivals-page__content">
