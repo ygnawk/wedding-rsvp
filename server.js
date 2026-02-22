@@ -136,6 +136,7 @@ const CITY_SEARCH_CACHE_TTL_MS = Math.max(300, Number.parseInt(process.env.CITY_
 const CITY_SEARCH_RATE_LIMIT_MS = Math.max(150, Number.parseInt(process.env.CITY_SEARCH_RATE_LIMIT_MS || "260", 10) || 260);
 const CITY_SEARCH_MIN_QUERY_LENGTH = 2;
 const CITY_SEARCH_MAX_RESULTS = Math.max(1, Math.min(12, Number.parseInt(process.env.CITY_SEARCH_MAX_RESULTS || "8", 10) || 8));
+const CITY_SEARCH_UPSTREAM_TIMEOUT_MS = Math.max(2500, Number.parseInt(process.env.CITY_SEARCH_UPSTREAM_TIMEOUT_MS || "7000", 10) || 7000);
 const CITY_SEARCH_NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
 const CITY_SEARCH_USER_AGENT =
   normalizeFieldValue(process.env.CITY_SEARCH_USER_AGENT) ||
@@ -735,6 +736,48 @@ function writeCitySearchCache(countryCode, query, results) {
   });
 }
 
+function filterCitySearchResults(results, query) {
+  const normalizedQuery = normalizeCitySearchQuery(query).toLowerCase();
+  if (!normalizedQuery) return Array.isArray(results) ? results : [];
+  return (Array.isArray(results) ? results : []).filter((result) => {
+    const city = normalizeFieldValue(result && result.city).toLowerCase();
+    const label = normalizeFieldValue(result && result.label).toLowerCase();
+    return city.includes(normalizedQuery) || label.includes(normalizedQuery);
+  });
+}
+
+function readCitySearchPrefixCache(countryCode, query) {
+  const normalizedCountryCode = normalizeCountryCode(countryCode);
+  const normalizedQuery = normalizeCitySearchQuery(query).toLowerCase();
+  if (!normalizedCountryCode || normalizedQuery.length < CITY_SEARCH_MIN_QUERY_LENGTH) return null;
+  const keyPrefix = `${normalizedCountryCode}|`;
+  let bestMatch = null;
+
+  citySearchCache.forEach((entry, key) => {
+    if (!key.startsWith(keyPrefix)) return;
+    if (!entry || !Number.isFinite(entry.expiresAt) || entry.expiresAt <= Date.now()) {
+      citySearchCache.delete(key);
+      return;
+    }
+
+    const cachedQuery = key.slice(keyPrefix.length);
+    if (!cachedQuery || cachedQuery === normalizedQuery) return;
+    if (!normalizedQuery.startsWith(cachedQuery)) return;
+
+    const filtered = filterCitySearchResults(entry.results, normalizedQuery);
+    if (!filtered.length) return;
+
+    if (!bestMatch || cachedQuery.length > bestMatch.queryLength) {
+      bestMatch = {
+        queryLength: cachedQuery.length,
+        results: filtered,
+      };
+    }
+  });
+
+  return bestMatch ? bestMatch.results : null;
+}
+
 function getCountryNameByCode(countryCode) {
   const normalizedCode = normalizeCountryCode(countryCode);
   if (!normalizedCode) return "";
@@ -810,20 +853,41 @@ async function fetchCitySearchResultsFromNominatim(countryCode, query, limit = C
   const cached = readCitySearchCache(normalizedCountryCode, normalizedQuery);
   if (cached) return cached;
 
+  const prefixCached = readCitySearchPrefixCache(normalizedCountryCode, normalizedQuery);
+  if (prefixCached && prefixCached.length) {
+    writeCitySearchCache(normalizedCountryCode, normalizedQuery, prefixCached);
+    return prefixCached;
+  }
+
   const searchUrl = new URL(CITY_SEARCH_NOMINATIM_URL);
   searchUrl.searchParams.set("format", "jsonv2");
   searchUrl.searchParams.set("addressdetails", "1");
   searchUrl.searchParams.set("limit", String(Math.max(1, Math.min(20, Number(limit) || CITY_SEARCH_MAX_RESULTS))));
   searchUrl.searchParams.set("countrycodes", normalizedCountryCode.toLowerCase());
+  searchUrl.searchParams.set("dedupe", "1");
   searchUrl.searchParams.set("q", normalizedQuery);
 
-  const response = await fetch(searchUrl.toString(), {
-    headers: {
-      "User-Agent": CITY_SEARCH_USER_AGENT,
-      Accept: "application/json",
-      "Accept-Language": "en",
-    },
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), CITY_SEARCH_UPSTREAM_TIMEOUT_MS);
+
+  let response;
+  try {
+    response = await fetch(searchUrl.toString(), {
+      signal: controller.signal,
+      headers: {
+        "User-Agent": CITY_SEARCH_USER_AGENT,
+        Accept: "application/json",
+        "Accept-Language": "en",
+      },
+    });
+  } catch (error) {
+    if (error && typeof error === "object" && error.name === "AbortError") {
+      throw createHttpError(504, "City search upstream timed out.", "city_search_upstream_timeout");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     throw createHttpError(503, `City search upstream returned ${response.status}.`, "city_search_upstream_error");
@@ -836,7 +900,10 @@ async function fetchCitySearchResultsFromNominatim(countryCode, query, limit = C
   rawResults.forEach((result) => {
     const normalizedResult = normalizeNominatimCityResult(result, normalizedCountryCode);
     if (!normalizedResult) return;
-    const dedupeKey = `${normalizedResult.city.toLowerCase()}|${normalizedResult.lat.toFixed(4)}|${normalizedResult.lon.toFixed(4)}`;
+    const normalizedCity = normalizeFieldValue(normalizedResult.city).toLowerCase();
+    const normalizedLabel = normalizeFieldValue(normalizedResult.label).toLowerCase();
+    const normalizedCityId = normalizeFieldValue(normalizedResult.cityId).toLowerCase();
+    const dedupeKey = normalizedCity || normalizedLabel ? `${normalizedCity}|${normalizedLabel}` : normalizedCityId;
     if (seen.has(dedupeKey)) return;
     seen.add(dedupeKey);
     normalizedResults.push(normalizedResult);
@@ -893,7 +960,7 @@ async function handleCitySearchRequest(req, res) {
     const results = await fetchCitySearchResultsFromNominatim(country, query, CITY_SEARCH_MAX_RESULTS);
     send(res, 200, JSON.stringify(results), MIME_TYPES[".json"], {
       req,
-      cacheControl: "no-store",
+      cacheControl: "public, max-age=86400, stale-while-revalidate=604800",
     });
   } catch (error) {
     const status = Number(error && typeof error === "object" ? error.status : 0);

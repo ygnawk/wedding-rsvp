@@ -4,9 +4,11 @@ const BASE_PATH = window.location.hostname === "ygnawk.github.io" ? "/wedding-rs
 const IS_LOCAL_DEV = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
 const RSVP_API_ORIGIN = "https://mikiandyijie-rsvp-api.onrender.com";
 const RSVP_COUNTRIES_MODULE_URL = withBasePath("/data/countries.js?v=20260223-rsvp-countries1");
+const RSVP_LOCAL_CITY_CATALOG_URL = withBasePath("/data/arrivals-locations.json?v=20260222-city-search");
 const RSVP_CITY_SEARCH_PATH = "/api/city-search";
 const RSVP_CITY_SEARCH_DEBOUNCE_MS = 280;
 const RSVP_CITY_SEARCH_MIN_QUERY_LENGTH = 2;
+const RSVP_CITY_SEARCH_MAX_SUGGESTIONS = 8;
 const RSVP_CITY_SEARCH_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const RSVP_CITY_SEARCH_TIMEOUT_MS = 9000;
 const RSVP_CITY_SEARCH_SESSION_KEY = "wedding_rsvp_city_search_cache_v1";
@@ -520,6 +522,9 @@ let rsvpCitySearchRequestToken = 0;
 let rsvpCitySuggestions = [];
 let rsvpCityActiveSuggestionIndex = -1;
 let rsvpCitySearchCache = new Map();
+let rsvpCitySearchInFlight = new Map();
+let rsvpLocalCityCatalogByCountry = new Map();
+let rsvpLocalCityCatalogPromise = null;
 
 function setRsvpSubmitOverlayVisible(visible) {
   if (!rsvpSubmitOverlay) return;
@@ -1396,6 +1401,42 @@ function normalizeCitySearchResult(item) {
   };
 }
 
+function normalizeCitySuggestionDedupeKey(suggestion) {
+  if (!suggestion || typeof suggestion !== "object") return "";
+  const city = String(suggestion.city || "").trim().toLowerCase();
+  const label = String(suggestion.label || "").trim().toLowerCase();
+  if (city || label) return `city:${city}|label:${label}`;
+  const cityId = String(suggestion.cityId || "").trim().toLowerCase();
+  return cityId ? `id:${cityId}` : "";
+}
+
+function dedupeCitySuggestions(suggestions, maxCount = RSVP_CITY_SEARCH_MAX_SUGGESTIONS) {
+  const seen = new Set();
+  const normalized = Array.isArray(suggestions)
+    ? suggestions.map((item) => normalizeCitySearchResult(item)).filter(Boolean)
+    : [];
+  const unique = [];
+  normalized.forEach((suggestion) => {
+    const dedupeKey = normalizeCitySuggestionDedupeKey(suggestion);
+    if (!dedupeKey || seen.has(dedupeKey)) return;
+    seen.add(dedupeKey);
+    unique.push(suggestion);
+  });
+  return unique.slice(0, maxCount);
+}
+
+function filterCitySuggestionsByQuery(suggestions, query) {
+  const normalizedQuery = String(query || "").trim().toLowerCase();
+  if (!normalizedQuery) return dedupeCitySuggestions(suggestions);
+  return dedupeCitySuggestions(
+    (Array.isArray(suggestions) ? suggestions : []).filter((suggestion) => {
+      const city = String(suggestion.city || "").toLowerCase();
+      const label = String(suggestion.label || "").toLowerCase();
+      return city.includes(normalizedQuery) || label.includes(normalizedQuery);
+    }),
+  );
+}
+
 function getCitySearchCacheKey(countryCode, query) {
   return `${normalizeCountryCode(countryCode)}|${String(query || "").trim().toLowerCase()}`;
 }
@@ -1439,6 +1480,52 @@ function writeCitySearchSessionCache() {
   }
 }
 
+async function loadRsvpLocalCityCatalog() {
+  if (rsvpLocalCityCatalogPromise) return rsvpLocalCityCatalogPromise;
+  rsvpLocalCityCatalogPromise = (async () => {
+    try {
+      const response = await fetch(RSVP_LOCAL_CITY_CATALOG_URL, { cache: "force-cache" });
+      if (!response.ok) throw new Error(`Local city catalog returned ${response.status}`);
+      const payload = await response.json();
+      const rawLocations = Array.isArray(payload?.locations) ? payload.locations : [];
+      const grouped = new Map();
+
+      rawLocations.forEach((item) => {
+        const city = String(item && item.city ? item.city : "").trim();
+        const countryName = String(item && item.country ? item.country : "").trim();
+        const label = city && countryName && city.toLowerCase() !== countryName.toLowerCase() ? `${city}, ${countryName}` : city;
+        const normalized = normalizeCitySearchResult({
+          ...item,
+          city,
+          label,
+        });
+        if (!normalized) return;
+        const countryCode = normalizeCountryCode(item.countryCode || normalized.countryCode);
+        if (!countryCode) return;
+        if (!grouped.has(countryCode)) grouped.set(countryCode, []);
+        grouped.get(countryCode).push(normalized);
+      });
+
+      grouped.forEach((entries, countryCode) => {
+        grouped.set(countryCode, dedupeCitySuggestions(entries, RSVP_CITY_SEARCH_MAX_SUGGESTIONS * 6));
+      });
+
+      rsvpLocalCityCatalogByCountry = grouped;
+      return grouped;
+    } catch (error) {
+      if (DEBUG_RSVP) {
+        console.info(
+          `[rsvp-debug][client] local_city_catalog_failed message=${error instanceof Error ? error.message : String(error || "unknown")}`,
+        );
+      }
+      rsvpLocalCityCatalogByCountry = new Map();
+      return rsvpLocalCityCatalogByCountry;
+    }
+  })();
+
+  return rsvpLocalCityCatalogPromise;
+}
+
 function getCachedCitySuggestions(countryCode, query) {
   const key = getCitySearchCacheKey(countryCode, query);
   const cached = rsvpCitySearchCache.get(key);
@@ -1446,21 +1533,59 @@ function getCachedCitySuggestions(countryCode, query) {
     rsvpCitySearchCache.delete(key);
     return null;
   }
-  return Array.isArray(cached.items) ? cached.items : null;
+  return Array.isArray(cached.items) ? dedupeCitySuggestions(cached.items) : null;
+}
+
+function getPrefixCachedCitySuggestions(countryCode, query) {
+  const normalizedCountryCode = normalizeCountryCode(countryCode);
+  const normalizedQuery = String(query || "").trim().toLowerCase();
+  if (!normalizedCountryCode || normalizedQuery.length < RSVP_CITY_SEARCH_MIN_QUERY_LENGTH) return null;
+
+  const countryPrefix = `${normalizedCountryCode}|`;
+  let bestMatch = null;
+
+  rsvpCitySearchCache.forEach((cachedValue, cacheKey) => {
+    if (!cacheKey.startsWith(countryPrefix)) return;
+    if (!cachedValue || !Number.isFinite(cachedValue.expiresAt) || cachedValue.expiresAt <= Date.now()) return;
+
+    const cachedQuery = cacheKey.slice(countryPrefix.length);
+    if (!cachedQuery || cachedQuery === normalizedQuery) return;
+    if (!normalizedQuery.startsWith(cachedQuery)) return;
+
+    const filtered = filterCitySuggestionsByQuery(cachedValue.items, normalizedQuery);
+    if (!filtered.length) return;
+
+    if (!bestMatch || cachedQuery.length > bestMatch.queryLength) {
+      bestMatch = {
+        queryLength: cachedQuery.length,
+        items: filtered,
+      };
+    }
+  });
+
+  return bestMatch ? bestMatch.items : null;
+}
+
+function getLocalCitySuggestions(countryCode, query) {
+  const normalizedCountryCode = normalizeCountryCode(countryCode);
+  if (!normalizedCountryCode) return [];
+  const raw = rsvpLocalCityCatalogByCountry.get(normalizedCountryCode);
+  if (!Array.isArray(raw) || !raw.length) return [];
+  return filterCitySuggestionsByQuery(raw, query).slice(0, RSVP_CITY_SEARCH_MAX_SUGGESTIONS);
 }
 
 function cacheCitySuggestions(countryCode, query, suggestions) {
   const key = getCitySearchCacheKey(countryCode, query);
   rsvpCitySearchCache.set(key, {
     expiresAt: Date.now() + RSVP_CITY_SEARCH_CACHE_TTL_MS,
-    items: Array.isArray(suggestions) ? suggestions : [],
+    items: dedupeCitySuggestions(suggestions),
   });
   writeCitySearchSessionCache();
 }
 
 function renderOriginCitySuggestions(suggestions) {
   if (!(originCitySuggestions instanceof HTMLElement)) return;
-  const safeSuggestions = Array.isArray(suggestions) ? suggestions : [];
+  const safeSuggestions = dedupeCitySuggestions(suggestions);
   rsvpCitySuggestions = safeSuggestions;
   rsvpCityActiveSuggestionIndex = -1;
   originCitySuggestions.innerHTML = "";
@@ -1479,11 +1604,15 @@ function renderOriginCitySuggestions(suggestions) {
     const name = document.createElement("span");
     name.className = "origin-city-suggestion-name";
     name.textContent = suggestion.city;
-    const meta = document.createElement("span");
-    meta.className = "origin-city-suggestion-meta";
-    meta.textContent = suggestion.label;
     button.appendChild(name);
-    button.appendChild(meta);
+    const hasDistinctMeta =
+      String(suggestion.label || "").trim().toLowerCase() !== String(suggestion.city || "").trim().toLowerCase();
+    if (hasDistinctMeta) {
+      const meta = document.createElement("span");
+      meta.className = "origin-city-suggestion-meta";
+      meta.textContent = suggestion.label;
+      button.appendChild(meta);
+    }
     originCitySuggestions.appendChild(button);
   });
 
@@ -1531,29 +1660,56 @@ async function fetchCitySuggestions(countryCode, query) {
   const cached = getCachedCitySuggestions(normalizedCountryCode, normalizedQuery);
   if (cached) return cached;
 
+  const prefixCached = getPrefixCachedCitySuggestions(normalizedCountryCode, normalizedQuery);
+  if (prefixCached && prefixCached.length) {
+    cacheCitySuggestions(normalizedCountryCode, normalizedQuery, prefixCached);
+    return prefixCached;
+  }
+
+  const localSuggestions = getLocalCitySuggestions(normalizedCountryCode, normalizedQuery);
+  if (localSuggestions.length) {
+    cacheCitySuggestions(normalizedCountryCode, normalizedQuery, localSuggestions);
+    return localSuggestions;
+  }
+
   const apiUrl = resolveCitySearchApiUrl();
   const requestUrl = new URL(apiUrl, window.location.origin);
   requestUrl.searchParams.set("country", normalizedCountryCode);
   requestUrl.searchParams.set("q", normalizedQuery);
 
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), RSVP_CITY_SEARCH_TIMEOUT_MS);
-  try {
-    const response = await fetch(requestUrl.toString(), { signal: controller.signal, cache: "no-store" });
-    if (!response.ok) {
-      throw new Error(`City search returned ${response.status}`);
-    }
+  const requestKey = getCitySearchCacheKey(normalizedCountryCode, normalizedQuery);
+  const pendingRequest = rsvpCitySearchInFlight.get(requestKey);
+  if (pendingRequest) return pendingRequest;
 
-    const payload = await response.json();
-    const suggestions = Array.isArray(payload)
-      ? payload.map((item) => normalizeCitySearchResult(item)).filter(Boolean)
-      : Array.isArray(payload.results)
-        ? payload.results.map((item) => normalizeCitySearchResult(item)).filter(Boolean)
-        : [];
-    cacheCitySuggestions(normalizedCountryCode, normalizedQuery, suggestions);
-    return suggestions;
+  const requestPromise = (async () => {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), RSVP_CITY_SEARCH_TIMEOUT_MS);
+    try {
+      const response = await fetch(requestUrl.toString(), { signal: controller.signal, cache: "force-cache" });
+      if (!response.ok) {
+        throw new Error(`City search returned ${response.status}`);
+      }
+
+      const payload = await response.json();
+      const suggestions = dedupeCitySuggestions(
+        Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload.results)
+            ? payload.results
+            : [],
+      );
+      cacheCitySuggestions(normalizedCountryCode, normalizedQuery, suggestions);
+      return suggestions;
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  })();
+
+  rsvpCitySearchInFlight.set(requestKey, requestPromise);
+  try {
+    return await requestPromise;
   } finally {
-    window.clearTimeout(timeoutId);
+    rsvpCitySearchInFlight.delete(requestKey);
   }
 }
 
@@ -1650,6 +1806,7 @@ async function initRsvpOriginFields() {
     setOriginCitySearchEnabled(false);
     setOriginCitySearchStatus("Loading countries…");
     rsvpCitySearchCache = readCitySearchSessionCache();
+    void loadRsvpLocalCityCatalog();
 
     try {
       const module = await import(RSVP_COUNTRIES_MODULE_URL);
