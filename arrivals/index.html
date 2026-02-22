@@ -4,8 +4,22 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Arrivals | Miki &amp; Yi Jie</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Allura&family=Cedarville+Cursive&family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&family=Nanum+Pen+Script&family=Noto+Serif+TC:wght@400;500;600;700&family=Single+Day&display=swap"
+      rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
+    />
+    <noscript>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Allura&family=Cedarville+Cursive&family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&family=Nanum+Pen+Script&family=Noto+Serif+TC:wght@400;500;600;700&family=Single+Day&display=swap"
+        rel="stylesheet"
+      />
+    </noscript>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=20260223-arrivals-header-sync1" />
     <style>
       html,
       body {
@@ -21,7 +35,24 @@
         width: 100%;
         max-width: none;
         margin: 0;
-        padding-top: calc(var(--headerH) + 24px);
+        padding: calc(var(--headerH) + 24px) clamp(12px, 2vw, 24px) clamp(16px, 3vw, 28px);
+        box-sizing: border-box;
+      }
+      .arrivalsShell {
+        background: var(--ivory, #f6f0e6);
+        border: 1px solid rgba(90, 60, 30, 0.18);
+        border-radius: 28px;
+        box-shadow: 0 16px 40px rgba(20, 10, 10, 0.25);
+        padding: clamp(16px, 2.6vw, 28px);
+        margin: 0 auto;
+        width: 100%;
+        max-width: min(1200px, calc(100% - 24px));
+        box-sizing: border-box;
+      }
+      .arrivalsTrackerRoot {
+        border-radius: 22px;
+        overflow: hidden;
+        background: transparent;
       }
       .arrivals-shell__frame {
         border: 0;
@@ -42,8 +73,20 @@
         .arrivals-shell__main {
           padding-top: calc(var(--headerH) + 16px);
         }
+        .arrivalsShell {
+          border-radius: 22px;
+          padding: clamp(12px, 3.5vw, 18px);
+          max-width: 100%;
+        }
         .arrivals-shell__iframe {
           min-height: 780px;
+        }
+      }
+      @media (max-width: 768px) {
+        .arrivalsShell {
+          border-radius: 22px;
+          padding: 14px;
+          max-width: calc(100% - 16px);
         }
       }
     </style>
@@ -122,15 +165,19 @@
     </aside>
 
     <main class="arrivals-shell__main">
-      <section class="arrivals-shell__frame" aria-label="Live Arrivals Tracker">
-        <iframe
-          id="arrivalsTrackerFrame"
-          class="arrivals-shell__iframe"
-          src="/public/arrivals/index.html"
-          title="Arrivals Tracker"
-          scrolling="no"
-        ></iframe>
-      </section>
+      <div class="arrivalsShell">
+        <div class="arrivalsTrackerRoot">
+          <section class="arrivals-shell__frame" aria-label="Live Arrivals Tracker">
+            <iframe
+              id="arrivalsTrackerFrame"
+              class="arrivals-shell__iframe"
+              src="/public/arrivals/index.html"
+              title="Arrivals Tracker"
+              scrolling="no"
+            ></iframe>
+          </section>
+        </div>
+      </div>
     </main>
     <script>
       (() => {
@@ -138,6 +185,7 @@
         const mobileNavSheet = document.getElementById("mobileNavSheet");
         const desktopMoreToggle = document.getElementById("desktopMoreToggle");
         const desktopMoreMenu = document.getElementById("desktopMoreMenu");
+        const floatingHeader = document.getElementById("floatingHeader");
 
         const closeDesktopMoreMenu = () => {
           if (!desktopMoreToggle || !desktopMoreMenu) return;
@@ -211,6 +259,21 @@
           closeMobileMenu();
           closeDesktopMoreMenu();
         });
+
+        let headerIsScrolled = false;
+        const SHRINK_SCROLL_Y = 40;
+        const EXPAND_SCROLL_Y = 20;
+
+        const syncHeaderBrandState = () => {
+          if (!floatingHeader) return;
+          const y = window.scrollY || 0;
+          if (!headerIsScrolled && y > SHRINK_SCROLL_Y) headerIsScrolled = true;
+          else if (headerIsScrolled && y < EXPAND_SCROLL_Y) headerIsScrolled = false;
+          floatingHeader.classList.toggle("is-scrolled", headerIsScrolled);
+        };
+
+        syncHeaderBrandState();
+        window.addEventListener("scroll", syncHeaderBrandState, { passive: true });
 
         const iframe = document.getElementById("arrivalsTrackerFrame");
         if (!iframe) return;
