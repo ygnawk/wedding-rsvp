@@ -28,35 +28,35 @@
         background: var(--maroon) !important;
       }
       .arrivals-shell {
-        min-height: 100vh;
+        min-height: 100%;
         background: var(--maroon);
       }
       .arrivals-shell__main {
         width: 100%;
-        max-width: none;
-        margin: 0;
-        padding: calc(var(--headerH) + 24px) clamp(12px, 2vw, 24px) clamp(16px, 3vw, 28px);
+        max-width: min(1400px, 96vw);
+        margin: 0 auto;
+        padding: calc(var(--headerH) + 18px) clamp(8px, 1.2vw, 16px) clamp(12px, 2vw, 20px);
         box-sizing: border-box;
       }
       .arrivalsShell {
-        background: var(--ivory, #f6f0e6);
-        border: 1px solid rgba(90, 60, 30, 0.18);
-        border-radius: 28px;
-        box-shadow: 0 16px 40px rgba(20, 10, 10, 0.25);
-        padding: clamp(16px, 2.6vw, 28px);
+        background: transparent;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        padding: 0;
         margin: 0 auto;
         width: 100%;
-        max-width: min(1200px, calc(100% - 24px));
+        max-width: none;
         box-sizing: border-box;
       }
       .arrivalsTrackerRoot {
-        border-radius: 22px;
+        border-radius: 18px;
         overflow: hidden;
         background: transparent;
       }
       .arrivals-shell__frame {
-        border: 0;
-        border-radius: 22px;
+        border: none;
+        border-radius: 18px;
         overflow: hidden;
         box-shadow: none;
       }
@@ -64,39 +64,25 @@
         display: block;
         width: 100%;
         height: auto;
-        min-height: 900px;
+        min-height: 0;
         border: 0;
         background: #090807;
         overflow: visible;
       }
       @media (min-width: 1024px) {
         .arrivals-shell__main {
-          padding: calc(var(--headerH) + 18px) clamp(10px, 1.6vw, 20px) clamp(12px, 2.2vw, 20px);
-        }
-
-        .arrivalsShell {
-          max-width: min(900px, calc(100% - 24px));
-          padding: clamp(12px, 2vw, 20px);
+          padding-top: calc(var(--headerH) + 14px);
         }
       }
       @media (max-width: 900px) {
         .arrivals-shell__main {
-          padding-top: calc(var(--headerH) + 16px);
-        }
-        .arrivalsShell {
-          border-radius: 22px;
-          padding: clamp(12px, 3.5vw, 18px);
           max-width: 100%;
-        }
-        .arrivals-shell__iframe {
-          min-height: 780px;
+          padding: calc(var(--headerH) + 14px) 10px 14px;
         }
       }
       @media (max-width: 768px) {
-        .arrivalsShell {
-          border-radius: 22px;
-          padding: 14px;
-          max-width: calc(100% - 16px);
+        .arrivals-shell__main {
+          padding: calc(var(--headerH) + 12px) 8px 12px;
         }
       }
     </style>
@@ -181,7 +167,7 @@
             <iframe
               id="arrivalsTrackerFrame"
               class="arrivals-shell__iframe"
-              src="/public/arrivals/index.html"
+              src="/public/arrivals/index.html?v=20260223-fullsize1"
               title="Arrivals Tracker"
               scrolling="no"
             ></iframe>
@@ -297,7 +283,7 @@
 
           const rootHeight = doc.documentElement ? doc.documentElement.scrollHeight : 0;
           const bodyHeight = doc.body ? doc.body.scrollHeight : 0;
-          const nextHeight = Math.max(900, Math.ceil(Math.max(rootHeight, bodyHeight)));
+          const nextHeight = Math.max(0, Math.ceil(Math.max(rootHeight, bodyHeight)));
 
           iframe.style.height = `${nextHeight}px`;
         };

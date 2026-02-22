@@ -18,7 +18,7 @@ body {
 }
 
 #arrivals-preview-root {
-  min-height: 100vh;
+  min-height: 0;
 }
 
 .arrivals-preview {
@@ -33,13 +33,7 @@ body {
 
 @media (min-width: 1200px) {
   .arrivals-preview {
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-  }
-
-  .arrivals-page {
-    zoom: 0.75;
+    display: block;
   }
 }
 
