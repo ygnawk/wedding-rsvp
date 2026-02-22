@@ -400,7 +400,6 @@ const makanLegalPopover = document.getElementById("makanLegalPopover");
 const makanLegalBackdrop = makanLegalPopover ? makanLegalPopover.querySelector("[data-legal-backdrop]") : null;
 const makanLegalClose = document.getElementById("makanLegalClose");
 const makanLegalWrapper = makanLegalTrigger ? makanLegalTrigger.closest(".makan-legal-row") : null;
-const makanSection = document.getElementById("makan");
 const hotelMatrixShell = document.getElementById("hotelMatrixShell");
 const hotelMapCard = document.querySelector(".hotel-map-card");
 const hotelMatrixChartCol = document.querySelector(".hotel-map-chart-col");
@@ -879,8 +878,10 @@ let hotelSheetOpen = false;
 let hotelMatrixMetaById = new Map();
 let hotelMatrixResizeObserver = null;
 let hotelMatrixResizeRaf = null;
+let hotelMatrixDetailsHeightRaf = null;
 let hotelMatrixWidth = 760;
 let hotelMatrixHeight = 460;
+let hotelMatrixDesktopBaseHeight = 0;
 let hotelMatrixSelectionCueId = "";
 let hotelMatrixSelectionCueTimer = 0;
 let hotelMethodOpen = false;
@@ -2095,8 +2096,11 @@ function toggleDesktopMoreMenu() {
 
 function initHeader() {
   let headerIsScrolled = false;
+  let headerHasBorder = false;
   const SHRINK_SCROLL_Y = 40;
   const EXPAND_SCROLL_Y = 20;
+  const BORDER_SHOW_SCROLL_Y = 100;
+  const BORDER_HIDE_SCROLL_Y = 80;
 
   const syncHeaderLogoFallbackState = (pill) => {
     if (!(pill instanceof HTMLElement)) return;
@@ -2132,7 +2136,10 @@ function initHeader() {
     const y = window.scrollY || 0;
     if (!headerIsScrolled && y > SHRINK_SCROLL_Y) headerIsScrolled = true;
     else if (headerIsScrolled && y < EXPAND_SCROLL_Y) headerIsScrolled = false;
+    if (!headerHasBorder && y > BORDER_SHOW_SCROLL_Y) headerHasBorder = true;
+    else if (headerHasBorder && y < BORDER_HIDE_SCROLL_Y) headerHasBorder = false;
     floatingHeader.classList.toggle("is-scrolled", headerIsScrolled);
+    floatingHeader.classList.toggle("has-border", headerHasBorder);
   };
 
   bindHeaderLogoFallbacks();
@@ -2632,6 +2639,10 @@ function buildMakanRestaurantItem(place) {
   actions.appendChild(dianpingLink);
 
   const addressZh = String(place.address_zh || place.address_cn || "").trim();
+  const addressEn = String(place.address_en || "").trim();
+  const addressCombined = addressZh && addressEn
+    ? `${addressZh} (${addressEn})`
+    : addressZh || addressEn;
 
   header.appendChild(names);
   header.appendChild(actions);
@@ -2640,7 +2651,7 @@ function buildMakanRestaurantItem(place) {
   addressRow.className = "makan-address-row";
   const addressText = document.createElement("p");
   addressText.className = "makan-address-text";
-  addressText.textContent = addressZh || "地址待补充";
+  addressText.textContent = addressCombined || "地址待补充";
   addressRow.appendChild(addressText);
 
   const description = document.createElement("p");
@@ -2873,7 +2884,6 @@ function closeMakanLegalModal({ restoreFocus = true } = {}) {
     unlockBodyScroll();
     makanLegalScrollLocked = false;
   }
-  if (makanSection) makanSection.classList.remove("has-legal-popover-open");
   setA11yHidden(makanLegalPopover, true);
   makanLegalPopover.classList.remove("is-flipped-up");
   makanLegalPopover.classList.remove("open");
@@ -2928,7 +2938,6 @@ function openMakanLegalModal() {
   if (!makanLegalTriggerArmed) return;
   makanLegalTriggerArmed = false;
   if (makanLegalOpen) return;
-  if (makanSection) makanSection.classList.add("has-legal-popover-open");
   makanLegalPopover.classList.remove("is-flipped-up");
   if (!isMakanLegalMobile() && !makanLegalScrollLocked) {
     lockBodyScroll();
@@ -3067,9 +3076,15 @@ function ensureHotelMethodOverlay() {
     <p class="hotel-method-tooltip-title">METHODOLOGY</p>
     <ul class="hotel-method-tooltip-list">
       <li>Y-axis: estimated drive time (mins) to the wedding venue (traffic dependent).</li>
-      <li>X-axis: nightly price bands in USD ($: under 150, $$: 150–300, $$$: 301–500, $$$$: 500+).</li>
+      <li>X-axis: nightly price bands in USD.
+        <ul class="hotel-method-sublist">
+          <li>$: under 150</li>
+          <li>$$: 150–300</li>
+          <li>$$$: 301–500</li>
+          <li>$$$$: 500+</li>
+        </ul>
+      </li>
       <li>Only hotels rated ≥ 9.0 on Expedia are shown.</li>
-      <li>Not exhaustive — if I have more time in the coming months, I’ll add more.</li>
       <li>No footnotes, no appendix — ChatGPT ran the analysis (and I did a quick “sanity check”). Please don’t tell my former bosses. At least I didn’t put “Preliminary” and “High preliminary” all over the chart.</li>
       <li>You’re thinking it, I’ll say it: six years in consulting means I’m physically incapable of sharing options without evaluating them in a 2×2 matrix. Cries inside.</li>
     </ul>
@@ -3504,9 +3519,18 @@ function swapHotelDetails(item) {
 
   const nextId = item.id;
   if (hotelMatrixDetails.dataset.hotelId === nextId) return;
+  const hasExistingCard = hotelMatrixDetails.childElementCount > 0;
+  if (!hasExistingCard) {
+    hotelMatrixDetails.replaceChildren(buildHotelDetailsCard(item));
+    hotelMatrixDetails.dataset.hotelId = nextId;
+    hotelMatrixDetails.classList.remove("is-swapping");
+    queueHotelMatrixDetailsHeightSync();
+    return;
+  }
   if (reducedMotion) {
     hotelMatrixDetails.replaceChildren(buildHotelDetailsCard(item));
     hotelMatrixDetails.dataset.hotelId = nextId;
+    queueHotelMatrixDetailsHeightSync();
     return;
   }
 
@@ -3516,6 +3540,7 @@ function swapHotelDetails(item) {
     hotelMatrixDetails.dataset.hotelId = nextId;
     hotelMatrixDetails.classList.remove("is-swapping");
     hotelDetailsSwapTimer = null;
+    queueHotelMatrixDetailsHeightSync();
   }, HOTEL_CONTENT_FADE_MS);
 }
 
@@ -3616,6 +3641,7 @@ function applyHotelMatrixSelection() {
     }
   }
   queueHotelMatrixRender();
+  queueHotelMatrixDetailsHeightSync();
   if (isHotelMatrixMobile()) {
     const cueId = String(hotelMatrixSelectionCueId || "").trim();
     if (cueId && !hotelSheetOpen) {
@@ -3652,8 +3678,50 @@ function getHotelMatrixDimensions() {
   const width = Math.max(300, Math.round(innerWidth));
   const compact = window.matchMedia("(max-width: 640px)").matches || width < 560;
   const aspect = compact ? 16 / 10 : 760 / 460;
-  const height = compact ? Math.max(300, Math.round(width / aspect)) : Math.max(280, Math.round(width / aspect));
+  let height;
+  if (compact) {
+    height = Math.max(300, Math.round(width / aspect));
+  } else {
+    const candidateHeight = Math.max(280, Math.round(width / aspect));
+    const hasSelection = Boolean(hotelMatrixPinnedId);
+    if (!hasSelection || !(hotelMatrixDesktopBaseHeight > 0)) {
+      hotelMatrixDesktopBaseHeight = candidateHeight;
+    }
+    height = hotelMatrixDesktopBaseHeight;
+  }
   return { width, height };
+}
+
+function syncHotelMatrixDetailsHeight() {
+  if (!hotelMatrixDetails || !hotelMatrixChartCol) return;
+  if (isHotelMatrixMobile()) {
+    hotelMatrixDetails.style.removeProperty("--hotelMatrixDetailsMinHeight");
+    hotelMatrixDetails.style.removeProperty("--hotelMatrixDetailsHeight");
+    return;
+  }
+
+  const chartColRect = hotelMatrixChartCol.getBoundingClientRect();
+  if (!(chartColRect.height > 0)) return;
+
+  const alignedHeight = Math.max(340, Math.round(chartColRect.height));
+  const heightValue = `${alignedHeight}px`;
+  hotelMatrixDetails.style.setProperty("--hotelMatrixDetailsMinHeight", heightValue);
+  hotelMatrixDetails.style.setProperty("--hotelMatrixDetailsHeight", heightValue);
+}
+
+function queueHotelMatrixDetailsHeightSync() {
+  if (hotelMatrixDetailsHeightRaf) {
+    window.cancelAnimationFrame(hotelMatrixDetailsHeightRaf);
+    hotelMatrixDetailsHeightRaf = null;
+  }
+
+  hotelMatrixDetailsHeightRaf = window.requestAnimationFrame(() => {
+    hotelMatrixDetailsHeightRaf = null;
+    syncHotelMatrixDetailsHeight();
+    window.requestAnimationFrame(() => {
+      syncHotelMatrixDetailsHeight();
+    });
+  });
 }
 
 function renderHotelMatrix() {
@@ -3668,8 +3736,8 @@ function renderHotelMatrix() {
   const hasSelection = Boolean(hotelMatrixPinnedId) && !isHotelMatrixMobile();
   const isCompact = window.matchMedia("(max-width: 640px)").matches || width < 560;
   const margins = isCompact
-    ? { top: 20, right: 10, bottom: 68, left: hasSelection ? 74 : 66 }
-    : { top: hasSelection ? 50 : 42, right: 56, bottom: hasSelection ? 116 : 104, left: hasSelection ? 146 : 122 };
+    ? { top: 20, right: 10, bottom: 68, left: 66 }
+    : { top: 42, right: 56, bottom: 104, left: 122 };
   const plotWidth = Math.max(180, width - margins.left - margins.right);
   const plotHeight = Math.max(170, height - margins.top - margins.bottom);
   const ringRadius = isCompact ? 8.2 : 12;
@@ -3854,12 +3922,24 @@ function renderHotelMatrix() {
     class: axisLabelClass,
     x: margins.left + plotWidth / 2,
     y: height - (isCompact ? 12 : 12),
-    "text-anchor": "middle",
+    "text-anchor": "middle"
   });
-  xAxisLabel.textContent = isCompact ? "Price" : "Price ($ to $$$$)";
+  xAxisLabel.textContent = "Price";
   hotelMatrixSvg.appendChild(xAxisLabel);
 
-  const yAxisLabelX = isCompact ? (hasSelection ? 30 : 24) : hasSelection ? 38 : 28;
+  if (!isCompact) {
+    const xAxisRange = createSvgNode("text", {
+      class: "hotel-map-axis-label hotel-map-axis-label-range",
+      x: margins.left + plotWidth / 2 + 52,
+      y: height - 12,
+      "text-anchor": "start",
+      opacity: hasSelection ? "0" : "1",
+    });
+    xAxisRange.textContent = "($ to $$$$)";
+    hotelMatrixSvg.appendChild(xAxisRange);
+  }
+
+  const yAxisLabelX = isCompact ? 24 : 28;
   const yAxisLabel = createSvgNode("text", {
     class: axisLabelClass,
     x: yAxisLabelX,
@@ -3867,7 +3947,7 @@ function renderHotelMatrix() {
     "text-anchor": "middle",
     transform: `rotate(-90 ${yAxisLabelX} ${margins.top + plotHeight / 2})`,
   });
-  yAxisLabel.textContent = isCompact ? "Drive time to venue (min)" : hasSelection ? "Drive time to venue (mins)" : "Drive time to wedding venue (mins)";
+  yAxisLabel.textContent = isCompact ? "Drive time to venue (min)" : "Drive time to wedding venue (mins)";
   hotelMatrixSvg.appendChild(yAxisLabel);
 
   const layer = createSvgNode("g", { class: "hotel-map-points", "clip-path": "url(#hotelMatrixPlotClip)" });
@@ -3989,6 +4069,7 @@ function queueHotelMatrixRender(force = false) {
     hotelMatrixWidth = next.width;
     hotelMatrixHeight = next.height;
     renderHotelMatrix();
+    queueHotelMatrixDetailsHeightSync();
   });
 }
 
@@ -4064,6 +4145,7 @@ function initHotelMatrix() {
       closeHotelMatrixSheet();
     }
     queueHotelMatrixRender();
+    queueHotelMatrixDetailsHeightSync();
   });
 
   window.addEventListener(
@@ -4081,10 +4163,12 @@ function initHotelMatrix() {
   if ("ResizeObserver" in window) {
     hotelMatrixResizeObserver = new ResizeObserver(() => {
       queueHotelMatrixRender();
+      queueHotelMatrixDetailsHeightSync();
     });
     hotelMatrixResizeObserver.observe(hotelMatrixChartCol);
   }
 
+  queueHotelMatrixDetailsHeightSync();
   queueHotelMatrixRender(true);
   hotelMatrixShell.dataset.initialized = "true";
 }
@@ -10617,6 +10701,9 @@ function normalizeGalleryEntry(entry) {
       focalX: RECENT_DEFAULT_FOCAL_X,
       focalY: RECENT_DEFAULT_FOCAL_Y,
       objectPosition: toGalleryObjectPosition(RECENT_DEFAULT_FOCAL_X, RECENT_DEFAULT_FOCAL_Y),
+      mobileObjectPosition: "",
+      lightboxObjectPosition: "",
+      lightboxFit: "",
     };
   }
 
@@ -10629,6 +10716,9 @@ function normalizeGalleryEntry(entry) {
       focalX: RECENT_DEFAULT_FOCAL_X,
       focalY: RECENT_DEFAULT_FOCAL_Y,
       objectPosition: toGalleryObjectPosition(RECENT_DEFAULT_FOCAL_X, RECENT_DEFAULT_FOCAL_Y),
+      mobileObjectPosition: "",
+      lightboxObjectPosition: "",
+      lightboxFit: "",
     };
   }
 
@@ -10641,6 +10731,9 @@ function normalizeGalleryEntry(entry) {
     : parsedPosition?.y ?? RECENT_DEFAULT_FOCAL_Y;
   const parsedMobilePosition = parseFocalFromObjectPosition(entry.mobileObjectPosition, focalX, focalY);
   const mobileObjectPosition = parsedMobilePosition ? toGalleryObjectPosition(parsedMobilePosition.x, parsedMobilePosition.y) : "";
+  const parsedLightboxPosition = parseFocalFromObjectPosition(entry.lightboxObjectPosition, focalX, focalY);
+  const lightboxObjectPosition = parsedLightboxPosition ? toGalleryObjectPosition(parsedLightboxPosition.x, parsedLightboxPosition.y) : "";
+  const lightboxFit = normalizeCropMode(entry.lightboxFit || entry.lightboxObjectFit || entry.lightboxCropMode || entry.lightboxMode);
 
   return {
     id: String(entry.id || entry.file || entry.src || "").trim(),
@@ -10651,6 +10744,8 @@ function normalizeGalleryEntry(entry) {
     focalY,
     objectPosition: toGalleryObjectPosition(focalX, focalY),
     mobileObjectPosition,
+    lightboxObjectPosition,
+    lightboxFit,
   };
 }
 
@@ -10714,6 +10809,13 @@ function updateGalleryLightboxView() {
   const entry = galleryImages[currentGalleryIndex];
   if (!entry) return;
 
+  const fallbackPosition = entry.objectPosition || toGalleryObjectPosition(RECENT_DEFAULT_FOCAL_X, RECENT_DEFAULT_FOCAL_Y);
+  const objectPosition = entry.lightboxObjectPosition
+    || (isGalleryMobileView() ? entry.mobileObjectPosition || fallbackPosition : fallbackPosition);
+  const objectFit = entry.lightboxFit === "cover" ? "cover" : "contain";
+
+  galleryLightboxImage.style.objectPosition = objectPosition;
+  galleryLightboxImage.style.objectFit = objectFit;
   galleryLightboxImage.src = toPhotoSrc(entry.file);
   galleryLightboxImage.alt = entry.alt || "";
   if (galleryLightboxCounter) galleryLightboxCounter.textContent = `${currentGalleryIndex + 1} / ${galleryImages.length}`;
@@ -10743,6 +10845,8 @@ function closeGalleryLightbox() {
   galleryLightbox.classList.add("hidden");
   galleryLightbox.classList.remove("open");
   galleryLightbox.setAttribute("aria-hidden", "true");
+  galleryLightboxImage.style.removeProperty("object-position");
+  galleryLightboxImage.style.removeProperty("object-fit");
   galleryLightboxImage.removeAttribute("src");
   unlockBodyScroll();
 }
