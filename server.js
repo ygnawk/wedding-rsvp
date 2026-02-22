@@ -609,7 +609,7 @@ function parsePositiveInteger(value, fallback = 0) {
 }
 
 function buildArrivalsDedupKey(row, rowIndex) {
-  const inviteToken = normalizeFieldValue(row.invite_token);
+  const inviteToken = normalizeFieldValue(row.invite_token) || normalizeFieldValue(row["invite token"]);
   if (inviteToken) {
     return `invite:${inviteToken}`;
   }
@@ -1669,6 +1669,7 @@ function buildRsvpRowData(tabHeaders, submissionId, nowIso, parsedFields, upload
     origin_lat: parsedFields.originLat,
     origin_lon: parsedFields.originLon,
     invite_token: parsedFields.inviteToken,
+    "invite token": parsedFields.inviteToken,
     media_count: String(mediaCount),
     source: parsedFields.source,
     approved: "FALSE",
