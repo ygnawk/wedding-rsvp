@@ -3833,7 +3833,7 @@ function getHotelMatrixDimensions() {
   }
 
   const width = Math.max(300, Math.round(innerWidth));
-  const compact = window.matchMedia("(max-width: 640px)").matches || width < 560;
+  const compact = window.matchMedia("(max-width: 640px)").matches;
   const aspect = compact ? 16 / 10 : 760 / 460;
   let height;
   if (compact) {
@@ -3898,7 +3898,7 @@ function renderHotelMatrix() {
 
   const width = hotelMatrixWidth;
   const height = hotelMatrixHeight;
-  const isCompact = window.matchMedia("(max-width: 640px)").matches || width < 560;
+  const isCompact = window.matchMedia("(max-width: 640px)").matches;
   const margins = isCompact
     ? { top: 20, right: 10, bottom: 68, left: 66 }
     : { top: 42, right: 56, bottom: 104, left: 122 };
