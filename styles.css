@@ -5015,9 +5015,9 @@ details[open] .faq-answer {
 
 .hotel-map-svg {
   width: 100%;
-  height: auto;
+  height: var(--hotelMatrixSvgHeight, auto);
   display: block;
-  aspect-ratio: 760 / 460;
+  aspect-ratio: var(--hotelMatrixSvgAspect, 760 / 460);
   overflow: visible;
 }
 
@@ -5062,16 +5062,6 @@ details[open] .faq-answer {
   font-size: 16px;
   letter-spacing: 0.03em;
   font-weight: 500;
-}
-
-.hotel-map-axis-label-range {
-  opacity: 1;
-  transition: opacity 320ms ease;
-}
-
-.hotel-map-card.has-selection .hotel-map-axis-label-range,
-.stayInner.has-selection .hotel-map-axis-label-range {
-  opacity: 0;
 }
 
 .hotel-map-tick-line {
@@ -5852,7 +5842,7 @@ details[open] .faq-answer {
   }
 
   .hotel-map-svg {
-    aspect-ratio: 16 / 10;
+    aspect-ratio: var(--hotelMatrixSvgAspect, 16 / 10);
   }
 
   .hotel-map-axis-caption {

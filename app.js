@@ -3242,7 +3242,7 @@ function ensureHotelMethodOverlay() {
         </ul>
       </li>
       <li>Only hotels rated ≥ 9.0 on Expedia are shown.</li>
-      <li>No footnotes, no appendix — ChatGPT ran the analysis (and I did a quick “sanity check”). Please don’t tell my former bosses. At least I didn’t put “Preliminary” and “High preliminary” all over the chart.</li>
+      <li>No footnotes, no appendix — ChatGPT ran the analysis (and I did a quick “sanity check”). Please don’t tell my former bosses. At least I didn’t put “Preliminary” and “Highly preliminary” all over the chart.</li>
       <li>You’re thinking it, I’ll say it: six years in consulting means I’m physically incapable of sharing options without evaluating them in a 2×2 matrix. Cries inside.</li>
     </ul>
   `;
@@ -3881,6 +3881,14 @@ function queueHotelMatrixDetailsHeightSync() {
   });
 }
 
+function syncHotelMatrixSvgSizing(width, height) {
+  if (!hotelMatrixShell || !hotelMatrixSvg) return;
+  if (!(width > 0) || !(height > 0)) return;
+
+  hotelMatrixShell.style.setProperty("--hotelMatrixSvgHeight", `${Math.round(height)}px`);
+  hotelMatrixShell.style.setProperty("--hotelMatrixSvgAspect", `${width} / ${height}`);
+}
+
 function renderHotelMatrix() {
   if (!hotelMatrixSvg || !hotelMatrixItems.length) return;
 
@@ -3890,7 +3898,6 @@ function renderHotelMatrix() {
 
   const width = hotelMatrixWidth;
   const height = hotelMatrixHeight;
-  const hasSelection = Boolean(hotelMatrixPinnedId) && !isHotelMatrixMobile();
   const isCompact = window.matchMedia("(max-width: 640px)").matches || width < 560;
   const margins = isCompact
     ? { top: 20, right: 10, bottom: 68, left: 66 }
@@ -3900,6 +3907,8 @@ function renderHotelMatrix() {
   const ringRadius = isCompact ? 8.2 : 12;
   const dotRadius = isCompact ? 4.8 : 7.4;
   const hitRadius = isCompact ? 19 : 14;
+
+  syncHotelMatrixSvgSizing(width, height);
 
   hotelMatrixSvg.setAttribute("viewBox", `0 0 ${width} ${height}`);
   hotelMatrixSvg.setAttribute("preserveAspectRatio", "xMidYMid meet");
@@ -4083,18 +4092,6 @@ function renderHotelMatrix() {
   });
   xAxisLabel.textContent = "Price";
   hotelMatrixSvg.appendChild(xAxisLabel);
-
-  if (!isCompact) {
-    const xAxisRange = createSvgNode("text", {
-      class: "hotel-map-axis-label hotel-map-axis-label-range",
-      x: margins.left + plotWidth / 2 + 52,
-      y: height - 12,
-      "text-anchor": "start",
-      opacity: hasSelection ? "0" : "1",
-    });
-    xAxisRange.textContent = "($ to $$$$)";
-    hotelMatrixSvg.appendChild(xAxisRange);
-  }
 
   const yAxisLabelX = isCompact ? 24 : 28;
   const yAxisLabel = createSvgNode("text", {

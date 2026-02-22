@@ -57,7 +57,7 @@ const BOARD_IDLE_FLIP_MIN_MS = 20000;
 const BOARD_IDLE_FLIP_MAX_MS = 45000;
 const BOARD_IDLE_FLIP_DURATION_MIN_MS = 300;
 const BOARD_IDLE_FLIP_DURATION_MAX_MS = 450;
-const ARRIVALS_TITLE_LABEL = "Tracking everyon's journey to Beijing";
+const ARRIVALS_TITLE_LABEL = "Tracking everyone's journey to Beijing";
 const MAP_LABEL = "WORLD MAP";
 const BOARD_END_LABEL = "END";
 const BEIJING_TIME_ZONE = "Asia/Shanghai";
@@ -2400,7 +2400,14 @@ function render() {
     <section class="arrivals-board" aria-label="Arrival board" data-arrival-board style="--board-char-count:${BOARD_LINE_LENGTH};">
       <header class="arrivals-board__header">
         <div class="arrivals-board__header-row">
-          <h2 class="arrivals-board__title">Arrival Board</h2>
+          <div class="arrivals-board__header-copy">
+            <h2 class="arrivals-board__title">Arrival Board</h2>
+            <p class="arrivals-board__status-line">
+              <span class="arrivals-board__meta">${totalGuests} GUESTS INBOUND</span>
+              <span class="arrivals-board__status-separator" aria-hidden="true">·</span>
+              <time class="arrivals-board__timestamp">${escapeHtml(lastUpdated)}</time>
+            </p>
+          </div>
           <div class="arrivals-board__disclaimer" data-board-disclaimer-node>
             <button
               type="button"
@@ -2430,11 +2437,6 @@ function render() {
             </div>
           </div>
         </div>
-        <p class="arrivals-board__status-line">
-          <span class="arrivals-board__meta">${totalGuests} GUESTS INBOUND</span>
-          <span class="arrivals-board__status-separator" aria-hidden="true">·</span>
-          <time class="arrivals-board__timestamp">${escapeHtml(lastUpdated)}</time>
-        </p>
       </header>
 
       <div class="arrivals-board__segments">

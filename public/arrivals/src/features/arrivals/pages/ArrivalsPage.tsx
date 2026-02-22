@@ -5,7 +5,7 @@ import { mockArrivals, mockCountryGroups, mockRoutes, mockTotalArrivals } from "
 import type { ArrivalsSelection } from "../types";
 import "../styles/arrivals.css";
 
-const ARRIVALS_TITLE_LABEL = "Tracking everyon's journey to Beijing";
+const ARRIVALS_TITLE_LABEL = "Tracking everyone's journey to Beijing";
 
 export function ArrivalsPage() {
   const [selection, setSelection] = useState<ArrivalsSelection | null>(null);
