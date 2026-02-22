@@ -1790,6 +1790,18 @@
 }
 
 @media (max-width: 768px) {
+  .arrivals-page__content {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .arrivals-map,
+  .arrivals-board {
+    height: auto;
+    min-height: 0;
+  }
+
   .arrivals-map {
     height: auto;
     min-height: 0;
@@ -1821,11 +1833,17 @@
 
   .arrivals-map__stats-strip {
     margin-top: 0;
+    width: 100%;
+    max-width: none;
+    white-space: normal;
+    line-height: 1.25;
   }
 
   .arrivals-map__zoom-controls {
-    right: 0.44rem;
-    bottom: 0.44rem;
+    right: 10px;
+    bottom: 10px;
+    transform: scale(0.92);
+    transform-origin: bottom right;
   }
 
   .arrivals-board {
@@ -1858,6 +1876,8 @@
   }
 
   .arrivals-board__table {
+    max-height: none;
+    overflow-y: visible;
     overflow-x: hidden;
   }
 
