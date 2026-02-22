@@ -3096,13 +3096,13 @@ function openMakanLegalModal() {
   makanLegalTriggerArmed = false;
   if (makanLegalOpen) return;
   makanLegalPopover.classList.remove("is-flipped-up");
-  if (!isMakanLegalMobile() && !makanLegalScrollLocked) {
+  if (!makanLegalScrollLocked) {
     lockBodyScroll();
     makanLegalScrollLocked = true;
   }
   setA11yHidden(makanLegalPopover, false);
   makanLegalPopover.classList.add("open");
-  makanLegalPopover.setAttribute("aria-modal", isMakanLegalMobile() ? "false" : "true");
+  makanLegalPopover.setAttribute("aria-modal", "true");
   if (makanLegalWrapper) makanLegalWrapper.dataset.open = "true";
   setAriaExpanded(makanLegalTrigger, true);
   makanLegalOpen = true;

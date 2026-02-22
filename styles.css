@@ -6709,26 +6709,26 @@ a.makan-copy-icon-btn {
   }
 
   .makan-legal-popover {
-    position: static;
-    inset: auto;
-    z-index: auto;
-    width: 100%;
-    max-width: min(420px, 100%);
+    position: fixed;
+    inset: 0;
+    z-index: 16000;
+    width: auto;
+    max-width: none;
     max-height: none;
-    padding: 0;
-    align-items: stretch;
-    justify-content: flex-start;
-    overflow: visible;
+    padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
     pointer-events: auto;
-    margin-top: 12px;
+    margin-top: 0;
   }
 
   .makan-legal-popover:not([hidden]) {
-    display: block;
+    display: flex;
   }
 
   .makan-legal-backdrop {
-    display: none;
+    display: block;
   }
 
   .makan-legal-backdrop:hover,
@@ -6747,19 +6747,19 @@ a.makan-copy-icon-btn {
 
   .makan-legal-card {
     position: relative;
-    z-index: 1;
-    width: 100%;
-    max-width: none;
-    max-height: 80vh;
+    z-index: 2;
+    width: min(420px, calc(100vw - 24px));
+    max-width: 100%;
+    max-height: min(84vh, calc(100dvh - 24px));
     overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
-    border-radius: 20px 20px 0 0;
-    background: var(--color-ivory);
+    border-radius: 16px;
+    background: var(--ivory);
     color: var(--ink);
-    padding: 16px 16px calc(18px + env(safe-area-inset-bottom));
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
     box-shadow:
-      0 -12px 32px rgba(0, 0, 0, 0.22),
+      0 20px 60px rgba(0, 0, 0, 0.22),
       0 2px 10px rgba(0, 0, 0, 0.1);
   }
 
