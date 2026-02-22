@@ -50,9 +50,41 @@ body {
   font-size: clamp(1.02rem, 1.25vw, 1.22rem);
 }
 
+.arrivals-preview__message-inline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.62rem;
+}
+
+.arrivals-preview__message-loader {
+  width: 1.04rem;
+  height: 1.04rem;
+  border: 1.6px solid rgba(247, 238, 222, 0.2);
+  border-top-color: rgba(247, 238, 222, 0.9);
+  border-radius: 50%;
+  animation: arrivals-preview-loader-spin 0.95s linear infinite;
+}
+
+.arrivals-preview__message-text {
+  display: inline-block;
+}
+
 .arrivals-preview__message--error {
   border-color: rgba(242, 229, 204, 0.3);
   color: rgba(247, 238, 222, 0.94);
+}
+
+@keyframes arrivals-preview-loader-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arrivals-preview__message-loader {
+    animation: none;
+  }
 }
 
 .arrivals-map__base-image {

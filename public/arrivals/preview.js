@@ -1885,10 +1885,20 @@ function startPlaneAnimation(container) {
 }
 
 function renderMessage(message, isError) {
+  const safeMessage = escapeHtml(message);
+  const loadingVisualMarkup = isError
+    ? `<span class="arrivals-preview__message-text">${safeMessage}</span>`
+    : `
+      <span class="arrivals-preview__message-inline" aria-live="polite" aria-busy="true">
+        <span class="arrivals-preview__message-loader" aria-hidden="true"></span>
+        <span class="arrivals-preview__message-text">${safeMessage}</span>
+      </span>
+    `;
+
   root.innerHTML = `
     <main class="arrivals-preview">
       <section class="arrivals-preview__message${isError ? " arrivals-preview__message--error" : ""}">
-        ${escapeHtml(message)}
+        ${loadingVisualMarkup}
       </section>
     </main>
   `;
