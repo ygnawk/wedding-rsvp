@@ -3,6 +3,8 @@ const RSVP_LOCAL_FALLBACK_KEY = "wedding_rsvp_fallback";
 const BASE_PATH = window.location.hostname === "ygnawk.github.io" ? "/wedding-rsvp" : "";
 const IS_LOCAL_DEV = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
 const RSVP_API_ORIGIN = "https://mikiandyijie-rsvp-api.onrender.com";
+const ARRIVALS_LOCATIONS_CATALOG_URL = withBasePath("/data/arrivals-locations.json?v=20260222-arrivals-live1");
+const RSVP_ORIGIN_OTHER_CITY_VALUE = "__other__";
 const DEBUG_FOCAL_PARAM = String(new URLSearchParams(window.location.search).get("debugFocal") || "").toLowerCase();
 const ENABLE_FOCAL_TUNER = IS_LOCAL_DEV && ["1", "true", "yes", "on"].includes(DEBUG_FOCAL_PARAM);
 const DEBUG_SLOT_PARAM = String(new URLSearchParams(window.location.search).get("debugSlots") || "").toLowerCase();
@@ -359,6 +361,10 @@ const guestCardsWrap = document.getElementById("guestCardsWrap");
 const addGuestButton = document.getElementById("addGuestButton");
 const guestLimitError = document.getElementById("guestLimitError");
 const dietary = document.getElementById("dietary");
+const originCountrySelect = document.getElementById("originCountryCode");
+const originCitySelect = document.getElementById("originCityId");
+const originCityOtherWrap = document.getElementById("originCityOtherWrap");
+const originCityOtherInput = document.getElementById("originCityOther");
 
 const workingFields = document.getElementById("workingFields");
 const workingCount = document.getElementById("workingCount");
@@ -496,6 +502,10 @@ let rsvpLastSubmissionPayload = null;
 let rsvpLastSubmissionFilesMeta = [];
 let rsvpBackgroundUploadJob = null;
 let rsvpUploadStatusHideTimer = 0;
+let rsvpOriginLocations = [];
+let rsvpOriginLocationsByCountry = new Map();
+let rsvpOriginLocationByCityId = new Map();
+let rsvpOriginInitPromise = null;
 
 function setRsvpSubmitOverlayVisible(visible) {
   if (!rsvpSubmitOverlay) return;
@@ -1252,6 +1262,255 @@ function withBasePath(pathValue) {
   if (rawPath === BASE_PATH || rawPath.startsWith(`${BASE_PATH}/`)) return rawPath;
   if (rawPath.startsWith("/")) return `${BASE_PATH}${rawPath}`;
   return `${BASE_PATH}/${rawPath.replace(/^\.?\//, "")}`;
+}
+
+function normalizeCountryCode(value) {
+  return String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z]/g, "");
+}
+
+function sanitizeRsvpLocationEntry(entry) {
+  if (!entry || typeof entry !== "object") return null;
+  const country = String(entry.country || "").trim();
+  const countryCode = normalizeCountryCode(entry.countryCode);
+  const city = String(entry.city || "").trim();
+  const cityId = String(entry.cityId || "").trim();
+  const lat = Number(entry.lat);
+  const lon = Number(entry.lon);
+
+  if (!country || !countryCode || !city || !cityId) return null;
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+
+  return {
+    country,
+    countryCode,
+    city,
+    cityId,
+    lat,
+    lon,
+  };
+}
+
+function rebuildRsvpOriginLocationIndexes(locations) {
+  const safeLocations = Array.isArray(locations) ? locations : [];
+  rsvpOriginLocations = safeLocations;
+
+  const byCountry = new Map();
+  const byCityId = new Map();
+
+  safeLocations.forEach((location) => {
+    const normalized = sanitizeRsvpLocationEntry(location);
+    if (!normalized) return;
+
+    byCityId.set(normalized.cityId, normalized);
+    const existing = byCountry.get(normalized.countryCode) || [];
+    existing.push(normalized);
+    byCountry.set(normalized.countryCode, existing);
+  });
+
+  byCountry.forEach((items, countryCode) => {
+    const sorted = [...items].sort((a, b) => a.city.localeCompare(b.city));
+    byCountry.set(countryCode, sorted);
+  });
+
+  rsvpOriginLocationsByCountry = byCountry;
+  rsvpOriginLocationByCityId = byCityId;
+}
+
+function getRsvpOriginCountries() {
+  const countries = [];
+  rsvpOriginLocationsByCountry.forEach((locations, countryCode) => {
+    if (!Array.isArray(locations) || !locations.length) return;
+    countries.push({
+      countryCode,
+      country: String(locations[0].country || countryCode),
+    });
+  });
+  return countries.sort((a, b) => a.country.localeCompare(b.country));
+}
+
+function rebuildSelectWithPlaceholder(selectNode, placeholderText) {
+  if (!(selectNode instanceof HTMLSelectElement)) return;
+  selectNode.innerHTML = "";
+  const placeholderOption = document.createElement("option");
+  placeholderOption.value = "";
+  placeholderOption.textContent = String(placeholderText || "Select");
+  selectNode.appendChild(placeholderOption);
+}
+
+function populateOriginCountryOptions(selectedCountryCode = "") {
+  if (!(originCountrySelect instanceof HTMLSelectElement)) return;
+  rebuildSelectWithPlaceholder(originCountrySelect, "Select country");
+  getRsvpOriginCountries().forEach((countryItem) => {
+    const option = document.createElement("option");
+    option.value = countryItem.countryCode;
+    option.textContent = countryItem.country;
+    originCountrySelect.appendChild(option);
+  });
+  originCountrySelect.value = selectedCountryCode || "";
+}
+
+function populateOriginCityOptions(countryCode, selectedCityId = "") {
+  if (!(originCitySelect instanceof HTMLSelectElement)) return;
+  const normalizedCountryCode = normalizeCountryCode(countryCode);
+  if (!normalizedCountryCode || !rsvpOriginLocationsByCountry.has(normalizedCountryCode)) {
+    rebuildSelectWithPlaceholder(originCitySelect, "Select country first");
+    originCitySelect.disabled = true;
+    originCitySelect.value = "";
+    syncOriginCityOtherField();
+    return;
+  }
+
+  rebuildSelectWithPlaceholder(originCitySelect, "Select city");
+  const cities = rsvpOriginLocationsByCountry.get(normalizedCountryCode) || [];
+  cities.forEach((location) => {
+    const option = document.createElement("option");
+    option.value = location.cityId;
+    option.textContent = location.city;
+    originCitySelect.appendChild(option);
+  });
+
+  const otherOption = document.createElement("option");
+  otherOption.value = RSVP_ORIGIN_OTHER_CITY_VALUE;
+  otherOption.textContent = "Other city";
+  originCitySelect.appendChild(otherOption);
+  originCitySelect.disabled = false;
+  originCitySelect.value = selectedCityId && originCitySelect.querySelector(`option[value=\"${selectedCityId}\"]`) ? selectedCityId : "";
+  syncOriginCityOtherField();
+}
+
+function setOriginFieldRequirementsForChoice(choiceValue) {
+  const isYesChoice = String(choiceValue || "") === "yes";
+  const countryReady = !originCountrySelect || !originCountrySelect.disabled;
+
+  if (originCountrySelect instanceof HTMLSelectElement) {
+    originCountrySelect.required = isYesChoice && countryReady;
+    if (!isYesChoice) {
+      originCountrySelect.value = "";
+      originCountrySelect.setCustomValidity("");
+    }
+  }
+
+  if (originCitySelect instanceof HTMLSelectElement) {
+    originCitySelect.required = isYesChoice && countryReady;
+    if (!isYesChoice) {
+      originCitySelect.value = "";
+      originCitySelect.disabled = true;
+      originCitySelect.setCustomValidity("");
+    }
+  }
+
+  syncOriginCityOtherField();
+}
+
+function syncOriginCityOtherField() {
+  const isYesChoice = String(attendanceChoice && attendanceChoice.value ? attendanceChoice.value : "") === "yes";
+  const hasOtherCitySelection =
+    originCitySelect instanceof HTMLSelectElement && String(originCitySelect.value || "") === RSVP_ORIGIN_OTHER_CITY_VALUE;
+  const showOtherCityInput = isYesChoice && hasOtherCitySelection;
+
+  if (originCityOtherWrap instanceof HTMLElement) {
+    setHiddenClass(originCityOtherWrap, !showOtherCityInput);
+  }
+
+  if (originCityOtherInput instanceof HTMLInputElement) {
+    originCityOtherInput.required = showOtherCityInput;
+    originCityOtherInput.disabled = !showOtherCityInput;
+    if (!showOtherCityInput) {
+      originCityOtherInput.value = "";
+      originCityOtherInput.setCustomValidity("");
+    }
+  }
+}
+
+function applyOriginSelections(countryCode, cityId, cityOther = "") {
+  if (originCountrySelect instanceof HTMLSelectElement) {
+    originCountrySelect.value = normalizeCountryCode(countryCode);
+  }
+
+  populateOriginCityOptions(countryCode, cityId);
+
+  if (originCityOtherInput instanceof HTMLInputElement) {
+    originCityOtherInput.value = String(cityOther || "");
+  }
+  syncOriginCityOtherField();
+}
+
+async function initRsvpOriginFields() {
+  if (!(originCountrySelect instanceof HTMLSelectElement) || !(originCitySelect instanceof HTMLSelectElement)) {
+    return;
+  }
+
+  if (rsvpOriginInitPromise) {
+    await rsvpOriginInitPromise;
+    return;
+  }
+
+  rsvpOriginInitPromise = (async () => {
+    originCountrySelect.disabled = true;
+    originCitySelect.disabled = true;
+
+    try {
+      const response = await fetch(ARRIVALS_LOCATIONS_CATALOG_URL, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(`Arrivals locations request returned ${response.status}`);
+      }
+      const payload = await response.json();
+      const rawLocations = Array.isArray(payload) ? payload : Array.isArray(payload.locations) ? payload.locations : [];
+      rebuildRsvpOriginLocationIndexes(rawLocations);
+      populateOriginCountryOptions("");
+      populateOriginCityOptions("", "");
+      originCountrySelect.disabled = false;
+      setOriginFieldRequirementsForChoice(attendanceChoice ? attendanceChoice.value : "");
+    } catch (error) {
+      console.warn("[rsvp] failed to load arrivals locations catalog", error);
+      rebuildRsvpOriginLocationIndexes([]);
+      populateOriginCountryOptions("");
+      rebuildSelectWithPlaceholder(originCitySelect, "Location unavailable");
+      originCountrySelect.disabled = true;
+      originCitySelect.disabled = true;
+      setOriginFieldRequirementsForChoice("");
+    }
+  })();
+
+  try {
+    await rsvpOriginInitPromise;
+  } finally {
+    rsvpOriginInitPromise = null;
+  }
+}
+
+function restoreOriginFieldsFromPayload(payload, choiceValue) {
+  const applyValues = () => {
+    const isYesChoice = String(choiceValue || "") === "yes";
+    if (!isYesChoice) {
+      applyOriginSelections("", "", "");
+      setOriginFieldRequirementsForChoice("");
+      return;
+    }
+
+    const countryCode = normalizeCountryCode(payload && payload.originCountryCode ? payload.originCountryCode : "");
+    const cityId = String(payload && payload.originCityId ? payload.originCityId : "");
+    const cityOther = String(payload && payload.originCityOther ? payload.originCityOther : "");
+
+    applyOriginSelections(countryCode, cityId, cityOther);
+    setOriginFieldRequirementsForChoice("yes");
+  };
+
+  if (rsvpOriginInitPromise && typeof rsvpOriginInitPromise.then === "function") {
+    rsvpOriginInitPromise
+      .then(() => {
+        applyValues();
+      })
+      .catch(() => {
+        applyValues();
+      });
+    return;
+  }
+
+  applyValues();
 }
 
 function clampPartySize(value) {
@@ -4536,6 +4795,17 @@ function clearRsvpChoice() {
     workingConfirm.setCustomValidity("");
   }
 
+  if (originCountrySelect instanceof HTMLSelectElement) {
+    originCountrySelect.value = "";
+  }
+  if (originCitySelect instanceof HTMLSelectElement) {
+    populateOriginCityOptions("", "");
+  }
+  if (originCityOtherInput instanceof HTMLInputElement) {
+    originCityOtherInput.value = "";
+  }
+  setOriginFieldRequirementsForChoice("");
+
   clearUploadSlots();
   hideGuestLimitError();
   updateAddGuestButtonState();
@@ -4588,11 +4858,19 @@ function setChoice(choice) {
 
   if (workingCount) workingCount.required = choice === "working";
   if (workingConfirm) workingConfirm.required = choice === "working";
+  setOriginFieldRequirementsForChoice(choice);
 
   if (choice === "yes") {
     ensurePrimaryGuestCard();
     syncPrimaryGuestName(true);
     updateAddGuestButtonState();
+    if (originCountrySelect instanceof HTMLSelectElement) {
+      originCountrySelect.disabled = rsvpOriginLocations.length === 0;
+    }
+    if (originCitySelect instanceof HTMLSelectElement) {
+      const selectedCountry = originCountrySelect instanceof HTMLSelectElement ? originCountrySelect.value : "";
+      populateOriginCityOptions(selectedCountry, originCitySelect.value || "");
+    }
   }
 
   if (choice === "working") {
@@ -4687,6 +4965,10 @@ function buildPayload(filesForSubmission = selectedUploadFiles) {
   const choice = attendanceChoice ? attendanceChoice.value : "";
   const status = choice === "yes" ? "yes" : choice === "working" ? "maybe" : "no";
   const fullName = (fullNameInput && fullNameInput.value.trim()) || inviteState.greetingName;
+  const originCountryCode = status === "yes" && originCountrySelect instanceof HTMLSelectElement ? String(originCountrySelect.value || "").trim() : "";
+  const originCityId = status === "yes" && originCitySelect instanceof HTMLSelectElement ? String(originCitySelect.value || "").trim() : "";
+  const originCityOther =
+    status === "yes" && originCityOtherInput instanceof HTMLInputElement ? String(originCityOtherInput.value || "").trim() : "";
 
   const guests = choice === "yes" ? collectGuests().map((guest) => ({ name: guest.name, funFact: guest.funFact })) : [];
   const yesPartySize = choice === "yes" ? guests.length : 0;
@@ -4706,6 +4988,9 @@ function buildPayload(filesForSubmission = selectedUploadFiles) {
     dietary: status === "yes" && dietary ? dietary.value.trim() : "",
     whenWillYouKnow: status === "maybe" && workingConfirm ? workingConfirm.value : "",
     followupChoice: status === "maybe" && workingConfirm ? workingConfirm.value : "",
+    originCountryCode,
+    originCityId,
+    originCityOther,
     photoFiles: (Array.isArray(filesForSubmission) ? filesForSubmission : []).map((file, index) => ({
       slot: index + 1,
       name: file.name,
@@ -4742,6 +5027,9 @@ function buildRsvpFormData(payload, uploadFiles = selectedUploadFiles, options =
   formData.append("dietary", payload.dietary || "");
   formData.append("whenWillYouKnow", payload.whenWillYouKnow || "");
   formData.append("followupChoice", payload.followupChoice || "");
+  formData.append("originCountryCode", payload.originCountryCode || "");
+  formData.append("originCityId", payload.originCityId || "");
+  formData.append("originCityOther", payload.originCityOther || "");
   formData.append("userAgent", payload.userAgent || "");
   formData.append("viewportWidth", String(payload.viewportWidth || 0));
 
@@ -5187,11 +5475,17 @@ function restoreRsvpDraftFromPending(record) {
       updateAddGuestButtonState();
     }
     if (dietary) dietary.value = String(payload.dietary || "");
+    restoreOriginFieldsFromPayload(payload, "yes");
   }
 
   if (mappedChoice === "working") {
     if (workingCount) workingCount.value = payload.potentialPartySize ? String(payload.potentialPartySize) : "";
     if (workingConfirm) workingConfirm.value = String(payload.whenWillYouKnow || payload.followupChoice || "");
+    restoreOriginFieldsFromPayload(payload, "working");
+  }
+
+  if (mappedChoice === "no") {
+    restoreOriginFieldsFromPayload(payload, "no");
   }
 
   showRsvpConfirmation("We restored your draft. Please reattach media files and submit again.");
@@ -5485,6 +5779,31 @@ function initRsvpForm() {
   setHiddenClass(rsvpForm, false);
   hideRsvpSubmitStatus();
   updateSubmitButtonLabel();
+  void initRsvpOriginFields();
+
+  if (originCountrySelect instanceof HTMLSelectElement && originCountrySelect.dataset.bound !== "true") {
+    originCountrySelect.addEventListener("change", () => {
+      populateOriginCityOptions(originCountrySelect.value, "");
+      setOriginFieldRequirementsForChoice(attendanceChoice ? attendanceChoice.value : "");
+    });
+    originCountrySelect.dataset.bound = "true";
+  }
+
+  if (originCitySelect instanceof HTMLSelectElement && originCitySelect.dataset.bound !== "true") {
+    originCitySelect.addEventListener("change", () => {
+      syncOriginCityOtherField();
+      setOriginFieldRequirementsForChoice(attendanceChoice ? attendanceChoice.value : "");
+    });
+    originCitySelect.dataset.bound = "true";
+  }
+
+  if (originCityOtherInput instanceof HTMLInputElement && originCityOtherInput.dataset.bound !== "true") {
+    originCityOtherInput.addEventListener("input", () => {
+      originCityOtherInput.setCustomValidity("");
+    });
+    originCityOtherInput.dataset.bound = "true";
+  }
+
   initRsvpSubmitExitGuards();
   syncRsvpPendingNotice();
 

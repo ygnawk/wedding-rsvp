@@ -1,18 +1,18 @@
 const MAP_VIEWBOX = {
   width: 2000,
-  height: 857,
+  height: 1000,
 };
 const MAP_GEO_BOUNDS_DEFAULT = {
   x: 0,
   y: 0,
   width: 2000,
-  height: 857,
+  height: 1000,
 };
 const MAP_PROJECTION = {
   // Option 2: generate the world land from GeoJSON in equirectangular projection.
   type: "equirectangular",
   assetWidth: 2000,
-  assetHeight: 857,
+  assetHeight: 1000,
   calibration: {
     enabled: false,
     scaleX: 1,
@@ -53,11 +53,15 @@ const BOARD_IDLE_FLIP_MIN_MS = 20000;
 const BOARD_IDLE_FLIP_MAX_MS = 45000;
 const BOARD_IDLE_FLIP_DURATION_MIN_MS = 300;
 const BOARD_IDLE_FLIP_DURATION_MAX_MS = 450;
-const CELEBRATION_LABEL = "SEPTEMBER 2026 WEDDING";
 const ARRIVALS_TITLE_LABEL = "Arrivals Tracker";
 const ARRIVALS_HELPER_LABEL = "Tracking everyone’s journey to Beijing";
 const MAP_LABEL = "WORLD MAP";
 const BEIJING_TIME_ZONE = "Asia/Shanghai";
+const ARRIVALS_API_ORIGIN = "https://mikiandyijie-rsvp-api.onrender.com";
+const ARRIVALS_API_PATH = "/api/arrivals";
+const ARRIVALS_MOCK_DATA_PATH = "/public/arrivals/mock-arrivals.json";
+const ARRIVALS_API_FETCH_TIMEOUT_MS = 9000;
+const ARRIVALS_MOCK_FETCH_TIMEOUT_MS = 5000;
 
 const COL_COUNTRY = 16;
 const COL_CITY = 18;
@@ -2254,12 +2258,14 @@ function render() {
           <div class="arrivals-map__disclaimer" data-disclaimer-node>
             <button
               type="button"
-              class="arrivals-map__disclaimer-toggle${state.disclaimerOpen ? " arrivals-map__disclaimer-toggle--active" : ""}"
+              class="arrivals-map__disclaimer-toggle arrivals-map__control-button${state.disclaimerOpen ? " arrivals-map__disclaimer-toggle--active arrivals-map__control-button--active" : ""}"
               data-disclaimer-toggle
+              aria-label="Show disclaimer"
+              title="Disclaimer"
               aria-expanded="${state.disclaimerOpen ? "true" : "false"}"
               aria-controls="arrivals-map-disclaimer-panel"
             >
-              ⓘ Disclaimer
+              <span class="arrivals-map__control-icon" aria-hidden="true">ⓘ</span>
             </button>
             <section
               id="arrivals-map-disclaimer-panel"
@@ -2329,9 +2335,9 @@ function render() {
             </g>
           </svg>
           <div class="arrivals-map__zoom-controls" role="group" aria-label="Map zoom controls">
-            <button type="button" class="arrivals-map__zoom-button" data-map-zoom="in" aria-label="Zoom in">+</button>
-            <button type="button" class="arrivals-map__zoom-button" data-map-zoom="out" aria-label="Zoom out">-</button>
-            <button type="button" class="arrivals-map__zoom-button" data-map-zoom="reset" aria-label="Reset map view">&#10226;</button>
+            <button type="button" class="arrivals-map__zoom-button arrivals-map__control-button" data-map-zoom="in" aria-label="Zoom in">+</button>
+            <button type="button" class="arrivals-map__zoom-button arrivals-map__control-button" data-map-zoom="out" aria-label="Zoom out">-</button>
+            <button type="button" class="arrivals-map__zoom-button arrivals-map__control-button" data-map-zoom="reset" aria-label="Reset map view">&#10226;</button>
           </div>
           <p class="${zoomHintClass}" data-map-zoom-hint>Scroll to zoom • Drag to pan</p>
         </div>
@@ -2374,7 +2380,6 @@ function render() {
           <path d="M142 42 C126 52 120 66 118 88"></path>
         </svg>
         <header class="arrivals-page__header">
-          <p class="arrivals-page__eyebrow">${CELEBRATION_LABEL}</p>
           <h1 id="arrivals-page-title" class="arrivals-page__title">${ARRIVALS_TITLE_LABEL}</h1>
           <p class="arrivals-page__helper">${ARRIVALS_HELPER_LABEL}</p>
         </header>
@@ -2433,18 +2438,6 @@ function cacheInteractiveNodes() {
   state.mapSvgNode = root.querySelector(".arrivals-map__svg");
   state.mapBoardNode = root.querySelector(".arrivals-map-board");
   state.routesGroupNode = root.querySelector(".arrivals-map__routes");
-  const geoBoundsNode = root.querySelector("#geo-bounds");
-  if (geoBoundsNode) {
-    const nextBounds = {
-      x: Number(geoBoundsNode.getAttribute("x")),
-      y: Number(geoBoundsNode.getAttribute("y")),
-      width: Number(geoBoundsNode.getAttribute("width")),
-      height: Number(geoBoundsNode.getAttribute("height")),
-    };
-    if (Number.isFinite(nextBounds.x) && Number.isFinite(nextBounds.y) && nextBounds.width > 0 && nextBounds.height > 0) {
-      state.mapGeoBounds = nextBounds;
-    }
-  }
   state.mapCalloutNode = root.querySelector("[data-map-callout]");
   state.mapCalloutBgNode = root.querySelector("[data-map-callout-bg]");
   state.mapCalloutTextNode = root.querySelector("[data-map-callout-text]");
@@ -2537,6 +2530,7 @@ function setDisclaimerOpen(isOpen) {
 
   if (toggleNode) {
     toggleNode.classList.toggle("arrivals-map__disclaimer-toggle--active", state.disclaimerOpen);
+    toggleNode.classList.toggle("arrivals-map__control-button--active", state.disclaimerOpen);
     toggleNode.setAttribute("aria-expanded", state.disclaimerOpen ? "true" : "false");
   }
 
@@ -3214,18 +3208,53 @@ function attachEventHandlers() {
   });
 }
 
-async function fetchPreviewData() {
-  const response = await fetch("/public/arrivals/mock-arrivals.json", { cache: "no-store" });
+function resolveArrivalsApiUrl() {
+  const host = typeof window !== "undefined" ? String(window.location.hostname || "").toLowerCase() : "";
+  if (host === "www.mikiandyijie.com" || host === "mikiandyijie.com" || host === "ygnawk.github.io") {
+    return `${ARRIVALS_API_ORIGIN}${ARRIVALS_API_PATH}`;
+  }
+  return ARRIVALS_API_PATH;
+}
+
+function isValidArrivalsPayload(data) {
+  return Boolean(data && typeof data === "object" && data.beijing && Array.isArray(data.origins) && Array.isArray(data.byCountry));
+}
+
+async function fetchArrivalsPayload(url, label) {
+  const timeoutMs = url.includes(ARRIVALS_API_PATH) ? ARRIVALS_API_FETCH_TIMEOUT_MS : ARRIVALS_MOCK_FETCH_TIMEOUT_MS;
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  let response;
+  try {
+    response = await fetch(url, { cache: "no-store", signal: controller.signal });
+  } catch (error) {
+    if (error && error.name === "AbortError") {
+      throw new Error(`${label} timed out after ${timeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+
   if (!response.ok) {
-    throw new Error(`Preview API returned ${response.status}`);
+    throw new Error(`${label} returned ${response.status}`);
   }
 
   const data = await response.json();
-  if (!data || typeof data !== "object" || !data.beijing || !Array.isArray(data.origins) || !Array.isArray(data.byCountry)) {
-    throw new Error("Preview data file returned invalid payload");
+  if (!isValidArrivalsPayload(data)) {
+    throw new Error(`${label} returned invalid payload`);
   }
-
   return data;
+}
+
+async function fetchPreviewData() {
+  const apiUrl = resolveArrivalsApiUrl();
+  try {
+    return await fetchArrivalsPayload(apiUrl, "Arrivals API");
+  } catch (apiError) {
+    console.warn("[arrivals-preview] arrivals API failed, falling back to mock data", apiError);
+    return fetchArrivalsPayload(ARRIVALS_MOCK_DATA_PATH, "Arrivals mock file");
+  }
 }
 
 function applyIncomingData(nextData, options = {}) {

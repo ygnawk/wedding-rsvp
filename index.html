@@ -360,6 +360,25 @@
                     <button id="addGuestButton" type="button" class="btn btn-outline">+ Add a +1</button>
                     <p id="guestLimitError" class="field-error hidden" role="alert"></p>
                   </div>
+                  <div class="field-grid form-row two-col">
+                    <div class="field form-field">
+                      <label for="originCountryCode">Country</label>
+                      <select id="originCountryCode" name="originCountryCode" disabled>
+                        <option value="">Select country</option>
+                      </select>
+                    </div>
+                    <div class="field form-field">
+                      <label for="originCityId">City</label>
+                      <select id="originCityId" name="originCityId" disabled>
+                        <option value="">Select country first</option>
+                      </select>
+                      <p class="field-helper">City list updates based on selected country.</p>
+                    </div>
+                  </div>
+                  <div id="originCityOtherWrap" class="field form-field hidden">
+                    <label for="originCityOther">Other city</label>
+                    <input id="originCityOther" name="originCityOther" type="text" placeholder="Type your city" maxlength="80" />
+                  </div>
                   <div class="field form-field">
                     <label for="dietary">Dietary restrictions (optional)</label>
                     <textarea id="dietary" name="dietary" rows="2"></textarea>
@@ -1354,6 +1373,6 @@
 
     <script src="./data/hotels.js?v=20260216-matrix"></script>
     <script src="./data/beijing-food.js?v=20260216-title-reveal-fix1"></script>
-    <script src="./app.js?v=20260218-rsvp-submit-progress2"></script>
+    <script src="./app.js?v=20260222-arrivals-live1"></script>
   </body>
 </html>

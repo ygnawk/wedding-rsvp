@@ -129,6 +129,14 @@ const TAB_SCHEMAS = {
   ],
 };
 
+const ARRIVALS_LOCATIONS_PATH = path.join(ROOT, "data", "arrivals-locations.json");
+const ARRIVALS_OTHER_CITY_ID = "__other__";
+const ARRIVALS_CACHE_TTL_MS = Math.max(30, Number.parseInt(process.env.ARRIVALS_CACHE_TTL_SECONDS || "60", 10) || 60) * 1000;
+const ARRIVALS_BEIJING = Object.freeze({
+  lat: 39.9042,
+  lon: 116.4074,
+});
+
 const GUESTBOOK_ENV_KEYS = Object.freeze({
   spreadsheetId: "GOOGLE_SPREADSHEET_ID",
   serviceAccountJson: "GOOGLE_SERVICE_ACCOUNT_JSON",
@@ -163,6 +171,11 @@ const guestbookCache = {
   refreshing: null,
 };
 let guestbookWarmupPromise = null;
+const arrivalsCache = {
+  expiresAt: 0,
+  payload: null,
+  pending: null,
+};
 
 function extractYearPrefix(filename) {
   const match = String(filename || "").match(/(?:^|[^0-9])((?:19|20)\d{2})(?!\d)/);
@@ -408,12 +421,356 @@ function parseBoundedInt(value, fallback, min, max) {
   return Math.max(min, Math.min(max, parsed));
 }
 
+function parseMaybeFloat(value) {
+  const parsed = Number.parseFloat(normalizeFieldValue(value));
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
 function safeJsonParse(raw, fallback) {
   try {
     return JSON.parse(raw);
   } catch (_error) {
     return fallback;
   }
+}
+
+function slugifySegment(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function normalizeCountryCode(value) {
+  return String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z]/g, "");
+}
+
+function normalizeArrivalsLocationEntry(entry) {
+  if (!entry || typeof entry !== "object") return null;
+  const country = normalizeFieldValue(entry.country);
+  const countryCode = normalizeCountryCode(entry.countryCode);
+  const city = normalizeFieldValue(entry.city);
+  const cityId = normalizeFieldValue(entry.cityId);
+  const lat = Number(entry.lat);
+  const lon = Number(entry.lon);
+
+  if (!country || !countryCode || !city || !cityId) return null;
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+
+  return {
+    country,
+    countryCode,
+    city,
+    cityId,
+    lat,
+    lon,
+  };
+}
+
+function loadArrivalsLocationCatalog() {
+  if (!fs.existsSync(ARRIVALS_LOCATIONS_PATH)) {
+    console.warn(`[arrivals] locations catalog missing at ${ARRIVALS_LOCATIONS_PATH}`);
+    return [];
+  }
+
+  try {
+    const raw = fs.readFileSync(ARRIVALS_LOCATIONS_PATH, "utf8");
+    const parsed = safeJsonParse(raw, null);
+    const locations = Array.isArray(parsed) ? parsed : Array.isArray(parsed && parsed.locations) ? parsed.locations : [];
+    const normalized = locations.map((entry) => normalizeArrivalsLocationEntry(entry)).filter(Boolean);
+    console.info(`[arrivals] loaded locations catalog entries=${normalized.length}`);
+    return normalized;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error || "unknown");
+    console.warn(`[arrivals] failed to load locations catalog message=${message}`);
+    return [];
+  }
+}
+
+function buildArrivalsLocationIndexes(locations) {
+  const byCityId = new Map();
+  const byCountryCode = new Map();
+  const byCountryCity = new Map();
+
+  (Array.isArray(locations) ? locations : []).forEach((location) => {
+    const normalized = normalizeArrivalsLocationEntry(location);
+    if (!normalized) return;
+
+    byCityId.set(normalized.cityId, normalized);
+    byCountryCode.set(normalized.countryCode, {
+      country: normalized.country,
+      countryCode: normalized.countryCode,
+    });
+    byCountryCity.set(`${normalized.countryCode}|${normalized.city.toLowerCase()}`, normalized);
+  });
+
+  return {
+    byCityId,
+    byCountryCode,
+    byCountryCity,
+  };
+}
+
+const ARRIVALS_LOCATION_CATALOG = loadArrivalsLocationCatalog();
+const ARRIVALS_LOCATION_INDEXES = buildArrivalsLocationIndexes(ARRIVALS_LOCATION_CATALOG);
+
+function resolveArrivalsSubmissionLocation({ rsvpStatus, countryCode, cityId, cityOther }) {
+  const emptyLocation = {
+    country: "",
+    countryCode: "",
+    city: "",
+    cityId: "",
+    lat: "",
+    lon: "",
+  };
+
+  if (rsvpStatus !== "yes") {
+    return emptyLocation;
+  }
+
+  const normalizedCountryCode = normalizeCountryCode(countryCode);
+  const normalizedCityId = normalizeFieldValue(cityId);
+  const normalizedCityOther = normalizeFieldValue(cityOther);
+
+  // Keep backend rollout-safe: if these fields are missing (older frontend),
+  // still accept RSVP and store blank origin fields.
+  if (!normalizedCountryCode || !normalizedCityId) {
+    return emptyLocation;
+  }
+
+  if (normalizedCityId === ARRIVALS_OTHER_CITY_ID) {
+    if (!normalizedCityOther) {
+      return emptyLocation;
+    }
+
+    const countryInfo = ARRIVALS_LOCATION_INDEXES.byCountryCode.get(normalizedCountryCode);
+    return {
+      country: countryInfo ? countryInfo.country : normalizedCountryCode,
+      countryCode: normalizedCountryCode,
+      city: normalizedCityOther,
+      cityId: ARRIVALS_OTHER_CITY_ID,
+      lat: "",
+      lon: "",
+    };
+  }
+
+  const location = ARRIVALS_LOCATION_INDEXES.byCityId.get(normalizedCityId);
+  if (!location) {
+    return emptyLocation;
+  }
+  if (location.countryCode !== normalizedCountryCode) {
+    return emptyLocation;
+  }
+
+  return {
+    country: location.country,
+    countryCode: location.countryCode,
+    city: location.city,
+    cityId: location.cityId,
+    lat: String(location.lat),
+    lon: String(location.lon),
+  };
+}
+
+function normalizeRsvpStatus(value) {
+  const normalized = normalizeFieldValue(value).toLowerCase();
+  if (normalized === "working") return "maybe";
+  if (normalized === "yes" || normalized === "maybe" || normalized === "no") return normalized;
+  return "";
+}
+
+function parsePartySizeForStatus(rsvpStatus, partySizeValue, potentialPartySizeValue) {
+  const rawValue = rsvpStatus === "yes" ? partySizeValue : partySizeValue || potentialPartySizeValue;
+  const parsed = parseMaybeInt(rawValue);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return "";
+  }
+  if (rsvpStatus !== "yes" && rsvpStatus !== "maybe") {
+    return "";
+  }
+  return String(parsed);
+}
+
+function parseSubmittedAtMs(value) {
+  const parsed = Date.parse(normalizeFieldValue(value));
+  return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+}
+
+function parsePositiveInteger(value, fallback = 0) {
+  const parsed = Number.parseInt(normalizeFieldValue(value), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return parsed;
+}
+
+function buildArrivalsDedupKey(row, rowIndex) {
+  const inviteToken = normalizeFieldValue(row.invite_token);
+  if (inviteToken) {
+    return `invite:${inviteToken}`;
+  }
+
+  const email = normalizeFieldValue(row.email).toLowerCase();
+  if (email) {
+    return `email:${email}`;
+  }
+
+  const submissionId = normalizeFieldValue(row.submission_id);
+  if (submissionId) {
+    return `submission:${submissionId}`;
+  }
+
+  return `row:${rowIndex}`;
+}
+
+function resolveArrivalsLocationFromRsvpRow(row) {
+  const rowCountryCode = normalizeCountryCode(row.origin_country_code);
+  const rowCityId = normalizeFieldValue(row.origin_city_id);
+  const rowCity = normalizeFieldValue(row.origin_city);
+  const rowCountry = normalizeFieldValue(row.origin_country);
+  const rowLat = parseMaybeFloat(row.origin_lat);
+  const rowLon = parseMaybeFloat(row.origin_lon);
+
+  if (rowCityId && rowCityId !== ARRIVALS_OTHER_CITY_ID) {
+    const catalogLocation = ARRIVALS_LOCATION_INDEXES.byCityId.get(rowCityId);
+    if (catalogLocation) {
+      return {
+        country: catalogLocation.country,
+        countryCode: catalogLocation.countryCode,
+        city: catalogLocation.city,
+        cityId: catalogLocation.cityId,
+        lat: catalogLocation.lat,
+        lon: catalogLocation.lon,
+      };
+    }
+  }
+
+  if (rowCountryCode && rowCity) {
+    const catalogLocation = ARRIVALS_LOCATION_INDEXES.byCountryCity.get(`${rowCountryCode}|${rowCity.toLowerCase()}`);
+    if (catalogLocation) {
+      return {
+        country: catalogLocation.country,
+        countryCode: catalogLocation.countryCode,
+        city: catalogLocation.city,
+        cityId: catalogLocation.cityId,
+        lat: catalogLocation.lat,
+        lon: catalogLocation.lon,
+      };
+    }
+  }
+
+  if (!Number.isFinite(rowLat) || !Number.isFinite(rowLon) || !rowCity) {
+    return null;
+  }
+
+  const countryInfo = rowCountryCode ? ARRIVALS_LOCATION_INDEXES.byCountryCode.get(rowCountryCode) : null;
+  return {
+    country: rowCountry || (countryInfo ? countryInfo.country : rowCountryCode || ""),
+    countryCode: rowCountryCode || (countryInfo ? countryInfo.countryCode : ""),
+    city: rowCity,
+    cityId: rowCityId || "",
+    lat: rowLat,
+    lon: rowLon,
+  };
+}
+
+function compareArrivalsOrigins(a, b) {
+  const countDiff = Number(b.count || 0) - Number(a.count || 0);
+  if (countDiff !== 0) return countDiff;
+  const countryDiff = String(a.country || "").localeCompare(String(b.country || ""));
+  if (countryDiff !== 0) return countryDiff;
+  return String(a.city || "").localeCompare(String(b.city || ""));
+}
+
+function compareArrivalsCountries(a, b) {
+  const countDiff = Number(b.count || 0) - Number(a.count || 0);
+  if (countDiff !== 0) return countDiff;
+  return String(a.country || "").localeCompare(String(b.country || ""));
+}
+
+function buildArrivalsPayloadFromRsvpRows(rows) {
+  const sourceRows = Array.isArray(rows) ? rows : [];
+  const latestByKey = new Map();
+
+  sourceRows.forEach((row, index) => {
+    const status = normalizeRsvpStatus(row.rsvp_status);
+    if (status !== "yes") return;
+
+    const dedupeKey = buildArrivalsDedupKey(row, index);
+    const submittedAtMs = parseSubmittedAtMs(row.submitted_at);
+    const existing = latestByKey.get(dedupeKey);
+
+    if (!existing) {
+      latestByKey.set(dedupeKey, { row, submittedAtMs, index });
+      return;
+    }
+
+    if (submittedAtMs > existing.submittedAtMs || (submittedAtMs === existing.submittedAtMs && index > existing.index)) {
+      latestByKey.set(dedupeKey, { row, submittedAtMs, index });
+    }
+  });
+
+  const dedupedRows = [...latestByKey.values()];
+  const originsByKey = new Map();
+  const byCountry = new Map();
+  let latestSubmittedAtMs = Number.NEGATIVE_INFINITY;
+
+  dedupedRows.forEach(({ row, submittedAtMs }) => {
+    const pax = parsePositiveInteger(row.party_size, 1);
+    const location = resolveArrivalsLocationFromRsvpRow(row);
+    if (!location || !location.countryCode) {
+      return;
+    }
+
+    if (submittedAtMs > latestSubmittedAtMs) {
+      latestSubmittedAtMs = submittedAtMs;
+    }
+
+    const originKey = `${location.countryCode}|${String(location.city || "").toLowerCase()}`;
+    const cityIdSegment =
+      location.cityId && location.cityId !== ARRIVALS_OTHER_CITY_ID ? location.cityId : slugifySegment(location.city) || "city";
+
+    const existingOrigin = originsByKey.get(originKey);
+    if (existingOrigin) {
+      existingOrigin.count += pax;
+    } else {
+      originsByKey.set(originKey, {
+        id: `${String(location.countryCode || "").toLowerCase()}-${cityIdSegment}`,
+        country: location.country,
+        countryCode: location.countryCode,
+        city: location.city,
+        count: pax,
+        lat: location.lat,
+        lon: location.lon,
+      });
+    }
+
+    const existingCountry = byCountry.get(location.countryCode);
+    if (existingCountry) {
+      existingCountry.count += pax;
+    } else {
+      byCountry.set(location.countryCode, {
+        country: location.country,
+        countryCode: location.countryCode,
+        count: pax,
+      });
+    }
+  });
+
+  const origins = [...originsByKey.values()].sort(compareArrivalsOrigins);
+  const byCountryRows = [...byCountry.values()].sort(compareArrivalsCountries);
+  const lastUpdatedIso = Number.isFinite(latestSubmittedAtMs) ? new Date(latestSubmittedAtMs).toISOString() : new Date().toISOString();
+
+  return {
+    beijing: { ...ARRIVALS_BEIJING },
+    origins,
+    byCountry: byCountryRows,
+    lastUpdatedIso,
+  };
 }
 
 function normalizeGuests(guestsRaw) {
@@ -1213,17 +1570,12 @@ function parseRsvpSubmissionMode(rawValue) {
 }
 
 function extractRsvpSubmissionFields(fields) {
-  const rsvpStatusRaw = getField(fields, "status").toLowerCase();
-  const rsvpStatus =
-    rsvpStatusRaw === "working"
-      ? "maybe"
-      : rsvpStatusRaw === "yes" || rsvpStatusRaw === "maybe" || rsvpStatusRaw === "no"
-      ? rsvpStatusRaw
-      : "";
+  const rsvpStatus = normalizeRsvpStatus(getField(fields, "status"));
 
   const fullName = getField(fields, "fullName") || getField(fields, "guestName");
   const email = getField(fields, "email");
   const phone = getField(fields, "phone");
+  const inviteToken = getField(fields, "token") || getField(fields, "inviteToken") || getField(fields, "invite_token");
   const messageToCouple = getField(fields, "message");
   const dietaryRestrictions = getField(fields, "dietary");
 
@@ -1231,22 +1583,34 @@ function extractRsvpSubmissionFields(fields) {
   const guests = normalizeGuests(guestsRaw);
   const primaryFunFacts = getField(fields, "primaryFunFacts") || getField(fields, "primary_fun_facts") || (guests[0] ? guests[0].funFact : "");
 
-  const maybePartySize = parseMaybeInt(getField(fields, "partySize") || getField(fields, "potentialPartySize"));
-  const partySize = rsvpStatus === "maybe" && Number.isFinite(maybePartySize) ? String(maybePartySize) : "";
+  const partySize = parsePartySizeForStatus(rsvpStatus, getField(fields, "partySize"), getField(fields, "potentialPartySize"));
   const whenWillYouKnow = rsvpStatus === "maybe" ? getField(fields, "whenWillYouKnow") || getField(fields, "followupChoice") : "";
   const source = inferSource(getField(fields, "userAgent"), getField(fields, "viewportWidth"));
+  const arrivalLocation = resolveArrivalsSubmissionLocation({
+    rsvpStatus,
+    countryCode: getField(fields, "originCountryCode") || getField(fields, "origin_country_code"),
+    cityId: getField(fields, "originCityId") || getField(fields, "origin_city_id"),
+    cityOther: getField(fields, "originCityOther") || getField(fields, "origin_city_other"),
+  });
 
   return {
     rsvpStatus,
     fullName,
     email,
     phone,
+    inviteToken,
     messageToCouple,
     dietaryRestrictions,
     guests,
     primaryFunFacts,
     partySize,
     whenWillYouKnow,
+    originCountry: arrivalLocation.country,
+    originCountryCode: arrivalLocation.countryCode,
+    originCity: arrivalLocation.city,
+    originCityId: arrivalLocation.cityId,
+    originLat: arrivalLocation.lat,
+    originLon: arrivalLocation.lon,
     source,
   };
 }
@@ -1298,6 +1662,13 @@ function buildRsvpRowData(tabHeaders, submissionId, nowIso, parsedFields, upload
     dietary_restrictions: parsedFields.dietaryRestrictions,
     message_to_couple: parsedFields.messageToCouple,
     primary_fun_facts: parsedFields.primaryFunFacts,
+    origin_country: parsedFields.originCountry,
+    origin_country_code: parsedFields.originCountryCode,
+    origin_city: parsedFields.originCity,
+    origin_city_id: parsedFields.originCityId,
+    origin_lat: parsedFields.originLat,
+    origin_lon: parsedFields.originLon,
+    invite_token: parsedFields.inviteToken,
     media_count: String(mediaCount),
     source: parsedFields.source,
     approved: "FALSE",
@@ -1748,6 +2119,81 @@ function scheduleGuestbookWarmup() {
   return guestbookWarmupPromise;
 }
 
+async function loadArrivalsPayload({ forceRefresh = false } = {}) {
+  const now = Date.now();
+  if (!forceRefresh && arrivalsCache.payload && arrivalsCache.expiresAt > now) {
+    return arrivalsCache.payload;
+  }
+
+  if (arrivalsCache.pending) {
+    return arrivalsCache.pending;
+  }
+
+  const pending = (async () => {
+    const spreadsheetId = getRequiredSpreadsheetId();
+    const { sheets } = createGoogleClients();
+    const rsvpRows = await getSheetObjects(sheets, spreadsheetId, "rsvps");
+    const payload = buildArrivalsPayloadFromRsvpRows(rsvpRows);
+    arrivalsCache.payload = payload;
+    arrivalsCache.expiresAt = Date.now() + ARRIVALS_CACHE_TTL_MS;
+    console.info(
+      `[arrivals] refreshed origins=${payload.origins.length} countries=${payload.byCountry.length} ttl_ms=${ARRIVALS_CACHE_TTL_MS}`,
+    );
+    return payload;
+  })();
+
+  arrivalsCache.pending = pending;
+  try {
+    return await pending;
+  } finally {
+    arrivalsCache.pending = null;
+  }
+}
+
+function shouldForceRefresh(req) {
+  try {
+    const url = new URL(req.url || "/", "http://localhost");
+    const value = normalizeFieldValue(url.searchParams.get("refresh"));
+    return value === "1" || value.toLowerCase() === "true";
+  } catch (_error) {
+    return false;
+  }
+}
+
+async function handleArrivalsRequest(req, res) {
+  const startedAt = Date.now();
+  const localRequest = isLocalRequest(req);
+
+  try {
+    const payload = await loadArrivalsPayload({ forceRefresh: shouldForceRefresh(req) });
+    send(res, 200, JSON.stringify(payload), MIME_TYPES[".json"], {
+      req,
+      cacheControl: "no-store",
+      headers: {
+        "X-Arrivals-Cache-Expires-At": arrivalsCache.expiresAt ? String(arrivalsCache.expiresAt) : "0",
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Arrivals API unavailable";
+    const status = Number(error && typeof error === "object" ? error.status : 0);
+    const safeStatus = Number.isFinite(status) && status >= 400 && status <= 599 ? status : 503;
+    const payload = {
+      ok: false,
+      error: "Arrivals data is temporarily unavailable.",
+      code: "arrivals_unavailable",
+      duration_ms: Date.now() - startedAt,
+    };
+    if (NODE_ENV === "development" || localRequest) {
+      payload.message = message;
+    }
+    console.warn(`[arrivals] request_error status=${safeStatus} message=${message}`);
+    send(res, safeStatus, JSON.stringify(payload), MIME_TYPES[".json"], {
+      req,
+      cacheControl: "no-store",
+    });
+  }
+}
+
 function parseGuestbookMode(value) {
   const normalized = normalizeFieldValue(value).toLowerCase();
   return normalized === "archive" ? "archive" : "pinboard";
@@ -2094,6 +2540,11 @@ const server = http.createServer(async (req, res) => {
       req,
       cacheControl: "no-store",
     });
+    return;
+  }
+
+  if (pathname === "/api/arrivals" && req.method === "GET") {
+    await handleArrivalsRequest(req, res);
     return;
   }
 

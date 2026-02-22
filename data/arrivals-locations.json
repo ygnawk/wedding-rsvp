@@ -1,0 +1,117 @@
+{
+  "version": "2026-02-22",
+  "locations": [
+    {
+      "country": "Singapore",
+      "countryCode": "SG",
+      "city": "Singapore",
+      "cityId": "sg-singapore",
+      "lat": 1.352083,
+      "lon": 103.819836
+    },
+    {
+      "country": "Japan",
+      "countryCode": "JP",
+      "city": "Tokyo",
+      "cityId": "jp-tokyo",
+      "lat": 35.689487,
+      "lon": 139.691706
+    },
+    {
+      "country": "United States",
+      "countryCode": "US",
+      "city": "San Francisco",
+      "cityId": "us-san-francisco",
+      "lat": 37.774929,
+      "lon": -122.419416
+    },
+    {
+      "country": "United States",
+      "countryCode": "US",
+      "city": "Boston",
+      "cityId": "us-boston",
+      "lat": 42.360082,
+      "lon": -71.05888
+    },
+    {
+      "country": "South Korea",
+      "countryCode": "KR",
+      "city": "Seoul",
+      "cityId": "kr-seoul",
+      "lat": 37.566536,
+      "lon": 126.977966
+    },
+    {
+      "country": "Thailand",
+      "countryCode": "TH",
+      "city": "Bangkok",
+      "cityId": "th-bangkok",
+      "lat": 13.756331,
+      "lon": 100.501765
+    },
+    {
+      "country": "United Kingdom",
+      "countryCode": "GB",
+      "city": "London",
+      "cityId": "gb-london",
+      "lat": 51.507351,
+      "lon": -0.127758
+    },
+    {
+      "country": "Australia",
+      "countryCode": "AU",
+      "city": "Sydney",
+      "cityId": "au-sydney",
+      "lat": -33.86882,
+      "lon": 151.20929
+    },
+    {
+      "country": "Malaysia",
+      "countryCode": "MY",
+      "city": "Kuala Lumpur",
+      "cityId": "my-kuala-lumpur",
+      "lat": 3.139003,
+      "lon": 101.686855
+    },
+    {
+      "country": "United States",
+      "countryCode": "US",
+      "city": "Ann Arbor",
+      "cityId": "us-ann-arbor",
+      "lat": 42.280826,
+      "lon": -83.743038
+    },
+    {
+      "country": "United States",
+      "countryCode": "US",
+      "city": "Boulder",
+      "cityId": "us-boulder",
+      "lat": 40.014986,
+      "lon": -105.270546
+    },
+    {
+      "country": "United States",
+      "countryCode": "US",
+      "city": "New York",
+      "cityId": "us-new-york",
+      "lat": 40.712776,
+      "lon": -74.005974
+    },
+    {
+      "country": "China",
+      "countryCode": "CN",
+      "city": "Beijing",
+      "cityId": "cn-beijing",
+      "lat": 39.904202,
+      "lon": 116.407394
+    },
+    {
+      "country": "Austria",
+      "countryCode": "AT",
+      "city": "Vienna",
+      "cityId": "at-vienna",
+      "lat": 48.208176,
+      "lon": 16.373819
+    }
+  ]
+}
