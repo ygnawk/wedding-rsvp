@@ -1692,7 +1692,7 @@ function restoreOriginFieldsFromPayload(payload, choiceValue) {
 
     const countryCode = normalizeCountryCode(payload && payload.originCountryCode ? payload.originCountryCode : "");
     const cityId = String(payload && payload.originCityId ? payload.originCityId : "");
-    const city = String(payload && (payload.originCity || payload.originCitySearch || payload.originCityOther) ? payload.originCity || payload.originCitySearch || payload.originCityOther : "");
+    const city = String(payload && (payload.originCity || payload.originCitySearch) ? payload.originCity || payload.originCitySearch : "");
     const lat = String(payload && payload.originLat ? payload.originLat : "");
     const lon = String(payload && payload.originLon ? payload.originLon : "");
     const geocodeStatus = String(payload && payload.originGeocodeStatus ? payload.originGeocodeStatus : "");
