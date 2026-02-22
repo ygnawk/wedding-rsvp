@@ -1763,7 +1763,8 @@
   }
 
   .arrivals-map-board {
-    min-height: min(48vh, 20rem);
+    min-height: 0;
+    aspect-ratio: 2 / 1;
   }
 
   .arrivals-map__svg {
@@ -1778,7 +1779,7 @@
 
   .arrivals-board {
     --board-cell-width: 7px;
-    --board-cell-height: 16px;
+    --board-cell-height: 17px;
     --board-cell-gap: 1px;
   }
 
@@ -1793,16 +1794,17 @@
     height: auto;
     min-height: 0;
     display: grid;
-    grid-template-rows: auto minmax(260px, 52vh) auto;
+    grid-template-rows: auto auto auto;
     gap: 0.52rem;
     align-content: start;
   }
 
   .arrivals-map-board {
-    height: 100%;
-    min-height: 260px;
-    max-height: 60vh;
-    align-self: stretch;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    aspect-ratio: 2 / 1;
+    align-self: start;
   }
 
   .arrivals-map-board__face--map {
@@ -1812,9 +1814,13 @@
   .arrivals-map__svg {
     width: 100%;
     height: 100%;
-    min-height: 260px;
-    max-height: 60vh;
+    min-height: 0;
+    max-height: none;
     display: block;
+  }
+
+  .arrivals-map__stats-strip {
+    margin-top: 0;
   }
 
   .arrivals-map__zoom-controls {
@@ -1823,7 +1829,7 @@
   }
 
   .arrivals-board {
-    --board-cell-height: clamp(15px, 3.9vw, 18px);
+    --board-cell-height: clamp(17px, 4.15vw, 20px);
     --board-cell-gap: 1px;
     width: 100%;
   }
@@ -1847,7 +1853,7 @@
   }
 
   .arrivals-board__columns {
-    padding: 0.24rem 0.4rem;
+    padding: 0.3rem 0.42rem;
     overflow-x: hidden;
   }
 
@@ -1856,22 +1862,22 @@
   }
 
   .arrivals-board__row {
-    padding: 0.3rem 0.42rem;
+    padding: 0.34rem 0.44rem;
   }
 
   .arrivals-board__flap-glyph {
-    font-size: clamp(8px, 2.05vw, 10px);
+    font-size: clamp(8.6px, 2.25vw, 10.8px);
     letter-spacing: 0;
   }
 
   .arrivals-board__flap-line--header .arrivals-board__flap-glyph {
-    font-size: clamp(8px, 1.95vw, 9px);
+    font-size: clamp(8.2px, 2.05vw, 9.4px);
     letter-spacing: 0;
   }
 
   .arrivals-board__flap-cell--flip::before,
   .arrivals-board__flap-cell--flip::after {
-    font-size: clamp(8px, 2.05vw, 10px);
+    font-size: clamp(8.6px, 2.25vw, 10.8px);
     letter-spacing: 0;
   }
 }

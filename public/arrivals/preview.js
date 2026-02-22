@@ -46,6 +46,7 @@ const RADAR_CITY_NODES = [
 const BOARD_ROWS_PER_PAGE = 999;
 const BOARD_SEGMENT_COUNT = 1;
 const BOARD_EMPTY_ROWS_AFTER_DATA = 5;
+const BOARD_EMPTY_ROWS_AFTER_DATA_MOBILE = 2;
 const BOARD_ROTATE_BASE_MS = 150000;
 const BOARD_ROTATE_JITTER_MS = 30000;
 const BOARD_RESUME_GRACE_MS = 5000;
@@ -2172,6 +2173,12 @@ function render() {
     isHeader: true,
   });
   const blankBoardLine = " ".repeat(BOARD_LINE_LENGTH);
+  const emptyRowsAfterData =
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(max-width: 768px)").matches
+      ? BOARD_EMPTY_ROWS_AFTER_DATA_MOBILE
+      : BOARD_EMPTY_ROWS_AFTER_DATA;
   const rowsPerSegment = Math.max(1, Math.ceil(Math.max(currentPageRows.length, 1) / BOARD_SEGMENT_COUNT));
 
   const boardSegmentsMarkup = Array.from({ length: BOARD_SEGMENT_COUNT }, (_, segmentIndex) => {
@@ -2222,7 +2229,7 @@ function render() {
       })
       .join("");
 
-    const emptyRowsCount = segmentRows.length > 0 ? BOARD_EMPTY_ROWS_AFTER_DATA : 0;
+    const emptyRowsCount = segmentRows.length > 0 ? emptyRowsAfterData : 0;
     const emptyRowsMarkup =
       emptyRowsCount > 0
         ? Array.from({ length: emptyRowsCount }, (_, emptyIndex) => {
