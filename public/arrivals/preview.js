@@ -29,6 +29,9 @@ const WORLD_GEOJSON_HREF = "/public/arrivals/world.geojson?v=20260219-solari50";
 const WORLD_SVG_FALLBACK_HREF = "/public/arrivals/world.svg?v=20260219-solari50";
 const PLANE_IMAGE_HREF = "/public/arrivals/plane.svg?v=20260219-solari50";
 const BEIJING_ICON_HREF = "/public/arrivals/beijing-icon.png?v=20260219-solari79";
+const BOARD_DISCLAIMER_IMAGE_HREF = "/public/arrivals/changi-solari-board.png?v=20260222-board-disclaimer1";
+const BOARD_DISCLAIMER_COPY =
+  "Of course we had to sneak a little Changi Airport into the site. We also tried to recreate the flip animation… and it didn’t quite cooperate.";
 const EQUIRECTANGULAR_ASPECT_RATIO = 2;
 const GRID_MINOR_DEGREES = 10;
 const GRID_MAJOR_DEGREES = 30;
@@ -45,8 +48,8 @@ const RADAR_CITY_NODES = [
 ];
 const BOARD_ROWS_PER_PAGE = 999;
 const BOARD_SEGMENT_COUNT = 1;
-const BOARD_EMPTY_ROWS_AFTER_DATA = 5;
-const BOARD_EMPTY_ROWS_AFTER_DATA_MOBILE = 2;
+const BOARD_EMPTY_ROWS_AFTER_DATA = 6;
+const BOARD_EMPTY_ROWS_AFTER_DATA_MOBILE = 3;
 const BOARD_ROTATE_BASE_MS = 150000;
 const BOARD_ROTATE_JITTER_MS = 30000;
 const BOARD_RESUME_GRACE_MS = 5000;
@@ -57,6 +60,7 @@ const BOARD_IDLE_FLIP_DURATION_MAX_MS = 450;
 const ARRIVALS_TITLE_LABEL = "Arrivals Tracker";
 const ARRIVALS_HELPER_LABEL = "Tracking everyone’s journey to Beijing";
 const MAP_LABEL = "WORLD MAP";
+const BOARD_END_LABEL = "END";
 const BEIJING_TIME_ZONE = "Asia/Shanghai";
 const ARRIVALS_API_ORIGIN = "https://mikiandyijie-rsvp-api.onrender.com";
 const ARRIVALS_API_PATH = "/api/arrivals";
@@ -93,11 +97,11 @@ const PLANE_GLOBAL_LAUNCH_INTERVAL_MS = 2000;
 const LOCAL_ROUTE_DISTANCE_KM_THRESHOLD = 25;
 const BEIJING_LABEL_OFFSET_X = 0;
 const BEIJING_LABEL_OFFSET_Y = 0;
-const BEIJING_ICON_SCALE = 1.5;
+const BEIJING_ICON_SCALE = 1.85;
 const BEIJING_LABEL_BASE_X = 0;
-const BEIJING_LABEL_BASE_Y = -22;
+const BEIJING_LABEL_BASE_Y = -28;
 const BEIJING_ICON_OFFSET_X = 0;
-const BEIJING_ICON_OFFSET_Y = -22;
+const BEIJING_ICON_OFFSET_Y = -28;
 const BOARD_HEADER_LINE = `${"COUNTRY".padEnd(COL_COUNTRY, " ")}${LINE_SEPARATOR}${"CITY".padEnd(
   COL_CITY,
   " ",
@@ -144,6 +148,8 @@ const state = {
   mapFocusChipTextNode: null,
   disclaimerToggleNode: null,
   disclaimerPanelNode: null,
+  boardDisclaimerToggleNode: null,
+  boardDisclaimerPanelNode: null,
   mapGeoBounds: { ...MAP_GEO_BOUNDS_DEFAULT },
   worldLandPathMarkup: "",
   showProjectionDebug:
@@ -187,6 +193,7 @@ const state = {
   prefersReducedMotion: Boolean(reducedMotionMedia && reducedMotionMedia.matches),
   beijingDateLabel: "",
   disclaimerOpen: false,
+  boardDisclaimerOpen: false,
 };
 
 function escapeHtml(value) {
@@ -978,9 +985,12 @@ function deriveRoutes(origins, destination) {
   };
 
   return sorted.map((origin, index) => {
-    const routeOrigin = { lat: origin.lat, lon: origin.lon };
+    const originLat = Number(origin.lat);
+    const originLon = Number(origin.lon);
+    const canPlot = origin.plot !== false && Number.isFinite(originLat) && Number.isFinite(originLon);
+    const routeOrigin = canPlot ? { lat: originLat, lon: originLon } : { lat: destination.lat, lon: destination.lon };
     const routeDestination = { lat: destination.lat, lon: destination.lon };
-    const isLocal = haversineDistanceKm(routeOrigin, routeDestination) <= LOCAL_ROUTE_DISTANCE_KM_THRESHOLD;
+    const isLocal = canPlot ? haversineDistanceKm(routeOrigin, routeDestination) <= LOCAL_ROUTE_DISTANCE_KM_THRESHOLD : false;
 
     return {
       routeId: origin.id,
@@ -992,9 +1002,11 @@ function deriveRoutes(origins, destination) {
       origin: routeOrigin,
       destination: routeDestination,
       count: origin.count,
-      planeCount: isLocal ? 0 : derivePlaneCount(origin.count),
+      plot: canPlot,
+      geocodeStatus: origin.geocodeStatus || (canPlot ? "resolved" : "unresolved"),
+      planeCount: !canPlot || isLocal ? 0 : derivePlaneCount(origin.count),
       rank: index + 1,
-      isTopRoute: !isLocal && index < 6,
+      isTopRoute: canPlot && !isLocal && index < 6,
       isLocal,
     };
   });
@@ -1023,15 +1035,22 @@ function formatDistanceKm(distanceKm) {
   return `${new Intl.NumberFormat("en-US").format(rounded)} KM`;
 }
 
-function getBeijingTodayLabel() {
-  return new Date()
-    .toLocaleDateString("en-GB", {
-      month: "short",
-      day: "2-digit",
-      year: "numeric",
-      timeZone: BEIJING_TIME_ZONE,
-    })
-    .toUpperCase();
+function getArrivalsTimestampLabel(lastUpdatedIso) {
+  const parsedDate =
+    typeof lastUpdatedIso === "string" && lastUpdatedIso.trim().length > 0 ? new Date(lastUpdatedIso) : null;
+  const hasValidIso = parsedDate instanceof Date && !Number.isNaN(parsedDate.getTime());
+  if (!hasValidIso) {
+    return "Updated: Pending RSVP timestamp · Based on RSVP timestamps";
+  }
+
+  const displayDate = parsedDate.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: BEIJING_TIME_ZONE,
+  });
+
+  return `Updated: ${displayDate} · Based on RSVP timestamps`;
 }
 
 function buildMapStatsSummary(routes) {
@@ -1043,7 +1062,9 @@ function buildMapStatsSummary(routes) {
   const cityCount = routes.length;
   const countryCount = new Set(routes.map((route) => route.countryCode || route.country)).size;
   const farthestRoute = routes.reduce((farthest, route) => {
+    if (!route || !route.plot) return farthest;
     const distance = haversineDistanceKm(route.origin, route.destination);
+    if (!Number.isFinite(distance)) return farthest;
     if (!farthest || distance > farthest.distance) {
       return { route, distance };
     }
@@ -1239,7 +1260,7 @@ function getInteractionRouteId() {
   }
 
   const route = getRouteById(candidateRouteId);
-  if (!route || route.isLocal) {
+  if (!route || route.isLocal || !route.plot) {
     return null;
   }
 
@@ -1988,7 +2009,7 @@ function render() {
     `
     : "";
 
-  const mapRenderableRoutes = state.routes.filter((route) => !route.isLocal);
+  const mapRenderableRoutes = state.routes.filter((route) => route.plot && !route.isLocal);
   const planeRoutes = [];
   const routeMarkup = mapRenderableRoutes
     .map((route) => {
@@ -2165,7 +2186,7 @@ function render() {
   const currentPageRows = getCurrentPageRows();
   const previousRows = state.rowFlipSnapshot || currentPageRows;
   const totalGuests = state.flatRows.reduce((sum, row) => sum + row.people, 0);
-  const lastUpdated = getBeijingTodayLabel();
+  const lastUpdated = getArrivalsTimestampLabel(state.data?.lastUpdatedIso);
   state.beijingDateLabel = lastUpdated;
   const boardHeaderMarkup = buildBoardFlapLine(BOARD_HEADER_LINE, BOARD_HEADER_LINE, {
     idSeed: "header",
@@ -2173,6 +2194,7 @@ function render() {
     isHeader: true,
   });
   const blankBoardLine = " ".repeat(BOARD_LINE_LENGTH);
+  const endBoardLine = formatBoardLine("", BOARD_END_LABEL, "");
   const emptyRowsAfterData =
     typeof window !== "undefined" &&
     typeof window.matchMedia === "function" &&
@@ -2246,10 +2268,22 @@ function render() {
             `;
           }).join("")
         : "";
+    const isLastRenderedSegment = startIndex + segmentRows.length >= currentPageRows.length;
+    const endRowMarkup =
+      segmentRows.length > 0 && isLastRenderedSegment
+        ? `
+          <div class="arrivals-board__row arrivals-board__row--end" aria-hidden="true">
+            ${buildBoardFlapLine(endBoardLine, endBoardLine, {
+              idSeed: `end-${state.boardPageIndex}-${segmentIndex}`,
+              animateChanges: false,
+            })}
+          </div>
+        `
+        : "";
 
-    const hasAnyRenderedRows = Boolean(segmentRowsMarkup || emptyRowsMarkup);
+    const hasAnyRenderedRows = Boolean(segmentRowsMarkup || emptyRowsMarkup || endRowMarkup);
     const segmentBodyMarkup = hasAnyRenderedRows
-      ? `${segmentRowsMarkup}${emptyRowsMarkup}`
+      ? `${segmentRowsMarkup}${emptyRowsMarkup}${endRowMarkup}`
       : '<div class="arrivals-board__segment-empty" aria-hidden="true">WAITING FOR ARRIVALS DATA</div>';
 
     return `
@@ -2368,9 +2402,37 @@ function render() {
       <header class="arrivals-board__header">
         <div class="arrivals-board__header-row">
           <h2 class="arrivals-board__title">Arrival Board</h2>
+          <div class="arrivals-board__disclaimer" data-board-disclaimer-node>
+            <button
+              type="button"
+              class="arrivals-board__disclaimer-toggle arrivals-map__control-button${state.boardDisclaimerOpen ? " arrivals-board__disclaimer-toggle--active arrivals-map__control-button--active" : ""}"
+              data-board-disclaimer-toggle
+              aria-label="Show arrival board disclaimer"
+              aria-expanded="${state.boardDisclaimerOpen ? "true" : "false"}"
+              aria-controls="arrivals-board-disclaimer-panel"
+            >
+              <span class="arrivals-map__control-icon" aria-hidden="true">ⓘ</span>
+            </button>
+            <div
+              id="arrivals-board-disclaimer-panel"
+              class="arrivals-board__disclaimer-panel${state.boardDisclaimerOpen ? " arrivals-board__disclaimer-panel--open" : ""}"
+              role="dialog"
+              aria-hidden="${state.boardDisclaimerOpen ? "false" : "true"}"
+            >
+              <h3 class="arrivals-board__disclaimer-title">Disclaimer</h3>
+              <p class="arrivals-board__disclaimer-body">${escapeHtml(BOARD_DISCLAIMER_COPY)}</p>
+              <img
+                class="arrivals-board__disclaimer-image"
+                src="${BOARD_DISCLAIMER_IMAGE_HREF}"
+                alt="Changi Airport split-flap departure board"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+          </div>
         </div>
         <p class="arrivals-board__meta">${totalGuests} GUESTS INBOUND</p>
-        <time class="arrivals-board__timestamp">UPDATED ${lastUpdated}</time>
+        <time class="arrivals-board__timestamp">${escapeHtml(lastUpdated)}</time>
       </header>
 
       <div class="arrivals-board__segments">
@@ -2463,8 +2525,11 @@ function cacheInteractiveNodes() {
   state.mapFocusChipTextNode = root.querySelector("[data-map-focus-chip-text]");
   state.disclaimerToggleNode = root.querySelector("[data-disclaimer-toggle]");
   state.disclaimerPanelNode = root.querySelector("#arrivals-map-disclaimer-panel");
+  state.boardDisclaimerToggleNode = root.querySelector("[data-board-disclaimer-toggle]");
+  state.boardDisclaimerPanelNode = root.querySelector("#arrivals-board-disclaimer-panel");
   state.hubNode = root.querySelector("[data-node-hub='beijing']");
   setDisclaimerOpen(state.disclaimerOpen);
+  setBoardDisclaimerOpen(state.boardDisclaimerOpen);
 
   state.routeGroupsByRouteId = new Map();
   state.routePathNodesByRouteId = new Map();
@@ -2560,6 +2625,26 @@ function setDisclaimerOpen(isOpen) {
   clearMapPointers({ snapToBounds: false });
   applyMapViewport(state.mapViewport);
   updateMapPanCapability();
+}
+
+function setBoardDisclaimerOpen(isOpen) {
+  state.boardDisclaimerOpen = Boolean(isOpen);
+
+  const toggleNode =
+    state.boardDisclaimerToggleNode || (root ? root.querySelector("[data-board-disclaimer-toggle]") : null);
+  const panelNode =
+    state.boardDisclaimerPanelNode || (root ? root.querySelector("#arrivals-board-disclaimer-panel") : null);
+
+  if (toggleNode) {
+    toggleNode.classList.toggle("arrivals-board__disclaimer-toggle--active", state.boardDisclaimerOpen);
+    toggleNode.classList.toggle("arrivals-map__control-button--active", state.boardDisclaimerOpen);
+    toggleNode.setAttribute("aria-expanded", state.boardDisclaimerOpen ? "true" : "false");
+  }
+
+  if (panelNode) {
+    panelNode.classList.toggle("arrivals-board__disclaimer-panel--open", state.boardDisclaimerOpen);
+    panelNode.setAttribute("aria-hidden", state.boardDisclaimerOpen ? "false" : "true");
+  }
 }
 
 function updateMapCallout(routeId) {
@@ -2898,9 +2983,22 @@ function attachEventHandlers() {
       setDisclaimerOpen(!state.disclaimerOpen);
       return;
     }
-    const shouldCloseDisclaimer = state.disclaimerOpen && !eventTarget.closest("[data-disclaimer-node]");
-    if (shouldCloseDisclaimer) {
+    const boardDisclaimerToggleButton = eventTarget.closest("[data-board-disclaimer-toggle]");
+    if (boardDisclaimerToggleButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      setBoardDisclaimerOpen(!state.boardDisclaimerOpen);
+      return;
+    }
+
+    const shouldCloseMapDisclaimer = state.disclaimerOpen && !eventTarget.closest("[data-disclaimer-node]");
+    if (shouldCloseMapDisclaimer) {
       setDisclaimerOpen(false);
+    }
+    const shouldCloseBoardDisclaimer =
+      state.boardDisclaimerOpen && !eventTarget.closest("[data-board-disclaimer-node]");
+    if (shouldCloseBoardDisclaimer) {
+      setBoardDisclaimerOpen(false);
     }
 
     const clickedInsideMap = isMapInteractionTarget(eventTarget);
@@ -2956,7 +3054,7 @@ function attachEventHandlers() {
       if (!eventTarget || !state.mapSvgNode || !isMapInteractionTarget(eventTarget)) {
         return;
       }
-      if (eventTarget.closest("[data-disclaimer-node]")) {
+      if (eventTarget.closest("[data-disclaimer-node], [data-board-disclaimer-node]")) {
         return;
       }
 
@@ -2973,7 +3071,7 @@ function attachEventHandlers() {
     if (!eventTarget || !state.mapSvgNode || !isMapInteractionTarget(eventTarget)) {
       return;
     }
-    if (eventTarget.closest("[data-disclaimer-node]")) {
+    if (eventTarget.closest("[data-disclaimer-node], [data-board-disclaimer-node]")) {
       return;
     }
 
@@ -2991,7 +3089,7 @@ function attachEventHandlers() {
     if (!eventTarget || !state.mapSvgNode || !isMapInteractionTarget(eventTarget)) {
       return;
     }
-    if (eventTarget.closest("[data-disclaimer-node]")) {
+    if (eventTarget.closest("[data-disclaimer-node], [data-board-disclaimer-node]")) {
       return;
     }
 
@@ -3193,8 +3291,9 @@ function attachEventHandlers() {
   });
 
   root.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && state.disclaimerOpen) {
+    if (event.key === "Escape" && (state.disclaimerOpen || state.boardDisclaimerOpen)) {
       setDisclaimerOpen(false);
+      setBoardDisclaimerOpen(false);
       return;
     }
 
@@ -3325,7 +3424,7 @@ function scheduleBeijingDateTimer() {
       return;
     }
 
-    const nextBeijingDateLabel = getBeijingTodayLabel();
+    const nextBeijingDateLabel = getArrivalsTimestampLabel(state.data.lastUpdatedIso);
     if (state.beijingDateLabel !== nextBeijingDateLabel) {
       render();
     }
@@ -3350,7 +3449,7 @@ async function refreshData() {
   const nextOrigins = nextData.origins.map((origin) => ({ ...origin }));
   const changedRouteIds = getChangedRouteIds(state.origins, nextOrigins);
   const isTimestampChanged = state.data.lastUpdatedIso !== nextData.lastUpdatedIso;
-  const nextBeijingDateLabel = getBeijingTodayLabel();
+  const nextBeijingDateLabel = getArrivalsTimestampLabel(nextData.lastUpdatedIso);
   const isBeijingDateChanged = state.beijingDateLabel !== nextBeijingDateLabel;
 
   if (!changedRouteIds.size && !isTimestampChanged && !isBeijingDateChanged) {

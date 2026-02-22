@@ -31,12 +31,20 @@ body {
   overflow: hidden;
 }
 
+@media (min-width: 1200px) {
+  .arrivals-preview {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+  }
+
+  .arrivals-page {
+    zoom: 0.75;
+  }
+}
+
 .arrivals-preview::before {
-  content: "";
-  position: absolute;
-  inset: 0.45rem;
-  border: 1px solid rgba(242, 229, 204, 0.12);
-  pointer-events: none;
+  content: none;
 }
 
 .arrivals-preview__message {

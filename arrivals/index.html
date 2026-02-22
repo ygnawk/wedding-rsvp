@@ -69,6 +69,16 @@
         background: #090807;
         overflow: visible;
       }
+      @media (min-width: 1024px) {
+        .arrivals-shell__main {
+          padding: calc(var(--headerH) + 18px) clamp(10px, 1.6vw, 20px) clamp(12px, 2.2vw, 20px);
+        }
+
+        .arrivalsShell {
+          max-width: min(900px, calc(100% - 24px));
+          padding: clamp(12px, 2vw, 20px);
+        }
+      }
       @media (max-width: 900px) {
         .arrivals-shell__main {
           padding-top: calc(var(--headerH) + 16px);

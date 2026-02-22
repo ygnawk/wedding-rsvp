@@ -3,8 +3,13 @@ const RSVP_LOCAL_FALLBACK_KEY = "wedding_rsvp_fallback";
 const BASE_PATH = window.location.hostname === "ygnawk.github.io" ? "/wedding-rsvp" : "";
 const IS_LOCAL_DEV = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
 const RSVP_API_ORIGIN = "https://mikiandyijie-rsvp-api.onrender.com";
-const ARRIVALS_LOCATIONS_CATALOG_URL = withBasePath("/data/arrivals-locations.json?v=20260222-arrivals-live1");
-const RSVP_ORIGIN_OTHER_CITY_VALUE = "__other__";
+const RSVP_COUNTRIES_MODULE_URL = withBasePath("/data/countries.js?v=20260223-rsvp-countries1");
+const RSVP_CITY_SEARCH_PATH = "/api/city-search";
+const RSVP_CITY_SEARCH_DEBOUNCE_MS = 280;
+const RSVP_CITY_SEARCH_MIN_QUERY_LENGTH = 2;
+const RSVP_CITY_SEARCH_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const RSVP_CITY_SEARCH_TIMEOUT_MS = 9000;
+const RSVP_CITY_SEARCH_SESSION_KEY = "wedding_rsvp_city_search_cache_v1";
 const DEBUG_FOCAL_PARAM = String(new URLSearchParams(window.location.search).get("debugFocal") || "").toLowerCase();
 const ENABLE_FOCAL_TUNER = IS_LOCAL_DEV && ["1", "true", "yes", "on"].includes(DEBUG_FOCAL_PARAM);
 const DEBUG_SLOT_PARAM = String(new URLSearchParams(window.location.search).get("debugSlots") || "").toLowerCase();
@@ -362,9 +367,15 @@ const addGuestButton = document.getElementById("addGuestButton");
 const guestLimitError = document.getElementById("guestLimitError");
 const dietary = document.getElementById("dietary");
 const originCountrySelect = document.getElementById("originCountryCode");
-const originCitySelect = document.getElementById("originCityId");
-const originCityOtherWrap = document.getElementById("originCityOtherWrap");
-const originCityOtherInput = document.getElementById("originCityOther");
+const originCountryInput = document.getElementById("originCountry");
+const originCityIdInput = document.getElementById("originCityId");
+const originCityInput = document.getElementById("originCity");
+const originLatInput = document.getElementById("originLat");
+const originLonInput = document.getElementById("originLon");
+const originGeocodeStatusInput = document.getElementById("originGeocodeStatus");
+const originCitySearchInput = document.getElementById("originCitySearch");
+const originCitySuggestions = document.getElementById("originCitySuggestions");
+const originCitySearchStatus = document.getElementById("originCitySearchStatus");
 
 const workingFields = document.getElementById("workingFields");
 const workingCount = document.getElementById("workingCount");
@@ -502,10 +513,14 @@ let rsvpLastSubmissionPayload = null;
 let rsvpLastSubmissionFilesMeta = [];
 let rsvpBackgroundUploadJob = null;
 let rsvpUploadStatusHideTimer = 0;
-let rsvpOriginLocations = [];
-let rsvpOriginLocationsByCountry = new Map();
-let rsvpOriginLocationByCityId = new Map();
+let rsvpCountryCatalog = [];
+let rsvpCountryByCode = new Map();
 let rsvpOriginInitPromise = null;
+let rsvpCitySearchDebounceTimer = 0;
+let rsvpCitySearchRequestToken = 0;
+let rsvpCitySuggestions = [];
+let rsvpCityActiveSuggestionIndex = -1;
+let rsvpCitySearchCache = new Map();
 
 function setRsvpSubmitOverlayVisible(visible) {
   if (!rsvpSubmitOverlay) return;
@@ -1271,64 +1286,34 @@ function normalizeCountryCode(value) {
     .replace(/[^A-Z]/g, "");
 }
 
-function sanitizeRsvpLocationEntry(entry) {
+function sanitizeRsvpCountryEntry(entry) {
   if (!entry || typeof entry !== "object") return null;
-  const country = String(entry.country || "").trim();
-  const countryCode = normalizeCountryCode(entry.countryCode);
-  const city = String(entry.city || "").trim();
-  const cityId = String(entry.cityId || "").trim();
-  const lat = Number(entry.lat);
-  const lon = Number(entry.lon);
-
-  if (!country || !countryCode || !city || !cityId) return null;
-  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  const name = String(entry.name || "").trim();
+  const code = normalizeCountryCode(entry.code);
+  if (!name || !code) return null;
 
   return {
-    country,
-    countryCode,
-    city,
-    cityId,
-    lat,
-    lon,
+    name,
+    code,
   };
 }
 
-function rebuildRsvpOriginLocationIndexes(locations) {
-  const safeLocations = Array.isArray(locations) ? locations : [];
-  rsvpOriginLocations = safeLocations;
+function rebuildRsvpCountryIndexes(countries) {
+  const safeCountries = Array.isArray(countries) ? countries : [];
+  const normalizedCountries = [];
+  const byCode = new Map();
 
-  const byCountry = new Map();
-  const byCityId = new Map();
-
-  safeLocations.forEach((location) => {
-    const normalized = sanitizeRsvpLocationEntry(location);
+  safeCountries.forEach((country) => {
+    const normalized = sanitizeRsvpCountryEntry(country);
     if (!normalized) return;
-
-    byCityId.set(normalized.cityId, normalized);
-    const existing = byCountry.get(normalized.countryCode) || [];
-    existing.push(normalized);
-    byCountry.set(normalized.countryCode, existing);
+    if (byCode.has(normalized.code)) return;
+    normalizedCountries.push(normalized);
+    byCode.set(normalized.code, normalized);
   });
 
-  byCountry.forEach((items, countryCode) => {
-    const sorted = [...items].sort((a, b) => a.city.localeCompare(b.city));
-    byCountry.set(countryCode, sorted);
-  });
-
-  rsvpOriginLocationsByCountry = byCountry;
-  rsvpOriginLocationByCityId = byCityId;
-}
-
-function getRsvpOriginCountries() {
-  const countries = [];
-  rsvpOriginLocationsByCountry.forEach((locations, countryCode) => {
-    if (!Array.isArray(locations) || !locations.length) return;
-    countries.push({
-      countryCode,
-      country: String(locations[0].country || countryCode),
-    });
-  });
-  return countries.sort((a, b) => a.country.localeCompare(b.country));
+  normalizedCountries.sort((a, b) => a.name.localeCompare(b.name));
+  rsvpCountryCatalog = normalizedCountries;
+  rsvpCountryByCode = byCode;
 }
 
 function rebuildSelectWithPlaceholder(selectNode, placeholderText) {
@@ -1343,42 +1328,254 @@ function rebuildSelectWithPlaceholder(selectNode, placeholderText) {
 function populateOriginCountryOptions(selectedCountryCode = "") {
   if (!(originCountrySelect instanceof HTMLSelectElement)) return;
   rebuildSelectWithPlaceholder(originCountrySelect, "Select country");
-  getRsvpOriginCountries().forEach((countryItem) => {
+  rsvpCountryCatalog.forEach((countryItem) => {
     const option = document.createElement("option");
-    option.value = countryItem.countryCode;
-    option.textContent = countryItem.country;
+    option.value = countryItem.code;
+    option.textContent = countryItem.name;
     originCountrySelect.appendChild(option);
   });
   originCountrySelect.value = selectedCountryCode || "";
 }
 
-function populateOriginCityOptions(countryCode, selectedCityId = "") {
-  if (!(originCitySelect instanceof HTMLSelectElement)) return;
+function setOriginCountryHiddenValue(countryCode) {
+  if (!(originCountryInput instanceof HTMLInputElement)) return;
   const normalizedCountryCode = normalizeCountryCode(countryCode);
-  if (!normalizedCountryCode || !rsvpOriginLocationsByCountry.has(normalizedCountryCode)) {
-    rebuildSelectWithPlaceholder(originCitySelect, "Select country first");
-    originCitySelect.disabled = true;
-    originCitySelect.value = "";
-    syncOriginCityOtherField();
+  const countryEntry = rsvpCountryByCode.get(normalizedCountryCode);
+  originCountryInput.value = countryEntry ? countryEntry.name : "";
+}
+
+function setOriginCitySearchStatus(message = "", isError = false) {
+  if (!(originCitySearchStatus instanceof HTMLElement)) return;
+  originCitySearchStatus.textContent = String(message || "");
+  originCitySearchStatus.classList.toggle("is-error", Boolean(isError));
+}
+
+function closeOriginCitySuggestions() {
+  if (!(originCitySuggestions instanceof HTMLElement)) return;
+  originCitySuggestions.innerHTML = "";
+  setHiddenClass(originCitySuggestions, true);
+  rsvpCitySuggestions = [];
+  rsvpCityActiveSuggestionIndex = -1;
+}
+
+function clearOriginCitySelection({ keepQuery = false, geocodeStatus = "" } = {}) {
+  if (originCityIdInput instanceof HTMLInputElement) originCityIdInput.value = "";
+  if (originCityInput instanceof HTMLInputElement) originCityInput.value = "";
+  if (originLatInput instanceof HTMLInputElement) originLatInput.value = "";
+  if (originLonInput instanceof HTMLInputElement) originLonInput.value = "";
+  if (originGeocodeStatusInput instanceof HTMLInputElement) originGeocodeStatusInput.value = geocodeStatus;
+  if (!keepQuery && originCitySearchInput instanceof HTMLInputElement) {
+    originCitySearchInput.value = "";
+    originCitySearchInput.setCustomValidity("");
+  }
+}
+
+function setOriginCitySearchEnabled(enabled) {
+  if (!(originCitySearchInput instanceof HTMLInputElement)) return;
+  const isEnabled = Boolean(enabled);
+  originCitySearchInput.disabled = !isEnabled;
+  originCitySearchInput.placeholder = isEnabled ? "Search for your city" : "Select country first";
+}
+
+function normalizeCitySearchResult(item) {
+  if (!item || typeof item !== "object") return null;
+  const label = String(item.label || "").trim();
+  const city = String(item.city || "").trim();
+  const cityId = String(item.cityId || "").trim();
+  const lat = Number(item.lat);
+  const lon = Number(item.lon);
+  if (!label || !city) return null;
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  return {
+    label,
+    city,
+    cityId,
+    lat,
+    lon,
+  };
+}
+
+function getCitySearchCacheKey(countryCode, query) {
+  return `${normalizeCountryCode(countryCode)}|${String(query || "").trim().toLowerCase()}`;
+}
+
+function readCitySearchSessionCache() {
+  try {
+    const raw = window.sessionStorage.getItem(RSVP_CITY_SEARCH_SESSION_KEY);
+    if (!raw) return new Map();
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Map();
+    const cache = new Map();
+    parsed.forEach((entry) => {
+      if (!entry || typeof entry !== "object") return;
+      const key = String(entry.key || "");
+      const expiresAt = Number(entry.expiresAt);
+      const items = Array.isArray(entry.items) ? entry.items.map((item) => normalizeCitySearchResult(item)).filter(Boolean) : [];
+      if (!key || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) return;
+      cache.set(key, { expiresAt, items });
+    });
+    return cache;
+  } catch (_error) {
+    return new Map();
+  }
+}
+
+function writeCitySearchSessionCache() {
+  try {
+    const serialized = [];
+    rsvpCitySearchCache.forEach((value, key) => {
+      if (!value || typeof value !== "object") return;
+      if (!Number.isFinite(value.expiresAt) || value.expiresAt <= Date.now()) return;
+      serialized.push({
+        key,
+        expiresAt: value.expiresAt,
+        items: Array.isArray(value.items) ? value.items : [],
+      });
+    });
+    window.sessionStorage.setItem(RSVP_CITY_SEARCH_SESSION_KEY, JSON.stringify(serialized));
+  } catch (_error) {
+    // ignore sessionStorage write failures
+  }
+}
+
+function getCachedCitySuggestions(countryCode, query) {
+  const key = getCitySearchCacheKey(countryCode, query);
+  const cached = rsvpCitySearchCache.get(key);
+  if (!cached || !Number.isFinite(cached.expiresAt) || cached.expiresAt <= Date.now()) {
+    rsvpCitySearchCache.delete(key);
+    return null;
+  }
+  return Array.isArray(cached.items) ? cached.items : null;
+}
+
+function cacheCitySuggestions(countryCode, query, suggestions) {
+  const key = getCitySearchCacheKey(countryCode, query);
+  rsvpCitySearchCache.set(key, {
+    expiresAt: Date.now() + RSVP_CITY_SEARCH_CACHE_TTL_MS,
+    items: Array.isArray(suggestions) ? suggestions : [],
+  });
+  writeCitySearchSessionCache();
+}
+
+function renderOriginCitySuggestions(suggestions) {
+  if (!(originCitySuggestions instanceof HTMLElement)) return;
+  const safeSuggestions = Array.isArray(suggestions) ? suggestions : [];
+  rsvpCitySuggestions = safeSuggestions;
+  rsvpCityActiveSuggestionIndex = -1;
+  originCitySuggestions.innerHTML = "";
+
+  if (!safeSuggestions.length) {
+    setHiddenClass(originCitySuggestions, true);
     return;
   }
 
-  rebuildSelectWithPlaceholder(originCitySelect, "Select city");
-  const cities = rsvpOriginLocationsByCountry.get(normalizedCountryCode) || [];
-  cities.forEach((location) => {
-    const option = document.createElement("option");
-    option.value = location.cityId;
-    option.textContent = location.city;
-    originCitySelect.appendChild(option);
+  safeSuggestions.forEach((suggestion, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "origin-city-suggestion";
+    button.setAttribute("role", "option");
+    button.dataset.index = String(index);
+    const name = document.createElement("span");
+    name.className = "origin-city-suggestion-name";
+    name.textContent = suggestion.city;
+    const meta = document.createElement("span");
+    meta.className = "origin-city-suggestion-meta";
+    meta.textContent = suggestion.label;
+    button.appendChild(name);
+    button.appendChild(meta);
+    originCitySuggestions.appendChild(button);
   });
 
-  const otherOption = document.createElement("option");
-  otherOption.value = RSVP_ORIGIN_OTHER_CITY_VALUE;
-  otherOption.textContent = "Other city";
-  originCitySelect.appendChild(otherOption);
-  originCitySelect.disabled = false;
-  originCitySelect.value = selectedCityId && originCitySelect.querySelector(`option[value=\"${selectedCityId}\"]`) ? selectedCityId : "";
-  syncOriginCityOtherField();
+  setHiddenClass(originCitySuggestions, false);
+}
+
+function setActiveCitySuggestionIndex(index) {
+  if (!(originCitySuggestions instanceof HTMLElement)) return;
+  const buttons = Array.from(originCitySuggestions.querySelectorAll(".origin-city-suggestion"));
+  rsvpCityActiveSuggestionIndex = index;
+  buttons.forEach((button, buttonIndex) => {
+    button.classList.toggle("is-active", buttonIndex === index);
+  });
+}
+
+function applyCitySuggestion(suggestion) {
+  if (!suggestion || !(originCitySearchInput instanceof HTMLInputElement)) return;
+  originCitySearchInput.value = suggestion.city;
+  originCitySearchInput.setCustomValidity("");
+  if (originCityInput instanceof HTMLInputElement) originCityInput.value = suggestion.city;
+  if (originCityIdInput instanceof HTMLInputElement) originCityIdInput.value = suggestion.cityId || "";
+  if (originLatInput instanceof HTMLInputElement) originLatInput.value = String(suggestion.lat);
+  if (originLonInput instanceof HTMLInputElement) originLonInput.value = String(suggestion.lon);
+  if (originGeocodeStatusInput instanceof HTMLInputElement) originGeocodeStatusInput.value = "resolved";
+  closeOriginCitySuggestions();
+  setOriginCitySearchStatus("City selected.");
+}
+
+function resolveCitySearchApiUrl() {
+  if (IS_LOCAL_DEV) return withBasePath(RSVP_CITY_SEARCH_PATH);
+  const host = String(window.location.hostname || "").toLowerCase();
+  if (host === "www.mikiandyijie.com" || host === "mikiandyijie.com" || host === "ygnawk.github.io") {
+    return `${RSVP_API_ORIGIN}${RSVP_CITY_SEARCH_PATH}`;
+  }
+  return withBasePath(RSVP_CITY_SEARCH_PATH);
+}
+
+async function fetchCitySuggestions(countryCode, query) {
+  const normalizedCountryCode = normalizeCountryCode(countryCode);
+  const normalizedQuery = String(query || "").trim();
+  if (!normalizedCountryCode || normalizedQuery.length < RSVP_CITY_SEARCH_MIN_QUERY_LENGTH) {
+    return [];
+  }
+
+  const cached = getCachedCitySuggestions(normalizedCountryCode, normalizedQuery);
+  if (cached) return cached;
+
+  const apiUrl = resolveCitySearchApiUrl();
+  const requestUrl = new URL(apiUrl, window.location.origin);
+  requestUrl.searchParams.set("country", normalizedCountryCode);
+  requestUrl.searchParams.set("q", normalizedQuery);
+
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), RSVP_CITY_SEARCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(requestUrl.toString(), { signal: controller.signal, cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`City search returned ${response.status}`);
+    }
+
+    const payload = await response.json();
+    const suggestions = Array.isArray(payload)
+      ? payload.map((item) => normalizeCitySearchResult(item)).filter(Boolean)
+      : Array.isArray(payload.results)
+        ? payload.results.map((item) => normalizeCitySearchResult(item)).filter(Boolean)
+        : [];
+    cacheCitySuggestions(normalizedCountryCode, normalizedQuery, suggestions);
+    return suggestions;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+async function requestCitySuggestions(countryCode, query) {
+  const requestToken = ++rsvpCitySearchRequestToken;
+  try {
+    const suggestions = await fetchCitySuggestions(countryCode, query);
+    if (requestToken !== rsvpCitySearchRequestToken) return;
+
+    if (!suggestions.length) {
+      renderOriginCitySuggestions([]);
+      setOriginCitySearchStatus("No cities found yet. Keep typing to refine.");
+      return;
+    }
+
+    renderOriginCitySuggestions(suggestions);
+    setOriginCitySearchStatus("Select your city from the suggestions.");
+  } catch (error) {
+    if (requestToken !== rsvpCitySearchRequestToken) return;
+    closeOriginCitySuggestions();
+    const message = error && error.name === "AbortError" ? "City search timed out. Try again." : "City search unavailable. Try again.";
+    setOriginCitySearchStatus(message, true);
+  }
 }
 
 function setOriginFieldRequirementsForChoice(choiceValue) {
@@ -1390,56 +1587,55 @@ function setOriginFieldRequirementsForChoice(choiceValue) {
     if (!isYesChoice) {
       originCountrySelect.value = "";
       originCountrySelect.setCustomValidity("");
+      setOriginCountryHiddenValue("");
     }
   }
 
-  if (originCitySelect instanceof HTMLSelectElement) {
-    originCitySelect.required = isYesChoice && countryReady;
+  if (originCitySearchInput instanceof HTMLInputElement) {
+    originCitySearchInput.required = isYesChoice && countryReady;
+    setOriginCitySearchEnabled(isYesChoice && countryReady && Boolean(originCountrySelect && originCountrySelect.value));
     if (!isYesChoice) {
-      originCitySelect.value = "";
-      originCitySelect.disabled = true;
-      originCitySelect.setCustomValidity("");
-    }
-  }
-
-  syncOriginCityOtherField();
-}
-
-function syncOriginCityOtherField() {
-  const isYesChoice = String(attendanceChoice && attendanceChoice.value ? attendanceChoice.value : "") === "yes";
-  const hasOtherCitySelection =
-    originCitySelect instanceof HTMLSelectElement && String(originCitySelect.value || "") === RSVP_ORIGIN_OTHER_CITY_VALUE;
-  const showOtherCityInput = isYesChoice && hasOtherCitySelection;
-
-  if (originCityOtherWrap instanceof HTMLElement) {
-    setHiddenClass(originCityOtherWrap, !showOtherCityInput);
-  }
-
-  if (originCityOtherInput instanceof HTMLInputElement) {
-    originCityOtherInput.required = showOtherCityInput;
-    originCityOtherInput.disabled = !showOtherCityInput;
-    if (!showOtherCityInput) {
-      originCityOtherInput.value = "";
-      originCityOtherInput.setCustomValidity("");
+      originCitySearchInput.value = "";
+      originCitySearchInput.setCustomValidity("");
+      setOriginCitySearchStatus("Select country first.");
+      closeOriginCitySuggestions();
+      clearOriginCitySelection();
     }
   }
 }
 
-function applyOriginSelections(countryCode, cityId, cityOther = "") {
+function applyOriginSelections(countryCode, cityId, city = "", lat = "", lon = "", geocodeStatus = "") {
+  const normalizedCountryCode = normalizeCountryCode(countryCode);
   if (originCountrySelect instanceof HTMLSelectElement) {
-    originCountrySelect.value = normalizeCountryCode(countryCode);
+    originCountrySelect.value = normalizedCountryCode;
+  }
+  setOriginCountryHiddenValue(normalizedCountryCode);
+
+  const canSearchCity = Boolean(normalizedCountryCode);
+  setOriginCitySearchEnabled(canSearchCity);
+  if (!canSearchCity) {
+    clearOriginCitySelection({ keepQuery: false, geocodeStatus: "" });
+    setOriginCitySearchStatus("Select country first.");
+    return;
   }
 
-  populateOriginCityOptions(countryCode, cityId);
-
-  if (originCityOtherInput instanceof HTMLInputElement) {
-    originCityOtherInput.value = String(cityOther || "");
+  if (originCitySearchInput instanceof HTMLInputElement) {
+    originCitySearchInput.value = String(city || "");
+    originCitySearchInput.setCustomValidity("");
   }
-  syncOriginCityOtherField();
+  if (originCityIdInput instanceof HTMLInputElement) originCityIdInput.value = String(cityId || "");
+  if (originCityInput instanceof HTMLInputElement) originCityInput.value = String(city || "");
+  if (originLatInput instanceof HTMLInputElement) originLatInput.value = String(lat || "");
+  if (originLonInput instanceof HTMLInputElement) originLonInput.value = String(lon || "");
+  if (originGeocodeStatusInput instanceof HTMLInputElement) {
+    const fallbackStatus = lat && lon ? "resolved" : city ? "pending" : "";
+    originGeocodeStatusInput.value = String(geocodeStatus || fallbackStatus);
+  }
+  setOriginCitySearchStatus("Type at least 2 letters and pick a city.");
 }
 
 async function initRsvpOriginFields() {
-  if (!(originCountrySelect instanceof HTMLSelectElement) || !(originCitySelect instanceof HTMLSelectElement)) {
+  if (!(originCountrySelect instanceof HTMLSelectElement) || !(originCitySearchInput instanceof HTMLInputElement)) {
     return;
   }
 
@@ -1450,27 +1646,30 @@ async function initRsvpOriginFields() {
 
   rsvpOriginInitPromise = (async () => {
     originCountrySelect.disabled = true;
-    originCitySelect.disabled = true;
+    setOriginCitySearchEnabled(false);
+    setOriginCitySearchStatus("Loading countries…");
+    rsvpCitySearchCache = readCitySearchSessionCache();
 
     try {
-      const response = await fetch(ARRIVALS_LOCATIONS_CATALOG_URL, { cache: "no-store" });
-      if (!response.ok) {
-        throw new Error(`Arrivals locations request returned ${response.status}`);
-      }
-      const payload = await response.json();
-      const rawLocations = Array.isArray(payload) ? payload : Array.isArray(payload.locations) ? payload.locations : [];
-      rebuildRsvpOriginLocationIndexes(rawLocations);
+      const module = await import(RSVP_COUNTRIES_MODULE_URL);
+      const rawCountries = Array.isArray(module?.RSVP_COUNTRIES)
+        ? module.RSVP_COUNTRIES
+        : Array.isArray(module?.default)
+          ? module.default
+          : [];
+      rebuildRsvpCountryIndexes(rawCountries);
       populateOriginCountryOptions("");
-      populateOriginCityOptions("", "");
+      closeOriginCitySuggestions();
       originCountrySelect.disabled = false;
+      setOriginCitySearchStatus("Select country first.");
       setOriginFieldRequirementsForChoice(attendanceChoice ? attendanceChoice.value : "");
     } catch (error) {
-      console.warn("[rsvp] failed to load arrivals locations catalog", error);
-      rebuildRsvpOriginLocationIndexes([]);
+      console.warn("[rsvp] failed to load countries catalog", error);
+      rebuildRsvpCountryIndexes([]);
       populateOriginCountryOptions("");
-      rebuildSelectWithPlaceholder(originCitySelect, "Location unavailable");
       originCountrySelect.disabled = true;
-      originCitySelect.disabled = true;
+      setOriginCitySearchEnabled(false);
+      setOriginCitySearchStatus("Location unavailable right now.", true);
       setOriginFieldRequirementsForChoice("");
     }
   })();
@@ -1486,16 +1685,18 @@ function restoreOriginFieldsFromPayload(payload, choiceValue) {
   const applyValues = () => {
     const isYesChoice = String(choiceValue || "") === "yes";
     if (!isYesChoice) {
-      applyOriginSelections("", "", "");
+      applyOriginSelections("", "", "", "", "", "");
       setOriginFieldRequirementsForChoice("");
       return;
     }
 
     const countryCode = normalizeCountryCode(payload && payload.originCountryCode ? payload.originCountryCode : "");
     const cityId = String(payload && payload.originCityId ? payload.originCityId : "");
-    const cityOther = String(payload && payload.originCityOther ? payload.originCityOther : "");
-
-    applyOriginSelections(countryCode, cityId, cityOther);
+    const city = String(payload && (payload.originCity || payload.originCitySearch || payload.originCityOther) ? payload.originCity || payload.originCitySearch || payload.originCityOther : "");
+    const lat = String(payload && payload.originLat ? payload.originLat : "");
+    const lon = String(payload && payload.originLon ? payload.originLon : "");
+    const geocodeStatus = String(payload && payload.originGeocodeStatus ? payload.originGeocodeStatus : "");
+    applyOriginSelections(countryCode, cityId, city, lat, lon, geocodeStatus);
     setOriginFieldRequirementsForChoice("yes");
   };
 
@@ -4797,13 +4998,12 @@ function clearRsvpChoice() {
 
   if (originCountrySelect instanceof HTMLSelectElement) {
     originCountrySelect.value = "";
+    setOriginCountryHiddenValue("");
   }
-  if (originCitySelect instanceof HTMLSelectElement) {
-    populateOriginCityOptions("", "");
-  }
-  if (originCityOtherInput instanceof HTMLInputElement) {
-    originCityOtherInput.value = "";
-  }
+  clearOriginCitySelection({ keepQuery: false, geocodeStatus: "" });
+  closeOriginCitySuggestions();
+  setOriginCitySearchEnabled(false);
+  setOriginCitySearchStatus("Select country first.");
   setOriginFieldRequirementsForChoice("");
 
   clearUploadSlots();
@@ -4865,11 +5065,15 @@ function setChoice(choice) {
     syncPrimaryGuestName(true);
     updateAddGuestButtonState();
     if (originCountrySelect instanceof HTMLSelectElement) {
-      originCountrySelect.disabled = rsvpOriginLocations.length === 0;
-    }
-    if (originCitySelect instanceof HTMLSelectElement) {
-      const selectedCountry = originCountrySelect instanceof HTMLSelectElement ? originCountrySelect.value : "";
-      populateOriginCityOptions(selectedCountry, originCitySelect.value || "");
+      originCountrySelect.disabled = rsvpCountryCatalog.length === 0;
+      setOriginCountryHiddenValue(originCountrySelect.value || "");
+      setOriginCitySearchEnabled(Boolean(originCountrySelect.value));
+      if (!originCountrySelect.value) {
+        clearOriginCitySelection({ keepQuery: false, geocodeStatus: "" });
+        setOriginCitySearchStatus("Select country first.");
+      } else {
+        setOriginCitySearchStatus("Type at least 2 letters and pick a city.");
+      }
     }
   }
 
@@ -4966,9 +5170,15 @@ function buildPayload(filesForSubmission = selectedUploadFiles) {
   const status = choice === "yes" ? "yes" : choice === "working" ? "maybe" : "no";
   const fullName = (fullNameInput && fullNameInput.value.trim()) || inviteState.greetingName;
   const originCountryCode = status === "yes" && originCountrySelect instanceof HTMLSelectElement ? String(originCountrySelect.value || "").trim() : "";
-  const originCityId = status === "yes" && originCitySelect instanceof HTMLSelectElement ? String(originCitySelect.value || "").trim() : "";
-  const originCityOther =
-    status === "yes" && originCityOtherInput instanceof HTMLInputElement ? String(originCityOtherInput.value || "").trim() : "";
+  const originCountry = status === "yes" && originCountryInput instanceof HTMLInputElement ? String(originCountryInput.value || "").trim() : "";
+  const originCityId = status === "yes" && originCityIdInput instanceof HTMLInputElement ? String(originCityIdInput.value || "").trim() : "";
+  const originCity = status === "yes" && originCitySearchInput instanceof HTMLInputElement ? String(originCitySearchInput.value || "").trim() : "";
+  const originLat = status === "yes" && originLatInput instanceof HTMLInputElement ? String(originLatInput.value || "").trim() : "";
+  const originLon = status === "yes" && originLonInput instanceof HTMLInputElement ? String(originLonInput.value || "").trim() : "";
+  const originGeocodeStatus =
+    status === "yes" && originGeocodeStatusInput instanceof HTMLInputElement
+      ? String(originGeocodeStatusInput.value || (originLat && originLon ? "resolved" : originCity ? "pending" : ""))
+      : "";
 
   const guests = choice === "yes" ? collectGuests().map((guest) => ({ name: guest.name, funFact: guest.funFact })) : [];
   const yesPartySize = choice === "yes" ? guests.length : 0;
@@ -4988,9 +5198,13 @@ function buildPayload(filesForSubmission = selectedUploadFiles) {
     dietary: status === "yes" && dietary ? dietary.value.trim() : "",
     whenWillYouKnow: status === "maybe" && workingConfirm ? workingConfirm.value : "",
     followupChoice: status === "maybe" && workingConfirm ? workingConfirm.value : "",
+    originCountry,
     originCountryCode,
+    originCity,
     originCityId,
-    originCityOther,
+    originLat,
+    originLon,
+    originGeocodeStatus,
     photoFiles: (Array.isArray(filesForSubmission) ? filesForSubmission : []).map((file, index) => ({
       slot: index + 1,
       name: file.name,
@@ -5027,9 +5241,13 @@ function buildRsvpFormData(payload, uploadFiles = selectedUploadFiles, options =
   formData.append("dietary", payload.dietary || "");
   formData.append("whenWillYouKnow", payload.whenWillYouKnow || "");
   formData.append("followupChoice", payload.followupChoice || "");
+  formData.append("originCountry", payload.originCountry || "");
   formData.append("originCountryCode", payload.originCountryCode || "");
+  formData.append("originCity", payload.originCity || "");
   formData.append("originCityId", payload.originCityId || "");
-  formData.append("originCityOther", payload.originCityOther || "");
+  formData.append("originLat", payload.originLat || "");
+  formData.append("originLon", payload.originLon || "");
+  formData.append("originGeocodeStatus", payload.originGeocodeStatus || "");
   formData.append("userAgent", payload.userAgent || "");
   formData.append("viewportWidth", String(payload.viewportWidth || 0));
 
@@ -5783,25 +6001,134 @@ function initRsvpForm() {
 
   if (originCountrySelect instanceof HTMLSelectElement && originCountrySelect.dataset.bound !== "true") {
     originCountrySelect.addEventListener("change", () => {
-      populateOriginCityOptions(originCountrySelect.value, "");
+      const countryCode = normalizeCountryCode(originCountrySelect.value);
+      setOriginCountryHiddenValue(countryCode);
+      clearOriginCitySelection({ keepQuery: false, geocodeStatus: "" });
+      closeOriginCitySuggestions();
+      if (rsvpCitySearchDebounceTimer) {
+        window.clearTimeout(rsvpCitySearchDebounceTimer);
+        rsvpCitySearchDebounceTimer = 0;
+      }
+      rsvpCitySearchRequestToken += 1;
+      setOriginCitySearchEnabled(Boolean(countryCode));
+      setOriginCitySearchStatus(countryCode ? "Type at least 2 letters and pick a city." : "Select country first.");
       setOriginFieldRequirementsForChoice(attendanceChoice ? attendanceChoice.value : "");
     });
     originCountrySelect.dataset.bound = "true";
   }
 
-  if (originCitySelect instanceof HTMLSelectElement && originCitySelect.dataset.bound !== "true") {
-    originCitySelect.addEventListener("change", () => {
-      syncOriginCityOtherField();
-      setOriginFieldRequirementsForChoice(attendanceChoice ? attendanceChoice.value : "");
+  if (originCitySearchInput instanceof HTMLInputElement && originCitySearchInput.dataset.bound !== "true") {
+    originCitySearchInput.addEventListener("input", () => {
+      const countryCode = originCountrySelect instanceof HTMLSelectElement ? normalizeCountryCode(originCountrySelect.value) : "";
+      const query = String(originCitySearchInput.value || "").trim();
+      if (originCityInput instanceof HTMLInputElement) {
+        originCityInput.value = query;
+      }
+
+      if (originCityIdInput instanceof HTMLInputElement) {
+        const hadSelectedCity = Boolean(originCityIdInput.value);
+        if (hadSelectedCity) {
+          clearOriginCitySelection({ keepQuery: true, geocodeStatus: query ? "pending" : "" });
+        } else if (originGeocodeStatusInput instanceof HTMLInputElement) {
+          originGeocodeStatusInput.value = query ? "pending" : "";
+        }
+      }
+
+      originCitySearchInput.setCustomValidity("");
+      closeOriginCitySuggestions();
+
+      if (rsvpCitySearchDebounceTimer) {
+        window.clearTimeout(rsvpCitySearchDebounceTimer);
+        rsvpCitySearchDebounceTimer = 0;
+      }
+
+      if (!countryCode) {
+        setOriginCitySearchStatus("Select country first.");
+        return;
+      }
+
+      if (query.length < RSVP_CITY_SEARCH_MIN_QUERY_LENGTH) {
+        setOriginCitySearchStatus(`Type at least ${RSVP_CITY_SEARCH_MIN_QUERY_LENGTH} letters to search cities.`);
+        return;
+      }
+
+      setOriginCitySearchStatus("Searching…");
+      rsvpCitySearchDebounceTimer = window.setTimeout(() => {
+        rsvpCitySearchDebounceTimer = 0;
+        void requestCitySuggestions(countryCode, query);
+      }, RSVP_CITY_SEARCH_DEBOUNCE_MS);
     });
-    originCitySelect.dataset.bound = "true";
+
+    originCitySearchInput.addEventListener("keydown", (event) => {
+      if (!Array.isArray(rsvpCitySuggestions) || rsvpCitySuggestions.length === 0) {
+        if (event.key === "Escape") {
+          closeOriginCitySuggestions();
+        }
+        return;
+      }
+
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        const nextIndex = Math.min(rsvpCitySuggestions.length - 1, rsvpCityActiveSuggestionIndex + 1);
+        setActiveCitySuggestionIndex(nextIndex);
+        return;
+      }
+
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        const nextIndex = Math.max(0, rsvpCityActiveSuggestionIndex - 1);
+        setActiveCitySuggestionIndex(nextIndex);
+        return;
+      }
+
+      if (event.key === "Enter") {
+        if (rsvpCityActiveSuggestionIndex >= 0) {
+          event.preventDefault();
+          applyCitySuggestion(rsvpCitySuggestions[rsvpCityActiveSuggestionIndex]);
+        }
+        return;
+      }
+
+      if (event.key === "Escape") {
+        closeOriginCitySuggestions();
+      }
+    });
+
+    originCitySearchInput.addEventListener("blur", () => {
+      window.setTimeout(() => {
+        closeOriginCitySuggestions();
+      }, 80);
+    });
+    originCitySearchInput.dataset.bound = "true";
   }
 
-  if (originCityOtherInput instanceof HTMLInputElement && originCityOtherInput.dataset.bound !== "true") {
-    originCityOtherInput.addEventListener("input", () => {
-      originCityOtherInput.setCustomValidity("");
+  if (originCitySuggestions instanceof HTMLElement && originCitySuggestions.dataset.bound !== "true") {
+    originCitySuggestions.addEventListener("mousedown", (event) => {
+      event.preventDefault();
     });
-    originCityOtherInput.dataset.bound = "true";
+
+    originCitySuggestions.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const button = target.closest(".origin-city-suggestion");
+      if (!(button instanceof HTMLButtonElement)) return;
+      const index = Number.parseInt(String(button.dataset.index || "-1"), 10);
+      if (!Number.isFinite(index) || index < 0 || index >= rsvpCitySuggestions.length) return;
+      applyCitySuggestion(rsvpCitySuggestions[index]);
+      setOriginFieldRequirementsForChoice(attendanceChoice ? attendanceChoice.value : "");
+    });
+
+    originCitySuggestions.dataset.bound = "true";
+  }
+
+  if (!document.body.dataset.boundOriginCityOutsideClick) {
+    document.addEventListener("pointerdown", (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest("#originCitySuggestions") || target.closest("#originCitySearch")) return;
+      closeOriginCitySuggestions();
+    });
+    document.body.dataset.boundOriginCityOutsideClick = "true";
   }
 
   initRsvpSubmitExitGuards();

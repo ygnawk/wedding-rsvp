@@ -130,8 +130,16 @@ const TAB_SCHEMAS = {
 };
 
 const ARRIVALS_LOCATIONS_PATH = path.join(ROOT, "data", "arrivals-locations.json");
-const ARRIVALS_OTHER_CITY_ID = "__other__";
+const COUNTRIES_CATALOG_PATH = path.join(ROOT, "data", "countries.json");
 const ARRIVALS_CACHE_TTL_MS = Math.max(30, Number.parseInt(process.env.ARRIVALS_CACHE_TTL_SECONDS || "60", 10) || 60) * 1000;
+const CITY_SEARCH_CACHE_TTL_MS = Math.max(300, Number.parseInt(process.env.CITY_SEARCH_CACHE_TTL_SECONDS || "86400", 10) || 86400) * 1000;
+const CITY_SEARCH_RATE_LIMIT_MS = Math.max(150, Number.parseInt(process.env.CITY_SEARCH_RATE_LIMIT_MS || "260", 10) || 260);
+const CITY_SEARCH_MIN_QUERY_LENGTH = 2;
+const CITY_SEARCH_MAX_RESULTS = Math.max(1, Math.min(12, Number.parseInt(process.env.CITY_SEARCH_MAX_RESULTS || "8", 10) || 8));
+const CITY_SEARCH_NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
+const CITY_SEARCH_USER_AGENT =
+  normalizeFieldValue(process.env.CITY_SEARCH_USER_AGENT) ||
+  "mikiandyijie-rsvp/1.0 (contact: mikiandyijie.wedding.rsvp@gmail.com)";
 const ARRIVALS_BEIJING = Object.freeze({
   lat: 39.9042,
   lon: 116.4074,
@@ -176,6 +184,8 @@ const arrivalsCache = {
   payload: null,
   pending: null,
 };
+const citySearchCache = new Map();
+const citySearchRateLimitByIp = new Map();
 
 function extractYearPrefix(filename) {
   const match = String(filename || "").match(/(?:^|[^0-9])((?:19|20)\d{2})(?!\d)/);
@@ -515,10 +525,56 @@ function buildArrivalsLocationIndexes(locations) {
   };
 }
 
+function normalizeCountryCatalogEntry(entry) {
+  if (!entry || typeof entry !== "object") return null;
+  const code = normalizeCountryCode(entry.code || entry.countryCode);
+  const name = normalizeFieldValue(entry.name || entry.country);
+  if (!code || !name) return null;
+  return { code, name };
+}
+
+function loadCountryCatalog() {
+  if (!fs.existsSync(COUNTRIES_CATALOG_PATH)) {
+    console.warn(`[arrivals] countries catalog missing at ${COUNTRIES_CATALOG_PATH}`);
+    return [];
+  }
+
+  try {
+    const raw = fs.readFileSync(COUNTRIES_CATALOG_PATH, "utf8");
+    const parsed = safeJsonParse(raw, null);
+    const entries = Array.isArray(parsed) ? parsed : [];
+    const normalized = entries.map((entry) => normalizeCountryCatalogEntry(entry)).filter(Boolean);
+    console.info(`[arrivals] loaded countries catalog entries=${normalized.length}`);
+    return normalized;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error || "unknown");
+    console.warn(`[arrivals] failed to load countries catalog message=${message}`);
+    return [];
+  }
+}
+
+function buildCountryCatalogIndexes(entries) {
+  const byCode = new Map();
+  (Array.isArray(entries) ? entries : []).forEach((entry) => {
+    const normalized = normalizeCountryCatalogEntry(entry);
+    if (!normalized) return;
+    byCode.set(normalized.code, normalized.name);
+  });
+  return { byCode };
+}
+
 const ARRIVALS_LOCATION_CATALOG = loadArrivalsLocationCatalog();
 const ARRIVALS_LOCATION_INDEXES = buildArrivalsLocationIndexes(ARRIVALS_LOCATION_CATALOG);
+const COUNTRY_CATALOG = loadCountryCatalog();
+const COUNTRY_CATALOG_INDEXES = buildCountryCatalogIndexes(COUNTRY_CATALOG);
 
-function resolveArrivalsSubmissionLocation({ rsvpStatus, countryCode, cityId, cityOther }) {
+function parseGeocodeStatus(value) {
+  const normalized = normalizeFieldValue(value).toLowerCase();
+  if (normalized === "resolved" || normalized === "unresolved" || normalized === "pending") return normalized;
+  return "";
+}
+
+function resolveArrivalsSubmissionLocation({ rsvpStatus, countryCode, country, cityId, city, lat, lon, geocodeStatus }) {
   const emptyLocation = {
     country: "",
     countryCode: "",
@@ -526,6 +582,7 @@ function resolveArrivalsSubmissionLocation({ rsvpStatus, countryCode, cityId, ci
     cityId: "",
     lat: "",
     lon: "",
+    geocodeStatus: "",
   };
 
   if (rsvpStatus !== "yes") {
@@ -533,46 +590,69 @@ function resolveArrivalsSubmissionLocation({ rsvpStatus, countryCode, cityId, ci
   }
 
   const normalizedCountryCode = normalizeCountryCode(countryCode);
+  const normalizedCountry = normalizeFieldValue(country);
   const normalizedCityId = normalizeFieldValue(cityId);
-  const normalizedCityOther = normalizeFieldValue(cityOther);
+  const normalizedCity = normalizeFieldValue(city);
+  const parsedLat = parseMaybeFloat(lat);
+  const parsedLon = parseMaybeFloat(lon);
+  const normalizedGeocodeStatus = parseGeocodeStatus(geocodeStatus);
+  const knownCountryName =
+    COUNTRY_CATALOG_INDEXES.byCode.get(normalizedCountryCode) ||
+    (ARRIVALS_LOCATION_INDEXES.byCountryCode.get(normalizedCountryCode) || {}).country ||
+    normalizedCountry;
 
-  // Keep backend rollout-safe: if these fields are missing (older frontend),
-  // still accept RSVP and store blank origin fields.
-  if (!normalizedCountryCode || !normalizedCityId) {
+  if (!normalizedCountryCode || !normalizedCity) {
     return emptyLocation;
   }
 
-  if (normalizedCityId === ARRIVALS_OTHER_CITY_ID) {
-    if (!normalizedCityOther) {
-      return emptyLocation;
+  if (normalizedCityId) {
+    const locationById = ARRIVALS_LOCATION_INDEXES.byCityId.get(normalizedCityId);
+    if (locationById && locationById.countryCode === normalizedCountryCode) {
+      return {
+        country: locationById.country,
+        countryCode: locationById.countryCode,
+        city: locationById.city,
+        cityId: locationById.cityId,
+        lat: String(locationById.lat),
+        lon: String(locationById.lon),
+        geocodeStatus: "resolved",
+      };
     }
+  }
 
-    const countryInfo = ARRIVALS_LOCATION_INDEXES.byCountryCode.get(normalizedCountryCode);
+  const locationByCityName = ARRIVALS_LOCATION_INDEXES.byCountryCity.get(`${normalizedCountryCode}|${normalizedCity.toLowerCase()}`);
+  if (locationByCityName) {
     return {
-      country: countryInfo ? countryInfo.country : normalizedCountryCode,
-      countryCode: normalizedCountryCode,
-      city: normalizedCityOther,
-      cityId: ARRIVALS_OTHER_CITY_ID,
-      lat: "",
-      lon: "",
+      country: locationByCityName.country,
+      countryCode: locationByCityName.countryCode,
+      city: locationByCityName.city,
+      cityId: locationByCityName.cityId,
+      lat: String(locationByCityName.lat),
+      lon: String(locationByCityName.lon),
+      geocodeStatus: "resolved",
     };
   }
 
-  const location = ARRIVALS_LOCATION_INDEXES.byCityId.get(normalizedCityId);
-  if (!location) {
-    return emptyLocation;
-  }
-  if (location.countryCode !== normalizedCountryCode) {
-    return emptyLocation;
+  if (Number.isFinite(parsedLat) && Number.isFinite(parsedLon)) {
+    return {
+      country: knownCountryName || normalizedCountryCode,
+      countryCode: normalizedCountryCode,
+      city: normalizedCity,
+      cityId: normalizedCityId || `${normalizedCountryCode.toLowerCase()}-${slugifySegment(normalizedCity) || "city"}`,
+      lat: String(parsedLat),
+      lon: String(parsedLon),
+      geocodeStatus: "resolved",
+    };
   }
 
   return {
-    country: location.country,
-    countryCode: location.countryCode,
-    city: location.city,
-    cityId: location.cityId,
-    lat: String(location.lat),
-    lon: String(location.lon),
+    country: knownCountryName || normalizedCountryCode,
+    countryCode: normalizedCountryCode,
+    city: normalizedCity,
+    cityId: normalizedCityId || `${normalizedCountryCode.toLowerCase()}-${slugifySegment(normalizedCity) || "city"}`,
+    lat: "",
+    lon: "",
+    geocodeStatus: normalizedGeocodeStatus || "pending",
   };
 }
 
@@ -608,6 +688,234 @@ function parsePositiveInteger(value, fallback = 0) {
   return parsed;
 }
 
+function normalizeCitySearchQuery(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function getClientIp(req) {
+  const forwardedFor = normalizeFieldValue(req && req.headers ? req.headers["x-forwarded-for"] : "");
+  if (forwardedFor) {
+    const first = forwardedFor.split(",")[0];
+    return normalizeFieldValue(first).toLowerCase() || "unknown";
+  }
+
+  const realIp = normalizeFieldValue(req && req.headers ? req.headers["x-real-ip"] : "");
+  if (realIp) return realIp.toLowerCase();
+  const socketIp = normalizeFieldValue(req && req.socket ? req.socket.remoteAddress : "");
+  return socketIp.toLowerCase() || "unknown";
+}
+
+function assertCitySearchRateLimit(req) {
+  const now = Date.now();
+  const ip = getClientIp(req);
+  const last = Number(citySearchRateLimitByIp.get(ip) || 0);
+  if (last > 0 && now - last < CITY_SEARCH_RATE_LIMIT_MS) {
+    throw createHttpError(429, "Too many city search requests. Please pause for a moment.", "rate_limited");
+  }
+  citySearchRateLimitByIp.set(ip, now);
+}
+
+function readCitySearchCache(countryCode, query) {
+  const key = `${normalizeCountryCode(countryCode)}|${normalizeCitySearchQuery(query).toLowerCase()}`;
+  const cached = citySearchCache.get(key);
+  if (!cached || !Number.isFinite(cached.expiresAt) || cached.expiresAt <= Date.now()) {
+    citySearchCache.delete(key);
+    return null;
+  }
+  return Array.isArray(cached.results) ? cached.results : null;
+}
+
+function writeCitySearchCache(countryCode, query, results) {
+  const key = `${normalizeCountryCode(countryCode)}|${normalizeCitySearchQuery(query).toLowerCase()}`;
+  citySearchCache.set(key, {
+    expiresAt: Date.now() + CITY_SEARCH_CACHE_TTL_MS,
+    results: Array.isArray(results) ? results : [],
+  });
+}
+
+function getCountryNameByCode(countryCode) {
+  const normalizedCode = normalizeCountryCode(countryCode);
+  if (!normalizedCode) return "";
+  return (
+    COUNTRY_CATALOG_INDEXES.byCode.get(normalizedCode) ||
+    (ARRIVALS_LOCATION_INDEXES.byCountryCode.get(normalizedCode) || {}).country ||
+    normalizedCode
+  );
+}
+
+function normalizeNominatimCityResult(raw, countryCode) {
+  if (!raw || typeof raw !== "object") return null;
+  const rawClass = normalizeFieldValue(raw.class).toLowerCase();
+  const rawType = normalizeFieldValue(raw.type).toLowerCase();
+  const displayName = normalizeFieldValue(raw.display_name);
+  const rawName = normalizeFieldValue(raw.name);
+  const looksLikeAirport = /airport/i.test(rawType) || /airport/i.test(displayName) || /airport/i.test(rawName);
+  if (rawClass === "aeroway" || looksLikeAirport) return null;
+
+  const lat = Number.parseFloat(raw.lat);
+  const lon = Number.parseFloat(raw.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+
+  const address = raw.address && typeof raw.address === "object" ? raw.address : {};
+  const city =
+    normalizeFieldValue(address.city) ||
+    normalizeFieldValue(address.town) ||
+    normalizeFieldValue(address.village) ||
+    normalizeFieldValue(address.municipality) ||
+    normalizeFieldValue(address.hamlet) ||
+    normalizeFieldValue(address.suburb) ||
+    normalizeFieldValue(address.city_district) ||
+    rawName ||
+    displayName.split(",")[0];
+
+  if (!city) return null;
+  const normalizedCountryCode = normalizeCountryCode(countryCode);
+  const cityId = `${normalizedCountryCode.toLowerCase()}-${slugifySegment(city) || "city"}`;
+  const stateLike =
+    normalizeFieldValue(address.state) ||
+    normalizeFieldValue(address.region) ||
+    normalizeFieldValue(address.province);
+  const countryName = normalizeFieldValue(address.country) || getCountryNameByCode(normalizedCountryCode);
+  const labelParts = [city];
+  if (stateLike && stateLike.toLowerCase() !== city.toLowerCase()) {
+    labelParts.push(stateLike);
+  }
+  if (countryName && countryName.toLowerCase() !== city.toLowerCase()) {
+    labelParts.push(countryName);
+  }
+  const label = labelParts.join(", ");
+
+  return {
+    label,
+    city,
+    cityId,
+    lat,
+    lon,
+    countryCode: normalizedCountryCode,
+  };
+}
+
+async function fetchCitySearchResultsFromNominatim(countryCode, query, limit = CITY_SEARCH_MAX_RESULTS) {
+  const normalizedCountryCode = normalizeCountryCode(countryCode);
+  const normalizedQuery = normalizeCitySearchQuery(query);
+  if (!normalizedCountryCode) {
+    throw createHttpError(400, "Country code is required.", "missing_country");
+  }
+  if (normalizedQuery.length < CITY_SEARCH_MIN_QUERY_LENGTH) {
+    throw createHttpError(400, `City query must be at least ${CITY_SEARCH_MIN_QUERY_LENGTH} characters.`, "query_too_short");
+  }
+
+  const cached = readCitySearchCache(normalizedCountryCode, normalizedQuery);
+  if (cached) return cached;
+
+  const searchUrl = new URL(CITY_SEARCH_NOMINATIM_URL);
+  searchUrl.searchParams.set("format", "jsonv2");
+  searchUrl.searchParams.set("addressdetails", "1");
+  searchUrl.searchParams.set("limit", String(Math.max(1, Math.min(20, Number(limit) || CITY_SEARCH_MAX_RESULTS))));
+  searchUrl.searchParams.set("countrycodes", normalizedCountryCode.toLowerCase());
+  searchUrl.searchParams.set("q", normalizedQuery);
+
+  const response = await fetch(searchUrl.toString(), {
+    headers: {
+      "User-Agent": CITY_SEARCH_USER_AGENT,
+      Accept: "application/json",
+      "Accept-Language": "en",
+    },
+  });
+
+  if (!response.ok) {
+    throw createHttpError(503, `City search upstream returned ${response.status}.`, "city_search_upstream_error");
+  }
+
+  const payload = await response.json();
+  const rawResults = Array.isArray(payload) ? payload : [];
+  const seen = new Set();
+  const normalizedResults = [];
+  rawResults.forEach((result) => {
+    const normalizedResult = normalizeNominatimCityResult(result, normalizedCountryCode);
+    if (!normalizedResult) return;
+    const dedupeKey = `${normalizedResult.city.toLowerCase()}|${normalizedResult.lat.toFixed(4)}|${normalizedResult.lon.toFixed(4)}`;
+    if (seen.has(dedupeKey)) return;
+    seen.add(dedupeKey);
+    normalizedResults.push(normalizedResult);
+  });
+
+  writeCitySearchCache(normalizedCountryCode, normalizedQuery, normalizedResults);
+  return normalizedResults;
+}
+
+async function geocodeFirstCityCandidate(countryCode, cityQuery) {
+  const normalizedCountryCode = normalizeCountryCode(countryCode);
+  const normalizedCity = normalizeCitySearchQuery(cityQuery);
+  if (!normalizedCountryCode || !normalizedCity) return null;
+  try {
+    const candidates = await fetchCitySearchResultsFromNominatim(normalizedCountryCode, normalizedCity, 1);
+    return Array.isArray(candidates) && candidates.length ? candidates[0] : null;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error || "unknown");
+    console.warn(`[arrivals] geocode_fallback_failed country=${normalizedCountryCode} city=${normalizedCity} message=${message}`);
+    return null;
+  }
+}
+
+async function ensureSubmissionOriginGeocode(parsedFields) {
+  if (!parsedFields || parsedFields.rsvpStatus !== "yes") return parsedFields;
+  const hasCoordinates = Number.isFinite(parseMaybeFloat(parsedFields.originLat)) && Number.isFinite(parseMaybeFloat(parsedFields.originLon));
+  if (hasCoordinates) {
+    parsedFields.originGeocodeStatus = "resolved";
+    return parsedFields;
+  }
+
+  const fallbackResult = await geocodeFirstCityCandidate(parsedFields.originCountryCode, parsedFields.originCity);
+  if (!fallbackResult) {
+    parsedFields.originGeocodeStatus = parsedFields.originCity ? "unresolved" : "";
+    return parsedFields;
+  }
+
+  parsedFields.originCity = fallbackResult.city || parsedFields.originCity;
+  parsedFields.originCityId = parsedFields.originCityId || fallbackResult.cityId || "";
+  parsedFields.originLat = String(fallbackResult.lat);
+  parsedFields.originLon = String(fallbackResult.lon);
+  parsedFields.originCountry = parsedFields.originCountry || getCountryNameByCode(parsedFields.originCountryCode);
+  parsedFields.originGeocodeStatus = "resolved";
+  return parsedFields;
+}
+
+async function handleCitySearchRequest(req, res) {
+  const requestUrl = new URL(req.url || "/", "http://localhost");
+  const country = normalizeCountryCode(requestUrl.searchParams.get("country"));
+  const query = normalizeCitySearchQuery(requestUrl.searchParams.get("q"));
+
+  try {
+    assertCitySearchRateLimit(req);
+    const results = await fetchCitySearchResultsFromNominatim(country, query, CITY_SEARCH_MAX_RESULTS);
+    send(res, 200, JSON.stringify(results), MIME_TYPES[".json"], {
+      req,
+      cacheControl: "no-store",
+    });
+  } catch (error) {
+    const status = Number(error && typeof error === "object" ? error.status : 0);
+    const safeStatus = Number.isFinite(status) && status >= 400 && status <= 599 ? status : 500;
+    const message = error instanceof Error ? error.message : "City search failed.";
+    send(
+      res,
+      safeStatus,
+      JSON.stringify({
+        ok: false,
+        error: message,
+        code: error && typeof error === "object" && error.code ? String(error.code) : "city_search_error",
+      }),
+      MIME_TYPES[".json"],
+      {
+        req,
+        cacheControl: "no-store",
+      },
+    );
+  }
+}
+
 function buildArrivalsDedupKey(row, rowIndex) {
   const inviteToken = normalizeFieldValue(row.invite_token) || normalizeFieldValue(row["invite token"]);
   if (inviteToken) {
@@ -634,8 +942,10 @@ function resolveArrivalsLocationFromRsvpRow(row) {
   const rowCountry = normalizeFieldValue(row.origin_country);
   const rowLat = parseMaybeFloat(row.origin_lat);
   const rowLon = parseMaybeFloat(row.origin_lon);
+  const rowGeocodeStatus = parseGeocodeStatus(row.origin_geocode_status);
+  const resolvedCountryName = rowCountry || getCountryNameByCode(rowCountryCode) || rowCountryCode || "";
 
-  if (rowCityId && rowCityId !== ARRIVALS_OTHER_CITY_ID) {
+  if (rowCityId) {
     const catalogLocation = ARRIVALS_LOCATION_INDEXES.byCityId.get(rowCityId);
     if (catalogLocation) {
       return {
@@ -645,6 +955,8 @@ function resolveArrivalsLocationFromRsvpRow(row) {
         cityId: catalogLocation.cityId,
         lat: catalogLocation.lat,
         lon: catalogLocation.lon,
+        plot: true,
+        geocodeStatus: "resolved",
       };
     }
   }
@@ -659,22 +971,38 @@ function resolveArrivalsLocationFromRsvpRow(row) {
         cityId: catalogLocation.cityId,
         lat: catalogLocation.lat,
         lon: catalogLocation.lon,
+        plot: true,
+        geocodeStatus: "resolved",
       };
     }
   }
 
-  if (!Number.isFinite(rowLat) || !Number.isFinite(rowLon) || !rowCity) {
+  if (Number.isFinite(rowLat) && Number.isFinite(rowLon) && rowCity) {
+    return {
+      country: resolvedCountryName,
+      countryCode: rowCountryCode,
+      city: rowCity,
+      cityId: rowCityId || `${rowCountryCode.toLowerCase()}-${slugifySegment(rowCity) || "city"}`,
+      lat: rowLat,
+      lon: rowLon,
+      plot: true,
+      geocodeStatus: "resolved",
+    };
+  }
+
+  if (!rowCountryCode || !rowCity) {
     return null;
   }
 
-  const countryInfo = rowCountryCode ? ARRIVALS_LOCATION_INDEXES.byCountryCode.get(rowCountryCode) : null;
   return {
-    country: rowCountry || (countryInfo ? countryInfo.country : rowCountryCode || ""),
-    countryCode: rowCountryCode || (countryInfo ? countryInfo.countryCode : ""),
+    country: resolvedCountryName,
+    countryCode: rowCountryCode,
     city: rowCity,
-    cityId: rowCityId || "",
-    lat: rowLat,
-    lon: rowLon,
+    cityId: rowCityId || `${rowCountryCode.toLowerCase()}-${slugifySegment(rowCity) || "city"}`,
+    lat: null,
+    lon: null,
+    plot: false,
+    geocodeStatus: rowGeocodeStatus || "unresolved",
   };
 }
 
@@ -690,6 +1018,26 @@ function compareArrivalsCountries(a, b) {
   const countDiff = Number(b.count || 0) - Number(a.count || 0);
   if (countDiff !== 0) return countDiff;
   return String(a.country || "").localeCompare(String(b.country || ""));
+}
+
+function resolveArrivalsPaxFromRow(row) {
+  const source = row && typeof row === "object" ? row : {};
+  const candidates = [
+    source.party_size,
+    source["party size"],
+    source.partySize,
+    source.pax,
+    source["pax"],
+  ];
+
+  for (const candidate of candidates) {
+    const parsed = parsePositiveInteger(candidate, 0);
+    if (parsed > 0) {
+      return parsed;
+    }
+  }
+
+  return 1;
 }
 
 function buildArrivalsPayloadFromRsvpRows(rows) {
@@ -720,7 +1068,7 @@ function buildArrivalsPayloadFromRsvpRows(rows) {
   let latestSubmittedAtMs = Number.NEGATIVE_INFINITY;
 
   dedupedRows.forEach(({ row, submittedAtMs }) => {
-    const pax = parsePositiveInteger(row.party_size, 1);
+    const pax = resolveArrivalsPaxFromRow(row);
     const location = resolveArrivalsLocationFromRsvpRow(row);
     if (!location || !location.countryCode) {
       return;
@@ -731,12 +1079,17 @@ function buildArrivalsPayloadFromRsvpRows(rows) {
     }
 
     const originKey = `${location.countryCode}|${String(location.city || "").toLowerCase()}`;
-    const cityIdSegment =
-      location.cityId && location.cityId !== ARRIVALS_OTHER_CITY_ID ? location.cityId : slugifySegment(location.city) || "city";
+    const cityIdSegment = location.cityId || slugifySegment(location.city) || "city";
 
     const existingOrigin = originsByKey.get(originKey);
     if (existingOrigin) {
       existingOrigin.count += pax;
+      if (!existingOrigin.plot && location.plot) {
+        existingOrigin.plot = true;
+        existingOrigin.lat = location.lat;
+        existingOrigin.lon = location.lon;
+        existingOrigin.geocodeStatus = "resolved";
+      }
     } else {
       originsByKey.set(originKey, {
         id: `${String(location.countryCode || "").toLowerCase()}-${cityIdSegment}`,
@@ -746,6 +1099,8 @@ function buildArrivalsPayloadFromRsvpRows(rows) {
         count: pax,
         lat: location.lat,
         lon: location.lon,
+        plot: Boolean(location.plot),
+        geocodeStatus: location.geocodeStatus || (location.plot ? "resolved" : "unresolved"),
       });
     }
 
@@ -1586,11 +1941,22 @@ function extractRsvpSubmissionFields(fields) {
   const partySize = parsePartySizeForStatus(rsvpStatus, getField(fields, "partySize"), getField(fields, "potentialPartySize"));
   const whenWillYouKnow = rsvpStatus === "maybe" ? getField(fields, "whenWillYouKnow") || getField(fields, "followupChoice") : "";
   const source = inferSource(getField(fields, "userAgent"), getField(fields, "viewportWidth"));
+  const rawCountryCode = getField(fields, "originCountryCode") || getField(fields, "origin_country_code");
+  const rawCountry = getField(fields, "originCountry") || getField(fields, "origin_country");
+  const rawCity = getField(fields, "originCity") || getField(fields, "origin_city") || getField(fields, "originCitySearch");
+  const rawCityId = getField(fields, "originCityId") || getField(fields, "origin_city_id");
+  const rawLat = getField(fields, "originLat") || getField(fields, "origin_lat");
+  const rawLon = getField(fields, "originLon") || getField(fields, "origin_lon");
+  const rawGeocodeStatus = getField(fields, "originGeocodeStatus") || getField(fields, "origin_geocode_status");
   const arrivalLocation = resolveArrivalsSubmissionLocation({
     rsvpStatus,
-    countryCode: getField(fields, "originCountryCode") || getField(fields, "origin_country_code"),
-    cityId: getField(fields, "originCityId") || getField(fields, "origin_city_id"),
-    cityOther: getField(fields, "originCityOther") || getField(fields, "origin_city_other"),
+    countryCode: rawCountryCode,
+    country: rawCountry,
+    cityId: rawCityId,
+    city: rawCity,
+    lat: rawLat,
+    lon: rawLon,
+    geocodeStatus: rawGeocodeStatus,
   });
 
   return {
@@ -1611,6 +1977,7 @@ function extractRsvpSubmissionFields(fields) {
     originCityId: arrivalLocation.cityId,
     originLat: arrivalLocation.lat,
     originLon: arrivalLocation.lon,
+    originGeocodeStatus: arrivalLocation.geocodeStatus,
     source,
   };
 }
@@ -1668,6 +2035,7 @@ function buildRsvpRowData(tabHeaders, submissionId, nowIso, parsedFields, upload
     origin_city_id: parsedFields.originCityId,
     origin_lat: parsedFields.originLat,
     origin_lon: parsedFields.originLon,
+    origin_geocode_status: parsedFields.originGeocodeStatus,
     invite_token: parsedFields.inviteToken,
     "invite token": parsedFields.inviteToken,
     media_count: String(mediaCount),
@@ -1855,7 +2223,7 @@ async function handleRsvpSubmission(req, res) {
       return;
     }
 
-    const parsedFields = extractRsvpSubmissionFields(fields);
+    const parsedFields = await ensureSubmissionOriginGeocode(extractRsvpSubmissionFields(fields));
     const submissionId = requestedSubmissionId || randomUUID();
     const nowIso = new Date().toISOString();
     const includeMedia = mode === "full";
@@ -2546,6 +2914,11 @@ const server = http.createServer(async (req, res) => {
 
   if (pathname === "/api/arrivals" && req.method === "GET") {
     await handleArrivalsRequest(req, res);
+    return;
+  }
+
+  if (pathname === "/api/city-search" && req.method === "GET") {
+    await handleCitySearchRequest(req, res);
     return;
   }
 
