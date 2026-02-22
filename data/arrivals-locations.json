@@ -18,6 +18,30 @@
       "lon": 139.691706
     },
     {
+      "country": "Canada",
+      "countryCode": "CA",
+      "city": "Calgary",
+      "cityId": "ca-calgary",
+      "lat": 51.0447,
+      "lon": -114.0719
+    },
+    {
+      "country": "Canada",
+      "countryCode": "CA",
+      "city": "Toronto",
+      "cityId": "ca-toronto",
+      "lat": 43.6532,
+      "lon": -79.3832
+    },
+    {
+      "country": "Canada",
+      "countryCode": "CA",
+      "city": "Vancouver",
+      "cityId": "ca-vancouver",
+      "lat": 49.2827,
+      "lon": -123.1207
+    },
+    {
       "country": "United States",
       "countryCode": "US",
       "city": "San Francisco",
@@ -96,6 +120,46 @@
       "cityId": "us-new-york",
       "lat": 40.712776,
       "lon": -74.005974
+    },
+    {
+      "country": "United States",
+      "countryCode": "US",
+      "city": "Austin",
+      "cityId": "us-austin",
+      "lat": 30.2672,
+      "lon": -97.7431
+    },
+    {
+      "country": "United States",
+      "countryCode": "US",
+      "city": "Chicago",
+      "cityId": "us-chicago",
+      "lat": 41.8781,
+      "lon": -87.6298
+    },
+    {
+      "country": "United States",
+      "countryCode": "US",
+      "city": "Dallas",
+      "cityId": "us-dallas",
+      "lat": 32.7767,
+      "lon": -96.797
+    },
+    {
+      "country": "United States",
+      "countryCode": "US",
+      "city": "Los Angeles",
+      "cityId": "us-los-angeles",
+      "lat": 34.0522,
+      "lon": -118.2437
+    },
+    {
+      "country": "United States",
+      "countryCode": "US",
+      "city": "Miami",
+      "cityId": "us-miami",
+      "lat": 25.7617,
+      "lon": -80.1918
     },
     {
       "country": "China",
