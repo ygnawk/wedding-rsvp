@@ -13516,8 +13516,8 @@ function initInterludeCurtainReveal() {
         openProgress = 1;
       }
     } else {
-      // Mobile keeps the same reveal style, but with a faster progression window.
-      const start = vh * 0.48;
+      // Mobile: start 25% earlier than before (0.48 -> 0.60 viewport factor).
+      const start = vh * 0.6;
       const end = -vh * 0.42;
       const t = (start - rect.top) / Math.max(1, start - end);
       openProgress = clamp01(t * INTERLUDE_CURTAIN_MOBILE_PROGRESS_SPEED * INTERLUDE_CURTAIN_SPEED_MULTIPLIER);
