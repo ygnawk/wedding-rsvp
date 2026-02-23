@@ -3841,10 +3841,15 @@ function getHotelMatrixDimensions() {
   } else {
     const candidateHeight = Math.max(280, Math.round(width / aspect));
     const hasSelection = Boolean(hotelMatrixPinnedId);
-    if (!hasSelection || !(hotelMatrixDesktopBaseHeight > 0)) {
+    // Keep desktop chart height stable while the details panel is animating closed.
+    // Only refresh base height once the panel is effectively collapsed (or on first run).
+    const detailsRect = hotelMatrixDetails ? hotelMatrixDetails.getBoundingClientRect() : null;
+    const detailsCollapsed = !detailsRect || detailsRect.width <= 2;
+    const canRefreshBaseHeight = !hasSelection && detailsCollapsed;
+    if (!(hotelMatrixDesktopBaseHeight > 0) || canRefreshBaseHeight) {
       hotelMatrixDesktopBaseHeight = candidateHeight;
     }
-    height = hotelMatrixDesktopBaseHeight;
+    height = hotelMatrixDesktopBaseHeight || candidateHeight;
   }
   return { width, height };
 }
