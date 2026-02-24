@@ -4475,6 +4475,7 @@ a:focus-visible,
 .faq-group {
   display: block;
   border-top: 1px solid rgba(75, 15, 23, 0.2);
+  margin: 0;
 }
 
 .faq-group:last-child {
@@ -4483,17 +4484,20 @@ a:focus-visible,
 
 .faq-group-disclosure {
   border: 0;
+  margin: 0;
+  padding: 0;
 }
 
 .faq-group-summary {
   list-style: none;
-  min-height: 52px;
+  min-height: 72px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 0;
+  padding: 0;
   cursor: pointer;
+  box-sizing: border-box;
 }
 
 .faq-group-summary::-webkit-details-marker {
@@ -4508,9 +4512,10 @@ a:focus-visible,
 
 .faq-group-title {
   margin: 0;
+  display: block;
   font-family: var(--displayFont);
   font-size: clamp(1.2rem, 2.2vw, 1.48rem);
-  line-height: 1.2;
+  line-height: 1.15;
   color: var(--maroon);
 }
 

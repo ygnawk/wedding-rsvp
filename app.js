@@ -85,8 +85,8 @@ const GUEST_WALL_SLOW_MESSAGE_SECOND_DELAY_MS = 10000;
 const GUEST_WALL_LOADING_STUCK_DELAY_MS = 20000;
 const GUEST_WALL_HARD_TIMEOUT_MS = 120000;
 const GUEST_WALL_INITIAL_REQUEST_TIMEOUT_MS = 120000;
-const GUEST_WALL_RETRY_DELAY_MS = 1000;
-const GUEST_WALL_MAX_FETCH_ATTEMPTS = 2;
+const GUEST_WALL_RETRY_DELAY_MS = 2500;
+const GUEST_WALL_MAX_FETCH_ATTEMPTS = 5;
 const GUEST_WALL_IMAGE_CONCURRENCY = 4;
 const GUEST_WALL_IMAGE_OBSERVER_MARGIN = "240px";
 const GUEST_WALL_IMAGE_STALL_TIMEOUT_MS = 10000;
@@ -1980,9 +1980,10 @@ function getActiveMobileAccordionInteraction() {
   return state;
 }
 
-function bindMobileAccordionAnchorLock(detailsNode, summaryNode) {
+function bindMobileAccordionAnchorLock(detailsNode, summaryNode, options = {}) {
   if (!(detailsNode instanceof HTMLDetailsElement)) return;
   if (detailsNode.dataset.mobileAnchorLockBound === "true") return;
+  const requireDirectInteraction = Boolean(options?.requireDirectInteraction);
 
   const summary =
     summaryNode instanceof HTMLElement
@@ -2016,6 +2017,16 @@ function bindMobileAccordionAnchorLock(detailsNode, summaryNode) {
     }
 
     const interaction = getActiveMobileAccordionInteraction();
+    if (requireDirectInteraction && (!interaction || interaction.anchor !== summary)) {
+      if (DEBUG_ACCORDION) {
+        console.info("[accordion-debug] toggle:skip-no-direct-interaction", {
+          detail: describeAccordionDebugNode(detailsNode),
+          summary: describeAccordionDebugNode(summary),
+          open: detailsNode.open,
+        });
+      }
+      return;
+    }
     const anchor = interaction?.anchor instanceof HTMLElement ? interaction.anchor : summary;
     const beforeTop = Number.isFinite(interaction?.beforeTop) ? interaction.beforeTop : anchor.getBoundingClientRect().top;
     const beforeScrollY = Number.isFinite(interaction?.beforeScrollY) ? interaction.beforeScrollY : window.scrollY || window.pageYOffset || 0;
@@ -6945,10 +6956,27 @@ function updateGuestWallDevDiagnostics() {
   idsNode.textContent = visibleIds.length ? `Visible IDs: ${formatGuestWallShortIds(visibleIds, 8)}` : "Visible IDs: (none)";
 }
 
+function randomIntExclusive(max) {
+  const upper = Math.floor(Number(max) || 0);
+  if (upper <= 1) return 0;
+  if (typeof window !== "undefined" && window.crypto && typeof window.crypto.getRandomValues === "function") {
+    const UINT32_RANGE = 0x100000000;
+    const cutoff = UINT32_RANGE - (UINT32_RANGE % upper);
+    const randomBuffer = new Uint32Array(1);
+    let value = UINT32_RANGE;
+    while (value >= cutoff) {
+      window.crypto.getRandomValues(randomBuffer);
+      value = randomBuffer[0];
+    }
+    return value % upper;
+  }
+  return Math.floor(Math.random() * upper);
+}
+
 function shuffleItems(items) {
   const list = Array.isArray(items) ? [...items] : [];
   for (let i = list.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = randomIntExclusive(i + 1);
     [list[i], list[j]] = [list[j], list[i]];
   }
   return list;
@@ -6958,7 +6986,7 @@ function randomIntInclusive(min, max) {
   const floorMin = Math.floor(min);
   const floorMax = Math.floor(max);
   if (floorMax <= floorMin) return floorMin;
-  return floorMin + Math.floor(Math.random() * (floorMax - floorMin + 1));
+  return floorMin + randomIntExclusive(floorMax - floorMin + 1);
 }
 
 function setGuestWallLoadState(nextState) {
@@ -8105,7 +8133,8 @@ function ensureGuestWallVisibleIds(slotCount, { reshuffle = false, mobile = fals
     return;
   }
   const sources = getGuestWallDeckSources();
-  syncGuestWallDeckState({ preserveUnseen: true }, guestWallDeckState, sources);
+  // Fresh reshuffles should randomize across the full loaded pool each time.
+  syncGuestWallDeckState({ preserveUnseen: !reshuffle }, guestWallDeckState, sources);
 
   if (reshuffle || !guestWallVisibleCardIds.length) {
     guestWallVisibleCardIds = pickGuestWallDeckSelection({
@@ -9990,7 +10019,8 @@ function buildGuestWallMobileDeck(deckSize, reshuffle = false) {
   const limit = Math.max(1, Math.floor(Number(deckSize) || 1));
   const sources = getGuestWallDeckSources();
   if (!sources.allIds.length) return [];
-  syncGuestWallDeckState({ preserveUnseen: true }, guestWallDeckState, sources);
+  // Keep mobile shuffle behavior aligned with desktop randomness.
+  syncGuestWallDeckState({ preserveUnseen: !reshuffle }, guestWallDeckState, sources);
   if (reshuffle || !guestWallVisibleCardIds.length) {
     return pickGuestWallDeckSelection({
       slotCount: limit,
@@ -10796,7 +10826,7 @@ function initFaqAccordionGroups() {
   };
 
   groupNodes.forEach((group) => {
-    bindMobileAccordionAnchorLock(group);
+    bindMobileAccordionAnchorLock(group, undefined, { requireDirectInteraction: true });
   });
 
   groupNodes.forEach((group) => {
@@ -10819,7 +10849,7 @@ function initFaqAccordionGroups() {
   };
 
   detailsNodes.forEach((node) => {
-    bindMobileAccordionAnchorLock(node);
+    bindMobileAccordionAnchorLock(node, undefined, { requireDirectInteraction: true });
     node.addEventListener("toggle", () => {
       if (!node.open) return;
       const parentGroup = node.closest(".faq-group-disclosure");
