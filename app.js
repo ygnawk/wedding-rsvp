@@ -92,6 +92,9 @@ const GUEST_WALL_IMAGE_OBSERVER_MARGIN = "240px";
 const GUEST_WALL_IMAGE_STALL_TIMEOUT_MS = 10000;
 const GUEST_WALL_SESSION_CACHE_KEY = "guestwall-pinboard-cache-v1";
 const GUEST_WALL_SESSION_CACHE_TTL_MS = 5 * 60 * 1000;
+const GUEST_WALL_PERSISTENT_CACHE_KEY = "guestwall-pinboard-cache-persist-v1";
+const GUEST_WALL_PERSISTENT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const GUEST_WALL_AUTO_RETRY_INTERVAL_MS = 8000;
 const GUEST_WALL_DEV_SHUFFLE_SIM_ITERATIONS = 1000;
 const INTERLUDE_CURTAIN_DESKTOP_PROGRESS_WINDOW = 0.33;
 const INTERLUDE_CURTAIN_MOBILE_PROGRESS_SPEED = 2.025; // ~50% faster on mobile only
@@ -482,6 +485,7 @@ let guestWallLoadState = "idle";
 let guestWallSlowMessageStartTimer = null;
 let guestWallSlowMessageSecondTimer = null;
 let guestWallSlowMessageTimeoutTimer = null;
+let guestWallAutoRetryTimer = null;
 let guestWallLoadingRetryVisible = false;
 let guestWallArrangeMode = false;
 let guestWallDragState = null;
@@ -7015,6 +7019,11 @@ function getGuestWallSessionCacheBucket() {
   return `${GUEST_WALL_SESSION_CACHE_KEY}:${hostKey}`;
 }
 
+function getGuestWallPersistentCacheBucket() {
+  const hostKey = String(window.location.hostname || "unknown");
+  return `${GUEST_WALL_PERSISTENT_CACHE_KEY}:${hostKey}`;
+}
+
 function readGuestWallSessionCache() {
   try {
     const raw = window.sessionStorage.getItem(getGuestWallSessionCacheBucket());
@@ -7025,6 +7034,29 @@ function readGuestWallSessionCache() {
     if (!items.length || !Number.isFinite(fetchedAt)) return null;
     if (Date.now() - fetchedAt > GUEST_WALL_SESSION_CACHE_TTL_MS) {
       window.sessionStorage.removeItem(getGuestWallSessionCacheBucket());
+      return null;
+    }
+    return {
+      items,
+      nextCursor: String((parsed && parsed.nextCursor) || "").trim() || null,
+      total: Number.isFinite(Number(parsed && parsed.total)) ? Number(parsed.total) : items.length,
+      fetchedAt,
+    };
+  } catch (_error) {
+    return null;
+  }
+}
+
+function readGuestWallPersistentCache() {
+  try {
+    const raw = window.localStorage.getItem(getGuestWallPersistentCacheBucket());
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const fetchedAt = Number(parsed && parsed.fetchedAt);
+    const items = Array.isArray(parsed && parsed.items) ? parsed.items : [];
+    if (!items.length || !Number.isFinite(fetchedAt)) return null;
+    if (Date.now() - fetchedAt > GUEST_WALL_PERSISTENT_CACHE_TTL_MS) {
+      window.localStorage.removeItem(getGuestWallPersistentCacheBucket());
       return null;
     }
     return {
@@ -7049,6 +7081,11 @@ function writeGuestWallSessionCache(payload) {
       items,
     };
     window.sessionStorage.setItem(getGuestWallSessionCacheBucket(), JSON.stringify(serializable));
+    try {
+      window.localStorage.setItem(getGuestWallPersistentCacheBucket(), JSON.stringify(serializable));
+    } catch (_persistError) {
+      // no-op (private mode quota/security limits)
+    }
   } catch (_error) {
     // no-op (private mode quota/security limits)
   }
@@ -7083,6 +7120,22 @@ function clearGuestWallSlowMessageTimers() {
   }
 }
 
+function clearGuestWallAutoRetryTimer() {
+  if (!guestWallAutoRetryTimer) return;
+  window.clearTimeout(guestWallAutoRetryTimer);
+  guestWallAutoRetryTimer = null;
+}
+
+function scheduleGuestWallAutoRetry() {
+  if (guestWallAutoRetryTimer) return;
+  if (guestWallRequestInFlight) return;
+  guestWallAutoRetryTimer = window.setTimeout(() => {
+    guestWallAutoRetryTimer = null;
+    if (guestWallLoadState !== "loading") return;
+    void loadGuestWallPinboard({ refresh: true, force: true });
+  }, GUEST_WALL_AUTO_RETRY_INTERVAL_MS);
+}
+
 function startGuestWallSlowMessageRotation() {
   clearGuestWallSlowMessageTimers();
   setGuestWallStatus(GUEST_WALL_LOADING_MESSAGE);
@@ -7110,6 +7163,14 @@ function classifyGuestWallError(error) {
       statusMessage: "Guest Wall is not configured for this environment yet.",
       panelMessage: "Guest Wall is not configured for this environment yet.",
       reason: "not_configured",
+    };
+  }
+  if (String(error?.code || "").toLowerCase() === "oauth_invalid") {
+    return {
+      state: "loading",
+      statusMessage: "Guest Wall service is reconnecting. Please wait a moment.",
+      panelMessage: "Guest Wall service is reconnecting. Please wait a moment.",
+      reason: "oauth_invalid",
     };
   }
 
@@ -7140,7 +7201,7 @@ function classifyGuestWallError(error) {
   }
   if (status === 429) {
     return {
-      state: "error",
+      state: "loading",
       statusMessage: "Guest Wall is rate-limited right now. Please retry in a moment.",
       panelMessage: "Guest Wall is rate-limited right now. Please retry in a moment.",
       reason: "rate_limited",
@@ -7148,7 +7209,7 @@ function classifyGuestWallError(error) {
   }
   if (status === 502 || status === 503 || status === 504) {
     return {
-      state: "error",
+      state: "loading",
       statusMessage: "Guest Wall server is waking up. Please retry in a moment.",
       panelMessage: "Guest Wall server is waking up. Please retry in a moment.",
       reason: "cold_start_or_gateway",
@@ -7156,7 +7217,7 @@ function classifyGuestWallError(error) {
   }
   if (status >= 500) {
     return {
-      state: "error",
+      state: "loading",
       statusMessage: "Guest Wall is temporarily unavailable (server issue).",
       panelMessage: "Guest Wall is temporarily unavailable (server issue). Please retry.",
       reason: "upstream",
@@ -10059,6 +10120,12 @@ function startGuestWallAutoplayInterval() {
 
 function renderGuestWallMobile({ reshuffle = false } = {}) {
   if (!(guestWallMobile instanceof HTMLElement)) return;
+  if (!guestWallCards.length && guestWallLoadState !== "success") {
+    // Preserve loading/error UI while data is still in-flight on mobile.
+    updateGuestWallDevDiagnostics();
+    return;
+  }
+
   guestWallMobile.innerHTML = "";
 
   if (!guestWallCards.length) {
@@ -10539,7 +10606,15 @@ function warmGuestWallRouteInBackground() {
 async function loadGuestWallPinboard({ refresh = false, force = false } = {}) {
   if (guestWallRequestInFlight && !force) return guestWallRequestInFlight;
   const requestToken = ++guestWallRequestToken;
-  const seededPayload = !refresh ? readGuestWallSessionCache() : null;
+  const seededPayload = (() => {
+    if (refresh) return null;
+    const sessionPayload = readGuestWallSessionCache();
+    const persistentPayload = readGuestWallPersistentCache();
+    if (sessionPayload && persistentPayload) {
+      return sessionPayload.fetchedAt >= persistentPayload.fetchedAt ? sessionPayload : persistentPayload;
+    }
+    return sessionPayload || persistentPayload || null;
+  })();
   const hasSeededItems = Array.isArray(seededPayload?.items) && seededPayload.items.length > 0;
 
   guestWallLoadStartedAt = performance.now();
@@ -10548,6 +10623,7 @@ async function loadGuestWallPinboard({ refresh = false, force = false } = {}) {
   resetGuestWallImagePipeline();
   setGuestWallShuffleState(false);
   setGuestWallLoadingRetryVisible(false);
+  clearGuestWallAutoRetryTimer();
 
   if (!hasSeededItems) {
     setGuestWallLoadState("loading");
@@ -10576,6 +10652,7 @@ async function loadGuestWallPinboard({ refresh = false, force = false } = {}) {
   }
 
   const request = (async () => {
+    let shouldScheduleAutoRetry = false;
     try {
       let payload = null;
       let attemptError = null;
@@ -10645,6 +10722,7 @@ async function loadGuestWallPinboard({ refresh = false, force = false } = {}) {
       }
       if (!cards.length) return;
       scheduleGuestWallBufferPrefetch();
+      clearGuestWallAutoRetryTimer();
     } catch (error) {
       if (requestToken !== guestWallRequestToken) return;
       console.error("[guestwall] load failed", {
@@ -10672,18 +10750,21 @@ async function loadGuestWallPinboard({ refresh = false, force = false } = {}) {
         setGuestWallLoadState("success");
         setGuestWallStatus(GUEST_WALL_READY_MESSAGE);
         setGuestWallControlsDisabled(false);
+        clearGuestWallAutoRetryTimer();
         return;
       }
 
-      if (classified.reason === "timeout") {
+      if (classified.state === "loading") {
         setGuestWallLoadState("loading");
-        setGuestWallStatus(classified.statusMessage);
+        setGuestWallStatus(classified.statusMessage || GUEST_WALL_LOADING_MESSAGE_STUCK);
         setGuestWallControlsDisabled(true);
         setGuestWallLoadingRetryVisible(true);
         renderGuestWallLoadingSkeleton();
+        shouldScheduleAutoRetry = true;
         return;
       }
 
+      clearGuestWallAutoRetryTimer();
       setGuestWallLoadState(classified.state);
       setGuestWallStatus("");
       setGuestWallControlsDisabled(true);
@@ -10695,6 +10776,7 @@ async function loadGuestWallPinboard({ refresh = false, force = false } = {}) {
       if (requestToken !== guestWallRequestToken) return;
       clearGuestWallSlowMessageTimers();
       guestWallRequestInFlight = null;
+      if (shouldScheduleAutoRetry) scheduleGuestWallAutoRetry();
     }
   })();
 

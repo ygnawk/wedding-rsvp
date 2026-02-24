@@ -1404,7 +1404,7 @@ function getGuestbookConfigStatus() {
     hasSpreadsheet,
     hasServiceAccount,
     hasOauth,
-    authMode: hasOauth ? "oauth" : hasServiceAccount ? "service_account" : "missing",
+    authMode: hasServiceAccount ? "service_account" : hasOauth ? "oauth" : "missing",
     missing,
   };
 }
@@ -1438,9 +1438,20 @@ function createGoogleClients() {
   const oauthClientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
   const oauthClientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
   const oauthRefreshToken = process.env.GOOGLE_OAUTH_REFRESH_TOKEN;
+  const hasOauth = Boolean(oauthClientId && oauthClientSecret && oauthRefreshToken);
+  const hasServiceAccount = Boolean(
+    process.env.GOOGLE_SERVICE_ACCOUNT_JSON ||
+      (process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY),
+  );
+  const authPreference = String(process.env.GOOGLE_AUTH_MODE || "auto")
+    .trim()
+    .toLowerCase();
+
+  // Prefer service account in auto mode to avoid hard dependency on refresh tokens.
+  const useOauth = hasOauth && (authPreference === "oauth" || (!hasServiceAccount && authPreference !== "service_account"));
 
   let auth;
-  if (oauthClientId && oauthClientSecret && oauthRefreshToken) {
+  if (useOauth) {
     const oauth2Client = new google.auth.OAuth2(oauthClientId, oauthClientSecret);
     oauth2Client.setCredentials({ refresh_token: oauthRefreshToken });
     auth = oauth2Client;
