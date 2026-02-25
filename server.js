@@ -231,6 +231,19 @@ const guestbookCache = {
   pending: null,
   refreshing: null,
 };
+const guestbookFetchSummary = {
+  lastAttemptAt: 0,
+  lastSuccessAt: 0,
+  lastFailureAt: 0,
+  lastServedStaleAt: 0,
+  lastStatus: "never",
+  lastCode: "",
+  lastDetail: "",
+  lastMessage: "",
+  lastDurationMs: 0,
+  lastItemCount: 0,
+  lastStaleReason: "",
+};
 let guestbookWarmupPromise = null;
 const arrivalsCache = {
   expiresAt: 0,
@@ -1470,7 +1483,42 @@ function isLocalRequest(req) {
   return hostHeader.includes("localhost") || hostHeader.includes("127.0.0.1");
 }
 
+function normalizeGoogleAuthMode(rawMode) {
+  const value = String(rawMode || "auto")
+    .trim()
+    .toLowerCase();
+  if (value === "service_account" || value === "service-account" || value === "serviceaccount") return "service_account";
+  if (value === "oauth" || value === "oauth2") return "oauth";
+  return "auto";
+}
+
+function getGuestbookFetchSummary() {
+  const toIso = (value) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) return null;
+    return new Date(parsed).toISOString();
+  };
+  return {
+    lastStatus: guestbookFetchSummary.lastStatus,
+    lastCode: guestbookFetchSummary.lastCode || null,
+    lastDetail: guestbookFetchSummary.lastDetail || null,
+    lastMessage: guestbookFetchSummary.lastMessage || null,
+    lastDurationMs: Number.isFinite(Number(guestbookFetchSummary.lastDurationMs))
+      ? Number(guestbookFetchSummary.lastDurationMs)
+      : null,
+    lastItemCount: Number.isFinite(Number(guestbookFetchSummary.lastItemCount))
+      ? Number(guestbookFetchSummary.lastItemCount)
+      : null,
+    lastStaleReason: guestbookFetchSummary.lastStaleReason || null,
+    lastAttemptAt: toIso(guestbookFetchSummary.lastAttemptAt),
+    lastSuccessAt: toIso(guestbookFetchSummary.lastSuccessAt),
+    lastFailureAt: toIso(guestbookFetchSummary.lastFailureAt),
+    lastServedStaleAt: toIso(guestbookFetchSummary.lastServedStaleAt),
+  };
+}
+
 function getGuestbookConfigStatus() {
+  const requestedAuthMode = normalizeGoogleAuthMode(resolveEnvValue(GOOGLE_ENV_ALIASES.authMode));
   const checks = {
     [GUESTBOOK_ENV_KEYS.spreadsheetId]: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.spreadsheetId),
     [GUESTBOOK_ENV_KEYS.serviceAccountJson]: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.serviceAccountJson),
@@ -1490,11 +1538,29 @@ function getGuestbookConfigStatus() {
     checks.GOOGLE_APPLICATION_CREDENTIALS ||
     (checks[GUESTBOOK_ENV_KEYS.serviceAccountEmail] && checks[GUESTBOOK_ENV_KEYS.serviceAccountPrivateKey]);
   const hasOauth = checks[GUESTBOOK_ENV_KEYS.oauthClientId] && checks[GUESTBOOK_ENV_KEYS.oauthClientSecret] && checks[GUESTBOOK_ENV_KEYS.oauthRefreshToken];
-  const configured = Boolean(hasSpreadsheet && (hasServiceAccount || hasOauth));
+  const hasUsableAuth =
+    requestedAuthMode === "service_account"
+      ? hasServiceAccount
+      : requestedAuthMode === "oauth"
+        ? hasOauth
+        : hasServiceAccount || hasOauth;
+  const configured = Boolean(hasSpreadsheet && hasUsableAuth);
 
   const missing = [];
   if (!hasSpreadsheet) missing.push(GUESTBOOK_ENV_KEYS.spreadsheetId);
-  if (!hasServiceAccount && !hasOauth) {
+  if (!hasUsableAuth) {
+    if (requestedAuthMode === "service_account") {
+      missing.push(
+        `${GUESTBOOK_ENV_KEYS.serviceAccountJson} OR GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 OR GOOGLE_APPLICATION_CREDENTIALS OR (${GUESTBOOK_ENV_KEYS.serviceAccountEmail} + ${GUESTBOOK_ENV_KEYS.serviceAccountPrivateKey})`,
+      );
+    } else if (requestedAuthMode === "oauth") {
+      missing.push(`${GUESTBOOK_ENV_KEYS.oauthClientId} + ${GUESTBOOK_ENV_KEYS.oauthClientSecret} + ${GUESTBOOK_ENV_KEYS.oauthRefreshToken}`);
+    } else {
+      missing.push(
+        `${GUESTBOOK_ENV_KEYS.serviceAccountJson} OR (${GUESTBOOK_ENV_KEYS.serviceAccountEmail} + ${GUESTBOOK_ENV_KEYS.serviceAccountPrivateKey}) OR (${GUESTBOOK_ENV_KEYS.oauthClientId} + ${GUESTBOOK_ENV_KEYS.oauthClientSecret} + ${GUESTBOOK_ENV_KEYS.oauthRefreshToken})`,
+      );
+    }
+  } else if (!hasServiceAccount && !hasOauth) {
     missing.push(
       `${GUESTBOOK_ENV_KEYS.serviceAccountJson} OR (${GUESTBOOK_ENV_KEYS.serviceAccountEmail} + ${GUESTBOOK_ENV_KEYS.serviceAccountPrivateKey}) OR (${GUESTBOOK_ENV_KEYS.oauthClientId} + ${GUESTBOOK_ENV_KEYS.oauthClientSecret} + ${GUESTBOOK_ENV_KEYS.oauthRefreshToken})`,
     );
@@ -1506,7 +1572,10 @@ function getGuestbookConfigStatus() {
     hasSpreadsheet,
     hasServiceAccount,
     hasOauth,
-    authMode: hasServiceAccount ? "service_account" : hasOauth ? "oauth" : "missing",
+    hasUsableAuth,
+    authMode: requestedAuthMode,
+    resolvedAuthMode:
+      requestedAuthMode === "auto" ? (hasServiceAccount ? "service_account" : hasOauth ? "oauth" : "missing") : requestedAuthMode,
     missing,
   };
 }
@@ -1523,15 +1592,19 @@ function buildGuestbookConfigErrorPayload(req, configStatus) {
   };
 
   if (localRequest || NODE_ENV === "development") {
+    const requestedAuthMode = normalizeGoogleAuthMode(configStatus?.authMode);
+    let requiredAuthLine = `${GUESTBOOK_ENV_KEYS.serviceAccountJson} OR GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 OR GOOGLE_APPLICATION_CREDENTIALS OR ${GUESTBOOK_ENV_KEYS.serviceAccountEmail}+${GUESTBOOK_ENV_KEYS.serviceAccountPrivateKey} OR ${GUESTBOOK_ENV_KEYS.oauthClientId}+${GUESTBOOK_ENV_KEYS.oauthClientSecret}+${GUESTBOOK_ENV_KEYS.oauthRefreshToken}`;
+    if (requestedAuthMode === "service_account") {
+      requiredAuthLine = `${GUESTBOOK_ENV_KEYS.serviceAccountJson} OR GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 OR GOOGLE_APPLICATION_CREDENTIALS OR ${GUESTBOOK_ENV_KEYS.serviceAccountEmail}+${GUESTBOOK_ENV_KEYS.serviceAccountPrivateKey}`;
+    } else if (requestedAuthMode === "oauth") {
+      requiredAuthLine = `${GUESTBOOK_ENV_KEYS.oauthClientId}+${GUESTBOOK_ENV_KEYS.oauthClientSecret}+${GUESTBOOK_ENV_KEYS.oauthRefreshToken}`;
+    }
     payload.instructions =
-      `Set ${GUESTBOOK_ENV_KEYS.spreadsheetId} and one auth method: ` +
-      `${GUESTBOOK_ENV_KEYS.serviceAccountJson} OR ` +
-      `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 OR ` +
-      `GOOGLE_APPLICATION_CREDENTIALS (file path) OR ` +
-      `${GUESTBOOK_ENV_KEYS.serviceAccountEmail}+${GUESTBOOK_ENV_KEYS.serviceAccountPrivateKey} OR ` +
-      `${GUESTBOOK_ENV_KEYS.oauthClientId}+${GUESTBOOK_ENV_KEYS.oauthClientSecret}+${GUESTBOOK_ENV_KEYS.oauthRefreshToken}.`;
+      `Set ${GUESTBOOK_ENV_KEYS.spreadsheetId}. ` +
+      `GOOGLE_AUTH_MODE is ${requestedAuthMode}; required auth: ${requiredAuthLine}.`;
     payload.missing = Array.isArray(configStatus?.missing) ? configStatus.missing : [];
     payload.env = configStatus?.checks || {};
+    payload.authMode = requestedAuthMode;
   }
 
   return payload;
@@ -1549,12 +1622,19 @@ function createGoogleClients() {
       resolveEnvValue(GOOGLE_ENV_ALIASES.serviceAccountPath) ||
       (resolveEnvValue(GOOGLE_ENV_ALIASES.serviceAccountEmail) && resolveEnvValue(GOOGLE_ENV_ALIASES.serviceAccountPrivateKey)),
   );
-  const authPreference = String(resolveEnvValue(GOOGLE_ENV_ALIASES.authMode) || "auto")
-    .trim()
-    .toLowerCase();
+  const authPreference = normalizeGoogleAuthMode(resolveEnvValue(GOOGLE_ENV_ALIASES.authMode));
+  if (authPreference === "service_account" && !hasServiceAccount) {
+    throw new Error("Missing GOOGLE_SERVICE_ACCOUNT credentials while GOOGLE_AUTH_MODE=service_account");
+  }
+  if (authPreference === "oauth" && !hasOauth) {
+    throw new Error("Missing GOOGLE_OAUTH credentials while GOOGLE_AUTH_MODE=oauth");
+  }
+  if (!hasServiceAccount && !hasOauth) {
+    throw new Error("Missing Google credentials (service account or OAuth env vars)");
+  }
 
   // Prefer service account in auto mode to avoid hard dependency on refresh tokens.
-  const useOauth = hasOauth && (authPreference === "oauth" || (!hasServiceAccount && authPreference !== "service_account"));
+  const useOauth = authPreference === "oauth" || (authPreference === "auto" && !hasServiceAccount && hasOauth);
 
   let auth;
   if (useOauth) {
@@ -2615,37 +2695,58 @@ async function loadGuestbookItems({ forceRefresh = false } = {}) {
 
   const pending = (async () => {
     const requestStartedAt = Date.now();
-    const spreadsheetId = getRequiredSpreadsheetId();
-    const { sheets } = createGoogleClients();
+    guestbookFetchSummary.lastAttemptAt = requestStartedAt;
+    guestbookFetchSummary.lastStatus = "fetching";
+    try {
+      const spreadsheetId = getRequiredSpreadsheetId();
+      const { sheets } = createGoogleClients();
 
-    const upstreamStartedAt = Date.now();
-    const [rsvpRows, guestRows, mediaRows] = await Promise.all([
-      getSheetObjects(sheets, spreadsheetId, "rsvps"),
-      getSheetObjects(sheets, spreadsheetId, "guests"),
-      getSheetObjects(sheets, spreadsheetId, "media"),
-    ]);
-    const upstreamDurationMs = Date.now() - upstreamStartedAt;
-    const approvedRows = rsvpRows.filter((row) => isTruthyApproval(row.approved)).length;
-    console.info(
-      `[guestbook] source rows rsvps=${rsvpRows.length} approved=${approvedRows} guests=${guestRows.length} media=${mediaRows.length}`,
-    );
+      const upstreamStartedAt = Date.now();
+      const [rsvpRows, guestRows, mediaRows] = await Promise.all([
+        getSheetObjects(sheets, spreadsheetId, "rsvps"),
+        getSheetObjects(sheets, spreadsheetId, "guests"),
+        getSheetObjects(sheets, spreadsheetId, "media"),
+      ]);
+      const upstreamDurationMs = Date.now() - upstreamStartedAt;
+      const approvedRows = rsvpRows.filter((row) => isTruthyApproval(row.approved)).length;
+      console.info(
+        `[guestbook] source rows rsvps=${rsvpRows.length} approved=${approvedRows} guests=${guestRows.length} media=${mediaRows.length}`,
+      );
 
-    const transformStartedAt = Date.now();
-    const items = buildGuestbookItems(rsvpRows, guestRows, mediaRows, new Map());
-    const transformDurationMs = Date.now() - transformStartedAt;
-    guestbookCache.items = items;
-    guestbookCache.expiresAt = Date.now() + GUESTBOOK_CACHE_TTL_MS;
-    if (!items.length) {
-      console.info("[guestbook] success with 0 approved displayable items");
-    } else {
-      console.info(`[guestbook] success items=${items.length}`);
+      const transformStartedAt = Date.now();
+      const items = buildGuestbookItems(rsvpRows, guestRows, mediaRows, new Map());
+      const transformDurationMs = Date.now() - transformStartedAt;
+      guestbookCache.items = items;
+      guestbookCache.expiresAt = Date.now() + GUESTBOOK_CACHE_TTL_MS;
+      if (!items.length) {
+        console.info("[guestbook] success with 0 approved displayable items");
+      } else {
+        console.info(`[guestbook] success items=${items.length}`);
+      }
+      const totalDurationMs = Date.now() - requestStartedAt;
+      guestbookFetchSummary.lastSuccessAt = Date.now();
+      guestbookFetchSummary.lastStatus = "fresh";
+      guestbookFetchSummary.lastCode = "";
+      guestbookFetchSummary.lastDetail = "";
+      guestbookFetchSummary.lastMessage = "";
+      guestbookFetchSummary.lastDurationMs = totalDurationMs;
+      guestbookFetchSummary.lastItemCount = items.length;
+      guestbookFetchSummary.lastStaleReason = "";
+      console.info(
+        `[guestbook] refresh timings upstream_fetch_ms=${upstreamDurationMs} transform_ms=${transformDurationMs} total_ms=${totalDurationMs}`,
+      );
+      return items;
+    } catch (error) {
+      const classified = classifyGuestbookError(error);
+      const message = error instanceof Error ? error.message : String(error || "unknown");
+      guestbookFetchSummary.lastFailureAt = Date.now();
+      guestbookFetchSummary.lastStatus = "error";
+      guestbookFetchSummary.lastCode = classified.code;
+      guestbookFetchSummary.lastDetail = classified.detail;
+      guestbookFetchSummary.lastMessage = message;
+      guestbookFetchSummary.lastDurationMs = Date.now() - requestStartedAt;
+      throw error;
     }
-    console.info(
-      `[guestbook] refresh timings upstream_fetch_ms=${upstreamDurationMs} transform_ms=${transformDurationMs} total_ms=${
-        Date.now() - requestStartedAt
-      }`,
-    );
-    return items;
   })();
 
   guestbookCache.pending = pending;
@@ -2887,23 +2988,71 @@ function filterArchiveItems(items, { typeFilter = "all", query = "" } = {}) {
   });
 }
 
+function buildGuestbookResponsePayload(
+  approvedSubmissions,
+  {
+    mode = "pinboard",
+    limit = GUESTBOOK_PINBOARD_DEFAULT_LIMIT,
+    offset = 0,
+    typeFilter = "all",
+    query = "",
+    stale = false,
+    staleReason = null,
+  } = {},
+) {
+  const normalizedItems = buildGuestbookNormalizedItems(approvedSubmissions);
+  let workingItems = normalizedItems;
+  if (mode === "pinboard") {
+    workingItems = buildPinboardFeed(normalizedItems);
+  } else {
+    workingItems = filterArchiveItems(normalizedItems, { typeFilter, query });
+  }
+  const items = workingItems.slice(offset, offset + limit);
+  const nextOffset = offset + items.length < workingItems.length ? offset + items.length : null;
+  const nextCursor = nextOffset === null ? null : encodeGuestbookCursor(nextOffset);
+  return {
+    payload: {
+      ok: true,
+      mode,
+      stale: Boolean(stale),
+      staleReason: stale ? String(staleReason || "upstream_failure") : null,
+      items,
+      total: workingItems.length,
+      offset,
+      limit,
+      next_offset: nextOffset,
+      nextCursor,
+      cached_until: guestbookCache.expiresAt ? new Date(guestbookCache.expiresAt).toISOString() : null,
+    },
+    workingItems,
+    items,
+  };
+}
+
 async function handleGuestbookRequest(req, res) {
   const requestStartedAt = Date.now();
+  let requestUrl = null;
+  let mode = "pinboard";
+  let limit = GUESTBOOK_PINBOARD_DEFAULT_LIMIT;
+  let typeFilter = "all";
+  let query = "";
+  let offset = 0;
+  let refresh = false;
   try {
-    const requestUrl = new URL(req.url || "/api/guestbook", `http://${req.headers.host || "localhost"}`);
-    const mode = parseGuestbookMode(requestUrl.searchParams.get("mode"));
+    requestUrl = new URL(req.url || "/api/guestbook", `http://${req.headers.host || "localhost"}`);
+    mode = parseGuestbookMode(requestUrl.searchParams.get("mode"));
     const defaultLimit = mode === "archive" ? GUESTBOOK_ARCHIVE_DEFAULT_LIMIT : GUESTBOOK_PINBOARD_DEFAULT_LIMIT;
-    const limit = parseBoundedInt(requestUrl.searchParams.get("limit"), defaultLimit, 1, mode === "archive" ? 60 : 64);
-    const typeFilter = parseGuestbookTypeFilter(requestUrl.searchParams.get("type"));
-    const query = normalizeFieldValue(requestUrl.searchParams.get("q"));
+    limit = parseBoundedInt(requestUrl.searchParams.get("limit"), defaultLimit, 1, mode === "archive" ? 60 : 64);
+    typeFilter = parseGuestbookTypeFilter(requestUrl.searchParams.get("type"));
+    query = normalizeFieldValue(requestUrl.searchParams.get("q"));
     const cursor = requestUrl.searchParams.get("cursor");
     const cursorOffset = decodeGuestbookCursor(cursor);
-    const offset = parseBoundedInt(requestUrl.searchParams.get("offset"), cursorOffset, 0, 1000000);
-    const refresh = ["1", "true", "yes"].includes(normalizeFieldValue(requestUrl.searchParams.get("refresh")).toLowerCase());
+    offset = parseBoundedInt(requestUrl.searchParams.get("offset"), cursorOffset, 0, 1000000);
+    refresh = ["1", "true", "yes"].includes(normalizeFieldValue(requestUrl.searchParams.get("refresh")).toLowerCase());
     const configStatus = getGuestbookConfigStatus();
     const localRequest = isLocalRequest(req);
     console.info(
-      `[guestbook] env spreadsheet=${configStatus.hasSpreadsheet} service_account=${configStatus.hasServiceAccount} oauth=${configStatus.hasOauth} auth_mode=${configStatus.authMode}`,
+      `[guestbook] env spreadsheet=${configStatus.hasSpreadsheet} service_account=${configStatus.hasServiceAccount} oauth=${configStatus.hasOauth} auth_mode=${configStatus.authMode} usable_auth=${configStatus.hasUsableAuth}`,
     );
     console.info(`[guestbook] upstream=google-sheets local_request=${localRequest}`);
 
@@ -2932,35 +3081,32 @@ async function handleGuestbookRequest(req, res) {
     const upstreamDurationMs = Date.now() - upstreamStartedAt;
 
     const transformStartedAt = Date.now();
-    const normalizedItems = buildGuestbookNormalizedItems(approvedSubmissions);
-    let workingItems = normalizedItems;
-    if (mode === "pinboard") {
-      workingItems = buildPinboardFeed(normalizedItems);
-    } else {
-      workingItems = filterArchiveItems(normalizedItems, { typeFilter, query });
-    }
-
-    const items = workingItems.slice(offset, offset + limit);
-    const nextOffset = offset + items.length < workingItems.length ? offset + items.length : null;
-    const nextCursor = nextOffset === null ? null : encodeGuestbookCursor(nextOffset);
-    const transformDurationMs = Date.now() - transformStartedAt;
-    const payload = {
-      ok: true,
+    const responseData = buildGuestbookResponsePayload(approvedSubmissions, {
       mode,
-      items,
-      total: workingItems.length,
-      offset,
       limit,
-      next_offset: nextOffset,
-      nextCursor,
-      cached_until: guestbookCache.expiresAt ? new Date(guestbookCache.expiresAt).toISOString() : null,
-    };
+      offset,
+      typeFilter,
+      query,
+    });
+    const transformDurationMs = Date.now() - transformStartedAt;
+    const payload = responseData.payload;
+    const workingItems = responseData.workingItems;
+    const items = responseData.items;
     const payloadBody = JSON.stringify(payload);
     const payloadBytes = Buffer.byteLength(payloadBody, "utf8");
     const totalDurationMs = Date.now() - requestStartedAt;
+    guestbookFetchSummary.lastAttemptAt = requestStartedAt;
+    guestbookFetchSummary.lastSuccessAt = Date.now();
+    guestbookFetchSummary.lastStatus = "served_fresh";
+    guestbookFetchSummary.lastCode = "";
+    guestbookFetchSummary.lastDetail = "";
+    guestbookFetchSummary.lastMessage = "";
+    guestbookFetchSummary.lastDurationMs = totalDurationMs;
+    guestbookFetchSummary.lastItemCount = items.length;
+    guestbookFetchSummary.lastStaleReason = "";
     console.info(
       `[guestbook] response mode=${mode} total=${workingItems.length} returned=${items.length} next_offset=${
-        nextOffset === null ? "none" : nextOffset
+        payload.next_offset === null ? "none" : payload.next_offset
       } timings total_handler_ms=${totalDurationMs} upstream_ms=${upstreamDurationMs} transform_ms=${transformDurationMs} payload_bytes=${payloadBytes}`,
     );
 
@@ -2980,9 +3126,49 @@ async function handleGuestbookRequest(req, res) {
     const status = getGuestbookErrorStatus(classified);
     const errorCode = getGuestbookErrorCode(classified);
     const localRequest = isLocalRequest(req);
+    const totalDurationMs = Date.now() - requestStartedAt;
+    const hasCachedItems = Array.isArray(guestbookCache.items) && guestbookCache.items.length > 0;
+    if (hasCachedItems) {
+      const stalePayload = buildGuestbookResponsePayload(guestbookCache.items, {
+        mode,
+        limit,
+        offset,
+        typeFilter,
+        query,
+        stale: true,
+        staleReason: classified.code,
+      }).payload;
+      const staleBody = JSON.stringify(stalePayload);
+      guestbookFetchSummary.lastAttemptAt = requestStartedAt;
+      guestbookFetchSummary.lastServedStaleAt = Date.now();
+      guestbookFetchSummary.lastStatus = "served_stale";
+      guestbookFetchSummary.lastCode = classified.code;
+      guestbookFetchSummary.lastDetail = classified.detail;
+      guestbookFetchSummary.lastMessage = message;
+      guestbookFetchSummary.lastDurationMs = totalDurationMs;
+      guestbookFetchSummary.lastItemCount = Array.isArray(stalePayload.items) ? stalePayload.items.length : 0;
+      guestbookFetchSummary.lastStaleReason = classified.code;
+      console.warn(
+        `[guestbook] stale_fallback status=200 code=${classified.code} detail=${classified.detail} message=${message} duration_ms=${totalDurationMs}`,
+      );
+      send(res, 200, staleBody, MIME_TYPES[".json"], {
+        req,
+        cacheControl: "no-store",
+      });
+      return;
+    }
+    guestbookFetchSummary.lastAttemptAt = requestStartedAt;
+    guestbookFetchSummary.lastFailureAt = Date.now();
+    guestbookFetchSummary.lastStatus = "error";
+    guestbookFetchSummary.lastCode = classified.code;
+    guestbookFetchSummary.lastDetail = classified.detail;
+    guestbookFetchSummary.lastMessage = message;
+    guestbookFetchSummary.lastDurationMs = totalDurationMs;
+    guestbookFetchSummary.lastItemCount = 0;
+    guestbookFetchSummary.lastStaleReason = "";
     console.error(
       `[guestbook] error status=${status} error_code=${errorCode} code=${classified.code} detail=${classified.detail} message=${message} duration_ms=${
-        Date.now() - requestStartedAt
+        totalDurationMs
       }`,
     );
     const responsePayload = {
@@ -3013,11 +3199,17 @@ async function handleGuestbookHealthRequest(req, res) {
   const localRequest = isLocalRequest(req);
   const configStatus = getGuestbookConfigStatus();
   console.info(
-    `[guestbook][health] env spreadsheet=${configStatus.hasSpreadsheet} service_account=${configStatus.hasServiceAccount} oauth=${configStatus.hasOauth} auth_mode=${configStatus.authMode}`,
+    `[guestbook][health] env spreadsheet=${configStatus.hasSpreadsheet} service_account=${configStatus.hasServiceAccount} oauth=${configStatus.hasOauth} auth_mode=${configStatus.authMode} usable_auth=${configStatus.hasUsableAuth}`,
   );
 
   if (!configStatus.configured) {
-    const payload = buildGuestbookConfigErrorPayload(req, configStatus);
+    const payload = {
+      ...buildGuestbookConfigErrorPayload(req, configStatus),
+      authMode: configStatus.authMode,
+      hasUsableAuth: configStatus.hasUsableAuth,
+      resolvedAuthMode: configStatus.resolvedAuthMode,
+      fetchSummary: getGuestbookFetchSummary(),
+    };
     send(res, 503, JSON.stringify(payload), MIME_TYPES[".json"], {
       req,
       cacheControl: "no-store",
@@ -3034,9 +3226,12 @@ async function handleGuestbookHealthRequest(req, res) {
         ok: true,
         status: "healthy",
         authMode: configStatus.authMode,
+        hasUsableAuth: configStatus.hasUsableAuth,
+        resolvedAuthMode: configStatus.resolvedAuthMode,
         env: configStatus.checks,
         items: Array.isArray(items) ? items.length : 0,
         cached_until: guestbookCache.expiresAt ? new Date(guestbookCache.expiresAt).toISOString() : null,
+        fetchSummary: getGuestbookFetchSummary(),
         duration_ms: Date.now() - requestStartedAt,
       }),
       MIME_TYPES[".json"],
@@ -3058,7 +3253,10 @@ async function handleGuestbookHealthRequest(req, res) {
       code: classified.code,
       detail: classified.detail,
       duration_ms: Date.now() - requestStartedAt,
+      authMode: configStatus.authMode,
+      hasUsableAuth: configStatus.hasUsableAuth,
       env: configStatus.checks,
+      fetchSummary: getGuestbookFetchSummary(),
     };
     if (NODE_ENV === "development" || localRequest) {
       payload.message = message;
