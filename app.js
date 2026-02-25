@@ -83,10 +83,10 @@ const GUEST_WALL_ARRANGE_DEOVERLAP_GAP = 8;
 const GUEST_WALL_SLOW_MESSAGE_DELAY_MS = 4000;
 const GUEST_WALL_SLOW_MESSAGE_SECOND_DELAY_MS = 10000;
 const GUEST_WALL_LOADING_STUCK_DELAY_MS = 20000;
-const GUEST_WALL_HARD_TIMEOUT_MS = 120000;
-const GUEST_WALL_INITIAL_REQUEST_TIMEOUT_MS = 120000;
+const GUEST_WALL_HARD_TIMEOUT_MS = 10000;
+const GUEST_WALL_INITIAL_REQUEST_TIMEOUT_MS = 20000;
 const GUEST_WALL_RETRY_DELAY_MS = 2500;
-const GUEST_WALL_MAX_FETCH_ATTEMPTS = 5;
+const GUEST_WALL_MAX_FETCH_ATTEMPTS = 2;
 const GUEST_WALL_IMAGE_CONCURRENCY = 4;
 const GUEST_WALL_IMAGE_OBSERVER_MARGIN = "240px";
 const GUEST_WALL_IMAGE_STALL_TIMEOUT_MS = 10000;
@@ -7202,9 +7202,9 @@ function classifyGuestWallError(error) {
   const status = Number(error?.status || 0);
   if (error?.isTimeout || status === 408) {
     return {
-      state: "loading",
-      statusMessage: GUEST_WALL_LOADING_MESSAGE_STUCK,
-      panelMessage: GUEST_WALL_LOADING_MESSAGE_STUCK,
+      state: "error",
+      statusMessage: "Guest Wall request timed out.",
+      panelMessage: "Guest Wall request timed out. Please try again.",
       reason: "timeout",
     };
   }
@@ -7226,7 +7226,7 @@ function classifyGuestWallError(error) {
   }
   if (status === 429) {
     return {
-      state: "loading",
+      state: "error",
       statusMessage: "Guest Wall is rate-limited right now. Please retry in a moment.",
       panelMessage: "Guest Wall is rate-limited right now. Please retry in a moment.",
       reason: "rate_limited",
@@ -7242,7 +7242,7 @@ function classifyGuestWallError(error) {
       };
     }
     return {
-      state: "loading",
+      state: "error",
       statusMessage: "Guest Wall server is waking up. Please retry in a moment.",
       panelMessage: "Guest Wall server is waking up. Please retry in a moment.",
       reason: "cold_start_or_gateway",
@@ -7250,7 +7250,7 @@ function classifyGuestWallError(error) {
   }
   if (status >= 500) {
     return {
-      state: "loading",
+      state: "error",
       statusMessage: "Guest Wall is temporarily unavailable (server issue).",
       panelMessage: "Guest Wall is temporarily unavailable (server issue). Please retry.",
       reason: "upstream",
@@ -7277,7 +7277,7 @@ function isGuestWallRetryableError(error) {
 }
 
 function getGuestWallRequestTimeoutMs(attemptIndex = 0) {
-  if (!guestWallHasSuccessfulLoad) {
+  if (Number(attemptIndex) <= 0) {
     return GUEST_WALL_INITIAL_REQUEST_TIMEOUT_MS;
   }
   return GUEST_WALL_HARD_TIMEOUT_MS;
@@ -10689,7 +10689,6 @@ async function loadGuestWallPinboard({ refresh = false, force = false } = {}) {
   }
 
   const request = (async () => {
-    let shouldScheduleAutoRetry = false;
     try {
       let payload = null;
       let attemptError = null;
@@ -10746,6 +10745,7 @@ async function loadGuestWallPinboard({ refresh = false, force = false } = {}) {
         setGuestWallStatus(GUEST_WALL_READY_MESSAGE);
         setGuestWallControlsDisabled(false);
         clearGuestWallSlowMessageTimers();
+        console.info("[guestwall][state] transition=success reason=preserve_seeded_cards");
         return;
       }
 
@@ -10760,6 +10760,7 @@ async function loadGuestWallPinboard({ refresh = false, force = false } = {}) {
       if (!cards.length) return;
       scheduleGuestWallBufferPrefetch();
       clearGuestWallAutoRetryTimer();
+      console.info("[guestwall][state] transition=success reason=fresh_payload");
     } catch (error) {
       if (requestToken !== guestWallRequestToken) return;
       console.error("[guestwall] load failed", {
@@ -10788,16 +10789,7 @@ async function loadGuestWallPinboard({ refresh = false, force = false } = {}) {
         setGuestWallStatus(GUEST_WALL_READY_MESSAGE);
         setGuestWallControlsDisabled(false);
         clearGuestWallAutoRetryTimer();
-        return;
-      }
-
-      if (classified.state === "loading") {
-        setGuestWallLoadState("loading");
-        setGuestWallStatus(classified.statusMessage || GUEST_WALL_LOADING_MESSAGE_STUCK);
-        setGuestWallControlsDisabled(true);
-        setGuestWallLoadingRetryVisible(true);
-        renderGuestWallLoadingSkeleton();
-        shouldScheduleAutoRetry = true;
+        console.info("[guestwall][state] transition=success reason=using_cached_cards");
         return;
       }
 
@@ -10808,12 +10800,12 @@ async function loadGuestWallPinboard({ refresh = false, force = false } = {}) {
       setGuestWallLoadingRetryVisible(false);
       guestWallNextCursor = null;
       guestWallPrefetchInFlight = null;
+      console.info(`[guestwall][state] transition=${classified.state} reason=${classified.reason || "unknown_error"}`);
       renderGuestWallErrorStateWithMessage(classified.panelMessage);
     } finally {
       if (requestToken !== guestWallRequestToken) return;
       clearGuestWallSlowMessageTimers();
       guestWallRequestInFlight = null;
-      if (shouldScheduleAutoRetry) scheduleGuestWallAutoRetry();
     }
   })();
 
