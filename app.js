@@ -7157,6 +7157,23 @@ function startGuestWallSlowMessageRotation() {
 
 function classifyGuestWallError(error) {
   const errorCode = String(error?.errorCode || error?.code || "").toUpperCase();
+  const detailText = [
+    error?.detail,
+    error?.cause,
+    error?.serverMessage,
+    error?.responseBody,
+  ]
+    .map((part) => String(part || ""))
+    .join(" ")
+    .toLowerCase();
+  const hasAuthFailureHint =
+    detailText.includes("oauth_invalid") ||
+    detailText.includes("invalid_grant") ||
+    detailText.includes("unauthorized_client") ||
+    detailText.includes("invalid_client") ||
+    detailText.includes("refresh token") ||
+    detailText.includes("auth issue");
+
   if (errorCode === "GUESTBOOK_NOT_CONFIGURED" || String(error?.code || "").toLowerCase() === "not_configured") {
     return {
       state: "error",
@@ -7167,9 +7184,17 @@ function classifyGuestWallError(error) {
   }
   if (String(error?.code || "").toLowerCase() === "oauth_invalid") {
     return {
-      state: "loading",
-      statusMessage: "Guest Wall service is reconnecting. Please wait a moment.",
-      panelMessage: "Guest Wall service is reconnecting. Please wait a moment.",
+      state: "error",
+      statusMessage: "Guest Wall is temporarily unavailable (auth issue).",
+      panelMessage: "Guest Wall is temporarily unavailable (auth issue). Please try again shortly.",
+      reason: "oauth_invalid",
+    };
+  }
+  if (hasAuthFailureHint) {
+    return {
+      state: "error",
+      statusMessage: "Guest Wall is temporarily unavailable (auth issue).",
+      panelMessage: "Guest Wall is temporarily unavailable (auth issue). Please try again shortly.",
       reason: "oauth_invalid",
     };
   }
@@ -7208,6 +7233,14 @@ function classifyGuestWallError(error) {
     };
   }
   if (status === 502 || status === 503 || status === 504) {
+    if (hasAuthFailureHint) {
+      return {
+        state: "error",
+        statusMessage: "Guest Wall is temporarily unavailable (auth issue).",
+        panelMessage: "Guest Wall is temporarily unavailable (auth issue). Please try again shortly.",
+        reason: "oauth_invalid",
+      };
+    }
     return {
       state: "loading",
       statusMessage: "Guest Wall server is waking up. Please retry in a moment.",
@@ -7232,6 +7265,10 @@ function classifyGuestWallError(error) {
 }
 
 function isGuestWallRetryableError(error) {
+  const errorCode = String(error?.errorCode || error?.code || "").toLowerCase();
+  if (errorCode === "oauth_invalid" || errorCode === "not_configured" || errorCode === "guestbook_not_configured") {
+    return false;
+  }
   const status = Number(error?.status || 0);
   if (error?.isTimeout || status === 408 || status === 429) return true;
   if (status >= 500) return true;

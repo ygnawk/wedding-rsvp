@@ -33,6 +33,28 @@ function parseEnvValue(rawValue) {
   return trimmed.replace(/\s+#.*$/, "").trim();
 }
 
+function resolveEnvEntry(keys) {
+  const candidateKeys = Array.isArray(keys) ? keys : [keys];
+  for (let i = 0; i < candidateKeys.length; i += 1) {
+    const key = candidateKeys[i];
+    if (!key) continue;
+    const value = process.env[key];
+    if (value === undefined || value === null) continue;
+    const normalized = parseEnvValue(value);
+    if (!normalized) continue;
+    return { key, value: normalized };
+  }
+  return { key: "", value: "" };
+}
+
+function resolveEnvValue(keys) {
+  return resolveEnvEntry(keys).value;
+}
+
+function hasResolvedEnvValue(keys) {
+  return Boolean(resolveEnvValue(keys));
+}
+
 function loadEnvFile(filePath, { allowOverride = false } = {}) {
   if (!fs.existsSync(filePath)) return null;
   const raw = fs.readFileSync(filePath, "utf8");
@@ -154,6 +176,36 @@ const GUESTBOOK_ENV_KEYS = Object.freeze({
   oauthClientId: "GOOGLE_OAUTH_CLIENT_ID",
   oauthClientSecret: "GOOGLE_OAUTH_CLIENT_SECRET",
   oauthRefreshToken: "GOOGLE_OAUTH_REFRESH_TOKEN",
+});
+
+const GOOGLE_ENV_ALIASES = Object.freeze({
+  spreadsheetId: Object.freeze(["GOOGLE_SPREADSHEET_ID", "SPREADSHEET_ID", "GOOGLE_SHEETS_ID"]),
+  uploadsFolderId: Object.freeze(["GOOGLE_DRIVE_UPLOADS_FOLDER_ID", "GOOGLE_UPLOADS_FOLDER_ID", "GOOGLE_DRIVE_FOLDER_ID"]),
+  serviceAccountJson: Object.freeze([
+    "GOOGLE_SERVICE_ACCOUNT_JSON",
+    "GCP_SERVICE_ACCOUNT_JSON",
+    "GOOGLE_APPLICATION_CREDENTIALS_JSON",
+    "GOOGLE_SERVICE_ACCOUNT",
+    "SERVICE_ACCOUNT_JSON",
+    "GOOGLE_CREDENTIALS",
+  ]),
+  serviceAccountJsonBase64: Object.freeze([
+    "GOOGLE_SERVICE_ACCOUNT_BASE64",
+    "GOOGLE_SERVICE_ACCOUNT_JSON_BASE64",
+    "SERVICE_ACCOUNT_JSON_BASE64",
+    "GOOGLE_CREDENTIALS_BASE64",
+  ]),
+  serviceAccountPath: Object.freeze([
+    "GOOGLE_APPLICATION_CREDENTIALS",
+    "GOOGLE_SERVICE_ACCOUNT_JSON_PATH",
+    "SERVICE_ACCOUNT_JSON_PATH",
+  ]),
+  serviceAccountEmail: Object.freeze(["GOOGLE_SERVICE_ACCOUNT_EMAIL", "GOOGLE_CLIENT_EMAIL", "SERVICE_ACCOUNT_EMAIL"]),
+  serviceAccountPrivateKey: Object.freeze(["GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY", "GOOGLE_PRIVATE_KEY", "SERVICE_ACCOUNT_PRIVATE_KEY"]),
+  oauthClientId: Object.freeze(["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_CLIENT_ID", "OAUTH_CLIENT_ID"]),
+  oauthClientSecret: Object.freeze(["GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_CLIENT_SECRET", "OAUTH_CLIENT_SECRET"]),
+  oauthRefreshToken: Object.freeze(["GOOGLE_OAUTH_REFRESH_TOKEN", "GOOGLE_REFRESH_TOKEN", "OAUTH_REFRESH_TOKEN"]),
+  authMode: Object.freeze(["GOOGLE_AUTH_MODE", "GOOGLE_API_AUTH_MODE"]),
 });
 
 const GUESTBOOK_CACHE_TTL_MS = Math.max(60, Number.parseInt(process.env.GUESTBOOK_CACHE_TTL_SECONDS || "300", 10) || 300) * 1000;
@@ -1322,25 +1374,69 @@ async function parseMultipartForm(req) {
 }
 
 function getServiceAccountCredentials() {
-  const jsonRaw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  if (jsonRaw) {
-    const parsed = safeJsonParse(jsonRaw, null);
+  const toCredentials = (parsed, sourceLabel) => {
     if (!parsed || typeof parsed !== "object") {
-      throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON is invalid JSON");
+      throw new Error(`${sourceLabel} is invalid JSON`);
     }
     if (!parsed.client_email || !parsed.private_key) {
-      throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON must include client_email and private_key");
+      throw new Error(`${sourceLabel} must include client_email and private_key`);
     }
     return {
       client_email: String(parsed.client_email),
       private_key: String(parsed.private_key).replace(/\\n/g, "\n"),
     };
+  };
+
+  const tryParseJson = (raw, sourceLabel) => {
+    const parsed = safeJsonParse(raw, null);
+    if (parsed && typeof parsed === "object") return toCredentials(parsed, sourceLabel);
+    return null;
+  };
+
+  const jsonRaw = resolveEnvValue(GOOGLE_ENV_ALIASES.serviceAccountJson);
+  if (jsonRaw) {
+    const parsed = tryParseJson(jsonRaw, "GOOGLE_SERVICE_ACCOUNT_JSON");
+    if (parsed) return parsed;
+    try {
+      const decoded = Buffer.from(String(jsonRaw), "base64").toString("utf8");
+      const decodedParsed = tryParseJson(decoded, "GOOGLE_SERVICE_ACCOUNT_JSON (base64)");
+      if (decodedParsed) return decodedParsed;
+    } catch (_error) {
+      // fall through to other credential formats
+    }
   }
 
-  const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
+  const jsonBase64Raw = resolveEnvValue(GOOGLE_ENV_ALIASES.serviceAccountJsonBase64);
+  if (jsonBase64Raw) {
+    try {
+      const decoded = Buffer.from(String(jsonBase64Raw), "base64").toString("utf8");
+      const parsed = tryParseJson(decoded, "GOOGLE_SERVICE_ACCOUNT_JSON_BASE64");
+      if (parsed) return parsed;
+      throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 is invalid JSON");
+    } catch (error) {
+      if (error instanceof Error) throw error;
+      throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 is invalid");
+    }
+  }
+
+  const jsonPathRaw = resolveEnvValue(GOOGLE_ENV_ALIASES.serviceAccountPath);
+  if (jsonPathRaw) {
+    const jsonPath = path.resolve(String(jsonPathRaw));
+    if (!fs.existsSync(jsonPath)) {
+      throw new Error(`Service account path does not exist: ${jsonPath}`);
+    }
+    const fileRaw = fs.readFileSync(jsonPath, "utf8");
+    const parsed = tryParseJson(fileRaw, "GOOGLE_APPLICATION_CREDENTIALS");
+    if (parsed) return parsed;
+    throw new Error("GOOGLE_APPLICATION_CREDENTIALS file is invalid JSON");
+  }
+
+  const clientEmail = resolveEnvValue(GOOGLE_ENV_ALIASES.serviceAccountEmail);
+  const privateKey = resolveEnvValue(GOOGLE_ENV_ALIASES.serviceAccountPrivateKey);
   if (!clientEmail || !privateKey) {
-    throw new Error("Missing Google credentials. Set GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY");
+    throw new Error(
+      "Missing Google credentials. Set GOOGLE_SERVICE_ACCOUNT_JSON (or base64/path variants) or GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY",
+    );
   }
 
   return {
@@ -1350,8 +1446,8 @@ function getServiceAccountCredentials() {
 }
 
 function getRequiredGoogleIds() {
-  const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
-  const uploadsFolderId = process.env.GOOGLE_DRIVE_UPLOADS_FOLDER_ID;
+  const spreadsheetId = resolveEnvValue(GOOGLE_ENV_ALIASES.spreadsheetId);
+  const uploadsFolderId = resolveEnvValue(GOOGLE_ENV_ALIASES.uploadsFolderId);
   if (!spreadsheetId) {
     throw new Error("Missing GOOGLE_SPREADSHEET_ID");
   }
@@ -1362,7 +1458,7 @@ function getRequiredGoogleIds() {
 }
 
 function getRequiredSpreadsheetId() {
-  const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
+  const spreadsheetId = resolveEnvValue(GOOGLE_ENV_ALIASES.spreadsheetId);
   if (!spreadsheetId) {
     throw new Error("Missing GOOGLE_SPREADSHEET_ID");
   }
@@ -1376,17 +1472,23 @@ function isLocalRequest(req) {
 
 function getGuestbookConfigStatus() {
   const checks = {
-    [GUESTBOOK_ENV_KEYS.spreadsheetId]: Boolean(process.env[GUESTBOOK_ENV_KEYS.spreadsheetId]),
-    [GUESTBOOK_ENV_KEYS.serviceAccountJson]: Boolean(process.env[GUESTBOOK_ENV_KEYS.serviceAccountJson]),
-    [GUESTBOOK_ENV_KEYS.serviceAccountEmail]: Boolean(process.env[GUESTBOOK_ENV_KEYS.serviceAccountEmail]),
-    [GUESTBOOK_ENV_KEYS.serviceAccountPrivateKey]: Boolean(process.env[GUESTBOOK_ENV_KEYS.serviceAccountPrivateKey]),
-    [GUESTBOOK_ENV_KEYS.oauthClientId]: Boolean(process.env[GUESTBOOK_ENV_KEYS.oauthClientId]),
-    [GUESTBOOK_ENV_KEYS.oauthClientSecret]: Boolean(process.env[GUESTBOOK_ENV_KEYS.oauthClientSecret]),
-    [GUESTBOOK_ENV_KEYS.oauthRefreshToken]: Boolean(process.env[GUESTBOOK_ENV_KEYS.oauthRefreshToken]),
+    [GUESTBOOK_ENV_KEYS.spreadsheetId]: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.spreadsheetId),
+    [GUESTBOOK_ENV_KEYS.serviceAccountJson]: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.serviceAccountJson),
+    GOOGLE_SERVICE_ACCOUNT_JSON_BASE64: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.serviceAccountJsonBase64),
+    GOOGLE_APPLICATION_CREDENTIALS: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.serviceAccountPath),
+    [GUESTBOOK_ENV_KEYS.serviceAccountEmail]: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.serviceAccountEmail),
+    [GUESTBOOK_ENV_KEYS.serviceAccountPrivateKey]: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.serviceAccountPrivateKey),
+    [GUESTBOOK_ENV_KEYS.oauthClientId]: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.oauthClientId),
+    [GUESTBOOK_ENV_KEYS.oauthClientSecret]: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.oauthClientSecret),
+    [GUESTBOOK_ENV_KEYS.oauthRefreshToken]: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.oauthRefreshToken),
   };
 
   const hasSpreadsheet = checks[GUESTBOOK_ENV_KEYS.spreadsheetId];
-  const hasServiceAccount = checks[GUESTBOOK_ENV_KEYS.serviceAccountJson] || (checks[GUESTBOOK_ENV_KEYS.serviceAccountEmail] && checks[GUESTBOOK_ENV_KEYS.serviceAccountPrivateKey]);
+  const hasServiceAccount =
+    checks[GUESTBOOK_ENV_KEYS.serviceAccountJson] ||
+    checks.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 ||
+    checks.GOOGLE_APPLICATION_CREDENTIALS ||
+    (checks[GUESTBOOK_ENV_KEYS.serviceAccountEmail] && checks[GUESTBOOK_ENV_KEYS.serviceAccountPrivateKey]);
   const hasOauth = checks[GUESTBOOK_ENV_KEYS.oauthClientId] && checks[GUESTBOOK_ENV_KEYS.oauthClientSecret] && checks[GUESTBOOK_ENV_KEYS.oauthRefreshToken];
   const configured = Boolean(hasSpreadsheet && (hasServiceAccount || hasOauth));
 
@@ -1424,6 +1526,8 @@ function buildGuestbookConfigErrorPayload(req, configStatus) {
     payload.instructions =
       `Set ${GUESTBOOK_ENV_KEYS.spreadsheetId} and one auth method: ` +
       `${GUESTBOOK_ENV_KEYS.serviceAccountJson} OR ` +
+      `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 OR ` +
+      `GOOGLE_APPLICATION_CREDENTIALS (file path) OR ` +
       `${GUESTBOOK_ENV_KEYS.serviceAccountEmail}+${GUESTBOOK_ENV_KEYS.serviceAccountPrivateKey} OR ` +
       `${GUESTBOOK_ENV_KEYS.oauthClientId}+${GUESTBOOK_ENV_KEYS.oauthClientSecret}+${GUESTBOOK_ENV_KEYS.oauthRefreshToken}.`;
     payload.missing = Array.isArray(configStatus?.missing) ? configStatus.missing : [];
@@ -1435,15 +1539,17 @@ function buildGuestbookConfigErrorPayload(req, configStatus) {
 
 function createGoogleClients() {
   const google = getGoogleApi();
-  const oauthClientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
-  const oauthClientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
-  const oauthRefreshToken = process.env.GOOGLE_OAUTH_REFRESH_TOKEN;
+  const oauthClientId = resolveEnvValue(GOOGLE_ENV_ALIASES.oauthClientId);
+  const oauthClientSecret = resolveEnvValue(GOOGLE_ENV_ALIASES.oauthClientSecret);
+  const oauthRefreshToken = resolveEnvValue(GOOGLE_ENV_ALIASES.oauthRefreshToken);
   const hasOauth = Boolean(oauthClientId && oauthClientSecret && oauthRefreshToken);
   const hasServiceAccount = Boolean(
-    process.env.GOOGLE_SERVICE_ACCOUNT_JSON ||
-      (process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY),
+    resolveEnvValue(GOOGLE_ENV_ALIASES.serviceAccountJson) ||
+      resolveEnvValue(GOOGLE_ENV_ALIASES.serviceAccountJsonBase64) ||
+      resolveEnvValue(GOOGLE_ENV_ALIASES.serviceAccountPath) ||
+      (resolveEnvValue(GOOGLE_ENV_ALIASES.serviceAccountEmail) && resolveEnvValue(GOOGLE_ENV_ALIASES.serviceAccountPrivateKey)),
   );
-  const authPreference = String(process.env.GOOGLE_AUTH_MODE || "auto")
+  const authPreference = String(resolveEnvValue(GOOGLE_ENV_ALIASES.authMode) || "auto")
     .trim()
     .toLowerCase();
 
