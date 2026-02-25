@@ -36,3 +36,26 @@ Current repo includes `server.js`, so use a Node host like Render / Railway / Fl
    - Maybe
    - No
 3. Confirm rows appear in the correct Google Sheet tabs.
+
+## Guest Wall auth (Render production)
+If `/guest-wall` is failing with `oauth_invalid`, production auth mode is misconfigured.
+
+Set these Render env vars:
+
+- `GOOGLE_AUTH_MODE=service_account`
+- `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64=<base64 full service account JSON>`
+- `GOOGLE_SPREADSHEET_ID=<existing sheet id>`
+
+Recommended: remove legacy OAuth vars from this service:
+
+- `GOOGLE_OAUTH_CLIENT_ID`
+- `GOOGLE_OAUTH_CLIENT_SECRET`
+- `GOOGLE_OAUTH_REFRESH_TOKEN`
+
+After redeploy, verify:
+
+```bash
+curl -sS https://mikiandyijie-rsvp-api.onrender.com/api/guestbook/health | jq
+curl -sS 'https://mikiandyijie-rsvp-api.onrender.com/api/guestbook?mode=pinboard&limit=12' | jq
+npm run check:guestwall
+```
