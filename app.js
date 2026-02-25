@@ -97,6 +97,8 @@ const GUEST_WALL_PERSISTENT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const GUEST_WALL_AUTO_RETRY_INTERVAL_MS = 8000;
 const GUEST_WALL_DEV_SHUFFLE_SIM_ITERATIONS = 1000;
 const INTERLUDE_CURTAIN_DESKTOP_PROGRESS_WINDOW = 0.33;
+const INTERLUDE_CURTAIN_MOBILE_START_FACTOR = 0.75; // Start opening 25% earlier than 0.60.
+const INTERLUDE_CURTAIN_MOBILE_END_FACTOR = -0.42;
 const INTERLUDE_CURTAIN_MOBILE_PROGRESS_SPEED = 2.025; // ~50% faster on mobile only
 const INTERLUDE_CURTAIN_SPEED_MULTIPLIER = 1.3;
 const MOBILE_ACCORDION_ANCHOR_MIN_DELTA_PX = 6;
@@ -13657,9 +13659,9 @@ function initInterludeCurtainReveal() {
         openProgress = 1;
       }
     } else {
-      // Mobile: start 25% earlier than before (0.48 -> 0.60 viewport factor).
-      const start = vh * 0.6;
-      const end = -vh * 0.42;
+      // Mobile: start opening earlier in the viewport without changing desktop behavior.
+      const start = vh * INTERLUDE_CURTAIN_MOBILE_START_FACTOR;
+      const end = vh * INTERLUDE_CURTAIN_MOBILE_END_FACTOR;
       const t = (start - rect.top) / Math.max(1, start - end);
       openProgress = clamp01(t * INTERLUDE_CURTAIN_MOBILE_PROGRESS_SPEED * INTERLUDE_CURTAIN_SPEED_MULTIPLIER);
     }
