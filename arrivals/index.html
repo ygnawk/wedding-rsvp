@@ -28,10 +28,13 @@
         background: var(--maroon) !important;
       }
       .arrivals-shell {
-        min-height: 100%;
+        min-height: 100svh;
         background: var(--maroon);
+        display: flex;
+        flex-direction: column;
       }
       .arrivals-shell__main {
+        flex: 1 0 auto;
         width: 100%;
         max-width: min(1400px, 96vw);
         margin: 0 auto;
