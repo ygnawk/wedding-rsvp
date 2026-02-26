@@ -83,10 +83,10 @@ const GUEST_WALL_ARRANGE_DEOVERLAP_GAP = 8;
 const GUEST_WALL_SLOW_MESSAGE_DELAY_MS = 4000;
 const GUEST_WALL_SLOW_MESSAGE_SECOND_DELAY_MS = 10000;
 const GUEST_WALL_LOADING_STUCK_DELAY_MS = 20000;
-const GUEST_WALL_HARD_TIMEOUT_MS = 20000;
-const GUEST_WALL_INITIAL_REQUEST_TIMEOUT_MS = 45000;
-const GUEST_WALL_RETRY_DELAY_MS = 3000;
-const GUEST_WALL_MAX_FETCH_ATTEMPTS = 4;
+const GUEST_WALL_HARD_TIMEOUT_MS = 10000;
+const GUEST_WALL_INITIAL_REQUEST_TIMEOUT_MS = 20000;
+const GUEST_WALL_RETRY_DELAY_MS = 1500;
+const GUEST_WALL_MAX_FETCH_ATTEMPTS = 2;
 const GUEST_WALL_IMAGE_CONCURRENCY = 4;
 const GUEST_WALL_IMAGE_OBSERVER_MARGIN = "240px";
 const GUEST_WALL_IMAGE_STALL_TIMEOUT_MS = 10000;
@@ -7182,7 +7182,6 @@ function clearGuestWallAutoRetryTimer() {
 function scheduleGuestWallAutoRetry() {
   if (guestWallAutoRetryCount >= GUEST_WALL_MAX_AUTO_RETRIES) return false;
   if (guestWallAutoRetryTimer) return;
-  if (guestWallRequestInFlight) return;
   guestWallAutoRetryTimer = window.setTimeout(() => {
     guestWallAutoRetryTimer = null;
     if (guestWallLoadState !== "loading") return;
@@ -10637,6 +10636,7 @@ async function applyGuestWallPayload(payload, { fromCache = false } = {}) {
   guestWallNextCursor = String(payload?.nextCursor || "").trim() || null;
   guestWallPrefetchInFlight = null;
   guestWallHasSuccessfulLoad = true;
+  guestWallAutoRetryCount = 0;
   setGuestWallLoadingRetryVisible(false);
 
   if (IS_LOCAL_DEV) {
@@ -10761,8 +10761,9 @@ function warmGuestWallRouteInBackground() {
   }, 1400);
 }
 
-async function loadGuestWallPinboard({ refresh = false, force = false } = {}) {
+async function loadGuestWallPinboard({ refresh = false, force = false, autoRetry = false } = {}) {
   if (guestWallRequestInFlight && !force) return guestWallRequestInFlight;
+  if (!autoRetry) guestWallAutoRetryCount = 0;
   const requestToken = ++guestWallRequestToken;
   const seededPayload = (() => {
     if (refresh) return null;
@@ -10911,6 +10912,20 @@ async function loadGuestWallPinboard({ refresh = false, force = false } = {}) {
         setGuestWallControlsDisabled(false);
         clearGuestWallAutoRetryTimer();
         console.info("[guestwall][state] transition=success reason=using_cached_cards");
+        return;
+      }
+
+      const retryable = isGuestWallRetryableError(error);
+      const autoRetryScheduled = retryable ? scheduleGuestWallAutoRetry() : false;
+      if (autoRetryScheduled) {
+        setGuestWallLoadState("loading");
+        setGuestWallStatus(`${classified.statusMessage || GUEST_WALL_LOADING_MESSAGE} Retrying shortly…`);
+        setGuestWallControlsDisabled(true);
+        setGuestWallLoadingRetryVisible(true);
+        renderGuestWallLoadingSkeleton();
+        console.info(
+          `[guestwall][state] transition=loading reason=auto_retry_pending count=${guestWallAutoRetryCount}/${GUEST_WALL_MAX_AUTO_RETRIES}`,
+        );
         return;
       }
 
