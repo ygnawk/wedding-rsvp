@@ -66,9 +66,9 @@ const GUEST_WALL_SLOT_JITTER_DESKTOP = 10;
 const GUEST_WALL_SLOT_JITTER_MOBILE = 6;
 const GUEST_WALL_MAX_OVERLAP_RATIO_DESKTOP = 0.12;
 const GUEST_WALL_MAX_OVERLAP_RATIO_MOBILE = 0.1;
-const GUEST_WALL_SCATTER_MAX_OVERLAP_RATIO = 0.012;
-const GUEST_WALL_SCATTER_MAX_OVERLAP_RATIO_MOBILE = 0.01;
-const GUEST_WALL_SCATTER_MIN_GAP_PX = 20;
+const GUEST_WALL_SCATTER_MAX_OVERLAP_RATIO = 0.008;
+const GUEST_WALL_SCATTER_MAX_OVERLAP_RATIO_MOBILE = 0.007;
+const GUEST_WALL_SCATTER_MIN_GAP_PX = 24;
 const GUEST_WALL_SCATTER_ATTEMPTS_PER_CARD = 48;
 const GUEST_WALL_SCATTER_JITTER_FACTOR = 0.55;
 const GUEST_WALL_NOTE_SIZE_MULTIPLIER_DESKTOP = 1.78;
@@ -83,10 +83,10 @@ const GUEST_WALL_ARRANGE_DEOVERLAP_GAP = 8;
 const GUEST_WALL_SLOW_MESSAGE_DELAY_MS = 4000;
 const GUEST_WALL_SLOW_MESSAGE_SECOND_DELAY_MS = 10000;
 const GUEST_WALL_LOADING_STUCK_DELAY_MS = 20000;
-const GUEST_WALL_HARD_TIMEOUT_MS = 10000;
-const GUEST_WALL_INITIAL_REQUEST_TIMEOUT_MS = 20000;
-const GUEST_WALL_RETRY_DELAY_MS = 2500;
-const GUEST_WALL_MAX_FETCH_ATTEMPTS = 2;
+const GUEST_WALL_HARD_TIMEOUT_MS = 20000;
+const GUEST_WALL_INITIAL_REQUEST_TIMEOUT_MS = 45000;
+const GUEST_WALL_RETRY_DELAY_MS = 3000;
+const GUEST_WALL_MAX_FETCH_ATTEMPTS = 4;
 const GUEST_WALL_IMAGE_CONCURRENCY = 4;
 const GUEST_WALL_IMAGE_OBSERVER_MARGIN = "240px";
 const GUEST_WALL_IMAGE_STALL_TIMEOUT_MS = 10000;
@@ -94,7 +94,8 @@ const GUEST_WALL_SESSION_CACHE_KEY = "guestwall-pinboard-cache-v1";
 const GUEST_WALL_SESSION_CACHE_TTL_MS = 5 * 60 * 1000;
 const GUEST_WALL_PERSISTENT_CACHE_KEY = "guestwall-pinboard-cache-persist-v1";
 const GUEST_WALL_PERSISTENT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-const GUEST_WALL_AUTO_RETRY_INTERVAL_MS = 8000;
+const GUEST_WALL_AUTO_RETRY_INTERVAL_MS = 10000;
+const GUEST_WALL_MAX_AUTO_RETRIES = 3;
 const GUEST_WALL_DEV_SHUFFLE_SIM_ITERATIONS = 1000;
 const INTERLUDE_CURTAIN_DESKTOP_PROGRESS_WINDOW = 0.33;
 const INTERLUDE_CURTAIN_MOBILE_START_FACTOR = 0.75; // Start opening 25% earlier than 0.60.
@@ -488,6 +489,7 @@ let guestWallSlowMessageStartTimer = null;
 let guestWallSlowMessageSecondTimer = null;
 let guestWallSlowMessageTimeoutTimer = null;
 let guestWallAutoRetryTimer = null;
+let guestWallAutoRetryCount = 0;
 let guestWallLoadingRetryVisible = false;
 let guestWallArrangeMode = false;
 let guestWallDragState = null;
@@ -6756,6 +6758,54 @@ function drawGuestWallDeckIds({
   return picked;
 }
 
+function enforceGuestWallSelectionCaps(selectedIds, slotCount, sources = getGuestWallDeckSources()) {
+  const safeSlotCount = Math.max(0, Math.floor(Number(slotCount) || 0));
+  if (!safeSlotCount) return [];
+  const maxNotesAllowed = Math.min(GUEST_WALL_MAX_VISIBLE_NOTES, safeSlotCount);
+  const sourceMediaIds = Array.isArray(sources.mediaIds) ? sources.mediaIds : [];
+  const sourceAllIds = Array.isArray(sources.allIds) ? sources.allIds : [];
+  const selected = Array.isArray(selectedIds) ? selectedIds : [];
+  const used = new Set();
+  const sanitized = [];
+  let noteCount = 0;
+
+  selected.forEach((id) => {
+    const key = String(id || "").trim();
+    if (!key || used.has(key)) return;
+    const card = guestWallCardById.get(key);
+    if (!card) return;
+    if (card.kind === "note" && noteCount >= maxNotesAllowed) return;
+    if (card.kind === "note") noteCount += 1;
+    used.add(key);
+    sanitized.push(key);
+  });
+
+  const addFromPool = (pool, allowNotes) => {
+    const ids = Array.isArray(pool) ? pool : [];
+    for (let index = 0; index < ids.length && sanitized.length < safeSlotCount; index += 1) {
+      const key = String(ids[index] || "").trim();
+      if (!key || used.has(key)) continue;
+      const card = guestWallCardById.get(key);
+      if (!card) continue;
+      if (card.kind === "note") {
+        if (!allowNotes || noteCount >= maxNotesAllowed) continue;
+        noteCount += 1;
+      }
+      used.add(key);
+      sanitized.push(key);
+    }
+  };
+
+  if (sanitized.length < safeSlotCount) {
+    addFromPool(shuffleItems(sourceMediaIds), false);
+  }
+  if (sanitized.length < safeSlotCount) {
+    addFromPool(shuffleItems(sourceAllIds), true);
+  }
+
+  return sanitized.slice(0, safeSlotCount);
+}
+
 function pickGuestWallDeckSelection({
   slotCount = 0,
   state = guestWallDeckState,
@@ -6821,7 +6871,8 @@ function pickGuestWallDeckSelection({
     selected.push(...extraNotes);
   }
 
-  return shuffleItems(selected).slice(0, safeSlotCount);
+  const shuffled = shuffleItems(selected).slice(0, safeSlotCount);
+  return enforceGuestWallSelectionCaps(shuffled, safeSlotCount, sources);
 }
 
 function runGuestWallShuffleCoverageSimulation({
@@ -7129,13 +7180,19 @@ function clearGuestWallAutoRetryTimer() {
 }
 
 function scheduleGuestWallAutoRetry() {
+  if (guestWallAutoRetryCount >= GUEST_WALL_MAX_AUTO_RETRIES) return false;
   if (guestWallAutoRetryTimer) return;
   if (guestWallRequestInFlight) return;
   guestWallAutoRetryTimer = window.setTimeout(() => {
     guestWallAutoRetryTimer = null;
     if (guestWallLoadState !== "loading") return;
-    void loadGuestWallPinboard({ refresh: true, force: true });
+    guestWallAutoRetryCount += 1;
+    console.info(
+      `[guestwall][auto-retry] firing count=${guestWallAutoRetryCount}/${GUEST_WALL_MAX_AUTO_RETRIES}`,
+    );
+    void loadGuestWallPinboard({ refresh: true, force: true, autoRetry: true });
   }, GUEST_WALL_AUTO_RETRY_INTERVAL_MS);
+  return true;
 }
 
 function startGuestWallSlowMessageRotation() {
@@ -8242,6 +8299,7 @@ function ensureGuestWallVisibleIds(slotCount, { reshuffle = false, mobile = fals
       state: guestWallDeckState,
       sources,
     });
+    guestWallVisibleCardIds = enforceGuestWallSelectionCaps(guestWallVisibleCardIds, slotCount, sources);
     return;
   }
 
@@ -8260,7 +8318,7 @@ function ensureGuestWallVisibleIds(slotCount, { reshuffle = false, mobile = fals
     next.push(...backfill);
   }
 
-  guestWallVisibleCardIds = next;
+  guestWallVisibleCardIds = enforceGuestWallSelectionCaps(next, slotCount, sources);
 }
 
 function getGuestWallVisibleCardId(slotIndex) {
@@ -9320,7 +9378,7 @@ function assignGuestWallCardsToSlots(slotConfigs, requestedIds) {
     if (guestWallCardById.get(requestedId)?.kind === "note") noteAssignedCount += 1;
   });
 
-  return slots.map((slotConfig, slotIndex) => {
+  const assignedIds = slots.map((slotConfig, slotIndex) => {
     if (assignedByIndex[slotIndex]) return assignedByIndex[slotIndex];
 
     const slotKind = getGuestWallSlotKind(slotConfig);
@@ -9358,6 +9416,29 @@ function assignGuestWallCardsToSlots(slotConfigs, requestedIds) {
       ""
     );
   });
+
+  const sourcePools = getGuestWallDeckSources();
+  const capped = enforceGuestWallSelectionCaps(assignedIds, slots.length, sourcePools);
+  if (capped.length >= slots.length) return capped.slice(0, slots.length);
+
+  const usedFill = new Set(capped);
+  const mediaPool = shuffleItems(sourcePools.mediaIds || []);
+  const allPool = shuffleItems(sourcePools.allIds || []);
+  const filled = capped.slice();
+
+  const addFromPool = (pool) => {
+    const ids = Array.isArray(pool) ? pool : [];
+    for (let index = 0; index < ids.length && filled.length < slots.length; index += 1) {
+      const key = String(ids[index] || "").trim();
+      if (!key || usedFill.has(key) || !guestWallCardById.has(key)) continue;
+      usedFill.add(key);
+      filled.push(key);
+    }
+  };
+  addFromPool(mediaPool);
+  addFromPool(allPool);
+
+  return filled.slice(0, slots.length);
 }
 
 function getGuestWallSlotMapForCycle(mobile = false) {
@@ -9443,6 +9524,7 @@ function buildGuestWallScatterSlots(containerRect, slotCount, mobile = false, se
 
   const placementOrder = selectedCells.slice(0, targetCount);
   const placedRects = [];
+  const placedNoteCells = [];
   const resolved = [];
   const usedCellIds = new Set();
   const maxOverlapRatio = mobile ? GUEST_WALL_SCATTER_MAX_OVERLAP_RATIO_MOBILE : GUEST_WALL_SCATTER_MAX_OVERLAP_RATIO;
@@ -9459,10 +9541,28 @@ function buildGuestWallScatterSlots(containerRect, slotCount, mobile = false, se
     if (!primaryCell) continue;
     const isNoteSlot = noteSlotIndexes.has(index);
     const mediaSlotSize = "S";
-    const candidateCells = [primaryCell];
+    let candidateCells = [primaryCell];
     const alternateCells = shuffleItems(shuffledCells.filter((cell) => cell.id !== primaryCell.id));
     for (let i = 0; i < alternateCells.length && candidateCells.length < maxCandidateCells; i += 1) {
       candidateCells.push(alternateCells[i]);
+    }
+    if (isNoteSlot && placedNoteCells.length) {
+      const nonAdjacentCells = candidateCells.filter(
+        (cell) => !placedNoteCells.some((noteCell) => Math.abs(noteCell.c - cell.c) <= 1 && Math.abs(noteCell.r - cell.r) <= 1),
+      );
+      if (nonAdjacentCells.length) candidateCells = nonAdjacentCells;
+      const anchorCell = placedNoteCells[0];
+      const wellSeparatedCells = candidateCells.filter(
+        (cell) => Math.abs(anchorCell.c - cell.c) >= 2 || Math.abs(anchorCell.r - cell.r) >= 2,
+      );
+      if (wellSeparatedCells.length) candidateCells = wellSeparatedCells;
+      candidateCells = candidateCells
+        .slice()
+        .sort((a, b) => {
+          const da = Math.hypot(a.centerX - anchorCell.centerX, a.centerY - anchorCell.centerY);
+          const db = Math.hypot(b.centerX - anchorCell.centerX, b.centerY - anchorCell.centerY);
+          return db - da;
+        });
     }
 
     let bestPlacement = null;
@@ -9514,14 +9614,19 @@ function buildGuestWallScatterSlots(containerRect, slotCount, mobile = false, se
           const overlapArea = getRectArea(overlapRect);
           if (overlapArea <= 0) continue;
 
+          const noteInvolved = slotBase.kind === "note" || existing.kind === "note";
+          const bothNotes = slotBase.kind === "note" && existing.kind === "note";
+          if (bothNotes) {
+            penalty = Number.POSITIVE_INFINITY;
+            break;
+          }
           const overlapRatioCandidate = candidateArea > 0 ? overlapArea / candidateArea : 1;
           const overlapRatioExisting = existing.area > 0 ? overlapArea / existing.area : 1;
-          const noteInvolved = slotBase.kind === "note" || existing.kind === "note";
-          const strictOverlapLimit = noteInvolved ? maxOverlapRatio * 0.65 : maxOverlapRatio;
+          const strictOverlapLimit = noteInvolved ? maxOverlapRatio * 0.42 : maxOverlapRatio * 0.78;
           if (overlapRatioCandidate > strictOverlapLimit || overlapRatioExisting > strictOverlapLimit) {
-            penalty += noteInvolved ? 90_000 + overlapArea * 20 : 35_000 + overlapArea * 10;
+            penalty += noteInvolved ? 180_000 + overlapArea * 28 : 70_000 + overlapArea * 16;
           } else {
-            penalty += noteInvolved ? 10_000 + overlapArea * 6 : 3_000 + overlapArea * 2.5;
+            penalty += noteInvolved ? 20_000 + overlapArea * 10 : 8_000 + overlapArea * 5;
           }
 
           const protectedOverlapA = getRectIntersection(candidateProtectedRect, existing.rect);
@@ -9544,24 +9649,37 @@ function buildGuestWallScatterSlots(containerRect, slotCount, mobile = false, se
     }
 
     if (!bestPlacement) {
+      const fallbackCell = isNoteSlot && placedNoteCells.length
+        ? shuffledCells
+          .slice()
+          .sort((a, b) => {
+            const anchorCell = placedNoteCells[0];
+            const da = Math.hypot(a.centerX - anchorCell.centerX, a.centerY - anchorCell.centerY);
+            const db = Math.hypot(b.centerX - anchorCell.centerX, b.centerY - anchorCell.centerY);
+            return db - da;
+          })[0] || primaryCell
+        : primaryCell;
       const fallbackSlotBase = {
-        id: `scatter-${seedKey}-${primaryCell.id}-${index}`,
+        id: `scatter-${seedKey}-${fallbackCell.id}-${index}`,
         size: isNoteSlot ? (mobile ? "L" : "XL") : mediaSlotSize,
         role: isNoteSlot ? "note" : "support",
         format: "any",
         kind: isNoteSlot ? "note" : "media",
         baseZ: isNoteSlot ? 5 : 4,
-        tiltBase: Math.round((seededRandomFromHash(hashStringToUint32(`${seedKey}:tilt:${primaryCell.id}:${index}`)) * 8 - 4) * 100) / 100,
-        xPct: (primaryCell.centerX / Math.max(1, containerRect.width)) * 100,
-        yPct: (primaryCell.centerY / Math.max(1, containerRect.height)) * 100,
+        tiltBase: Math.round((seededRandomFromHash(hashStringToUint32(`${seedKey}:tilt:${fallbackCell.id}:${index}`)) * 8 - 4) * 100) / 100,
+        xPct: (fallbackCell.centerX / Math.max(1, containerRect.width)) * 100,
+        yPct: (fallbackCell.centerY / Math.max(1, containerRect.height)) * 100,
         xOffsetPx: 0,
         yOffsetPx: 0,
       };
       const fallbackRect = getGuestWallSlotRect(fallbackSlotBase, containerRect, mobile);
-      bestPlacement = { rect: fallbackRect, slotBase: fallbackSlotBase, cell: primaryCell, baseRect: fallbackRect };
+      bestPlacement = { rect: fallbackRect, slotBase: fallbackSlotBase, cell: fallbackCell, baseRect: fallbackRect };
     }
 
     usedCellIds.add(bestPlacement.cell.id);
+    if (bestPlacement.slotBase.kind === "note") {
+      placedNoteCells.push(bestPlacement.cell);
+    }
     placedRects.push({
       rect: bestPlacement.rect,
       area: getRectArea(bestPlacement.rect),
@@ -10041,7 +10159,7 @@ function renderGuestWallDesktop({ reshuffle = false } = {}) {
   const noteCount = guestWallCards.filter((card) => card?.kind === "note").length;
   const mediaCount = guestWallCards.filter((card) => card?.kind === "media").length;
   const hasNotes = noteCount > 0;
-  const densityCap = hasNotes ? Math.max(3, slotCap - 2) : slotCap;
+  const densityCap = hasNotes ? Math.max(3, slotCap - 3) : slotCap;
   const noteCapBound = mediaCount > 0 ? mediaCount + Math.min(noteCount, GUEST_WALL_MAX_VISIBLE_NOTES) : Math.min(noteCount, GUEST_WALL_MAX_VISIBLE_NOTES);
   const slotCount = Math.min(Math.max(0, densityCap), guestWallCards.length, GUEST_WALL_DESKTOP_VISIBLE_SLOTS, Math.max(0, noteCapBound));
   const noteSlotTarget = getGuestWallTargetNoteCount(slotCount);
@@ -10122,11 +10240,12 @@ function buildGuestWallMobileDeck(deckSize, reshuffle = false) {
   // Keep mobile shuffle behavior aligned with desktop randomness.
   syncGuestWallDeckState({ preserveUnseen: !reshuffle }, guestWallDeckState, sources);
   if (reshuffle || !guestWallVisibleCardIds.length) {
-    return pickGuestWallDeckSelection({
+    const picked = pickGuestWallDeckSelection({
       slotCount: limit,
       state: guestWallDeckState,
       sources,
     });
+    return enforceGuestWallSelectionCaps(picked, limit, sources);
   }
   const sourceSet = new Set(sources.allIds);
   const retained = guestWallVisibleCardIds.filter((id) => sourceSet.has(id)).slice(0, limit);
@@ -10140,7 +10259,7 @@ function buildGuestWallMobileDeck(deckSize, reshuffle = false) {
     sources,
   });
   const next = [...retained, ...backfill];
-  return next.slice(0, limit);
+  return enforceGuestWallSelectionCaps(next.slice(0, limit), limit, sources);
 }
 
 function startGuestWallAutoplayInterval() {
