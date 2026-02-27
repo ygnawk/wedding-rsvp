@@ -5599,6 +5599,11 @@ function submitToRsvpApi(payload, options = {}) {
         resolve({
           ok: false,
           error: data.error || "RSVP request failed.",
+          errorCode: data.errorCode ? String(data.errorCode) : "",
+          code: data.code ? String(data.code) : "",
+          detail: data.detail ? String(data.detail) : "",
+          resolvedAuthMode: data.resolvedAuthMode ? String(data.resolvedAuthMode) : "",
+          status,
         });
         return;
       }
@@ -5713,7 +5718,16 @@ async function submitRsvpMediaUpload(submissionId, payload, options = {}) {
       expectedMediaCount: uploadFiles.length,
       includeFiles: true,
     });
-    if (!data || data.ok !== true) throw new Error(data && data.error ? String(data.error) : "Sheets submit failed");
+    if (!data || data.ok !== true) {
+      return {
+        ok: false,
+        error: data && data.error ? String(data.error) : "Media upload failed.",
+        errorCode: data && data.errorCode ? String(data.errorCode) : "",
+        code: data && data.code ? String(data.code) : "",
+        detail: data && data.detail ? String(data.detail) : "",
+        resolvedAuthMode: data && data.resolvedAuthMode ? String(data.resolvedAuthMode) : "",
+      };
+    }
     logRsvpDebug("media_upload_end", {
       submissionId,
       uploadedCount: Number(data.uploaded_count || uploadFiles.length || 0),
@@ -5724,7 +5738,18 @@ async function submitRsvpMediaUpload(submissionId, payload, options = {}) {
       submissionId,
       error: error instanceof Error ? error.message : "Submission failed",
     });
-    return { ok: false, error: error instanceof Error ? error.message : "Submission failed" };
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Submission failed",
+      errorCode:
+        error && typeof error === "object" && "errorCode" in error && error.errorCode ? String(error.errorCode) : "",
+      code: error && typeof error === "object" && "code" in error && error.code ? String(error.code) : "",
+      detail: error && typeof error === "object" && "detail" in error && error.detail ? String(error.detail) : "",
+      resolvedAuthMode:
+        error && typeof error === "object" && "resolvedAuthMode" in error && error.resolvedAuthMode
+          ? String(error.resolvedAuthMode)
+          : "",
+    };
   }
 }
 
@@ -6133,7 +6158,12 @@ async function runBackgroundRsvpMediaUpload(job, { isRetry = false } = {}) {
     });
 
     if (!uploadResult || uploadResult.ok !== true) {
-      throw new Error(uploadResult && uploadResult.error ? String(uploadResult.error) : "Media upload failed.");
+      const uploadError = new Error(uploadResult && uploadResult.error ? String(uploadResult.error) : "Media upload failed.");
+      if (uploadResult && uploadResult.errorCode) uploadError.errorCode = String(uploadResult.errorCode);
+      if (uploadResult && uploadResult.code) uploadError.code = String(uploadResult.code);
+      if (uploadResult && uploadResult.detail) uploadError.detail = String(uploadResult.detail);
+      if (uploadResult && uploadResult.resolvedAuthMode) uploadError.resolvedAuthMode = String(uploadResult.resolvedAuthMode);
+      throw uploadError;
     }
 
     job.active = false;
@@ -6163,6 +6193,7 @@ async function runBackgroundRsvpMediaUpload(job, { isRetry = false } = {}) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Media upload failed.";
+    const uploadErrorCode = String(error?.errorCode || error?.code || "").toUpperCase();
     const isAbort = error instanceof Error && (error.name === "AbortError" || /cancel/i.test(message));
 
     job.active = false;
@@ -6189,7 +6220,14 @@ async function runBackgroundRsvpMediaUpload(job, { isRetry = false } = {}) {
       note: message,
     });
     syncRsvpPendingNotice();
-    showRsvpInlineUploadStatus("Media upload failed.", `${message} You can retry without re-submitting RSVP.`, {
+    let failureDetail = `${message} You can retry without re-submitting RSVP.`;
+    if (uploadErrorCode === "UPLOAD_QUOTA_UNAVAILABLE") {
+      failureDetail = "Upload failed due to storage configuration. RSVP is saved. You can retry without re-submitting RSVP.";
+    } else if (uploadErrorCode === "UPLOAD_AUTH_UNAVAILABLE") {
+      failureDetail = "Upload auth is unavailable. RSVP is saved. You can retry without re-submitting RSVP.";
+    }
+
+    showRsvpInlineUploadStatus("Media upload failed.", failureDetail, {
       showRetry: true,
       showCancel: false,
       stage: "upload-failed",

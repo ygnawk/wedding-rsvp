@@ -170,6 +170,7 @@ const ARRIVALS_BEIJING = Object.freeze({
 
 const GUESTBOOK_ENV_KEYS = Object.freeze({
   spreadsheetId: "GOOGLE_SPREADSHEET_ID",
+  uploadsFolderId: "GOOGLE_DRIVE_UPLOADS_FOLDER_ID",
   serviceAccountJson: "GOOGLE_SERVICE_ACCOUNT_JSON",
   serviceAccountEmail: "GOOGLE_SERVICE_ACCOUNT_EMAIL",
   serviceAccountPrivateKey: "GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY",
@@ -222,6 +223,20 @@ const GOOGLE_ENV_ALIASES = Object.freeze({
   oauthClientSecret: Object.freeze(["GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_CLIENT_SECRET", "OAUTH_CLIENT_SECRET"]),
   oauthRefreshToken: Object.freeze(["GOOGLE_OAUTH_REFRESH_TOKEN", "GOOGLE_REFRESH_TOKEN", "OAUTH_REFRESH_TOKEN"]),
   authMode: Object.freeze(["GOOGLE_AUTH_MODE", "GOOGLE_API_AUTH_MODE"]),
+  guestbookAuthMode: Object.freeze(["GOOGLE_GUESTBOOK_AUTH_MODE"]),
+  uploadAuthMode: Object.freeze(["GOOGLE_UPLOAD_AUTH_MODE"]),
+});
+
+const GOOGLE_AUTH_PURPOSE = Object.freeze({
+  DEFAULT: "default",
+  GUESTBOOK: "guestbook",
+  UPLOADS: "uploads",
+});
+
+const RSVP_UPLOAD_ERROR_CODES = Object.freeze({
+  AUTH_UNAVAILABLE: "UPLOAD_AUTH_UNAVAILABLE",
+  QUOTA_UNAVAILABLE: "UPLOAD_QUOTA_UNAVAILABLE",
+  FAILED: "UPLOAD_FAILED",
 });
 
 const GUESTBOOK_CACHE_TTL_MS = Math.max(60, Number.parseInt(process.env.GUESTBOOK_CACHE_TTL_SECONDS || "300", 10) || 300) * 1000;
@@ -1518,6 +1533,102 @@ function normalizeGoogleAuthMode(rawMode) {
   return "auto";
 }
 
+function normalizeAuthPurpose(rawPurpose) {
+  const value = String(rawPurpose || GOOGLE_AUTH_PURPOSE.DEFAULT)
+    .trim()
+    .toLowerCase();
+  if (value === GOOGLE_AUTH_PURPOSE.GUESTBOOK) return GOOGLE_AUTH_PURPOSE.GUESTBOOK;
+  if (value === GOOGLE_AUTH_PURPOSE.UPLOADS || value === "upload" || value === "rsvp") return GOOGLE_AUTH_PURPOSE.UPLOADS;
+  return GOOGLE_AUTH_PURPOSE.DEFAULT;
+}
+
+function getGoogleAuthAvailability() {
+  const checks = {
+    [GUESTBOOK_ENV_KEYS.serviceAccountJson]: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.serviceAccountJson),
+    GOOGLE_SERVICE_ACCOUNT_JSON_BASE64: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.serviceAccountJsonBase64),
+    GOOGLE_APPLICATION_CREDENTIALS: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.serviceAccountPath),
+    [GUESTBOOK_ENV_KEYS.serviceAccountEmail]: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.serviceAccountEmail),
+    [GUESTBOOK_ENV_KEYS.serviceAccountPrivateKey]: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.serviceAccountPrivateKey),
+    [GUESTBOOK_ENV_KEYS.serviceAccountPrivateKeyBase64]: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.serviceAccountPrivateKeyBase64),
+    [GUESTBOOK_ENV_KEYS.oauthClientId]: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.oauthClientId),
+    [GUESTBOOK_ENV_KEYS.oauthClientSecret]: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.oauthClientSecret),
+    [GUESTBOOK_ENV_KEYS.oauthRefreshToken]: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.oauthRefreshToken),
+  };
+
+  const hasServiceAccount =
+    checks[GUESTBOOK_ENV_KEYS.serviceAccountJson] ||
+    checks.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 ||
+    checks.GOOGLE_APPLICATION_CREDENTIALS ||
+    (checks[GUESTBOOK_ENV_KEYS.serviceAccountEmail] &&
+      (checks[GUESTBOOK_ENV_KEYS.serviceAccountPrivateKey] || checks[GUESTBOOK_ENV_KEYS.serviceAccountPrivateKeyBase64]));
+  const hasOauth = checks[GUESTBOOK_ENV_KEYS.oauthClientId] && checks[GUESTBOOK_ENV_KEYS.oauthClientSecret] && checks[GUESTBOOK_ENV_KEYS.oauthRefreshToken];
+  return { checks, hasServiceAccount, hasOauth };
+}
+
+function resolveAuthModeForPurpose(rawPurpose = GOOGLE_AUTH_PURPOSE.DEFAULT) {
+  const purpose = normalizeAuthPurpose(rawPurpose);
+  const purposeOverride =
+    purpose === GOOGLE_AUTH_PURPOSE.GUESTBOOK
+      ? resolveEnvValue(GOOGLE_ENV_ALIASES.guestbookAuthMode)
+      : purpose === GOOGLE_AUTH_PURPOSE.UPLOADS
+        ? resolveEnvValue(GOOGLE_ENV_ALIASES.uploadAuthMode)
+        : "";
+  const globalMode = resolveEnvValue(GOOGLE_ENV_ALIASES.authMode);
+  const requestedAuthMode = normalizeGoogleAuthMode(purposeOverride || globalMode || "auto");
+  const availability = getGoogleAuthAvailability();
+  const resolvedAuthMode =
+    requestedAuthMode === "auto"
+      ? availability.hasServiceAccount
+        ? "service_account"
+        : availability.hasOauth
+          ? "oauth"
+          : "missing"
+      : requestedAuthMode;
+
+  const hasUsableAuth =
+    resolvedAuthMode === "service_account"
+      ? availability.hasServiceAccount
+      : resolvedAuthMode === "oauth"
+        ? availability.hasOauth
+        : false;
+
+  return {
+    purpose,
+    requestedAuthMode,
+    resolvedAuthMode,
+    hasUsableAuth,
+    ...availability,
+  };
+}
+
+function buildMissingAuthErrorForPurpose(authResolution) {
+  const purpose = normalizeAuthPurpose(authResolution?.purpose);
+  const requestedMode = normalizeGoogleAuthMode(authResolution?.requestedAuthMode);
+  const prefix = purpose === GOOGLE_AUTH_PURPOSE.UPLOADS ? "Upload auth unavailable." : "Google auth unavailable.";
+  let message = `${prefix} Missing credentials.`;
+  let detail =
+    "Set GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_SERVICE_ACCOUNT_JSON_BASE64, or GOOGLE_OAUTH_CLIENT_ID + GOOGLE_OAUTH_CLIENT_SECRET + GOOGLE_OAUTH_REFRESH_TOKEN.";
+
+  if (requestedMode === "service_account") {
+    message = `${prefix} Missing service account credentials for auth mode service_account.`;
+    detail =
+      "Set GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_SERVICE_ACCOUNT_JSON_BASE64, or GOOGLE_APPLICATION_CREDENTIALS, or GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY.";
+  } else if (requestedMode === "oauth") {
+    message = `${prefix} Missing OAuth credentials for auth mode oauth.`;
+    detail = "Set GOOGLE_OAUTH_CLIENT_ID + GOOGLE_OAUTH_CLIENT_SECRET + GOOGLE_OAUTH_REFRESH_TOKEN.";
+  }
+
+  const error = new Error(message);
+  error.status = 503;
+  error.code = purpose === GOOGLE_AUTH_PURPOSE.UPLOADS ? "upload_auth_unavailable" : "missing_credentials";
+  error.detail = detail;
+  error.errorCode = purpose === GOOGLE_AUTH_PURPOSE.UPLOADS ? RSVP_UPLOAD_ERROR_CODES.AUTH_UNAVAILABLE : "UPSTREAM_UNAVAILABLE";
+  error.authPurpose = purpose;
+  error.requestedAuthMode = requestedMode;
+  error.resolvedAuthMode = authResolution?.resolvedAuthMode || "missing";
+  return error;
+}
+
 function getGuestbookFetchSummary() {
   const toIso = (value) => {
     const parsed = Number(value);
@@ -1544,35 +1655,18 @@ function getGuestbookFetchSummary() {
 }
 
 function getGuestbookConfigStatus() {
-  const requestedAuthMode = normalizeGoogleAuthMode(resolveEnvValue(GOOGLE_ENV_ALIASES.authMode));
+  const authResolution = resolveAuthModeForPurpose(GOOGLE_AUTH_PURPOSE.GUESTBOOK);
   const checks = {
     [GUESTBOOK_ENV_KEYS.spreadsheetId]: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.spreadsheetId),
-    [GUESTBOOK_ENV_KEYS.serviceAccountJson]: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.serviceAccountJson),
-    GOOGLE_SERVICE_ACCOUNT_JSON_BASE64: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.serviceAccountJsonBase64),
-    GOOGLE_APPLICATION_CREDENTIALS: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.serviceAccountPath),
-    [GUESTBOOK_ENV_KEYS.serviceAccountEmail]: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.serviceAccountEmail),
-    [GUESTBOOK_ENV_KEYS.serviceAccountPrivateKey]: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.serviceAccountPrivateKey),
-    [GUESTBOOK_ENV_KEYS.serviceAccountPrivateKeyBase64]: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.serviceAccountPrivateKeyBase64),
-    [GUESTBOOK_ENV_KEYS.oauthClientId]: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.oauthClientId),
-    [GUESTBOOK_ENV_KEYS.oauthClientSecret]: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.oauthClientSecret),
-    [GUESTBOOK_ENV_KEYS.oauthRefreshToken]: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.oauthRefreshToken),
+    ...authResolution.checks,
   };
 
   const hasSpreadsheet = checks[GUESTBOOK_ENV_KEYS.spreadsheetId];
-  const hasServiceAccount =
-    checks[GUESTBOOK_ENV_KEYS.serviceAccountJson] ||
-    checks.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 ||
-    checks.GOOGLE_APPLICATION_CREDENTIALS ||
-    (checks[GUESTBOOK_ENV_KEYS.serviceAccountEmail] &&
-      (checks[GUESTBOOK_ENV_KEYS.serviceAccountPrivateKey] || checks[GUESTBOOK_ENV_KEYS.serviceAccountPrivateKeyBase64]));
-  const hasOauth = checks[GUESTBOOK_ENV_KEYS.oauthClientId] && checks[GUESTBOOK_ENV_KEYS.oauthClientSecret] && checks[GUESTBOOK_ENV_KEYS.oauthRefreshToken];
-  const hasUsableAuth =
-    requestedAuthMode === "service_account"
-      ? hasServiceAccount
-      : requestedAuthMode === "oauth"
-        ? hasOauth
-        : hasServiceAccount || hasOauth;
+  const hasServiceAccount = authResolution.hasServiceAccount;
+  const hasOauth = authResolution.hasOauth;
+  const hasUsableAuth = authResolution.hasUsableAuth;
   const configured = Boolean(hasSpreadsheet && hasUsableAuth);
+  const requestedAuthMode = authResolution.requestedAuthMode;
 
   const missing = [];
   if (!hasSpreadsheet) missing.push(GUESTBOOK_ENV_KEYS.spreadsheetId);
@@ -1602,9 +1696,29 @@ function getGuestbookConfigStatus() {
     hasOauth,
     hasUsableAuth,
     authMode: requestedAuthMode,
-    resolvedAuthMode:
-      requestedAuthMode === "auto" ? (hasServiceAccount ? "service_account" : hasOauth ? "oauth" : "missing") : requestedAuthMode,
+    resolvedAuthMode: authResolution.resolvedAuthMode,
     missing,
+  };
+}
+
+function getPurposeAuthStatus() {
+  const guestbook = resolveAuthModeForPurpose(GOOGLE_AUTH_PURPOSE.GUESTBOOK);
+  const uploads = resolveAuthModeForPurpose(GOOGLE_AUTH_PURPOSE.UPLOADS);
+  return {
+    authByPurpose: {
+      guestbook: {
+        requestedAuthMode: guestbook.requestedAuthMode,
+        resolvedAuthMode: guestbook.resolvedAuthMode,
+      },
+      uploads: {
+        requestedAuthMode: uploads.requestedAuthMode,
+        resolvedAuthMode: uploads.resolvedAuthMode,
+      },
+    },
+    hasUsableAuthByPurpose: {
+      guestbook: guestbook.hasUsableAuth,
+      uploads: uploads.hasUsableAuth,
+    },
   };
 }
 
@@ -1638,33 +1752,17 @@ function buildGuestbookConfigErrorPayload(req, configStatus) {
   return payload;
 }
 
-function createGoogleClients() {
+function createGoogleClientsForPurpose(rawPurpose = GOOGLE_AUTH_PURPOSE.DEFAULT) {
   const google = getGoogleApi();
+  const authResolution = resolveAuthModeForPurpose(rawPurpose);
   const oauthClientId = resolveEnvValue(GOOGLE_ENV_ALIASES.oauthClientId);
   const oauthClientSecret = resolveEnvValue(GOOGLE_ENV_ALIASES.oauthClientSecret);
   const oauthRefreshToken = resolveEnvValue(GOOGLE_ENV_ALIASES.oauthRefreshToken);
-  const hasOauth = Boolean(oauthClientId && oauthClientSecret && oauthRefreshToken);
-  const hasServiceAccount = Boolean(
-    resolveEnvValue(GOOGLE_ENV_ALIASES.serviceAccountJson) ||
-      resolveEnvValue(GOOGLE_ENV_ALIASES.serviceAccountJsonBase64) ||
-      resolveEnvValue(GOOGLE_ENV_ALIASES.serviceAccountPath) ||
-      (resolveEnvValue(GOOGLE_ENV_ALIASES.serviceAccountEmail) &&
-        (resolveEnvValue(GOOGLE_ENV_ALIASES.serviceAccountPrivateKey) ||
-          resolveEnvValue(GOOGLE_ENV_ALIASES.serviceAccountPrivateKeyBase64))),
-  );
-  const authPreference = normalizeGoogleAuthMode(resolveEnvValue(GOOGLE_ENV_ALIASES.authMode));
-  if (authPreference === "service_account" && !hasServiceAccount) {
-    throw new Error("Missing GOOGLE_SERVICE_ACCOUNT credentials while GOOGLE_AUTH_MODE=service_account");
-  }
-  if (authPreference === "oauth" && !hasOauth) {
-    throw new Error("Missing GOOGLE_OAUTH credentials while GOOGLE_AUTH_MODE=oauth");
-  }
-  if (!hasServiceAccount && !hasOauth) {
-    throw new Error("Missing Google credentials (service account or OAuth env vars)");
+  if (!authResolution.hasUsableAuth) {
+    throw buildMissingAuthErrorForPurpose(authResolution);
   }
 
-  // Prefer service account in auto mode to avoid hard dependency on refresh tokens.
-  const useOauth = authPreference === "oauth" || (authPreference === "auto" && !hasServiceAccount && hasOauth);
+  const useOauth = authResolution.resolvedAuthMode === "oauth";
 
   let auth;
   if (useOauth) {
@@ -1685,6 +1783,7 @@ function createGoogleClients() {
   return {
     sheets: google.sheets({ version: "v4", auth }),
     drive: google.drive({ version: "v3", auth }),
+    authResolution,
   };
 }
 
@@ -2025,6 +2124,70 @@ function classifyGuestbookError(error) {
   }
 
   return { code: "unknown", detail: "Unexpected guestbook failure." };
+}
+
+function classifyRsvpUploadError(error, authResolution = null) {
+  const message = String(error instanceof Error ? error.message : error || "");
+  const lower = message.toLowerCase();
+  const normalizedCode = String(error && typeof error === "object" && error.code ? error.code : "").toLowerCase();
+  const explicitErrorCode = String(error && typeof error === "object" && error.errorCode ? error.errorCode : "").toUpperCase();
+  const explicitDetail = String(error && typeof error === "object" && error.detail ? error.detail : "").trim();
+  const explicitStatus = Number(error && typeof error === "object" ? error.status : 0);
+
+  let errorCode = RSVP_UPLOAD_ERROR_CODES.FAILED;
+  let code = normalizedCode || "upload_failed";
+  let detail = explicitDetail || "Media upload failed before completion.";
+  let status = Number.isFinite(explicitStatus) && explicitStatus >= 400 && explicitStatus <= 599 ? explicitStatus : 503;
+
+  if (explicitErrorCode === RSVP_UPLOAD_ERROR_CODES.QUOTA_UNAVAILABLE) {
+    errorCode = RSVP_UPLOAD_ERROR_CODES.QUOTA_UNAVAILABLE;
+    code = code || "upload_quota_unavailable";
+    if (!explicitDetail) {
+      detail =
+        "Service account storage quota is unavailable for uploads. Use OAuth uploads or a shared drive destination.";
+    }
+    status = 503;
+  } else if (explicitErrorCode === RSVP_UPLOAD_ERROR_CODES.AUTH_UNAVAILABLE || normalizedCode === "upload_auth_unavailable") {
+    errorCode = RSVP_UPLOAD_ERROR_CODES.AUTH_UNAVAILABLE;
+    code = "upload_auth_unavailable";
+    if (!explicitDetail) {
+      detail = "Upload auth is unavailable or misconfigured.";
+    }
+    status = 503;
+  } else if (
+    lower.includes("service accounts do not have storage quota") ||
+    lower.includes("storage quota") ||
+    lower.includes("quota exceeded") ||
+    lower.includes("insufficient storage")
+  ) {
+    errorCode = RSVP_UPLOAD_ERROR_CODES.QUOTA_UNAVAILABLE;
+    code = "upload_quota_unavailable";
+    detail =
+      "Service account storage quota is unavailable for uploads. Use OAuth uploads or a shared drive destination.";
+    status = 503;
+  } else if (
+    normalizedCode === "missing_credentials" ||
+    lower.includes("missing oauth credentials") ||
+    lower.includes("upload auth unavailable") ||
+    lower.includes("invalid_grant") ||
+    lower.includes("unauthorized_client") ||
+    lower.includes("invalid_client")
+  ) {
+    errorCode = RSVP_UPLOAD_ERROR_CODES.AUTH_UNAVAILABLE;
+    code = "upload_auth_unavailable";
+    detail = explicitDetail || "Upload auth is unavailable or invalid.";
+    status = 503;
+  }
+
+  return {
+    errorCode,
+    code,
+    detail,
+    status,
+    resolvedAuthMode:
+      String(error && typeof error === "object" && error.resolvedAuthMode ? error.resolvedAuthMode : "") ||
+      String(authResolution && authResolution.resolvedAuthMode ? authResolution.resolvedAuthMode : ""),
+  };
 }
 
 function getGuestbookErrorStatus(classified) {
@@ -2440,6 +2603,7 @@ async function handleRsvpSubmission(req, res) {
   let uploadedTempFiles = [];
   const requestStartedAt = Date.now();
   const requestId = randomUUID().slice(0, 8);
+  let requestAuthResolution = null;
 
   try {
     const { fields, files } = await parseRsvpRequest(req);
@@ -2472,7 +2636,8 @@ async function handleRsvpSubmission(req, res) {
       }
 
       const { spreadsheetId, uploadsFolderId } = getRequiredGoogleIds();
-      const { sheets, drive } = createGoogleClients();
+      const { sheets, drive, authResolution } = createGoogleClientsForPurpose(GOOGLE_AUTH_PURPOSE.UPLOADS);
+      requestAuthResolution = authResolution;
       const nowIso = new Date().toISOString();
       const tabHeaders = await loadRsvpTabHeaders(sheets, spreadsheetId, { includeMedia: true });
 
@@ -2525,7 +2690,8 @@ async function handleRsvpSubmission(req, res) {
     const requiredGoogleIds = mode === "save_only" ? { spreadsheetId: getRequiredSpreadsheetId(), uploadsFolderId: "" } : getRequiredGoogleIds();
     const spreadsheetId = requiredGoogleIds.spreadsheetId;
     const uploadsFolderId = mode === "full" ? requiredGoogleIds.uploadsFolderId : "";
-    const { sheets, drive } = createGoogleClients();
+    const { sheets, drive, authResolution } = createGoogleClientsForPurpose(GOOGLE_AUTH_PURPOSE.UPLOADS);
+    requestAuthResolution = authResolution;
 
     const saveStartedAt = Date.now();
     console.info(`[rsvp] request_id=${requestId} submission_id=${submissionId} phase=rsvp_save_start mode=${mode}`);
@@ -2578,8 +2744,8 @@ async function handleRsvpSubmission(req, res) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "RSVP submission failed";
-    const status = Number(error && typeof error === "object" ? error.status : 0);
-    const safeStatus = Number.isFinite(status) && status >= 400 && status <= 599 ? status : 500;
+    const classifiedUploadError = classifyRsvpUploadError(error, requestAuthResolution);
+    const safeStatus = classifiedUploadError.status;
     console.warn(
       `[rsvp] request_id=${requestId} response_error status=${safeStatus} message=${message} total_ms=${Date.now() - requestStartedAt}`,
     );
@@ -2589,10 +2755,23 @@ async function handleRsvpSubmission(req, res) {
       message,
       totalMs: Date.now() - requestStartedAt,
     });
-    send(res, safeStatus, JSON.stringify({ ok: false, error: message }), MIME_TYPES[".json"], {
+    send(
+      res,
+      safeStatus,
+      JSON.stringify({
+        ok: false,
+        error: message,
+        errorCode: classifiedUploadError.errorCode,
+        code: classifiedUploadError.code,
+        detail: classifiedUploadError.detail,
+        resolvedAuthMode: classifiedUploadError.resolvedAuthMode || null,
+      }),
+      MIME_TYPES[".json"],
+      {
       req,
       cacheControl: "no-store",
-    });
+      },
+    );
   } finally {
     await cleanupUploadedTempFiles(uploadedTempFiles);
   }
@@ -2729,7 +2908,7 @@ async function loadGuestbookItems({ forceRefresh = false } = {}) {
     guestbookFetchSummary.lastStatus = "fetching";
     try {
       const spreadsheetId = getRequiredSpreadsheetId();
-      const { sheets } = createGoogleClients();
+      const { sheets } = createGoogleClientsForPurpose(GOOGLE_AUTH_PURPOSE.GUESTBOOK);
 
       const upstreamStartedAt = Date.now();
       const [rsvpRows, guestRows, mediaRows] = await Promise.all([
@@ -2815,7 +2994,7 @@ async function loadArrivalsPayload({ forceRefresh = false } = {}) {
 
   const pending = (async () => {
     const spreadsheetId = getRequiredSpreadsheetId();
-    const { sheets } = createGoogleClients();
+    const { sheets } = createGoogleClientsForPurpose(GOOGLE_AUTH_PURPOSE.GUESTBOOK);
     const rsvpRows = await getSheetObjects(sheets, spreadsheetId, "rsvps");
     const payload = buildArrivalsPayloadFromRsvpRows(rsvpRows);
     arrivalsCache.payload = payload;
@@ -3228,6 +3407,7 @@ async function handleGuestbookHealthRequest(req, res) {
   const requestStartedAt = Date.now();
   const localRequest = isLocalRequest(req);
   const configStatus = getGuestbookConfigStatus();
+  const purposeStatus = getPurposeAuthStatus();
   console.info(
     `[guestbook][health] env spreadsheet=${configStatus.hasSpreadsheet} service_account=${configStatus.hasServiceAccount} oauth=${configStatus.hasOauth} auth_mode=${configStatus.authMode} usable_auth=${configStatus.hasUsableAuth}`,
   );
@@ -3238,6 +3418,8 @@ async function handleGuestbookHealthRequest(req, res) {
       authMode: configStatus.authMode,
       hasUsableAuth: configStatus.hasUsableAuth,
       resolvedAuthMode: configStatus.resolvedAuthMode,
+      authByPurpose: purposeStatus.authByPurpose,
+      hasUsableAuthByPurpose: purposeStatus.hasUsableAuthByPurpose,
       fetchSummary: getGuestbookFetchSummary(),
     };
     send(res, 503, JSON.stringify(payload), MIME_TYPES[".json"], {
@@ -3258,6 +3440,8 @@ async function handleGuestbookHealthRequest(req, res) {
         authMode: configStatus.authMode,
         hasUsableAuth: configStatus.hasUsableAuth,
         resolvedAuthMode: configStatus.resolvedAuthMode,
+        authByPurpose: purposeStatus.authByPurpose,
+        hasUsableAuthByPurpose: purposeStatus.hasUsableAuthByPurpose,
         env: configStatus.checks,
         items: Array.isArray(items) ? items.length : 0,
         cached_until: guestbookCache.expiresAt ? new Date(guestbookCache.expiresAt).toISOString() : null,
@@ -3285,6 +3469,9 @@ async function handleGuestbookHealthRequest(req, res) {
       duration_ms: Date.now() - requestStartedAt,
       authMode: configStatus.authMode,
       hasUsableAuth: configStatus.hasUsableAuth,
+      resolvedAuthMode: configStatus.resolvedAuthMode,
+      authByPurpose: purposeStatus.authByPurpose,
+      hasUsableAuthByPurpose: purposeStatus.hasUsableAuthByPurpose,
       env: configStatus.checks,
       fetchSummary: getGuestbookFetchSummary(),
     };
@@ -3292,6 +3479,128 @@ async function handleGuestbookHealthRequest(req, res) {
       payload.message = message;
     }
     send(res, status, JSON.stringify(payload), MIME_TYPES[".json"], {
+      req,
+      cacheControl: "no-store",
+    });
+  }
+}
+
+function getRsvpUploadConfigStatus() {
+  const authResolution = resolveAuthModeForPurpose(GOOGLE_AUTH_PURPOSE.UPLOADS);
+  const checks = {
+    [GUESTBOOK_ENV_KEYS.spreadsheetId]: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.spreadsheetId),
+    [GUESTBOOK_ENV_KEYS.uploadsFolderId]: hasResolvedEnvValue(GOOGLE_ENV_ALIASES.uploadsFolderId),
+    ...authResolution.checks,
+  };
+  const hasSpreadsheet = checks[GUESTBOOK_ENV_KEYS.spreadsheetId];
+  const hasUploadsFolder = checks[GUESTBOOK_ENV_KEYS.uploadsFolderId];
+  const configured = Boolean(hasSpreadsheet && hasUploadsFolder && authResolution.hasUsableAuth);
+  return {
+    configured,
+    checks,
+    hasSpreadsheet,
+    hasUploadsFolder,
+    authMode: authResolution.requestedAuthMode,
+    resolvedAuthMode: authResolution.resolvedAuthMode,
+    hasUsableAuth: authResolution.hasUsableAuth,
+  };
+}
+
+async function handleRsvpHealthRequest(req, res) {
+  const startedAt = Date.now();
+  const localRequest = isLocalRequest(req);
+  const configStatus = getRsvpUploadConfigStatus();
+  const purposeStatus = getPurposeAuthStatus();
+
+  if (!configStatus.configured) {
+    send(
+      res,
+      503,
+      JSON.stringify({
+        ok: false,
+        status: "unhealthy",
+        error: "RSVP upload configuration is incomplete.",
+        errorCode: RSVP_UPLOAD_ERROR_CODES.AUTH_UNAVAILABLE,
+        code: "upload_auth_unavailable",
+        detail: "Missing spreadsheet/folder/auth configuration for RSVP uploads.",
+        authMode: configStatus.authMode,
+        resolvedAuthMode: configStatus.resolvedAuthMode,
+        hasUsableAuth: configStatus.hasUsableAuth,
+        authByPurpose: purposeStatus.authByPurpose,
+        hasUsableAuthByPurpose: purposeStatus.hasUsableAuthByPurpose,
+        env: configStatus.checks,
+        duration_ms: Date.now() - startedAt,
+      }),
+      MIME_TYPES[".json"],
+      {
+        req,
+        cacheControl: "no-store",
+      },
+    );
+    return;
+  }
+
+  try {
+    const { spreadsheetId, uploadsFolderId } = getRequiredGoogleIds();
+    const { sheets, drive, authResolution } = createGoogleClientsForPurpose(GOOGLE_AUTH_PURPOSE.UPLOADS);
+    await Promise.all([
+      runSheetsCall("values.get(headers:rsvps)", () =>
+        sheets.spreadsheets.values.get({
+          spreadsheetId,
+          range: "rsvps!1:1",
+        }),
+      ),
+      runDriveCall("files.get(upload-folder-health)", () =>
+        drive.files.get({
+          fileId: uploadsFolderId,
+          supportsAllDrives: true,
+          fields: "id,name,mimeType",
+        }),
+      ),
+    ]);
+
+    send(
+      res,
+      200,
+      JSON.stringify({
+        ok: true,
+        status: "healthy",
+        authMode: configStatus.authMode,
+        resolvedAuthMode: authResolution.resolvedAuthMode,
+        hasUsableAuth: configStatus.hasUsableAuth,
+        authByPurpose: purposeStatus.authByPurpose,
+        hasUsableAuthByPurpose: purposeStatus.hasUsableAuthByPurpose,
+        env: configStatus.checks,
+        duration_ms: Date.now() - startedAt,
+      }),
+      MIME_TYPES[".json"],
+      {
+        req,
+        cacheControl: "no-store",
+      },
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "RSVP upload health failed";
+    const classified = classifyRsvpUploadError(error, resolveAuthModeForPurpose(GOOGLE_AUTH_PURPOSE.UPLOADS));
+    const payload = {
+      ok: false,
+      status: "unhealthy",
+      error: "RSVP upload health check failed.",
+      errorCode: classified.errorCode,
+      code: classified.code,
+      detail: classified.detail,
+      authMode: configStatus.authMode,
+      resolvedAuthMode: configStatus.resolvedAuthMode,
+      hasUsableAuth: configStatus.hasUsableAuth,
+      authByPurpose: purposeStatus.authByPurpose,
+      hasUsableAuthByPurpose: purposeStatus.hasUsableAuthByPurpose,
+      env: configStatus.checks,
+      duration_ms: Date.now() - startedAt,
+    };
+    if (NODE_ENV === "development" || localRequest) {
+      payload.message = message;
+    }
+    send(res, 503, JSON.stringify(payload), MIME_TYPES[".json"], {
       req,
       cacheControl: "no-store",
     });
@@ -3321,6 +3630,11 @@ const server = http.createServer(async (req, res) => {
       req,
       cacheControl: "no-store",
     });
+    return;
+  }
+
+  if (pathname === "/api/rsvp/health" && req.method === "GET") {
+    await handleRsvpHealthRequest(req, res);
     return;
   }
 
