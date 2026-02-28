@@ -90,9 +90,11 @@ const GUEST_WALL_MAX_FETCH_ATTEMPTS = 2;
 const GUEST_WALL_IMAGE_CONCURRENCY = 4;
 const GUEST_WALL_IMAGE_OBSERVER_MARGIN = "240px";
 const GUEST_WALL_IMAGE_STALL_TIMEOUT_MS = 10000;
-const GUEST_WALL_SESSION_CACHE_KEY = "guestwall-pinboard-cache-v1";
+const GUEST_WALL_SESSION_CACHE_KEY = "guestwall-pinboard-cache-v2";
+const GUEST_WALL_SESSION_CACHE_LEGACY_KEYS = ["guestwall-pinboard-cache-v1"];
 const GUEST_WALL_SESSION_CACHE_TTL_MS = 5 * 60 * 1000;
-const GUEST_WALL_PERSISTENT_CACHE_KEY = "guestwall-pinboard-cache-persist-v1";
+const GUEST_WALL_PERSISTENT_CACHE_KEY = "guestwall-pinboard-cache-persist-v2";
+const GUEST_WALL_PERSISTENT_CACHE_LEGACY_KEYS = ["guestwall-pinboard-cache-persist-v1"];
 const GUEST_WALL_PERSISTENT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const GUEST_WALL_AUTO_RETRY_INTERVAL_MS = 10000;
 const GUEST_WALL_MAX_AUTO_RETRIES = 3;
@@ -510,6 +512,7 @@ let guestWallNormalizationDiagnostics = createGuestWallNormalizationDiagnostics(
 let guestWallDevDiagnosticsNode = null;
 let guestWallRuntimeDebugHandlersBound = false;
 let guestWallWarmupStarted = false;
+let guestWallLegacyCacheMigrated = false;
 let overflowDebugResizeTimer = null;
 let desktopMoreCloseTimer = null;
 let activeSectionId = "top";
@@ -7105,6 +7108,30 @@ function setGuestWallLoadingRetryVisible(visible) {
   });
 }
 
+function clearGuestWallLegacyCacheBuckets() {
+  if (guestWallLegacyCacheMigrated) return;
+  guestWallLegacyCacheMigrated = true;
+  const hostKey = String(window.location.hostname || "unknown");
+
+  try {
+    GUEST_WALL_SESSION_CACHE_LEGACY_KEYS.forEach((key) => {
+      window.sessionStorage.removeItem(key);
+      window.sessionStorage.removeItem(`${key}:${hostKey}`);
+    });
+  } catch (_error) {
+    // noop
+  }
+
+  try {
+    GUEST_WALL_PERSISTENT_CACHE_LEGACY_KEYS.forEach((key) => {
+      window.localStorage.removeItem(key);
+      window.localStorage.removeItem(`${key}:${hostKey}`);
+    });
+  } catch (_error) {
+    // noop
+  }
+}
+
 function getGuestWallSessionCacheBucket() {
   const hostKey = String(window.location.hostname || "unknown");
   return `${GUEST_WALL_SESSION_CACHE_KEY}:${hostKey}`;
@@ -10755,6 +10782,7 @@ async function initGuestWall() {
   if (!(guestWallPinboard instanceof HTMLElement)) return;
 
   console.log("[GuestWall] mount");
+  clearGuestWallLegacyCacheBuckets();
   bindGuestWallRuntimeDebugHandlers();
   guestWallArrangementByCardId = loadGuestWallArrangementFromStorage();
   bindGuestWallDetailModalEvents();
