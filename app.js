@@ -11138,9 +11138,9 @@ function initFaqAccordionGroups() {
     });
   };
 
-  groupNodes.forEach((group) => {
-    bindMobileAccordionAnchorLock(group, undefined, { requireDirectInteraction: true });
-  });
+  // Top-level FAQ groups were still jerking on mobile Safari due to scroll-anchor
+  // correction fighting with native <details> reflow. Keep anchor lock only for
+  // nested FAQ items; group-level disclosures use native behavior.
 
   groupNodes.forEach((group) => {
     group.addEventListener("toggle", () => {
