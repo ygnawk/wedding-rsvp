@@ -2391,7 +2391,13 @@ function extractRsvpSubmissionFields(fields) {
   const messageToCouple = getField(fields, "message");
   const dietaryRestrictions = getField(fields, "dietary");
 
-  const guestsRaw = safeJsonParse(getField(fields, "guests_json", "[]"), []);
+  const guestsRawField = getField(fields, "guests_json", "");
+  const guestsRaw =
+    guestsRawField && guestsRawField !== "[]"
+      ? safeJsonParse(guestsRawField, [])
+      : Array.isArray(fields && fields.guests)
+      ? fields.guests
+      : safeJsonParse(getField(fields, "guests", "[]"), []);
   const guests = normalizeGuests(guestsRaw);
   const primaryFunFacts = getField(fields, "primaryFunFacts") || getField(fields, "primary_fun_facts") || (guests[0] ? guests[0].funFact : "");
 
