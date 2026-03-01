@@ -1846,7 +1846,13 @@ function buildRowFromHeaders(headers, valuesByHeader) {
   return headers.map((header) => {
     const value = valuesByHeader[header];
     if (value === undefined || value === null) return "";
-    return String(value);
+    const stringValue = String(value);
+    // Prevent Sheets from treating user-provided values (e.g. "+1 646 ...")
+    // as formulas when using USER_ENTERED writes.
+    if (/^[=+\-@]/.test(stringValue)) {
+      return `'${stringValue}`;
+    }
+    return stringValue;
   });
 }
 
