@@ -5891,17 +5891,16 @@ details[open] .faq-answer {
 .things-theme-list {
   margin-top: 16px;
   display: grid;
-  gap: 10px;
+  gap: 0;
 }
 
 .things-theme {
   margin: 0;
-  border-top: 1px solid rgba(75, 15, 23, 0.2);
-  border-bottom: 1px solid rgba(75, 15, 23, 0.14);
+  border-bottom: 1px solid rgba(75, 15, 23, 0.2);
 }
 
-.things-theme:last-child {
-  border-bottom-color: rgba(75, 15, 23, 0.2);
+.things-theme:first-child {
+  border-top: 1px solid rgba(75, 15, 23, 0.2);
 }
 
 .things-theme-summary {
