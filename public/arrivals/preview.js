@@ -3335,6 +3335,12 @@ function resolveArrivalsApiUrl() {
   return ARRIVALS_API_PATH;
 }
 
+function shouldAllowArrivalsMockFallback() {
+  if (typeof window === "undefined") return false;
+  const host = String(window.location.hostname || "").toLowerCase();
+  return host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host.endsWith(".local");
+}
+
 function isValidArrivalsPayload(data) {
   return Boolean(data && typeof data === "object" && data.beijing && Array.isArray(data.origins) && Array.isArray(data.byCountry));
 }
@@ -3371,7 +3377,10 @@ async function fetchPreviewData() {
   try {
     return await fetchArrivalsPayload(apiUrl, "Arrivals API");
   } catch (apiError) {
-    console.warn("[arrivals-preview] arrivals API failed, falling back to mock data", apiError);
+    if (!shouldAllowArrivalsMockFallback()) {
+      throw new Error(`Arrivals API unavailable: ${apiError && apiError.message ? apiError.message : "Unknown error"}`);
+    }
+    console.warn("[arrivals-preview] arrivals API failed, falling back to mock data (local/dev only)", apiError);
     return fetchArrivalsPayload(ARRIVALS_MOCK_DATA_PATH, "Arrivals mock file");
   }
 }
