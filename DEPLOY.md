@@ -36,6 +36,8 @@ Current repo includes `server.js`, so use a Node host like Render / Railway / Fl
    - Maybe
    - No
 3. Confirm rows appear in the correct Google Sheet tabs.
+4. Retry a `save_only` request with the same `submissionId` and confirm only one RSVP row exists (idempotency).
+5. Confirm API responses include `request_id` for both success and error payloads.
 
 ## Guest Wall auth (Render production)
 If `/guest-wall` is failing with `oauth_invalid`, production auth mode is misconfigured.

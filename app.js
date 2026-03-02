@@ -158,8 +158,12 @@ const RSVP_IMAGE_COMPRESS_MAX_DIMENSION = 1800;
 const RSVP_IMAGE_COMPRESS_QUALITY = 0.82;
 const RSVP_PREPARE_CONCURRENCY_MOBILE = 2;
 const RSVP_PREPARE_CONCURRENCY_DESKTOP = 4;
-const RSVP_SAVE_REQUEST_TIMEOUT_MS = 30000;
+const RSVP_SAVE_REQUEST_TIMEOUT_MS = 95000;
 const RSVP_MEDIA_UPLOAD_TIMEOUT_MS = 120000;
+const RSVP_MEDIA_UPLOAD_TIMEOUT_MAX_MS = 8 * 60 * 1000;
+const RSVP_MEDIA_UPLOAD_TIMEOUT_PER_MB_MS = 12000;
+const RSVP_API_WARMUP_TIMEOUT_MS = 12000;
+const RSVP_API_WARMUP_SESSION_KEY = "wedding_rsvp_api_warmup_v1";
 const STORY_IMAGE_PLACEHOLDER_DATA_URI =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="%23efe7da"/><stop offset="100%" stop-color="%23e4d7c1"/></linearGradient></defs><rect width="1200" height="900" fill="url(%23g)"/><circle cx="600" cy="390" r="92" fill="%23ceb998" opacity="0.45"/><rect x="356" y="548" width="488" height="22" rx="11" fill="%239b7d52" opacity="0.4"/><rect x="418" y="594" width="364" height="18" rx="9" fill="%239b7d52" opacity="0.28"/></svg>';
 const PHOTO_MANIFEST_TIMEOUT_MS = 8000;
@@ -522,6 +526,7 @@ let rsvpSubmitScrollLocked = false;
 let rsvpSubmitExitGuardsBound = false;
 let rsvpActiveUploadXhr = null;
 let rsvpLastSubmissionPayload = null;
+let rsvpLastSubmissionId = "";
 let rsvpLastSubmissionFilesMeta = [];
 let rsvpBackgroundUploadJob = null;
 let rsvpUploadStatusHideTimer = 0;
@@ -5535,14 +5540,136 @@ function resolveRsvpApiUrl() {
   return withBasePath("/api/rsvp");
 }
 
-async function fetchJsonWithTimeout(url, options = {}, timeoutMs = RSVP_SAVE_REQUEST_TIMEOUT_MS) {
+function generateRsvpSubmissionId() {
+  if (typeof crypto !== "undefined" && crypto && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  const randomPart = Math.random().toString(16).slice(2);
+  return `rsvp_${Date.now().toString(36)}_${randomPart}`;
+}
+
+function isLikelyNetworkErrorMessage(message) {
+  const lower = String(message || "").toLowerCase();
+  return (
+    lower.includes("network") ||
+    lower.includes("failed to fetch") ||
+    lower.includes("fetch failed") ||
+    lower.includes("load failed") ||
+    lower.includes("err_network") ||
+    lower.includes("internet") ||
+    lower.includes("connection")
+  );
+}
+
+function normalizeRsvpSaveServerFailure(response, data) {
+  const status = Number(response && response.status) || 0;
+  const safeData = data && typeof data === "object" ? data : null;
+  const serverMessage = safeData && safeData.error ? String(safeData.error) : "";
+  const errorCode = safeData && safeData.errorCode ? String(safeData.errorCode) : "";
+  const code = safeData && safeData.code ? String(safeData.code) : "";
+  const detail = safeData && safeData.detail ? String(safeData.detail) : "";
+  const requestId = safeData && safeData.request_id ? String(safeData.request_id) : "";
+
+  if (status >= 500) {
+    return {
+      ok: false,
+      status,
+      error: "Our RSVP server is temporarily busy. Please try again in a moment.",
+      errorKind: "server",
+      retryable: true,
+      errorCode,
+      code,
+      detail,
+      requestId,
+    };
+  }
+
+  if (status >= 400) {
+    return {
+      ok: false,
+      status,
+      error: serverMessage || `RSVP save failed (${status}).`,
+      errorKind: "client",
+      retryable: false,
+      errorCode,
+      code,
+      detail,
+      requestId,
+    };
+  }
+
+  return {
+    ok: false,
+    status,
+    error: "Unexpected RSVP save response.",
+    errorKind: "response",
+    retryable: false,
+    errorCode,
+    code,
+    detail,
+    requestId,
+  };
+}
+
+function normalizeRsvpSaveClientError(error) {
+  const message = error instanceof Error ? error.message : String(error || "RSVP save failed");
+  const name = error instanceof Error ? String(error.name || "") : "";
+  const lower = message.toLowerCase();
+
+  if (name === "AbortError" || name === "TimeoutError" || lower.includes("fetch is aborted") || lower.includes("timed out")) {
+    return {
+      ok: false,
+      error: "The RSVP request took too long. Please try again.",
+      errorKind: "timeout",
+      retryable: true,
+      status: 0,
+      rawError: message,
+    };
+  }
+
+  if (isLikelyNetworkErrorMessage(message)) {
+    return {
+      ok: false,
+      error: "Network issue while saving RSVP. Please check your connection and try again.",
+      errorKind: "network",
+      retryable: true,
+      status: 0,
+      rawError: message,
+    };
+  }
+
+  return {
+    ok: false,
+    error: "We couldn’t save your RSVP right now. Please try again in a moment.",
+    errorKind: "unknown",
+    retryable: false,
+    status: 0,
+    rawError: message,
+  };
+}
+
+async function fetchJsonWithTimeout(url, options = {}, timeoutMs = RSVP_SAVE_REQUEST_TIMEOUT_MS, abortReason = "request-timeout") {
   const controller = new AbortController();
   const timeout = Math.max(1000, Number(timeoutMs) || RSVP_SAVE_REQUEST_TIMEOUT_MS);
-  const timeoutId = window.setTimeout(() => controller.abort(), timeout);
+  const signalProvided = typeof AbortSignal !== "undefined" && options && options.signal instanceof AbortSignal ? options.signal : null;
+  const onExternalAbort = () => {
+    controller.abort(signalProvided && signalProvided.reason ? signalProvided.reason : "external-abort");
+  };
+  if (signalProvided) {
+    if (signalProvided.aborted) {
+      onExternalAbort();
+    } else {
+      signalProvided.addEventListener("abort", onExternalAbort, { once: true });
+    }
+  }
+  const timeoutId = window.setTimeout(() => controller.abort(String(abortReason || "request-timeout")), timeout);
   try {
     return await fetch(url, { ...options, signal: controller.signal });
   } finally {
     window.clearTimeout(timeoutId);
+    if (signalProvided) {
+      signalProvided.removeEventListener("abort", onExternalAbort);
+    }
   }
 }
 
@@ -5641,16 +5768,19 @@ async function submitRsvpSave(payload, options = {}) {
   const saveStartedAt = performance.now();
   const expectedMediaCount = Math.max(0, Number(options.expectedMediaCount) || 0);
   const timeoutMs = Math.max(1000, Number(options.timeoutMs) || RSVP_SAVE_REQUEST_TIMEOUT_MS);
+  const submissionId = String(options.submissionId || (payload && payload.submissionId) || "").trim();
   const url = resolveRsvpApiUrl();
   const requestPayload = {
     ...payload,
     submissionMode: "save_only",
     expectedMediaCount,
   };
+  if (submissionId) requestPayload.submissionId = submissionId;
 
   logRsvpDebug("save_start", {
     expectedMediaCount,
     timeoutMs,
+    submissionId,
     network: getRsvpNetworkHint(),
   });
 
@@ -5665,6 +5795,7 @@ async function submitRsvpSave(payload, options = {}) {
         body: JSON.stringify(requestPayload),
       },
       timeoutMs,
+      "rsvp-save-timeout",
     );
 
     const text = await response.text();
@@ -5676,12 +5807,7 @@ async function submitRsvpSave(payload, options = {}) {
     }
 
     if (!response.ok || !data || typeof data !== "object" || data.ok !== true) {
-      return {
-        ok: false,
-        error:
-          (data && typeof data === "object" && data.error) ||
-          (response.status >= 400 ? `RSVP save failed (${response.status}).` : "Unexpected RSVP save response."),
-      };
+      return normalizeRsvpSaveServerFailure(response, data);
     }
 
     logRsvpDebug("save_end", {
@@ -5690,14 +5816,106 @@ async function submitRsvpSave(payload, options = {}) {
       status: response.status,
     });
 
-    return data;
+    return {
+      ...data,
+      status: response.status,
+      requestId: data.request_id ? String(data.request_id) : "",
+      retryable: false,
+    };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "RSVP save failed";
+    const normalized = normalizeRsvpSaveClientError(error);
     logRsvpDebug("save_error", {
       durationMs: Math.round(performance.now() - saveStartedAt),
-      error: message,
+      error: normalized.error,
+      errorKind: normalized.errorKind,
+      rawError: normalized.rawError || "",
     });
-    return { ok: false, error: message };
+    return normalized;
+  }
+}
+
+function shouldRetryRsvpSaveResult(result) {
+  if (!result || result.ok === true) return false;
+  const status = Number(result.status) || 0;
+  if (status >= 500) return true;
+  return Boolean(result.retryable);
+}
+
+function getRsvpSaveRetryDelayMs(attemptNumber) {
+  if (attemptNumber <= 1) return 1200;
+  return 3000;
+}
+
+async function submitRsvpSaveWithRetry(payload, options = {}) {
+  const maxAttempts = Math.max(1, Number(options.maxAttempts) || 3);
+  const timeoutMs = Math.max(1000, Number(options.timeoutMs) || RSVP_SAVE_REQUEST_TIMEOUT_MS);
+  let attempt = 0;
+  let lastResult = null;
+
+  while (attempt < maxAttempts) {
+    attempt += 1;
+    const result = await submitRsvpSave(payload, {
+      ...options,
+      timeoutMs,
+    });
+    lastResult = result;
+    if (result && result.ok === true) {
+      return {
+        ...result,
+        attempts: attempt,
+      };
+    }
+
+    if (!shouldRetryRsvpSaveResult(result) || attempt >= maxAttempts) {
+      break;
+    }
+
+    const delayMs = getRsvpSaveRetryDelayMs(attempt);
+    logRsvpDebug("save_retry", {
+      attempt,
+      nextAttempt: attempt + 1,
+      delayMs,
+      status: Number(result && result.status ? result.status : 0),
+      error: result && result.error ? String(result.error) : "",
+    });
+    await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+  }
+
+  return {
+    ...(lastResult && typeof lastResult === "object" ? lastResult : { ok: false, error: "RSVP save failed." }),
+    attempts: attempt,
+  };
+}
+
+function calculateRsvpUploadTimeoutMs(files = []) {
+  const list = Array.isArray(files) ? files : [];
+  const totalBytes = list.reduce((sum, file) => sum + Math.max(0, Number(file && file.size ? file.size : 0) || 0), 0);
+  const totalMb = totalBytes / (1024 * 1024);
+  const dynamicTimeout = Math.round(RSVP_MEDIA_UPLOAD_TIMEOUT_MS + totalMb * RSVP_MEDIA_UPLOAD_TIMEOUT_PER_MB_MS);
+  return Math.max(
+    RSVP_MEDIA_UPLOAD_TIMEOUT_MS,
+    Math.min(RSVP_MEDIA_UPLOAD_TIMEOUT_MAX_MS, Number.isFinite(dynamicTimeout) ? dynamicTimeout : RSVP_MEDIA_UPLOAD_TIMEOUT_MS),
+  );
+}
+
+async function warmRsvpApiInBackground() {
+  try {
+    const warmed = window.sessionStorage.getItem(RSVP_API_WARMUP_SESSION_KEY);
+    if (warmed === "1") return;
+  } catch (_error) {
+    // ignore session storage read failures
+  }
+
+  try {
+    window.sessionStorage.setItem(RSVP_API_WARMUP_SESSION_KEY, "1");
+  } catch (_error) {
+    // ignore session storage write failures
+  }
+
+  try {
+    await fetchJsonWithTimeout(resolveRsvpApiUrl(), { method: "GET", cache: "no-store" }, RSVP_API_WARMUP_TIMEOUT_MS, "rsvp-api-warmup-timeout");
+  } catch (_error) {
+    // best effort warm-up only
   }
 }
 
@@ -5899,12 +6117,14 @@ function getRsvpFilesMeta(files = []) {
   }));
 }
 
-function persistPendingRsvpSubmission({ payload, files = [], state = "uploading", note = "" } = {}) {
+function persistPendingRsvpSubmission({ payload, files = [], submissionId = "", state = "uploading", note = "" } = {}) {
   const safePayload = payload && typeof payload === "object" ? payload : rsvpLastSubmissionPayload;
   if (!safePayload || typeof safePayload !== "object") return;
+  const safeSubmissionId = String(submissionId || rsvpLastSubmissionId || safePayload.submissionId || "").trim();
 
   const record = {
     version: 1,
+    submissionId: safeSubmissionId,
     state: String(state || "uploading"),
     note: String(note || ""),
     startedAt: Date.now(),
@@ -5914,6 +6134,7 @@ function persistPendingRsvpSubmission({ payload, files = [], state = "uploading"
   };
 
   rsvpLastSubmissionPayload = safePayload;
+  rsvpLastSubmissionId = safeSubmissionId;
   rsvpLastSubmissionFilesMeta = Array.isArray(record.files) ? record.files : [];
   try {
     localStorage.setItem(RSVP_PENDING_SUBMISSION_KEY, JSON.stringify(record));
@@ -5941,6 +6162,7 @@ function readPendingRsvpSubmission() {
 
 function clearPendingRsvpSubmission() {
   rsvpLastSubmissionPayload = null;
+  rsvpLastSubmissionId = "";
   rsvpLastSubmissionFilesMeta = [];
   try {
     localStorage.removeItem(RSVP_PENDING_SUBMISSION_KEY);
@@ -5952,6 +6174,11 @@ function clearPendingRsvpSubmission() {
 function restoreRsvpDraftFromPending(record) {
   const payload = record && typeof record === "object" ? record.payload : null;
   if (!payload || typeof payload !== "object") return;
+  const restoredSubmissionId = String(record && record.submissionId ? record.submissionId : payload.submissionId || "").trim();
+  if (restoredSubmissionId) {
+    payload.submissionId = restoredSubmissionId;
+    rsvpLastSubmissionId = restoredSubmissionId;
+  }
 
   const status = String(payload.status || "").toLowerCase();
   const mappedChoice = status === "yes" ? "yes" : status === "maybe" ? "working" : status === "no" ? "no" : "";
@@ -6058,6 +6285,7 @@ function cancelBackgroundRsvpUpload(reason = "cancelled") {
   });
   updateRsvpSuccessUploadMessage("cancelled");
   persistPendingRsvpSubmission({
+    submissionId: rsvpBackgroundUploadJob ? rsvpBackgroundUploadJob.submissionId : "",
     state: "cancelled",
     note: String(reason || "Upload cancelled"),
   });
@@ -6089,6 +6317,7 @@ async function runBackgroundRsvpMediaUpload(job, { isRetry = false } = {}) {
   persistPendingRsvpSubmission({
     payload: job.payload,
     files: sourceFiles,
+    submissionId: job.submissionId,
     state: "uploading",
     note: `Background media upload attempt ${job.attempt}.`,
   });
@@ -6126,17 +6355,19 @@ async function runBackgroundRsvpMediaUpload(job, { isRetry = false } = {}) {
     }
 
     const preparedSnapshot = getRsvpFileDebugSnapshot(preparedFiles);
+    const uploadTimeoutMs = calculateRsvpUploadTimeoutMs(preparedFiles);
     logRsvpDebug("media_upload_payload", {
       submissionId: job.submissionId,
       attempt: job.attempt,
       fileCount: preparedFiles.length,
       totalBytes: preparedSnapshot.totalBytes,
+      timeoutMs: uploadTimeoutMs,
       files: preparedSnapshot.entries,
     });
 
     const uploadResult = await submitRsvpMediaUpload(job.submissionId, job.payload, {
       uploadFiles: preparedFiles,
-      timeoutMs: RSVP_MEDIA_UPLOAD_TIMEOUT_MS,
+      timeoutMs: uploadTimeoutMs,
       onUploadProgress: (uploadProgress) => {
         if (!job.active || job.cancelRequested) return;
         const loaded = Math.max(0, Number(uploadProgress.loaded) || 0);
@@ -6210,6 +6441,7 @@ async function runBackgroundRsvpMediaUpload(job, { isRetry = false } = {}) {
       persistPendingRsvpSubmission({
         payload: job.payload,
         files: sourceFiles,
+        submissionId: job.submissionId,
         state: "cancelled",
         note: "Media upload cancelled by user.",
       });
@@ -6219,6 +6451,7 @@ async function runBackgroundRsvpMediaUpload(job, { isRetry = false } = {}) {
     persistPendingRsvpSubmission({
       payload: job.payload,
       files: sourceFiles,
+      submissionId: job.submissionId,
       state: "failed",
       note: message,
     });
@@ -6274,14 +6507,24 @@ function initRsvpSubmitExitGuards() {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState !== "hidden") return;
     if (!rsvpIsSubmitting && !(rsvpBackgroundUploadJob && rsvpBackgroundUploadJob.active)) return;
-    persistPendingRsvpSubmission({ state: "backgrounded", note: "Tab hidden while upload in progress." });
+    persistPendingRsvpSubmission({
+      submissionId: rsvpBackgroundUploadJob ? rsvpBackgroundUploadJob.submissionId : "",
+      state: "backgrounded",
+      note: "Tab hidden while upload in progress.",
+    });
   });
 
   window.addEventListener(
     "pagehide",
-    () => {
+    (event) => {
       if (!rsvpIsSubmitting && !(rsvpBackgroundUploadJob && rsvpBackgroundUploadJob.active)) return;
-      persistPendingRsvpSubmission({ state: "interrupted", note: "Page hidden before upload completed." });
+      const restoredFromCache = Boolean(event && event.persisted);
+      persistPendingRsvpSubmission({
+        submissionId: rsvpBackgroundUploadJob ? rsvpBackgroundUploadJob.submissionId : "",
+        state: restoredFromCache ? "backgrounded" : "interrupted",
+        note: restoredFromCache ? "Page hidden (bfcache) while upload in progress." : "Page hidden before upload completed.",
+      });
+      if (restoredFromCache) return;
       if (rsvpActiveUploadXhr) {
         try {
           rsvpActiveUploadXhr.abort();
@@ -6499,10 +6742,13 @@ function initRsvpForm() {
 
     const sourceUploadFiles = selectedUploadFiles.slice();
     const payload = buildPayload(sourceUploadFiles);
+    const clientSubmissionId = generateRsvpSubmissionId();
+    payload.submissionId = clientSubmissionId;
     const submitClickedAt = performance.now();
     const fileDebugSnapshot = getRsvpFileDebugSnapshot(sourceUploadFiles);
 
     logRsvpDebug("submit_clicked", {
+      submissionId: clientSubmissionId,
       fileCount: sourceUploadFiles.length,
       totalBytes: fileDebugSnapshot.totalBytes,
       files: fileDebugSnapshot.entries,
@@ -6528,20 +6774,26 @@ function initRsvpForm() {
       persistPendingRsvpSubmission({
         payload,
         files: sourceUploadFiles,
+        submissionId: clientSubmissionId,
         state: "saving",
         note: "Saving RSVP details.",
       });
 
       const saveStartedAt = performance.now();
       logRsvpDebug("rsvp_save_start", {
+        submissionId: clientSubmissionId,
         t_rsvp_save_start: Math.round(saveStartedAt),
       });
-      const saveResult = await submitRsvpSave(payload, {
+      const saveResult = await submitRsvpSaveWithRetry(payload, {
         expectedMediaCount: sourceUploadFiles.length,
         timeoutMs: RSVP_SAVE_REQUEST_TIMEOUT_MS,
+        submissionId: clientSubmissionId,
+        maxAttempts: 3,
       });
       const saveEndedAt = performance.now();
       logRsvpDebug("rsvp_save_end", {
+        submissionId: clientSubmissionId,
+        attempts: Number(saveResult && saveResult.attempts ? saveResult.attempts : 1),
         t_rsvp_save_end: Math.round(saveEndedAt),
         saveDurationMs: Math.round(saveEndedAt - saveStartedAt),
       });
@@ -6551,6 +6803,7 @@ function initRsvpForm() {
         persistPendingRsvpSubmission({
           payload,
           files: sourceUploadFiles,
+          submissionId: clientSubmissionId,
           state: "failed",
           note: saveResult && saveResult.error ? String(saveResult.error) : "RSVP save failed.",
         });
@@ -6561,12 +6814,13 @@ function initRsvpForm() {
         return;
       }
 
-      const submissionId = String(saveResult.submission_id || "").trim();
+      const submissionId = String(saveResult.submission_id || clientSubmissionId || "").trim();
       if (!submissionId) {
         cacheRsvpPayloadLocally(payload);
         persistPendingRsvpSubmission({
           payload,
           files: sourceUploadFiles,
+          submissionId: clientSubmissionId,
           state: "failed",
           note: "RSVP save response missing submission id.",
         });
@@ -13950,6 +14204,7 @@ async function init() {
   void runInitStep("guest-wall", () => initGuestWall());
   warmGuestWallRouteInBackground();
   void runInitStep("invite-token-lookup", () => lookupToken(inviteState.token));
+  void runInitStep("rsvp-api-warmup", () => warmRsvpApiInBackground());
 
   const initDurationMs = Math.round(
     (typeof performance !== "undefined" && performance && typeof performance.now === "function" ? performance.now() : Date.now()) - initStartedAt,

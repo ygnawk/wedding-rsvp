@@ -252,6 +252,10 @@ const GUESTBOOK_PINBOARD_DEFAULT_LIMIT = 16;
 const GUESTBOOK_ARCHIVE_DEFAULT_LIMIT = 30;
 const STATIC_BODY_CACHE_MAX_BYTES = 512 * 1024;
 const GOOGLE_API_CALL_TIMEOUT_MS = Math.max(3000, Number.parseInt(process.env.GOOGLE_API_CALL_TIMEOUT_MS || "10000", 10) || 10000);
+const RSVP_SUBMISSION_GEOCODE_TIMEOUT_MS = Math.max(
+  300,
+  Number.parseInt(process.env.RSVP_SUBMISSION_GEOCODE_TIMEOUT_MS || "1200", 10) || 1200,
+);
 const RSVP_MAX_MEDIA_FILES = 3;
 const RSVP_MAX_MEDIA_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const DEBUG_RSVP = ["1", "true", "yes", "on"].includes(String(process.env.DEBUG_RSVP || "").toLowerCase());
@@ -1023,7 +1027,27 @@ async function geocodeFirstCityCandidate(countryCode, cityQuery) {
   }
 }
 
-async function ensureSubmissionOriginGeocode(parsedFields) {
+async function geocodeFirstCityCandidateWithTimeout(countryCode, cityQuery, timeoutMs = RSVP_SUBMISSION_GEOCODE_TIMEOUT_MS) {
+  const timeout = Math.max(200, Number(timeoutMs) || RSVP_SUBMISSION_GEOCODE_TIMEOUT_MS);
+  let timeoutId = null;
+  try {
+    return await Promise.race([
+      geocodeFirstCityCandidate(countryCode, cityQuery),
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+          const timeoutError = new Error(`Submission geocode timed out after ${timeout}ms`);
+          timeoutError.name = "TimeoutError";
+          timeoutError.code = "submission_geocode_timeout";
+          reject(timeoutError);
+        }, timeout);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
+async function ensureSubmissionOriginGeocode(parsedFields, options = {}) {
   if (!parsedFields || parsedFields.rsvpStatus !== "yes") return parsedFields;
   const hasCoordinates = Number.isFinite(parseMaybeFloat(parsedFields.originLat)) && Number.isFinite(parseMaybeFloat(parsedFields.originLon));
   if (hasCoordinates) {
@@ -1031,7 +1055,20 @@ async function ensureSubmissionOriginGeocode(parsedFields) {
     return parsedFields;
   }
 
-  const fallbackResult = await geocodeFirstCityCandidate(parsedFields.originCountryCode, parsedFields.originCity);
+  let fallbackResult = null;
+  try {
+    fallbackResult = await geocodeFirstCityCandidateWithTimeout(
+      parsedFields.originCountryCode,
+      parsedFields.originCity,
+      options.timeoutMs || RSVP_SUBMISSION_GEOCODE_TIMEOUT_MS,
+    );
+  } catch (error) {
+    if (error instanceof Error && error.name === "TimeoutError") {
+      parsedFields.originGeocodeStatus = parsedFields.originCity ? "unresolved" : "";
+      return parsedFields;
+    }
+    throw error;
+  }
   if (!fallbackResult) {
     parsedFields.originGeocodeStatus = parsedFields.originCity ? "unresolved" : "";
     return parsedFields;
@@ -1858,15 +1895,17 @@ function buildRowFromHeaders(headers, valuesByHeader) {
 
 async function appendRows(sheets, spreadsheetId, tabName, rows) {
   if (!Array.isArray(rows) || !rows.length) return;
-  await sheets.spreadsheets.values.append({
-    spreadsheetId,
-    range: `${tabName}!A1`,
-    valueInputOption: "USER_ENTERED",
-    insertDataOption: "INSERT_ROWS",
-    requestBody: {
-      values: rows,
-    },
-  });
+  await runSheetsCall(`values.append(${tabName})`, () =>
+    sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: `${tabName}!A1`,
+      valueInputOption: "USER_ENTERED",
+      insertDataOption: "INSERT_ROWS",
+      requestBody: {
+        values: rows,
+      },
+    }),
+  );
 }
 
 function deriveFileTypeFromMime(mimeType) {
@@ -2585,6 +2624,65 @@ async function findRsvpRowBySubmissionId(sheets, spreadsheetId, submissionId) {
   return null;
 }
 
+async function findGuestRowsBySubmissionId(sheets, spreadsheetId, submissionId) {
+  const response = await runSheetsCall("values.get(rows:guests-index)", () =>
+    sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: "guests!A:ZZ",
+    }),
+  );
+
+  const values = Array.isArray(response.data.values) ? response.data.values : [];
+  const [headerRow, ...rows] = values;
+  const headers = Array.isArray(headerRow) ? headerRow.map((header) => normalizeFieldValue(header)) : [];
+  const submissionIdIndex = headers.indexOf("submission_id");
+  if (submissionIdIndex < 0) {
+    throw new Error("Tab 'guests' is missing required headers: submission_id");
+  }
+  const guestIndexIndex = headers.indexOf("guest_index");
+  if (guestIndexIndex < 0) {
+    throw new Error("Tab 'guests' is missing required headers: guest_index");
+  }
+
+  const matches = [];
+  for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+    const row = Array.isArray(rows[rowIndex]) ? rows[rowIndex] : [];
+    if (normalizeFieldValue(row[submissionIdIndex]) !== submissionId) continue;
+    matches.push({
+      rowNumber: rowIndex + 2,
+      rowValues: row,
+      guestIndex: normalizeFieldValue(row[guestIndexIndex]),
+    });
+  }
+
+  return {
+    headers,
+    submissionIdIndex,
+    guestIndexIndex,
+    rows: matches,
+  };
+}
+
+async function appendMissingGuestRowsForSubmission(sheets, spreadsheetId, tabHeaders, submissionId, parsedFields, nowIso) {
+  const expectedGuestRows = buildGuestRowsData(tabHeaders, submissionId, nowIso, parsedFields);
+  if (!expectedGuestRows.length) return 0;
+  const guestIndexColumn = tabHeaders.guests.indexOf("guest_index");
+  if (guestIndexColumn < 0) {
+    throw new Error("Tab 'guests' is missing required headers: guest_index");
+  }
+
+  const existingGuestRows = await findGuestRowsBySubmissionId(sheets, spreadsheetId, submissionId);
+  const existingGuestIndexValues = new Set(existingGuestRows.rows.map((row) => normalizeFieldValue(row.guestIndex)));
+  const rowsToAppend = expectedGuestRows.filter((row) => {
+    const guestIndex = normalizeFieldValue(row[guestIndexColumn]);
+    return !existingGuestIndexValues.has(guestIndex);
+  });
+  if (rowsToAppend.length) {
+    await appendRows(sheets, spreadsheetId, "guests", rowsToAppend);
+  }
+  return rowsToAppend.length;
+}
+
 async function updateRsvpRowMediaData(sheets, spreadsheetId, tabHeaders, submissionId, uploadedMedia) {
   const found = await findRsvpRowBySubmissionId(sheets, spreadsheetId, submissionId);
   if (!found) {
@@ -2682,6 +2780,7 @@ async function handleRsvpSubmission(req, res) {
         200,
         JSON.stringify({
           ok: true,
+          request_id: requestId,
           submission_id: requestedSubmissionId,
           uploaded_count: uploadedMedia.length,
         }),
@@ -2694,7 +2793,9 @@ async function handleRsvpSubmission(req, res) {
       return;
     }
 
-    const parsedFields = await ensureSubmissionOriginGeocode(extractRsvpSubmissionFields(fields));
+    const parsedFields = await ensureSubmissionOriginGeocode(extractRsvpSubmissionFields(fields), {
+      timeoutMs: RSVP_SUBMISSION_GEOCODE_TIMEOUT_MS,
+    });
     const submissionId = requestedSubmissionId || randomUUID();
     const nowIso = new Date().toISOString();
     const includeMedia = mode === "full";
@@ -2702,13 +2803,50 @@ async function handleRsvpSubmission(req, res) {
     const requiredGoogleIds = mode === "save_only" ? { spreadsheetId: getRequiredSpreadsheetId(), uploadsFolderId: "" } : getRequiredGoogleIds();
     const spreadsheetId = requiredGoogleIds.spreadsheetId;
     const uploadsFolderId = mode === "full" ? requiredGoogleIds.uploadsFolderId : "";
-    const { sheets, drive, authResolution } = createGoogleClientsForPurpose(GOOGLE_AUTH_PURPOSE.UPLOADS);
+    const authPurpose = mode === "save_only" ? GOOGLE_AUTH_PURPOSE.GUESTBOOK : GOOGLE_AUTH_PURPOSE.UPLOADS;
+    const { sheets, drive, authResolution } = createGoogleClientsForPurpose(authPurpose);
     requestAuthResolution = authResolution;
 
     const saveStartedAt = Date.now();
     console.info(`[rsvp] request_id=${requestId} submission_id=${submissionId} phase=rsvp_save_start mode=${mode}`);
     const tabHeaders = await loadRsvpTabHeaders(sheets, spreadsheetId, { includeMedia });
     const guestRowsData = buildGuestRowsData(tabHeaders, submissionId, nowIso, parsedFields);
+
+    if (mode === "save_only" && requestedSubmissionId) {
+      const existingRsvp = await findRsvpRowBySubmissionId(sheets, spreadsheetId, submissionId);
+      if (existingRsvp) {
+        const repairedGuestRows = await appendMissingGuestRowsForSubmission(
+          sheets,
+          spreadsheetId,
+          tabHeaders,
+          submissionId,
+          parsedFields,
+          nowIso,
+        );
+        console.info(
+          `[rsvp] request_id=${requestId} submission_id=${submissionId} phase=rsvp_save_deduped repaired_guest_rows=${repairedGuestRows}`,
+        );
+        send(
+          res,
+          200,
+          JSON.stringify({
+            ok: true,
+            request_id: requestId,
+            submission_id: submissionId,
+            uploads_pending: expectedMediaCount > 0,
+            deduped: true,
+            repaired_guest_rows: repairedGuestRows,
+          }),
+          MIME_TYPES[".json"],
+          {
+            req,
+            cacheControl: "no-store",
+          },
+        );
+        return;
+      }
+    }
+
     let uploadedMedia = [];
     if (mode === "full" && files.length) {
       uploadedMedia = await uploadMediaFilesToDrive(drive, uploadsFolderId, submissionId, files);
@@ -2736,11 +2874,14 @@ async function handleRsvpSubmission(req, res) {
       mode === "save_only"
         ? {
             ok: true,
+            request_id: requestId,
             submission_id: submissionId,
             uploads_pending: expectedMediaCount > 0,
+            deduped: false,
           }
         : {
             ok: true,
+            request_id: requestId,
             submission_id: submissionId,
             uploaded_count: uploadedMedia.length,
           };
@@ -2772,6 +2913,7 @@ async function handleRsvpSubmission(req, res) {
       safeStatus,
       JSON.stringify({
         ok: false,
+        request_id: requestId,
         error: message,
         errorCode: classifiedUploadError.errorCode,
         code: classifiedUploadError.code,

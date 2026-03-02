@@ -79,13 +79,23 @@ Tab `media`:
 - Writes one row per file to `media`.
 - API response: `{ "ok": true, "submission_id": "<uuid>" }`.
 
+### RSVP reliability notes (March 2026)
+
+- Frontend save uses `save_only` first and now allows up to 95 seconds for cold starts.
+- Save retries are idempotent via client-provided `submissionId` (same ID reused across retries).
+- `POST /api/rsvp` accepts optional `submissionId` for `save_only`.
+- Success and error payloads now include `request_id` for support/debug traces.
+- `save_only` duplicate retries return success with `deduped: true` instead of creating duplicate rows.
+- If a prior write partially succeeded, the server backfills missing guest rows for that `submissionId`.
+
 ### Manual test checklist
 
 1. Submit `yes` with 0 files.
 2. Submit `yes` with 2 files.
 3. Submit `maybe` with `party_size` + `when_will_you_know`.
 4. Submit `no` with message only.
-5. Verify all 3 tabs (`rsvps`, `guests`, `media`) and uploaded files in the Drive target folder.
+5. Simulate a save retry (repeat `save_only` with same `submissionId`) and verify no duplicate RSVP row is created.
+6. Verify all 3 tabs (`rsvps`, `guests`, `media`) and uploaded files in the Drive target folder.
 
 ## Git init and push
 
