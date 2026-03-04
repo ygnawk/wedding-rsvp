@@ -252,12 +252,20 @@ const GUESTBOOK_PINBOARD_DEFAULT_LIMIT = 16;
 const GUESTBOOK_ARCHIVE_DEFAULT_LIMIT = 30;
 const STATIC_BODY_CACHE_MAX_BYTES = 512 * 1024;
 const GOOGLE_API_CALL_TIMEOUT_MS = Math.max(3000, Number.parseInt(process.env.GOOGLE_API_CALL_TIMEOUT_MS || "10000", 10) || 10000);
+const GOOGLE_DRIVE_UPLOAD_CALL_TIMEOUT_MS = Math.max(
+  10000,
+  Number.parseInt(process.env.GOOGLE_DRIVE_UPLOAD_CALL_TIMEOUT_MS || "30000", 10) || 30000,
+);
 const RSVP_SUBMISSION_GEOCODE_TIMEOUT_MS = Math.max(
   300,
   Number.parseInt(process.env.RSVP_SUBMISSION_GEOCODE_TIMEOUT_MS || "1200", 10) || 1200,
 );
-const RSVP_MAX_MEDIA_FILES = 3;
+const RSVP_MAX_MEDIA_FILES = 5;
 const RSVP_MAX_MEDIA_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const RSVP_DRIVE_UPLOAD_CONCURRENCY = Math.max(
+  1,
+  Math.min(4, Number.parseInt(process.env.RSVP_DRIVE_UPLOAD_CONCURRENCY || "2", 10) || 2),
+);
 const DEBUG_RSVP = ["1", "true", "yes", "on"].includes(String(process.env.DEBUG_RSVP || "").toLowerCase());
 const staticBodyCache = new Map();
 const guestbookCache = {
@@ -1989,14 +1997,15 @@ function isRetryableSheetsError(error) {
   );
 }
 
-async function runDriveCall(label, operation) {
+async function runDriveCall(label, operation, options = {}) {
   const startedAt = Date.now();
+  const timeoutMs = Math.max(1000, Number(options && options.timeoutMs) || GOOGLE_API_CALL_TIMEOUT_MS);
   let attempt = 0;
 
   while (attempt < 3) {
     const attemptStartedAt = Date.now();
     try {
-      const response = await withOperationTimeout(label, operation);
+      const response = await withOperationTimeout(label, operation, timeoutMs);
       const elapsed = Date.now() - attemptStartedAt;
       const data = response && response.data ? response.data : null;
       const itemCount = data && Array.isArray(data.files) ? data.files.length : 0;
@@ -2054,14 +2063,15 @@ async function runSheetsCall(label, operation) {
   throw new Error("Sheets request failed after retries");
 }
 
-function withOperationTimeout(label, operation) {
+function withOperationTimeout(label, operation, timeoutMs = GOOGLE_API_CALL_TIMEOUT_MS) {
+  const timeout = Math.max(1000, Number(timeoutMs) || GOOGLE_API_CALL_TIMEOUT_MS);
   return new Promise((resolve, reject) => {
     const timeoutId = setTimeout(() => {
-      const timeoutError = new Error(`${label} timed out after ${GOOGLE_API_CALL_TIMEOUT_MS}ms`);
+      const timeoutError = new Error(`${label} timed out after ${timeout}ms`);
       timeoutError.code = "ETIMEDOUT";
       timeoutError.statusCode = 408;
       reject(timeoutError);
-    }, GOOGLE_API_CALL_TIMEOUT_MS);
+    }, timeout);
 
     Promise.resolve()
       .then(operation)
@@ -2271,6 +2281,27 @@ function getUploadExtension(originalName, mimeType) {
   return "";
 }
 
+async function mapAsyncWithConcurrency(items, concurrency, mapper) {
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) return [];
+  const limit = Math.max(1, Number(concurrency) || 1);
+  const results = new Array(list.length);
+  let cursor = 0;
+
+  async function worker() {
+    while (cursor < list.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await mapper(list[index], index);
+    }
+  }
+
+  const workerCount = Math.min(limit, list.length);
+  const workers = Array.from({ length: workerCount }, () => worker());
+  await Promise.all(workers);
+  return results;
+}
+
 async function uploadMediaFilesToDrive(drive, destinationFolderId, submissionId, files) {
   const sourceFiles = Array.isArray(files) ? files : [];
   const totalBytes = sourceFiles.reduce((sum, file) => sum + Math.max(0, Number(file && file.size ? file.size : 0) || 0), 0);
@@ -2283,73 +2314,79 @@ async function uploadMediaFilesToDrive(drive, destinationFolderId, submissionId,
     t_upload_start: uploadBatchStartedAt,
   });
 
-  const uploadTasks = files.map(async (file, index) => {
-    const fileIndex = index + 1;
-    const mimeType = normalizeFieldValue(file.mimetype) || "application/octet-stream";
-    const originalName = normalizeFieldValue(file.originalFilename) || `upload-${fileIndex}`;
-    const uploadName = `${submissionId}_${fileIndex}${getUploadExtension(originalName, mimeType)}`;
-    const fileBytes = Math.max(0, Number(file && file.size ? file.size : 0) || 0);
-    const fileUploadStartedAt = Date.now();
-    console.info(
-      `[rsvp] submission_id=${submissionId} drive_upload_start file_index=${fileIndex} name=${uploadName} bytes=${fileBytes} t_upload_start=${fileUploadStartedAt}`,
-    );
-    logRsvpServer("drive_upload_start", {
-      submissionId,
-      fileIndex,
-      uploadName,
-      bytes: fileBytes,
-      t_upload_start: fileUploadStartedAt,
-    });
+  const uploaded = (
+    await mapAsyncWithConcurrency(sourceFiles, RSVP_DRIVE_UPLOAD_CONCURRENCY, async (file, index) => {
+      const fileIndex = index + 1;
+      const mimeType = normalizeFieldValue(file.mimetype) || "application/octet-stream";
+      const originalName = normalizeFieldValue(file.originalFilename) || `upload-${fileIndex}`;
+      const uploadName = `${submissionId}_${fileIndex}${getUploadExtension(originalName, mimeType)}`;
+      const fileBytes = Math.max(0, Number(file && file.size ? file.size : 0) || 0);
+      const fileUploadStartedAt = Date.now();
+      console.info(
+        `[rsvp] submission_id=${submissionId} drive_upload_start file_index=${fileIndex} name=${uploadName} bytes=${fileBytes} t_upload_start=${fileUploadStartedAt}`,
+      );
+      logRsvpServer("drive_upload_start", {
+        submissionId,
+        fileIndex,
+        uploadName,
+        bytes: fileBytes,
+        t_upload_start: fileUploadStartedAt,
+      });
 
-    const response = await runDriveCall("files.create(upload)", () =>
-      drive.files.create({
-        supportsAllDrives: true,
-        uploadType: "resumable",
-        requestBody: {
-          name: uploadName,
-          parents: [destinationFolderId],
-          mimeType,
-        },
-        media: {
-          mimeType,
-          body: fs.createReadStream(file.filepath),
-        },
-        fields: "id,name,mimeType",
-      }),
-    );
+      const response = await runDriveCall(
+        "files.create(upload)",
+        () =>
+          drive.files.create({
+            supportsAllDrives: true,
+            uploadType: "resumable",
+            requestBody: {
+              name: uploadName,
+              parents: [destinationFolderId],
+              mimeType,
+            },
+            media: {
+              mimeType,
+              body: fs.createReadStream(file.filepath),
+            },
+            fields: "id,name,mimeType",
+          }),
+        { timeoutMs: GOOGLE_DRIVE_UPLOAD_CALL_TIMEOUT_MS },
+      );
 
-    const fileId = response.data && response.data.id;
-    if (!fileId) {
-      throw new Error(`Failed to upload media file ${uploadName}`);
-    }
-    const fileUploadEndedAt = Date.now();
-    console.info(
-      `[rsvp] submission_id=${submissionId} drive_upload_end file_index=${fileIndex} duration_ms=${
-        fileUploadEndedAt - fileUploadStartedAt
-      } file_id=${fileId} t_upload_end=${fileUploadEndedAt}`,
-    );
-    logRsvpServer("drive_upload_end", {
-      submissionId,
-      fileIndex,
-      uploadName,
-      fileId,
-      bytes: fileBytes,
-      durationMs: fileUploadEndedAt - fileUploadStartedAt,
-      t_upload_end: fileUploadEndedAt,
-    });
+      const fileId = response.data && response.data.id;
+      if (!fileId) {
+        throw new Error(`Failed to upload media file ${uploadName}`);
+      }
+      const fileUploadEndedAt = Date.now();
+      console.info(
+        `[rsvp] submission_id=${submissionId} drive_upload_end file_index=${fileIndex} duration_ms=${
+          fileUploadEndedAt - fileUploadStartedAt
+        } file_id=${fileId} t_upload_end=${fileUploadEndedAt}`,
+      );
+      logRsvpServer("drive_upload_end", {
+        submissionId,
+        fileIndex,
+        uploadName,
+        fileId,
+        bytes: fileBytes,
+        durationMs: fileUploadEndedAt - fileUploadStartedAt,
+        t_upload_end: fileUploadEndedAt,
+      });
 
-    return {
-      fileIndex,
-      fileId,
-      fileName: response.data.name || uploadName,
-      mimeType: response.data.mimeType || mimeType,
-      fileType: deriveFileTypeFromMime(response.data.mimeType || mimeType),
-      driveViewUrl: `https://drive.google.com/file/d/${fileId}/view`,
-    };
+      return {
+        fileIndex,
+        fileId,
+        fileName: response.data.name || uploadName,
+        mimeType: response.data.mimeType || mimeType,
+        fileType: deriveFileTypeFromMime(response.data.mimeType || mimeType),
+        driveViewUrl: `https://drive.google.com/file/d/${fileId}/view`,
+      };
+    })
+  ).sort((a, b) => a.fileIndex - b.fileIndex);
+  await mapAsyncWithConcurrency(uploaded, RSVP_DRIVE_UPLOAD_CONCURRENCY, async (item) => {
+    await makeDriveFilePublic(drive, item.fileId);
+    return item.fileId;
   });
-
-  const uploaded = (await Promise.all(uploadTasks)).sort((a, b) => a.fileIndex - b.fileIndex);
-  await Promise.all(uploaded.map((item) => makeDriveFilePublic(drive, item.fileId)));
   const uploadBatchEndedAt = Date.now();
   console.info(
     `[rsvp] submission_id=${submissionId} drive_upload_batch_end files=${uploaded.length} duration_ms=${
@@ -2410,7 +2447,7 @@ function applyMediaSlotsToRsvpRowData(rowData, rsvpHeaders, uploadedMedia) {
 
   headers.forEach((header) => {
     const normalized = normalizeFieldValue(header).toLowerCase();
-    const match = normalized.match(/^media[\s_-]?([123])(?:[\s_-]?(?:url|link|view))?$/);
+    const match = normalized.match(/^media[\s_-]?(\d+)(?:[\s_-]?(?:url|link|view))?$/);
     if (!match) return;
     const slotIndex = Number.parseInt(match[1], 10) - 1;
     if (!Number.isFinite(slotIndex) || slotIndex < 0 || slotIndex >= RSVP_MAX_MEDIA_FILES) return;

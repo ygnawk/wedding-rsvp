@@ -38,6 +38,10 @@ Current repo includes `server.js`, so use a Node host like Render / Railway / Fl
 3. Confirm rows appear in the correct Google Sheet tabs.
 4. Retry a `save_only` request with the same `submissionId` and confirm only one RSVP row exists (idempotency).
 5. Confirm API responses include `request_id` for both success and error payloads.
+6. Submit `yes` with 5 files and confirm upload succeeds.
+7. Attempt a 6th file and confirm validation blocks it with “up to 5 files”.
+8. If the `rsvps` tab has slot columns, confirm `media4` and `media5` are populated.
+9. Confirm Drive folder quota/headroom is sufficient for increased media volume.
 
 ## Guest Wall auth (Render production)
 If `/guest-wall` is failing with `oauth_invalid`, production auth mode is misconfigured.

@@ -62,6 +62,7 @@ For personal Google Drive uploads (no Shared drives), use OAuth user credentials
 
 Tab `rsvps`:
 - `submission_id, submitted_at, rsvp_status, full_name, email, phone, party_size, when_will_you_know, dietary_restrictions, message_to_couple, primary_fun_facts, media_count, source, approved`
+- Optional media URL slots (if you want direct links on `rsvps`): `media1, media2, media3, media4, media5`
 
 Tab `guests`:
 - `submission_id, guest_index, guest_name, fun_facts, is_primary, created_at`
@@ -74,7 +75,7 @@ Tab `media`:
 - Server generates `submission_id` (UUID) and timestamp.
 - Writes one row to `rsvps`.
 - Always writes a primary row to `guests`; additional `+1` rows are appended when present.
-- Uploads up to 3 files directly into `GOOGLE_DRIVE_UPLOADS_FOLDER_ID`.
+- Uploads up to 5 files directly into `GOOGLE_DRIVE_UPLOADS_FOLDER_ID`.
 - Uploaded file names are normalized as `<submission_id>_<index>.<ext>`.
 - Writes one row per file to `media`.
 - API response: `{ "ok": true, "submission_id": "<uuid>" }`.
@@ -87,15 +88,18 @@ Tab `media`:
 - Success and error payloads now include `request_id` for support/debug traces.
 - `save_only` duplicate retries return success with `deduped: true` instead of creating duplicate rows.
 - If a prior write partially succeeded, the server backfills missing guest rows for that `submissionId`.
+- Media uploads use reliability-first defaults: Drive upload concurrency is capped at 2, and per-upload Drive call timeout defaults to 30s (`GOOGLE_DRIVE_UPLOAD_CALL_TIMEOUT_MS`).
 
 ### Manual test checklist
 
 1. Submit `yes` with 0 files.
-2. Submit `yes` with 2 files.
+2. Submit `yes` with 5 files (10MB each max).
 3. Submit `maybe` with `party_size` + `when_will_you_know`.
 4. Submit `no` with message only.
 5. Simulate a save retry (repeat `save_only` with same `submissionId`) and verify no duplicate RSVP row is created.
 6. Verify all 3 tabs (`rsvps`, `guests`, `media`) and uploaded files in the Drive target folder.
+7. Confirm a 6th file is rejected client-side with “You can upload up to 5 files.”
+8. If `rsvps` includes media slot columns, confirm `media4` and `media5` are populated.
 
 ## Git init and push
 
