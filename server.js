@@ -295,6 +295,7 @@ const arrivalsCache = {
 };
 const citySearchCache = new Map();
 const citySearchRateLimitByIp = new Map();
+const X_ROBOTS_TAG_HEADER_VALUE = "noindex, nofollow, noarchive, nosnippet, noimageindex";
 
 function extractYearPrefix(filename) {
   const match = String(filename || "").match(/(?:^|[^0-9])((?:19|20)\d{2})(?!\d)/);
@@ -305,6 +306,7 @@ function send(res, status, body, contentType = "text/plain; charset=utf-8", opti
   const headers = {
     "Content-Type": contentType,
     "Access-Control-Allow-Origin": "*",
+    "X-Robots-Tag": X_ROBOTS_TAG_HEADER_VALUE,
     ...(options.headers && typeof options.headers === "object" ? options.headers : {}),
   };
 
@@ -459,6 +461,7 @@ function serveStaticFile(req, res, filePath) {
   if (isNotModified(req, etag, stat.mtimeMs)) {
     res.writeHead(304, {
       "Access-Control-Allow-Origin": "*",
+      "X-Robots-Tag": X_ROBOTS_TAG_HEADER_VALUE,
       "Cache-Control": cacheControl,
       ETag: etag,
       "Last-Modified": lastModified,
@@ -495,6 +498,7 @@ function serveStaticFile(req, res, filePath) {
   const headers = {
     "Content-Type": mime,
     "Access-Control-Allow-Origin": "*",
+    "X-Robots-Tag": X_ROBOTS_TAG_HEADER_VALUE,
     "Cache-Control": cacheControl,
     ETag: etag,
     "Last-Modified": lastModified,
