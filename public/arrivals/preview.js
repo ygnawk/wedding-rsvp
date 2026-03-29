@@ -25,7 +25,6 @@ const MAP_PROJECTION = {
   },
 };
 
-const WORLD_GEOJSON_HREF = "/public/arrivals/world.geojson?v=20260219-solari50";
 const WORLD_SVG_FALLBACK_HREF = "/public/arrivals/world.svg?v=20260219-solari50";
 const PLANE_IMAGE_HREF = "/public/arrivals/plane.svg?v=20260219-solari50";
 const BEIJING_ICON_HREF = "/public/arrivals/beijing-icon.png?v=20260219-solari79";
@@ -112,6 +111,13 @@ const reducedMotionMedia =
     : null;
 
 const root = document.getElementById("arrivals-preview-root");
+const arrivalsPerfState = {
+  scriptStartMs:
+    typeof performance !== "undefined" && performance && typeof performance.now === "function" ? performance.now() : Date.now(),
+  firstPayloadLogged: false,
+  boardFirstRenderLogged: false,
+  mapReadyLogged: false,
+};
 let planeAnimationFrameId = 0;
 let boardRotateTimerId = 0;
 let boardResumeTimerId = 0;
@@ -150,7 +156,6 @@ const state = {
   boardDisclaimerToggleNode: null,
   boardDisclaimerPanelNode: null,
   mapGeoBounds: { ...MAP_GEO_BOUNDS_DEFAULT },
-  worldLandPathMarkup: "",
   showProjectionDebug:
     typeof window !== "undefined" &&
     typeof window.location !== "undefined" &&
@@ -193,7 +198,42 @@ const state = {
   beijingDateLabel: "",
   disclaimerOpen: false,
   boardDisclaimerOpen: false,
+  mapEnhancementReady: false,
+  mapEnhancementScheduled: false,
 };
+
+function markArrivalsPerf(name) {
+  if (typeof performance === "undefined" || !performance || typeof performance.mark !== "function") {
+    return;
+  }
+  performance.mark(`arrivals:${name}`);
+}
+
+function measureArrivalsPerf(name, startMark, endMark) {
+  if (typeof performance === "undefined" || !performance || typeof performance.measure !== "function") {
+    return;
+  }
+  try {
+    performance.measure(`arrivals:${name}`, `arrivals:${startMark}`, `arrivals:${endMark}`);
+  } catch (error) {
+    // Ignore missing marks in older or interrupted sessions.
+  }
+}
+
+function logArrivalsPerf(event, detail = {}) {
+  const fields = Object.entries(detail)
+    .filter(([, value]) => value !== undefined && value !== null && value !== "")
+    .map(([key, value]) => `${key}=${value}`)
+    .join(" ");
+  console.info(`[arrivals][perf] ${event}${fields ? ` ${fields}` : ""}`);
+}
+
+function getArrivalsElapsedMs() {
+  const now = typeof performance !== "undefined" && performance && typeof performance.now === "function" ? performance.now() : Date.now();
+  return Math.max(0, Math.round(now - arrivalsPerfState.scriptStartMs));
+}
+
+markArrivalsPerf("script_start");
 
 function escapeHtml(value) {
   return String(value)
@@ -502,184 +542,6 @@ function getProjectionDebugEnabled() {
   }
 
   return new URLSearchParams(window.location.search).get(GEO_DEBUG_PARAM) === "1";
-}
-
-function formatPathRing(points, shiftX = 0) {
-  if (!points || points.length < 3) {
-    return "";
-  }
-
-  const commands = points.map((point, index) => {
-    const x = point.x + shiftX;
-    const y = point.y;
-    return `${index === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
-  });
-  commands.push("Z");
-  return commands.join(" ");
-}
-
-function getPreferredRingShift(ring, contentBox) {
-  if (!ring || !ring.length) {
-    return 0;
-  }
-
-  const ringCenterX = (Math.min(...ring.map((point) => point.x)) + Math.max(...ring.map((point) => point.x))) / 2;
-  const targetCenterX = contentBox.x + contentBox.width / 2;
-  const candidates = [-contentBox.width, 0, contentBox.width];
-
-  let bestShift = 0;
-  let bestDistance = Number.POSITIVE_INFINITY;
-
-  candidates.forEach((shiftX) => {
-    const shiftedCenterX = ringCenterX + shiftX;
-    const distance = Math.abs(shiftedCenterX - targetCenterX);
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      bestShift = shiftX;
-    }
-  });
-
-  return bestShift;
-}
-
-function unwrapRingPoints(points, wrapWidth) {
-  if (!points.length) {
-    return [];
-  }
-
-  const unwrapped = [];
-  let wrapOffset = 0;
-  let previousX = null;
-
-  points.forEach((point) => {
-    let currentX = point.x + wrapOffset;
-    if (previousX != null) {
-      const deltaX = currentX - previousX;
-      if (deltaX > wrapWidth / 2) {
-        wrapOffset -= wrapWidth;
-        currentX = point.x + wrapOffset;
-      } else if (deltaX < -wrapWidth / 2) {
-        wrapOffset += wrapWidth;
-        currentX = point.x + wrapOffset;
-      }
-    }
-
-    unwrapped.push({ x: currentX, y: point.y });
-    previousX = currentX;
-  });
-
-  return unwrapped;
-}
-
-function projectCoordinatesRing(ringCoordinates, contentBox) {
-  if (!Array.isArray(ringCoordinates) || !ringCoordinates.length) {
-    return [];
-  }
-
-  const projected = ringCoordinates
-    .map((coordinate) => {
-      if (!Array.isArray(coordinate) || coordinate.length < 2) {
-        return null;
-      }
-
-      const lon = Number(coordinate[0]);
-      const lat = Number(coordinate[1]);
-      if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
-        return null;
-      }
-
-      return projectGeoPoint({ lat, lon }, contentBox);
-    })
-    .filter(Boolean);
-
-  if (projected.length < 3) {
-    return [];
-  }
-
-  return unwrapRingPoints(projected, contentBox.width);
-}
-
-function buildPolygonPathMarkup(polygonCoordinates, contentBox) {
-  if (!Array.isArray(polygonCoordinates) || !polygonCoordinates.length) {
-    return "";
-  }
-
-  const rings = polygonCoordinates
-    .map((ringCoordinates) => projectCoordinatesRing(ringCoordinates, contentBox))
-    .filter((ring) => ring.length >= 3);
-
-  if (!rings.length) {
-    return "";
-  }
-
-  const ringMarkup = rings
-    .map((ring) => {
-      const shiftX = getPreferredRingShift(ring, contentBox);
-      const minX = Math.min(...ring.map((point) => point.x + shiftX));
-      const maxX = Math.max(...ring.map((point) => point.x + shiftX));
-      if (maxX < contentBox.x - 4 || minX > contentBox.x + contentBox.width + 4) {
-        return "";
-      }
-
-      return formatPathRing(ring, shiftX);
-    })
-    .filter(Boolean)
-    .join(" ");
-
-  return ringMarkup
-    ? [`<path d="${ringMarkup}"></path>`]
-    .filter(Boolean)
-    .join("")
-    : "";
-}
-
-function extractWorldGeoPathMarkup(worldGeoJson) {
-  if (!worldGeoJson || !Array.isArray(worldGeoJson.features)) {
-    return "";
-  }
-
-  const contentBox = getMapContentBox(MAP_VIEWBOX.width, MAP_VIEWBOX.height);
-  const pathMarkup = worldGeoJson.features
-    .map((feature) => {
-      const featureName =
-        feature && feature.properties && typeof feature.properties.name === "string"
-          ? feature.properties.name.trim().toUpperCase()
-          : "";
-      // Antarctica reads like an artifact in this wedding map context; skip it.
-      if (featureName === "ANTARCTICA") {
-        return "";
-      }
-
-      const geometry = feature && feature.geometry ? feature.geometry : null;
-      if (!geometry || !geometry.type || !geometry.coordinates) {
-        return "";
-      }
-
-      if (geometry.type === "Polygon") {
-        return buildPolygonPathMarkup(geometry.coordinates, contentBox);
-      }
-
-      if (geometry.type === "MultiPolygon" && Array.isArray(geometry.coordinates)) {
-        return geometry.coordinates
-          .map((polygonCoordinates) => buildPolygonPathMarkup(polygonCoordinates, contentBox))
-          .join("");
-      }
-
-      return "";
-    })
-    .join("");
-
-  return pathMarkup;
-}
-
-async function fetchWorldGeoPathMarkup() {
-  const response = await fetch(WORLD_GEOJSON_HREF, { cache: "force-cache" });
-  if (!response.ok) {
-    throw new Error(`World GeoJSON returned ${response.status}`);
-  }
-
-  const worldGeoJson = await response.json();
-  return extractWorldGeoPathMarkup(worldGeoJson);
 }
 
 function getMapContentBox(containerWidth, containerHeight) {
@@ -1917,12 +1779,68 @@ function renderMessage(message, isError) {
     `;
 
   root.innerHTML = `
-    <main class="arrivals-preview">
+    <section class="arrivals-preview" aria-label="Arrivals tracker">
       <section class="arrivals-preview__message${isError ? " arrivals-preview__message--error" : ""}">
         ${loadingVisualMarkup}
       </section>
-    </main>
+    </section>
   `;
+}
+
+function scheduleMapEnhancementRender() {
+  if (!state.data || state.mapEnhancementReady || state.mapEnhancementScheduled) {
+    return;
+  }
+
+  state.mapEnhancementScheduled = true;
+  const promote = () => {
+    if (!state.data || state.mapEnhancementReady) {
+      state.mapEnhancementScheduled = false;
+      return;
+    }
+    state.mapEnhancementScheduled = false;
+    state.mapEnhancementReady = true;
+    markArrivalsPerf("map_enhancement_start");
+    logArrivalsPerf("map_enhancement_start", { elapsed_ms: getArrivalsElapsedMs() });
+    render();
+  };
+
+  const schedulePromote = () => {
+    if (typeof window.requestIdleCallback === "function") {
+      window.requestIdleCallback(() => promote(), { timeout: 220 });
+      return;
+    }
+    window.setTimeout(promote, 0);
+  };
+
+  window.requestAnimationFrame(schedulePromote);
+}
+
+function maybeLogBoardFirstRender() {
+  if (arrivalsPerfState.boardFirstRenderLogged || !state.data) {
+    return;
+  }
+  arrivalsPerfState.boardFirstRenderLogged = true;
+  markArrivalsPerf("board_first_render");
+  measureArrivalsPerf("board_first_render", "script_start", "board_first_render");
+  logArrivalsPerf("board_first_render", {
+    elapsed_ms: getArrivalsElapsedMs(),
+    rows: state.flatRows.length,
+    guests: state.flatRows.reduce((sum, row) => sum + row.people, 0),
+  });
+}
+
+function maybeLogMapReady() {
+  if (arrivalsPerfState.mapReadyLogged || !state.mapEnhancementReady || !state.mapSvgNode) {
+    return;
+  }
+  arrivalsPerfState.mapReadyLogged = true;
+  markArrivalsPerf("map_ready");
+  measureArrivalsPerf("map_ready", "script_start", "map_ready");
+  logArrivalsPerf("map_ready", {
+    elapsed_ms: getArrivalsElapsedMs(),
+    routes: state.routes.length,
+  });
 }
 
 function render() {
@@ -1948,6 +1866,7 @@ function render() {
   const gridEdgeMarkup = buildGridEdgeMarkup(mapContentBox);
   const radarNodes = buildRadarNodes(state.data.beijing);
   const mapStatsSummary = buildMapStatsSummary(state.routes);
+  const mapEnhancementReady = state.mapEnhancementReady;
   const changedRouteIds = new Set();
   const zoomHintClass = state.mapHintVisible
     ? "arrivals-map__zoom-hint arrivals-map__zoom-hint--visible"
@@ -1977,22 +1896,20 @@ function render() {
       </clipPath>
     </defs>
   `;
-  const inlineWorldMapMarkup = state.worldLandPathMarkup
-    ? `<g class="arrivals-map__land arrivals-map__land--inline" aria-hidden="true">${state.worldLandPathMarkup}</g>`
-    : `
-      <g class="arrivals-map__land" aria-hidden="true">
-        <image
-          class="arrivals-map__base-image"
-          href="${WORLD_SVG_FALLBACK_HREF}"
-          x="0"
-          y="0"
-          width="100%"
-          height="100%"
-          preserveAspectRatio="xMidYMid meet"
-        />
-      </g>
-    `;
-  const projectionDebugMarkup = state.showProjectionDebug
+  const worldMapMarkup = `
+    <g class="arrivals-map__land" aria-hidden="true">
+      <image
+        class="arrivals-map__base-image"
+        href="${WORLD_SVG_FALLBACK_HREF}"
+        x="0"
+        y="0"
+        width="100%"
+        height="100%"
+        preserveAspectRatio="xMidYMid meet"
+      />
+    </g>
+  `;
+  const projectionDebugMarkup = mapEnhancementReady && state.showProjectionDebug
     ? `
       <g class="arrivals-map__debug-layer" aria-hidden="true">
         ${GEO_DEBUG_POINTS.map((point) => {
@@ -2008,7 +1925,7 @@ function render() {
     `
     : "";
 
-  const mapRenderableRoutes = state.routes.filter((route) => route.plot && !route.isLocal);
+  const mapRenderableRoutes = mapEnhancementReady ? state.routes.filter((route) => route.plot && !route.isLocal) : [];
   const planeRoutes = [];
   const routeMarkup = mapRenderableRoutes
     .map((route) => {
@@ -2087,7 +2004,7 @@ function render() {
     })
     .join("");
 
-  const planesMarkup = state.prefersReducedMotion
+  const planesMarkup = !mapEnhancementReady || state.prefersReducedMotion
     ? ""
     : `
       <g class="arrivals-map__plane-layer" aria-hidden="true" clip-path="url(#arrivals-map-grid-clip)">
@@ -2298,7 +2215,9 @@ function render() {
   }).join("");
 
   const mapPanelMarkup = `
-    <section class="arrivals-map" aria-label="Arrivals world map">
+    <section class="arrivals-map${mapEnhancementReady ? "" : " arrivals-map--staged"}" aria-label="Arrivals world map" data-map-stage="${
+      mapEnhancementReady ? "enhanced" : "base"
+    }">
       <header class="arrivals-map__header">
         <div class="arrivals-map__header-row">
           <div class="arrivals-map__header-copy">
@@ -2341,7 +2260,7 @@ function render() {
           >
             ${mapClipPathMarkup}
             ${geoBoundsRectMarkup}
-            ${inlineWorldMapMarkup}
+            ${worldMapMarkup}
 
             <g class="arrivals-map__grid" aria-hidden="true">
               <g class="arrivals-map__grid arrivals-map__grid--minor">
@@ -2446,7 +2365,7 @@ function render() {
   `;
 
   root.innerHTML = `
-    <main class="arrivals-preview">
+    <section class="arrivals-preview" aria-label="Arrivals tracker">
       <section class="arrivals-page" aria-labelledby="arrivals-page-title">
         <svg class="arrivals-page__motif arrivals-page__motif--top" viewBox="0 0 240 120" aria-hidden="true">
           <path d="M52 22 L58 50 L86 38 L66 58 L88 74 L60 68 L62 96 L52 74 L42 96 L44 68 L16 74 L38 58 L18 38 L46 50 Z"></path>
@@ -2471,7 +2390,7 @@ function render() {
           ${boardPanelMarkup}
         </div>
       </section>
-    </main>
+    </section>
   `;
 
   cacheInteractiveNodes();
@@ -2483,7 +2402,7 @@ function render() {
   }
   updateInteractionVisuals();
 
-  if (state.mapSvgNode) {
+  if (state.mapSvgNode && mapEnhancementReady) {
     startPlaneAnimation(state.mapSvgNode);
   } else {
     stopPlaneAnimation();
@@ -2505,11 +2424,22 @@ function render() {
   scheduleFlapCleanup();
   state.rowFlipSnapshot = null;
 
-  if (!boardRotateTimerId && !state.boardRotationPaused) {
+  window.requestAnimationFrame(() => {
+    maybeLogBoardFirstRender();
+    if (mapEnhancementReady) {
+      maybeLogMapReady();
+    }
+  });
+
+  if (!mapEnhancementReady) {
+    clearBoardRotationTimers();
+    clearBoardIdleFlipTimers();
+    scheduleMapEnhancementRender();
+  } else if (!boardRotateTimerId && !state.boardRotationPaused) {
     scheduleNextBoardRotation();
   }
 
-  if (state.prefersReducedMotion) {
+  if (!mapEnhancementReady || state.prefersReducedMotion) {
     clearBoardIdleFlipTimers();
   } else {
     scheduleBoardIdleFlip();
@@ -3350,8 +3280,11 @@ async function fetchArrivalsPayload(url, label) {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
   let response;
+  const requestStartedAt =
+    typeof performance !== "undefined" && performance && typeof performance.now === "function" ? performance.now() : Date.now();
+  markArrivalsPerf("api_fetch_start");
   try {
-    response = await fetch(url, { cache: "no-store", signal: controller.signal });
+    response = await fetch(url, { cache: "default", signal: controller.signal });
   } catch (error) {
     if (error && error.name === "AbortError") {
       throw new Error(`${label} timed out after ${timeoutMs}ms`);
@@ -3369,6 +3302,21 @@ async function fetchArrivalsPayload(url, label) {
   if (!isValidArrivalsPayload(data)) {
     throw new Error(`${label} returned invalid payload`);
   }
+
+  markArrivalsPerf("api_fetch_end");
+  measureArrivalsPerf("api_fetch_duration", "api_fetch_start", "api_fetch_end");
+  const requestDurationMs = Math.max(
+    0,
+    Math.round(
+      (typeof performance !== "undefined" && performance && typeof performance.now === "function" ? performance.now() : Date.now()) -
+        requestStartedAt,
+    ),
+  );
+  logArrivalsPerf("api_fetch_end", {
+    source: url.includes(ARRIVALS_API_PATH) ? "api" : "mock",
+    duration_ms: requestDurationMs,
+    origins: Array.isArray(data.origins) ? data.origins.length : 0,
+  });
   return data;
 }
 
@@ -3388,11 +3336,16 @@ async function fetchPreviewData() {
 function applyIncomingData(nextData, options = {}) {
   const previousPageRows = options.animateChanges ? getCurrentPageRows() : null;
   const changedRouteIds = options.changedRouteIds instanceof Set ? options.changedRouteIds : new Set();
+  const deferMapEnhancement = Boolean(options.deferMapEnhancement);
 
   state.data = nextData;
   state.origins = nextData.origins.map((origin) => ({ ...origin }));
   state.routes = deriveRoutes(state.origins, nextData.beijing);
   state.routeById = new Map(state.routes.map((route) => [route.routeId, route]));
+  if (deferMapEnhancement) {
+    state.mapEnhancementReady = false;
+    state.mapEnhancementScheduled = false;
+  }
   applyData();
 
   if (changedRouteIds.size > 0) {
@@ -3410,6 +3363,17 @@ function applyIncomingData(nextData, options = {}) {
 
   state.pendingScrollOriginId = options.keepPendingScroll ? state.pendingScrollOriginId : null;
   state.rowFlipSnapshot = options.animateChanges ? previousPageRows : null;
+
+  if (!arrivalsPerfState.firstPayloadLogged) {
+    arrivalsPerfState.firstPayloadLogged = true;
+    markArrivalsPerf("first_payload_received");
+    measureArrivalsPerf("first_payload_received", "script_start", "first_payload_received");
+    logArrivalsPerf("first_payload_received", {
+      elapsed_ms: getArrivalsElapsedMs(),
+      origins: state.origins.length,
+      routes: state.routes.length,
+    });
+  }
 
   render();
 }
@@ -3487,19 +3451,13 @@ async function refreshData() {
 }
 
 async function loadData() {
+  markArrivalsPerf("init_start");
+  logArrivalsPerf("init_start", { elapsed_ms: getArrivalsElapsedMs() });
   renderMessage("Loading arrivals preview…", false);
   state.showProjectionDebug = getProjectionDebugEnabled();
 
-  const [data, worldLandPathMarkup] = await Promise.all([
-    fetchPreviewData(),
-    fetchWorldGeoPathMarkup().catch((error) => {
-      console.warn("[arrivals-preview] world geojson load failed, using image fallback", error);
-      return "";
-    }),
-  ]);
-
-  state.worldLandPathMarkup = worldLandPathMarkup;
-  applyIncomingData(data, { animateChanges: false });
+  const data = await fetchPreviewData();
+  applyIncomingData(data, { animateChanges: false, deferMapEnhancement: true });
   scheduleDataRefresh();
   scheduleBeijingDateTimer();
 }

@@ -154,6 +154,14 @@ const TAB_SCHEMAS = {
 const ARRIVALS_LOCATIONS_PATH = path.join(ROOT, "data", "arrivals-locations.json");
 const COUNTRIES_CATALOG_PATH = path.join(ROOT, "data", "countries.json");
 const ARRIVALS_CACHE_TTL_MS = Math.max(30, Number.parseInt(process.env.ARRIVALS_CACHE_TTL_SECONDS || "60", 10) || 60) * 1000;
+const ARRIVALS_RESPONSE_CACHE_CONTROL = "public, max-age=60, s-maxage=300, stale-while-revalidate=86400";
+const ARRIVALS_SNAPSHOT_SCHEMA_VERSION = 1;
+const ARRIVALS_SNAPSHOT_TAB_NAME = "_system_snapshots";
+const ARRIVALS_SNAPSHOT_HEADERS = Object.freeze(["snapshot_key", "built_at", "payload_json", "row_counts_json"]);
+const ARRIVALS_SNAPSHOT_STALE_REBUILD_MS = Math.max(
+  60_000,
+  Number.parseInt(process.env.ARRIVALS_SNAPSHOT_STALE_REBUILD_SECONDS || "300", 10) || 300,
+) * 1000;
 const CITY_SEARCH_CACHE_TTL_MS = Math.max(300, Number.parseInt(process.env.CITY_SEARCH_CACHE_TTL_SECONDS || "86400", 10) || 86400) * 1000;
 const CITY_SEARCH_RATE_LIMIT_MS = Math.max(150, Number.parseInt(process.env.CITY_SEARCH_RATE_LIMIT_MS || "260", 10) || 260);
 const CITY_SEARCH_MIN_QUERY_LENGTH = 2;
@@ -292,6 +300,10 @@ const arrivalsCache = {
   expiresAt: 0,
   payload: null,
   pending: null,
+  refreshing: null,
+  snapshotBuiltAt: "",
+  lastSource: "none",
+  lastRowCounts: null,
 };
 const citySearchCache = new Map();
 const citySearchRateLimitByIp = new Map();
@@ -2910,6 +2922,7 @@ async function handleRsvpSubmission(req, res) {
         saveEndedAt - saveStartedAt
       }`,
     );
+    queueArrivalsSnapshotRefresh(`rsvp_${mode}_saved`);
 
     const responsePayload =
       mode === "save_only"
@@ -3177,10 +3190,303 @@ function scheduleGuestbookWarmup() {
   return guestbookWarmupPromise;
 }
 
+function parseIsoTimestampMs(value) {
+  const parsed = Date.parse(String(value || ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function hydrateArrivalsMemoryCache(payload, options = {}) {
+  arrivalsCache.payload = payload;
+  arrivalsCache.expiresAt = Date.now() + ARRIVALS_CACHE_TTL_MS;
+  arrivalsCache.snapshotBuiltAt = normalizeFieldValue(options.snapshotBuiltAt);
+  arrivalsCache.lastSource = normalizeFieldValue(options.source) || arrivalsCache.lastSource || "unknown";
+  arrivalsCache.lastRowCounts = options.rowCounts && typeof options.rowCounts === "object" ? { ...options.rowCounts } : null;
+}
+
+function buildArrivalsSnapshotEnvelope(payload, rowCounts) {
+  return {
+    schema_version: ARRIVALS_SNAPSHOT_SCHEMA_VERSION,
+    snapshot_key: "arrivals",
+    built_at: new Date().toISOString(),
+    source: "google_sheets",
+    row_counts: rowCounts && typeof rowCounts === "object" ? rowCounts : {},
+    meta: {
+      origin_count: Array.isArray(payload && payload.origins) ? payload.origins.length : 0,
+      country_count: Array.isArray(payload && payload.byCountry) ? payload.byCountry.length : 0,
+    },
+    data: payload && typeof payload === "object" ? payload : buildArrivalsPayloadFromRsvpRows([]),
+  };
+}
+
+function formatRowCountsForLog(rowCounts) {
+  const entries = Object.entries(rowCounts && typeof rowCounts === "object" ? rowCounts : {}).filter((entry) =>
+    Number.isFinite(Number(entry[1])),
+  );
+  if (!entries.length) return "none";
+  return entries.map(([key, value]) => `${key}:${Number(value)}`).join(",");
+}
+
+function getSheetColumnLabel(columnNumber) {
+  let value = Math.max(1, Number(columnNumber) || 1);
+  let label = "";
+  while (value > 0) {
+    const remainder = (value - 1) % 26;
+    label = String.fromCharCode(65 + remainder) + label;
+    value = Math.floor((value - 1) / 26);
+  }
+  return label;
+}
+
+function buildArrivalsSnapshotRow(envelope) {
+  return [
+    "arrivals",
+    normalizeFieldValue(envelope && envelope.built_at),
+    JSON.stringify((envelope && envelope.data) || buildArrivalsPayloadFromRsvpRows([])),
+    JSON.stringify((envelope && envelope.row_counts) || {}),
+  ];
+}
+
+function parseArrivalsSnapshotEnvelopeFromRow(row) {
+  const snapshotKey = normalizeFieldValue(row && row[0]);
+  if (snapshotKey !== "arrivals") return null;
+
+  const builtAt = normalizeFieldValue(row && row[1]);
+  const payloadJson = normalizeFieldValue(row && row[2]);
+  const rowCountsJson = normalizeFieldValue(row && row[3]);
+  if (!payloadJson) return null;
+
+  const data = JSON.parse(payloadJson);
+  const rowCounts = rowCountsJson ? JSON.parse(rowCountsJson) : {};
+  if (!data || typeof data !== "object") {
+    throw new Error("Arrivals snapshot payload is invalid");
+  }
+
+  return {
+    schema_version: ARRIVALS_SNAPSHOT_SCHEMA_VERSION,
+    snapshot_key: "arrivals",
+    built_at: builtAt,
+    source: "google_sheets",
+    row_counts: rowCounts && typeof rowCounts === "object" ? rowCounts : {},
+    data,
+  };
+}
+
+async function ensureArrivalsSnapshotSheetReady(sheets, spreadsheetId) {
+  const metaResponse = await runSheetsCall("spreadsheets.get(arrivals-snapshot-meta)", () =>
+    sheets.spreadsheets.get({
+      spreadsheetId,
+      fields: "sheets(properties(sheetId,title,hidden))",
+    }),
+  );
+
+  const sheetsList = metaResponse && metaResponse.data && Array.isArray(metaResponse.data.sheets) ? metaResponse.data.sheets : [];
+  const existingSheet = sheetsList.find(
+    (sheet) => normalizeFieldValue(sheet && sheet.properties && sheet.properties.title) === ARRIVALS_SNAPSHOT_TAB_NAME,
+  );
+
+  if (!existingSheet) {
+    try {
+      await runSheetsCall("spreadsheets.batchUpdate(add-arrivals-snapshot-sheet)", () =>
+        sheets.spreadsheets.batchUpdate({
+          spreadsheetId,
+          requestBody: {
+            requests: [
+              {
+                addSheet: {
+                  properties: {
+                    title: ARRIVALS_SNAPSHOT_TAB_NAME,
+                    hidden: true,
+                  },
+                },
+              },
+            ],
+          },
+        }),
+      );
+    } catch (error) {
+      const message = String(error instanceof Error ? error.message : error || "").toLowerCase();
+      if (!message.includes("already exists")) {
+        throw error;
+      }
+    }
+  }
+
+  const lastColumn = getSheetColumnLabel(ARRIVALS_SNAPSHOT_HEADERS.length);
+  await runSheetsCall("values.update(arrivals-snapshot-headers)", () =>
+    sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `${ARRIVALS_SNAPSHOT_TAB_NAME}!A1:${lastColumn}1`,
+      valueInputOption: "RAW",
+      requestBody: {
+        values: [ARRIVALS_SNAPSHOT_HEADERS],
+      },
+    }),
+  );
+}
+
+async function readArrivalsSnapshotEnvelope() {
+  const spreadsheetId = getRequiredSpreadsheetId();
+  const { sheets } = createGoogleClientsForPurpose(GOOGLE_AUTH_PURPOSE.GUESTBOOK);
+  let response;
+  try {
+    response = await runSheetsCall("values.get(arrivals-snapshot)", () =>
+      sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: `${ARRIVALS_SNAPSHOT_TAB_NAME}!A:D`,
+      }),
+    );
+  } catch (error) {
+    const message = String(error instanceof Error ? error.message : error || "").toLowerCase();
+    if (message.includes("unable to parse range") || message.includes("requested entity was not found")) {
+      return { found: false, enabled: true, reason: "missing" };
+    }
+    throw error;
+  }
+
+  const values = Array.isArray(response.data.values) ? response.data.values : [];
+  if (!values.length) {
+    return { found: false, enabled: true, reason: "missing" };
+  }
+
+  for (let index = 1; index < values.length; index += 1) {
+    const envelope = parseArrivalsSnapshotEnvelopeFromRow(values[index]);
+    if (envelope) {
+      return {
+        found: true,
+        enabled: true,
+        envelope,
+      };
+    }
+  }
+
+  return { found: false, enabled: true, reason: "missing" };
+}
+
+async function writeArrivalsSnapshotEnvelope(envelope) {
+  const spreadsheetId = getRequiredSpreadsheetId();
+  const { sheets } = createGoogleClientsForPurpose(GOOGLE_AUTH_PURPOSE.GUESTBOOK);
+  await ensureArrivalsSnapshotSheetReady(sheets, spreadsheetId);
+
+  const response = await runSheetsCall("values.get(arrivals-snapshot-write)", () =>
+    sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: `${ARRIVALS_SNAPSHOT_TAB_NAME}!A:D`,
+    }),
+  );
+
+  const values = Array.isArray(response.data.values) ? response.data.values : [];
+  const row = buildArrivalsSnapshotRow(envelope);
+  const existingIndex = values.findIndex((entry, index) => index > 0 && normalizeFieldValue(entry && entry[0]) === "arrivals");
+
+  if (existingIndex >= 0) {
+    const targetRow = existingIndex + 1;
+    await runSheetsCall("values.update(arrivals-snapshot)", () =>
+      sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: `${ARRIVALS_SNAPSHOT_TAB_NAME}!A${targetRow}:D${targetRow}`,
+        valueInputOption: "RAW",
+        requestBody: {
+          values: [row],
+        },
+      }),
+    );
+    return { written: true, rowNumber: targetRow };
+  }
+
+  await runSheetsCall("values.append(arrivals-snapshot)", () =>
+    sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: `${ARRIVALS_SNAPSHOT_TAB_NAME}!A1`,
+      valueInputOption: "RAW",
+      insertDataOption: "INSERT_ROWS",
+      requestBody: {
+        values: [row],
+      },
+    }),
+  );
+
+  return { written: true, rowNumber: values.length + 1 };
+}
+
+async function rebuildArrivalsPayload(options = {}) {
+  const rebuildStartedAt = Date.now();
+  const reason = normalizeFieldValue(options.reason) || "live_rebuild";
+  const spreadsheetId = getRequiredSpreadsheetId();
+  const { sheets } = createGoogleClientsForPurpose(GOOGLE_AUTH_PURPOSE.GUESTBOOK);
+  const rsvpRows = await getSheetObjects(sheets, spreadsheetId, "rsvps");
+  const rowCounts = { rsvps: rsvpRows.length };
+  const payload = buildArrivalsPayloadFromRsvpRows(rsvpRows);
+  const envelope = buildArrivalsSnapshotEnvelope(payload, rowCounts);
+
+  hydrateArrivalsMemoryCache(payload, {
+    source: "live_rebuild",
+    snapshotBuiltAt: envelope.built_at,
+    rowCounts,
+  });
+
+  try {
+    const writeResult = await writeArrivalsSnapshotEnvelope(envelope);
+    console.info(
+      `[arrivals][snapshot] rebuild_end reason=${reason} duration_ms=${Date.now() - rebuildStartedAt} origins=${
+        Array.isArray(payload.origins) ? payload.origins.length : 0
+      } countries=${Array.isArray(payload.byCountry) ? payload.byCountry.length : 0} row_counts=${formatRowCountsForLog(
+        rowCounts,
+      )} snapshot_written=${writeResult.written}`,
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error || "unknown");
+    console.warn(`[arrivals][snapshot] write_failed reason=${reason} message=${message}`);
+  }
+
+  return {
+    payload,
+    dataSource: "live_rebuild",
+    snapshotBuiltAt: envelope.built_at,
+    snapshotAgeMs: 0,
+    rowCounts,
+    cacheMiss: true,
+    fallback: "none",
+  };
+}
+
+function queueArrivalsSnapshotRefresh(reason) {
+  const normalizedReason = normalizeFieldValue(reason) || "background_refresh";
+  if (arrivalsCache.refreshing) return arrivalsCache.refreshing;
+  if (arrivalsCache.pending) {
+    return arrivalsCache.pending.finally(() => {
+      if (arrivalsCache.refreshing) return arrivalsCache.refreshing;
+      if (arrivalsCache.pending) return null;
+      return queueArrivalsSnapshotRefresh(normalizedReason);
+    });
+  }
+
+  arrivalsCache.refreshing = (async () => {
+    console.info(`[arrivals][snapshot] background_refresh_start reason=${normalizedReason}`);
+    try {
+      await rebuildArrivalsPayload({ reason: normalizedReason });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error || "unknown");
+      console.warn(`[arrivals][snapshot] background_refresh_failed reason=${normalizedReason} message=${message}`);
+    } finally {
+      arrivalsCache.refreshing = null;
+    }
+  })();
+
+  return arrivalsCache.refreshing;
+}
+
 async function loadArrivalsPayload({ forceRefresh = false } = {}) {
   const now = Date.now();
   if (!forceRefresh && arrivalsCache.payload && arrivalsCache.expiresAt > now) {
-    return arrivalsCache.payload;
+    return {
+      payload: arrivalsCache.payload,
+      dataSource: "memory",
+      snapshotBuiltAt: arrivalsCache.snapshotBuiltAt,
+      snapshotAgeMs: arrivalsCache.snapshotBuiltAt ? Math.max(0, now - parseIsoTimestampMs(arrivalsCache.snapshotBuiltAt)) : null,
+      rowCounts: arrivalsCache.lastRowCounts,
+      cacheMiss: false,
+      fallback: "none",
+    };
   }
 
   if (arrivalsCache.pending) {
@@ -3188,16 +3494,63 @@ async function loadArrivalsPayload({ forceRefresh = false } = {}) {
   }
 
   const pending = (async () => {
-    const spreadsheetId = getRequiredSpreadsheetId();
-    const { sheets } = createGoogleClientsForPurpose(GOOGLE_AUTH_PURPOSE.GUESTBOOK);
-    const rsvpRows = await getSheetObjects(sheets, spreadsheetId, "rsvps");
-    const payload = buildArrivalsPayloadFromRsvpRows(rsvpRows);
-    arrivalsCache.payload = payload;
-    arrivalsCache.expiresAt = Date.now() + ARRIVALS_CACHE_TTL_MS;
-    console.info(
-      `[arrivals] refreshed origins=${payload.origins.length} countries=${payload.byCountry.length} ttl_ms=${ARRIVALS_CACHE_TTL_MS}`,
-    );
-    return payload;
+    if (!forceRefresh) {
+      try {
+        const snapshotResult = await readArrivalsSnapshotEnvelope();
+        if (snapshotResult.found) {
+          const envelope = snapshotResult.envelope;
+          const snapshotBuiltAt = normalizeFieldValue(envelope.built_at);
+          const snapshotBuiltAtMs = parseIsoTimestampMs(snapshotBuiltAt);
+          const snapshotAgeMs = snapshotBuiltAtMs > 0 ? Math.max(0, Date.now() - snapshotBuiltAtMs) : null;
+          const rowCounts = envelope.row_counts && typeof envelope.row_counts === "object" ? envelope.row_counts : null;
+
+          hydrateArrivalsMemoryCache(envelope.data, {
+            source: "snapshot",
+            snapshotBuiltAt,
+            rowCounts,
+          });
+
+          if (snapshotAgeMs !== null && snapshotAgeMs > ARRIVALS_SNAPSHOT_STALE_REBUILD_MS) {
+            queueArrivalsSnapshotRefresh("stale_snapshot_read");
+          }
+
+          return {
+            payload: envelope.data,
+            dataSource: "snapshot",
+            snapshotBuiltAt,
+            snapshotAgeMs,
+            rowCounts,
+            cacheMiss: true,
+            fallback: "none",
+          };
+        }
+
+        if (snapshotResult.enabled === false) {
+          console.info(`[arrivals][snapshot] read_skipped reason=${snapshotResult.reason}`);
+        } else if (snapshotResult.reason === "missing") {
+          console.info("[arrivals][snapshot] cache_miss reason=missing");
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error || "unknown");
+        console.warn(`[arrivals][snapshot] read_failed message=${message}`);
+        if (arrivalsCache.payload) {
+          queueArrivalsSnapshotRefresh("snapshot_read_failed");
+          return {
+            payload: arrivalsCache.payload,
+            dataSource: "stale_memory",
+            snapshotBuiltAt: arrivalsCache.snapshotBuiltAt,
+            snapshotAgeMs: arrivalsCache.snapshotBuiltAt
+              ? Math.max(0, Date.now() - parseIsoTimestampMs(arrivalsCache.snapshotBuiltAt))
+              : null,
+            rowCounts: arrivalsCache.lastRowCounts,
+            cacheMiss: true,
+            fallback: "stale_memory",
+          };
+        }
+      }
+    }
+
+    return rebuildArrivalsPayload({ reason: forceRefresh ? "force_refresh" : "snapshot_miss" });
   })();
 
   arrivalsCache.pending = pending;
@@ -3220,15 +3573,34 @@ function shouldForceRefresh(req) {
 
 async function handleArrivalsRequest(req, res) {
   const startedAt = Date.now();
+  const requestId = randomUUID().slice(0, 8);
   const localRequest = isLocalRequest(req);
+  const forceRefresh = shouldForceRefresh(req);
+  console.info(`[arrivals][req] request_id=${requestId} start refresh=${forceRefresh}`);
 
   try {
-    const payload = await loadArrivalsPayload({ forceRefresh: shouldForceRefresh(req) });
-    send(res, 200, JSON.stringify(payload), MIME_TYPES[".json"], {
+    const result = await loadArrivalsPayload({ forceRefresh });
+    const body = JSON.stringify(result.payload);
+    const payloadBytes = Buffer.byteLength(body);
+    const snapshotAgeSeconds =
+      Number.isFinite(Number(result.snapshotAgeMs)) && Number(result.snapshotAgeMs) >= 0
+        ? Math.floor(Number(result.snapshotAgeMs) / 1000)
+        : "";
+    console.info(
+      `[arrivals][req] request_id=${requestId} end status=200 duration_ms=${Date.now() - startedAt} payload_bytes=${payloadBytes} source=${
+        result.dataSource
+      } cache_miss=${Boolean(result.cacheMiss)} fallback=${result.fallback} snapshot_age_ms=${
+        result.snapshotAgeMs === null ? "na" : result.snapshotAgeMs
+      } row_counts=${formatRowCountsForLog(result.rowCounts)}`,
+    );
+    send(res, 200, body, MIME_TYPES[".json"], {
       req,
-      cacheControl: "no-store",
+      cacheControl: ARRIVALS_RESPONSE_CACHE_CONTROL,
       headers: {
         "X-Arrivals-Cache-Expires-At": arrivalsCache.expiresAt ? String(arrivalsCache.expiresAt) : "0",
+        "X-Data-Source": result.dataSource,
+        "X-Snapshot-Built-At": result.snapshotBuiltAt || "",
+        "X-Snapshot-Age-Seconds": snapshotAgeSeconds === "" ? "" : String(snapshotAgeSeconds),
       },
     });
   } catch (error) {
@@ -3244,7 +3616,9 @@ async function handleArrivalsRequest(req, res) {
     if (NODE_ENV === "development" || localRequest) {
       payload.message = message;
     }
-    console.warn(`[arrivals] request_error status=${safeStatus} message=${message}`);
+    console.warn(
+      `[arrivals][req] request_id=${requestId} end status=${safeStatus} duration_ms=${Date.now() - startedAt} error=${message}`,
+    );
     send(res, safeStatus, JSON.stringify(payload), MIME_TYPES[".json"], {
       req,
       cacheControl: "no-store",

@@ -88,8 +88,15 @@ const GUEST_WALL_INITIAL_REQUEST_TIMEOUT_MS = 20000;
 const GUEST_WALL_RETRY_DELAY_MS = 1500;
 const GUEST_WALL_MAX_FETCH_ATTEMPTS = 2;
 const GUEST_WALL_IMAGE_CONCURRENCY = 4;
-const GUEST_WALL_IMAGE_OBSERVER_MARGIN = "240px";
-const GUEST_WALL_IMAGE_STALL_TIMEOUT_MS = 10000;
+const GUEST_WALL_IMAGE_OBSERVER_MARGIN = "120px";
+const GUEST_WALL_BOARD_IMAGE_STALL_TIMEOUT_MS = 3000;
+const GUEST_WALL_DETAIL_IMAGE_STALL_TIMEOUT_MS = 5000;
+const GUEST_WALL_BOARD_IMAGE_MAX_CANDIDATES = 2;
+const GUEST_WALL_DETAIL_IMAGE_MAX_CANDIDATES = 3;
+const GUEST_WALL_BOARD_IMAGE_SIZE_DESKTOP = "w720";
+const GUEST_WALL_BOARD_IMAGE_SIZE_MOBILE = "w480";
+const GUEST_WALL_DETAIL_IMAGE_SIZE = "w1400";
+const GUEST_WALL_VISIBLE_IMAGE_PRIME_MARGIN_PX = 96;
 const GUEST_WALL_SESSION_CACHE_KEY = "guestwall-pinboard-cache-v2";
 const GUEST_WALL_SESSION_CACHE_LEGACY_KEYS = ["guestwall-pinboard-cache-v1"];
 const GUEST_WALL_SESSION_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -505,12 +512,15 @@ let guestWallHasSuccessfulLoad = false;
 let guestWallLoadStartedAt = 0;
 let guestWallFirstResponseLogged = false;
 let guestWallFirstSixRenderLogged = false;
+let guestWallFirstVisibleMediaRenderedLogged = false;
 let guestWallInitialImageExpected = 0;
 let guestWallImageObserver = null;
 let guestWallImageQueue = [];
 let guestWallImageLoadsInFlight = 0;
 let guestWallImageLoadState = new WeakMap();
-let guestWallImageStats = { started: 0, loaded: 0, failed: 0 };
+let guestWallImageStats = { started: 0, loaded: 0, failed: 0, fallbackExhausted: 0 };
+let guestWallPrefetchDeferred = false;
+let guestWallInitialRenderSettled = false;
 let guestWallDeckState = createGuestWallDeckState();
 let guestWallNormalizationDiagnostics = createGuestWallNormalizationDiagnostics();
 let guestWallDevDiagnosticsNode = null;
@@ -7856,7 +7866,7 @@ function normalizeGuestWallLegacyEntry(entry, diagnostics = null) {
       const fileId = String(item.file_id || item.fileId || "").trim();
       const driveViewUrl = String(item.view_url || item.drive_view_url || item.url || "").trim();
       const thumbnailUrl =
-        String(item.thumbnail_url || item.thumbnailUrl || "").trim() || (fileId ? `https://lh3.googleusercontent.com/d/${fileId}=w1600` : "");
+        String(item.thumbnail_url || item.thumbnailUrl || "").trim() || buildGuestWallDriveImageUrl(fileId, getGuestWallBoardImageSize());
 
       if (fileType === "image" && !thumbnailUrl && !driveViewUrl) {
         incrementGuestWallDropReason(diagnostics, "legacy_media_missing_url");
@@ -7956,33 +7966,121 @@ function normalizeGuestWallCardFromApi(item, diagnostics = null) {
   };
 }
 
-function buildGuestWallImageCandidates(mediaItem, size = "w720") {
+function getGuestWallBoardImageSize() {
+  return isMobileViewport() ? GUEST_WALL_BOARD_IMAGE_SIZE_MOBILE : GUEST_WALL_BOARD_IMAGE_SIZE_DESKTOP;
+}
+
+function buildGuestWallDriveImageUrl(fileId, size = "w720") {
+  const normalizedFileId = String(fileId || "").trim();
+  const normalizedSize = String(size || "").trim() || "w720";
+  if (!normalizedFileId) return "";
+  return `https://lh3.googleusercontent.com/d/${normalizedFileId}=${normalizedSize}`;
+}
+
+function normalizeGuestWallHttpsUrl(value) {
+  const url = String(value || "").trim();
+  if (!/^https:\/\//i.test(url)) return "";
+  return url;
+}
+
+function isGuestWallDriveHtmlUrl(url) {
+  return /drive\.google\.com\/file\/d\//i.test(String(url || ""));
+}
+
+function isGuestWallUsableImageUrl(value) {
+  const url = normalizeGuestWallHttpsUrl(value);
+  if (!url) return "";
+  if (isGuestWallDriveHtmlUrl(url)) return "";
+  return url;
+}
+
+function extractGuestWallFileIdFromUrl(url) {
+  const value = String(url || "").trim();
+  if (!value) return "";
+
+  const drivePathMatch = value.match(/\/d\/([^=/?#]+)/i);
+  if (drivePathMatch) {
+    return decodeURIComponent(String(drivePathMatch[1] || "").trim());
+  }
+
+  const idParamMatch = value.match(/[?&]id=([^&#]+)/i);
+  if (idParamMatch) {
+    return decodeURIComponent(String(idParamMatch[1] || "").trim());
+  }
+
+  return "";
+}
+
+function getGuestWallMediaFileId(mediaItem) {
+  if (!mediaItem || typeof mediaItem !== "object") return "";
+  const explicitFileId = String(mediaItem.file_id || mediaItem.fileId || "").trim();
+  if (explicitFileId) return explicitFileId;
+
+  const candidateUrls = [
+    mediaItem.thumbnailUrl,
+    mediaItem.thumbnail_url,
+    mediaItem.driveViewUrl,
+    mediaItem.viewUrl,
+    mediaItem.url,
+  ];
+
+  for (const candidate of candidateUrls) {
+    const extracted = extractGuestWallFileIdFromUrl(candidate);
+    if (extracted) return extracted;
+  }
+
+  return "";
+}
+
+function withGuestWallSizedGoogleUrl(url, size) {
+  const normalizedUrl = normalizeGuestWallHttpsUrl(url);
+  const normalizedSize = String(size || "").trim() || "w720";
+  if (!normalizedUrl || !/googleusercontent\.com/i.test(normalizedUrl)) return "";
+  if (/=[^/?#]+$/i.test(normalizedUrl)) {
+    return normalizedUrl.replace(/=[^/?#]+$/i, `=${normalizedSize}`);
+  }
+  return `${normalizedUrl}=${normalizedSize}`;
+}
+
+function buildGuestWallSizedMediaUrl(mediaItem, size) {
+  if (!mediaItem || typeof mediaItem !== "object") return "";
+  const fileId = getGuestWallMediaFileId(mediaItem);
+  if (fileId) {
+    return buildGuestWallDriveImageUrl(fileId, size);
+  }
+
+  const thumbUrl = normalizeGuestWallHttpsUrl(mediaItem.thumbnailUrl || mediaItem.thumbnail_url || mediaItem.url);
+  return withGuestWallSizedGoogleUrl(thumbUrl, size);
+}
+
+function buildGuestWallImageCandidates(mediaItem, { context = "board" } = {}) {
   if (!mediaItem || typeof mediaItem !== "object") return [];
-  const fileId = String(mediaItem.file_id || mediaItem.fileId || "").trim();
-  const directUrl = String(mediaItem.thumbnailUrl || mediaItem.url || "").trim();
-  const driveThumbnailUrl = String(mediaItem.thumbnail_url || "").trim();
-  const driveViewUrl = String(mediaItem.driveViewUrl || mediaItem.viewUrl || mediaItem.url || "").trim();
+  const safeContext = String(context || "board").toLowerCase() === "detail" ? "detail" : "board";
+  const thumbUrl = isGuestWallUsableImageUrl(mediaItem.thumbnailUrl || mediaItem.thumbnail_url || mediaItem.url);
+  const viewUrl = isGuestWallUsableImageUrl(mediaItem.driveViewUrl || mediaItem.viewUrl || mediaItem.url);
+  const sizedBoardUrl = buildGuestWallSizedMediaUrl(mediaItem, getGuestWallBoardImageSize());
+  const sizedDetailUrl = buildGuestWallSizedMediaUrl(mediaItem, GUEST_WALL_DETAIL_IMAGE_SIZE);
+  const maxCandidates =
+    safeContext === "detail" ? GUEST_WALL_DETAIL_IMAGE_MAX_CANDIDATES : GUEST_WALL_BOARD_IMAGE_MAX_CANDIDATES;
 
   const candidates = [];
   const addCandidate = (value) => {
-    const url = String(value || "").trim();
+    const url = safeContext === "detail" ? normalizeGuestWallHttpsUrl(value) : isGuestWallUsableImageUrl(value);
     if (!url) return;
-    if (!/^https:\/\//i.test(url)) return;
     if (candidates.includes(url)) return;
     candidates.push(url);
   };
 
-  addCandidate(directUrl);
-  addCandidate(driveThumbnailUrl);
-  addCandidate(driveViewUrl);
-  if (fileId) {
-    // Keep a stable, larger-first fallback chain that matches modal reliability.
-    addCandidate(`https://lh3.googleusercontent.com/d/${fileId}=w1600`);
-    addCandidate(`https://lh3.googleusercontent.com/d/${fileId}=w1200`);
-    addCandidate(`https://lh3.googleusercontent.com/d/${fileId}=w800`);
-    addCandidate(`https://lh3.googleusercontent.com/d/${fileId}=${size}`);
+  if (safeContext === "detail") {
+    addCandidate(sizedDetailUrl);
+    addCandidate(thumbUrl);
+    addCandidate(viewUrl);
+  } else {
+    addCandidate(sizedBoardUrl);
+    addCandidate(thumbUrl);
   }
-  return candidates;
+
+  return candidates.slice(0, maxCandidates);
 }
 
 function buildGuestWallCardsFromLegacyEntries(entries) {
@@ -8094,8 +8192,9 @@ function resetGuestWallImagePipeline() {
   guestWallImageQueue = [];
   guestWallImageLoadsInFlight = 0;
   guestWallImageLoadState = new WeakMap();
-  guestWallImageStats = { started: 0, loaded: 0, failed: 0 };
+  guestWallImageStats = { started: 0, loaded: 0, failed: 0, fallbackExhausted: 0 };
   guestWallInitialImageExpected = 0;
+  guestWallFirstVisibleMediaRenderedLogged = false;
 }
 
 function maybeLogGuestWallImageProgress(reason = "progress") {
@@ -8106,8 +8205,56 @@ function maybeLogGuestWallImageProgress(reason = "progress") {
   console.info(
     `[guestwall][images] reason=${reason} started=${guestWallImageStats.started} loaded=${guestWallImageStats.loaded} failed=${guestWallImageStats.failed} resolved=${resolved}${
       target ? `/${target}` : ""
-    } inFlight=${guestWallImageLoadsInFlight} queued=${guestWallImageQueue.length}`,
+    } fallbackExhausted=${guestWallImageStats.fallbackExhausted} inFlight=${guestWallImageLoadsInFlight} queued=${guestWallImageQueue.length}`,
   );
+}
+
+function isGuestWallVisibleCardState(state) {
+  if (!state || typeof state !== "object") return false;
+  const visibleLimit = Math.min(guestWallVisibleCardIds.length, guestWallSlotNodes.length);
+  if (visibleLimit <= 0) return false;
+  for (let index = 0; index < visibleLimit; index += 1) {
+    if (String(guestWallVisibleCardIds[index] || "") !== String(state.cardId || "")) continue;
+    const slotNode = guestWallSlotNodes[index];
+    return isGuestWallNodeNearViewport(slotNode);
+  }
+  return false;
+}
+
+function maybeLogGuestWallFirstVisibleMediaRender(state) {
+  if (!state || state.context !== "board" || guestWallFirstVisibleMediaRenderedLogged) return;
+  if (!isGuestWallVisibleCardState(state)) return;
+  guestWallFirstVisibleMediaRenderedLogged = true;
+  if (!guestWallLoadStartedAt) return;
+  const elapsedMs = Math.round(performance.now() - guestWallLoadStartedAt);
+  console.info(`[guestwall][perf] first_visible_media_rendered_ms=${elapsedMs} card_id=${state.cardId || "unknown"}`);
+}
+
+function maybeStartGuestWallDeferredPrefetch(reason = "ready") {
+  if (!guestWallPrefetchDeferred) return;
+  guestWallPrefetchDeferred = false;
+  console.info(`[guestwall][prefetch] start reason=${reason}`);
+  scheduleGuestWallBufferPrefetch();
+}
+
+function getGuestWallImageStallTimeoutMs(context = "board") {
+  return String(context || "board") === "detail"
+    ? GUEST_WALL_DETAIL_IMAGE_STALL_TIMEOUT_MS
+    : GUEST_WALL_BOARD_IMAGE_STALL_TIMEOUT_MS;
+}
+
+function markGuestWallImageFallbackExhausted(state, reason, attemptedSrc = "") {
+  if (!state || typeof state !== "object" || state.fallbackExhausted) return;
+  state.fallbackExhausted = true;
+  guestWallImageStats.fallbackExhausted += 1;
+  console.warn("[guestwall][image-fallback-exhausted]", {
+    context: state.context || "board",
+    submissionId: state.submissionId || "unknown",
+    cardId: state.cardId || "unknown",
+    attemptedSrc: String(attemptedSrc || "").trim(),
+    reason: String(reason || "unknown"),
+    candidateCount: Array.isArray(state.candidates) ? state.candidates.length : 0,
+  });
 }
 
 function clearGuestWallImageStallTimer(state) {
@@ -8132,8 +8279,13 @@ function finishGuestWallImageLoad(state, outcome = "loaded") {
     guestWallImageStats.failed += 1;
   } else {
     guestWallImageStats.loaded += 1;
+    maybeLogGuestWallFirstVisibleMediaRender(state);
   }
   maybeLogGuestWallImageProgress(outcome);
+  const resolved = guestWallImageStats.loaded + guestWallImageStats.failed;
+  if (guestWallInitialImageExpected > 0 && resolved >= guestWallInitialImageExpected) {
+    maybeStartGuestWallDeferredPrefetch("visible_media_resolved");
+  }
   pumpGuestWallImageQueue();
 }
 
@@ -8160,17 +8312,19 @@ function startGuestWallLazyImage(imgNode, state) {
   state.stallTimerId = window.setTimeout(() => {
     if (!state.loading || state.completed) return;
     const candidatesList = Array.isArray(state.candidates) ? state.candidates : [];
+    const attemptedSrc = candidatesList[state.candidateIndex] || imgNode.currentSrc || imgNode.src || "";
     state.candidateIndex += 1;
     const nextCandidate = String(candidatesList[state.candidateIndex] || "").trim();
     if (nextCandidate) {
       imgNode.src = nextCandidate;
       return;
     }
+    markGuestWallImageFallbackExhausted(state, "stall_timeout", attemptedSrc);
     imgNode.classList.add("is-loading");
     if (state.fallback instanceof HTMLElement) setHiddenClass(state.fallback, false);
     imgNode.removeAttribute("src");
     finishGuestWallImageLoad(state, "failed");
-  }, GUEST_WALL_IMAGE_STALL_TIMEOUT_MS);
+  }, getGuestWallImageStallTimeoutMs(state.context));
 }
 
 function pumpGuestWallImageQueue() {
@@ -8228,6 +8382,7 @@ function resetGuestWallImageNodeForRetry(imgNode, fallbackNode) {
   state.completed = false;
   state.inFlight = false;
   state.queued = false;
+  state.fallbackExhausted = false;
   imgNode.classList.add("is-loading");
   if (fallbackNode instanceof HTMLElement) setHiddenClass(fallbackNode, true);
   if (state.context === "board") {
@@ -8235,9 +8390,6 @@ function resetGuestWallImageNodeForRetry(imgNode, fallbackNode) {
     if (observer) {
       observer.observe(imgNode);
     }
-    // Kick off loading immediately for visible board cards.
-    // IntersectionObserver can occasionally miss initial callbacks for transformed/absolute nodes,
-    // which leaves thumbnails stuck in perpetual placeholder state.
     queueGuestWallLazyImage(imgNode);
     return;
   }
@@ -8266,6 +8418,7 @@ function registerGuestWallLazyImage({ imgNode, fallbackNode, card, candidates, c
     inFlight: false,
     completed: false,
     stallTimerId: 0,
+    fallbackExhausted: false,
   };
   guestWallImageLoadState.set(imgNode, state);
 
@@ -8285,25 +8438,22 @@ function registerGuestWallLazyImage({ imgNode, fallbackNode, card, candidates, c
       imgNode.src = nextCandidate;
       state.stallTimerId = window.setTimeout(() => {
         if (!state.loading || state.completed) return;
+        const stalledSrc = candidatesList[state.candidateIndex] || imgNode.currentSrc || imgNode.src || "";
         state.candidateIndex += 1;
         const fallbackCandidate = String(candidatesList[state.candidateIndex] || "").trim();
         if (fallbackCandidate) {
           imgNode.src = fallbackCandidate;
           return;
         }
+        markGuestWallImageFallbackExhausted(state, "candidate_stall_timeout", stalledSrc);
         imgNode.classList.add("is-loading");
         if (state.fallback instanceof HTMLElement) setHiddenClass(state.fallback, false);
         imgNode.removeAttribute("src");
         finishGuestWallImageLoad(state, "failed");
-      }, GUEST_WALL_IMAGE_STALL_TIMEOUT_MS);
+      }, getGuestWallImageStallTimeoutMs(state.context));
       return;
     }
-    console.error("[guestwall:image-load-failed]", {
-      submissionId: state.submissionId || "unknown",
-      cardId: state.cardId || "unknown",
-      src: attemptedSrc,
-      candidateCount: candidatesList.length,
-    });
+    markGuestWallImageFallbackExhausted(state, "error_exhausted", attemptedSrc);
     imgNode.classList.add("is-loading");
     if (state.fallback instanceof HTMLElement) setHiddenClass(state.fallback, false);
     imgNode.removeAttribute("src");
@@ -8315,19 +8465,50 @@ function registerGuestWallLazyImage({ imgNode, fallbackNode, card, candidates, c
     if (observer) {
       observer.observe(imgNode);
     }
-    queueGuestWallLazyImage(imgNode);
     return;
   }
   startGuestWallLazyImage(imgNode, state);
+}
+
+function isGuestWallNodeNearViewport(node, marginPx = GUEST_WALL_VISIBLE_IMAGE_PRIME_MARGIN_PX) {
+  if (!(node instanceof Element)) return false;
+  const rect = node.getBoundingClientRect();
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+  if (viewportHeight <= 0) return false;
+  return rect.bottom >= -marginPx && rect.top <= viewportHeight + marginPx;
+}
+
+function primeGuestWallVisibleBoardImages() {
+  if (!guestWallSlotNodes.length) return;
+  let primed = 0;
+
+  guestWallSlotNodes.forEach((slotNode) => {
+    if (!(slotNode instanceof HTMLElement)) return;
+    const imgNode = slotNode.querySelector(".guestwall-media-img");
+    if (!(imgNode instanceof HTMLImageElement)) return;
+    if (!isGuestWallNodeNearViewport(slotNode)) return;
+    queueGuestWallLazyImage(imgNode);
+    primed += 1;
+  });
+
+  if (primed > 0) {
+    console.info(`[guestwall][images] primed_visible=${primed}`);
+  }
 }
 
 function markGuestWallInitialImageExpectation() {
   if (guestWallInitialImageExpected > 0) return;
   if (!guestWallVisibleCardIds.length) return;
   const visibleLimit = Math.min(guestWallVisibleCardIds.length, guestWallSlotNodes.length);
-  const mediaVisible = guestWallVisibleCardIds
-    .slice(0, visibleLimit)
-    .filter((id) => guestWallCardById.get(id)?.kind === "media").length;
+  let mediaVisible = 0;
+  for (let index = 0; index < visibleLimit; index += 1) {
+    const slotNode = guestWallSlotNodes[index];
+    if (!isGuestWallNodeNearViewport(slotNode)) continue;
+    const cardId = guestWallVisibleCardIds[index];
+    if (guestWallCardById.get(cardId)?.kind === "media") {
+      mediaVisible += 1;
+    }
+  }
   guestWallInitialImageExpected = mediaVisible;
   if (mediaVisible > 0) {
     console.info(`[guestwall][perf] visible_media_cards=${mediaVisible}`);
@@ -8343,12 +8524,18 @@ function maybeLogGuestWallFirstSixRender() {
   guestWallFirstSixRenderLogged = true;
   const elapsedMs = Math.round(performance.now() - guestWallLoadStartedAt);
   console.info(`[guestwall][perf] first_cards=${target} renderedMs=${elapsedMs}`);
+  guestWallInitialRenderSettled = true;
+  if (guestWallInitialImageExpected === 0) {
+    maybeStartGuestWallDeferredPrefetch("first_screenful_no_media");
+  }
 }
 
 function clearGuestWallBoards() {
   setGuestWallActiveSlot(null);
   if (guestWallPinboard instanceof HTMLElement) guestWallPinboard.innerHTML = "";
   if (guestWallMobile instanceof HTMLElement) guestWallMobile.innerHTML = "";
+  guestWallPrefetchDeferred = false;
+  guestWallInitialRenderSettled = false;
   resetGuestWallImagePipeline();
 }
 
@@ -8477,7 +8664,7 @@ function buildGuestWallMediaNode(card, context = "board") {
     retry.textContent = "Tap to retry";
     fallback.appendChild(retry);
 
-    const imageCandidates = buildGuestWallImageCandidates(card.media, "w1600");
+    const imageCandidates = buildGuestWallImageCandidates(card.media, { context });
     registerGuestWallLazyImage({
       imgNode: img,
       fallbackNode: fallback,
@@ -9181,7 +9368,7 @@ function buildGuestWallDetailMediaNode(card) {
     return fallback;
   }
 
-  const candidates = buildGuestWallImageCandidates(card.media, "w1600");
+  const candidates = buildGuestWallImageCandidates(card.media, { context: "detail" });
   if (!candidates.length) {
     const placeholder = document.createElement("div");
     placeholder.className = "guestwall-media-fallback";
@@ -9189,20 +9376,29 @@ function buildGuestWallDetailMediaNode(card) {
     return placeholder;
   }
 
+  const fallback = document.createElement("div");
+  fallback.className = "guestwall-media-fallback hidden";
+  fallback.innerHTML = "<p>Photo unavailable.</p>";
+  const openUrl = String(card.media.viewUrl || card.media.driveViewUrl || "").trim();
+  if (openUrl) {
+    fallback.appendChild(createExternalAnchor(openUrl, "Open photo in Drive", "guestwall-media-retry"));
+  }
+
   const img = document.createElement("img");
   img.alt = `Uploaded by ${card.name || "Guest"}`;
   img.decoding = "async";
   img.loading = "eager";
-  img.src = candidates[0];
-  img.addEventListener("error", () => {
-    const placeholder = document.createElement("div");
-    placeholder.className = "guestwall-media-fallback";
-    placeholder.innerHTML = "<p>Photo unavailable.</p>";
-    if (img.parentElement instanceof HTMLElement) {
-      img.parentElement.replaceChildren(placeholder);
-    }
+  registerGuestWallLazyImage({
+    imgNode: img,
+    fallbackNode: fallback,
+    card,
+    candidates,
+    context: "detail",
   });
-  return img;
+
+  const wrap = document.createElement("div");
+  wrap.append(img, fallback);
+  return wrap;
 }
 
 function buildGuestWallDetailNoteBlock(card) {
@@ -10524,6 +10720,7 @@ function renderGuestWallDesktop({ reshuffle = false } = {}) {
     guestWallSlotNodes.push(slotNode);
   }
   markGuestWallInitialImageExpectation();
+  primeGuestWallVisibleBoardImages();
   hydrateGuestWallSlotArrangeMetrics();
   syncGuestWallArrangeAvailability();
   setGuestWallArrangeMode(guestWallArrangeMode, { suppressLayoutSync: true });
@@ -10687,6 +10884,7 @@ function renderGuestWallMobile({ reshuffle = false } = {}) {
   nav.append(prevButton, count, nextButton);
   guestWallMobile.appendChild(nav);
   markGuestWallInitialImageExpectation();
+  primeGuestWallVisibleBoardImages();
   hydrateGuestWallSlotArrangeMetrics();
   setGuestWallArrangeMode(false, { suppressLayoutSync: true });
   syncGuestWallArrangeAvailability();
@@ -10956,6 +11154,8 @@ async function applyGuestWallPayload(payload, { fromCache = false } = {}) {
   guestWallPrefetchInFlight = null;
   guestWallHasSuccessfulLoad = true;
   guestWallAutoRetryCount = 0;
+  guestWallPrefetchDeferred = !fromCache;
+  guestWallInitialRenderSettled = false;
   setGuestWallLoadingRetryVisible(false);
 
   if (IS_LOCAL_DEV) {
@@ -10987,11 +11187,11 @@ async function applyGuestWallPayload(payload, { fromCache = false } = {}) {
   });
   syncGuestWallLayout({ reshuffle: true });
   maybeLogGuestWallFirstSixRender();
-  if (!fromCache) scheduleGuestWallBufferPrefetch();
   return cards;
 }
 
 async function maybePrefetchGuestWallBuffer() {
+  if (!guestWallInitialRenderSettled) return;
   if (!guestWallNextCursor || guestWallPrefetchInFlight) return;
   if (!guestWallVisibleCardIds.length) return;
 
@@ -11200,7 +11400,6 @@ async function loadGuestWallPinboard({ refresh = false, force = false, autoRetry
         console.info("[guestwall] items", guestWallCards.length);
       }
       if (!cards.length) return;
-      scheduleGuestWallBufferPrefetch();
       clearGuestWallAutoRetryTimer();
       console.info("[guestwall][state] transition=success reason=fresh_payload");
     } catch (error) {
@@ -14170,46 +14369,50 @@ async function init() {
   initOverflowDebugHelper();
   removeLegacyGalleryLightbox();
   const currentPath = String(window.location.pathname || "").replace(/\/+$/, "") || "/";
+  const isGuestWallRoute = currentPath === "/guest-wall";
   setActiveLink(currentPath === "/guest-wall" ? "guest-wall" : "top");
   initHeader();
-  initHeroCountdown();
-  initSectionObserver();
-  initJumpMenu();
-  initThingsThemes();
-  initThingWebsiteGuardrails();
-  initTravelVisaSection();
-  initHotelMatrix();
-  initMakanSection();
-  initStorySkipLink();
   initReveals();
-  initMosaicHoverInteractions();
   document.body.classList.add("is-app-ready");
-  initScheduleReveal();
-  initRsvpCards();
-  initRsvpForm();
-  initInterludeCurtainReveal();
-  initCutoutParallax();
-  initFaqAccordionGroups();
-  initFaqWearImageDebug();
-
-  inviteState.token = getTokenFromUrl();
-  applyInviteContext();
-
-  void runInitStep("story-mosaic-layout", () => initStoryMosaicLayout());
-  void runInitStep("photo-manifest-gallery", async () => {
-    photoManifest = await loadManifest();
-    applyStaticPhotoManifest();
-    await initGallery();
-  });
   void runInitStep("guest-wall", () => initGuestWall());
-  warmGuestWallRouteInBackground();
-  void runInitStep("invite-token-lookup", () => lookupToken(inviteState.token));
-  void runInitStep("rsvp-api-warmup", () => warmRsvpApiInBackground());
+
+  if (!isGuestWallRoute) {
+    initHeroCountdown();
+    initSectionObserver();
+    initJumpMenu();
+    initThingsThemes();
+    initThingWebsiteGuardrails();
+    initTravelVisaSection();
+    initHotelMatrix();
+    initMakanSection();
+    initStorySkipLink();
+    initMosaicHoverInteractions();
+    initScheduleReveal();
+    initRsvpCards();
+    initRsvpForm();
+    initInterludeCurtainReveal();
+    initCutoutParallax();
+    initFaqAccordionGroups();
+    initFaqWearImageDebug();
+
+    inviteState.token = getTokenFromUrl();
+    applyInviteContext();
+
+    void runInitStep("story-mosaic-layout", () => initStoryMosaicLayout());
+    void runInitStep("photo-manifest-gallery", async () => {
+      photoManifest = await loadManifest();
+      applyStaticPhotoManifest();
+      await initGallery();
+    });
+    warmGuestWallRouteInBackground();
+    void runInitStep("invite-token-lookup", () => lookupToken(inviteState.token));
+    void runInitStep("rsvp-api-warmup", () => warmRsvpApiInBackground());
+  }
 
   const initDurationMs = Math.round(
     (typeof performance !== "undefined" && performance && typeof performance.now === "function" ? performance.now() : Date.now()) - initStartedAt,
   );
-  console.info(`[init] interactive-ready duration_ms=${initDurationMs}`);
+  console.info(`[init] interactive-ready duration_ms=${initDurationMs} route=${isGuestWallRoute ? "guest-wall" : "default"}`);
 }
 
 init();

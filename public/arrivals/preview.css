@@ -18,7 +18,7 @@ body {
 }
 
 #arrivals-preview-root {
-  min-height: 0;
+  min-height: clamp(420px, 68svh, 820px);
 }
 
 .arrivals-preview {
